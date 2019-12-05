@@ -13,7 +13,7 @@ in its present state, owing to inheriting some GLUI build patterns. There is a
 standalone MSVC (Visual Studio) project in the source code.
 
 # background
-https://github.com/zturtleman/mm3d
+https://github.com/zturtleman/mm3d<br>
 Notes: The ZIP files are archived material from the old code that might be able
 to be salvaged. Everything from MM3D is supported except for:
 1) Localization is currently unimplemented in Widgets 95 as it's mid development.
