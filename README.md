@@ -14,3 +14,11 @@ standalone MSVC (Visual Studio) project in the source code.
 
 # background
 https://github.com/zturtleman/mm3d
+Notes: The ZIP files are archived material from the old code that might be able
+to be salvaged. Everything from MM3D is supported except for:
+1) Localization is currently unimplemented in Widgets 95 as it's mid development.
+2) Qt may support more OpenGL targets but desktop should work.
+3) Apple desktops are unimplemented. I can't add this myself.
+4) Only lightly tested on Linux (GCC builds.)
+5) There are a lot of UI upgrades like hotkey bindings for nearly everything and
+many convenience features that I hope will find their way into MM3D applications.
