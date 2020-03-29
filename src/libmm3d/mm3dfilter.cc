@@ -705,7 +705,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 	bool mm3d2020 = !strncmp(fileHeader.magic,MAGIC2020,strlen(MAGIC));
 	if(!mm3d2020)
-	if(!strncmp(fileHeader.magic,MAGIC,strlen(MAGIC))) //MISFIT3D?
+	if(strncmp(fileHeader.magic,MAGIC,strlen(MAGIC))) //MISFIT3D?
 	{
 		log_warning("bad magic number file\n");
 		return Model::ERROR_BAD_MAGIC;
