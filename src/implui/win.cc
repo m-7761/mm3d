@@ -153,8 +153,7 @@ bool Win::basic_special(ui *w, int k, int)
 
 		if(w->subpos()) 
 		glutSetWindow(w->glut_parent_id());
-
-		glutFullScreen(); //UNFINISHED
+		glutFullScreen();
 		break;
 
 	default: return true;	
@@ -266,7 +265,7 @@ static void win_reshape2(Widgets95::ui *ui, int w, int h)
 		glutPositionWindow(x-4,y);
 	}
 }
-static void win_reveal(int i)
+static void win_reveal(int i) //UNUSED
 {
 	//This is just in case ui::seen fails win_reshape.
 	if(auto*ui=Widgets95::e::find_ui_by_window_id(i))	
@@ -295,9 +294,11 @@ void Win::_common_init(bool widget)
 		motion_callback = win_widget_motion;
 		wheel_callback = win_widget_wheel;
 	}
-	else special_callback = &Win::basic_special;
-
-	keyboard_callback = &Win::basic_keyboard;
+	else 
+	{
+		special_callback = &Win::basic_special;
+		keyboard_callback = &Win::basic_keyboard;
+	}
 }
 Win::Win(utf8 title, Widget *widget):ui(&_main_panel)
 {	
@@ -376,8 +377,6 @@ void EditWin::submit(control *c)
 
 		//NOTE: This was calibrated for AnimEditWin.
 		//Assuming relatively short wrapped message.
-		//NOTE: 10 forces wrapping, keeping span to
-		//OK/Cancel size to prevent 1 char per line.
 		msg.title().expand();
 
 		assert(!swap);

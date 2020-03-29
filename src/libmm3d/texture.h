@@ -31,7 +31,7 @@
 class Texture
 {
 	public:
-		enum _Error_e
+		enum ErrorE
 		{
 			ERROR_NONE = 0,
 			ERROR_NO_FILE,
@@ -47,23 +47,20 @@ class Texture
 			ERROR_BAD_ARGUMENT,
 			ERROR_UNKNOWN
 		};
-		typedef enum _Error_e ErrorE;
 
-		enum _Format_e
+		enum FormatE
 		{
 			FORMAT_RGB, //TODO: GL_RGB?
 			FORMAT_RGBA	//TODO: GL_RGBA?
 		};
-		typedef enum _Format_e FormatE;
 
-		struct _CompareResult_t
+		struct CompareResultT
 		{
-			bool	  comparable;
+			bool comparable;
 			unsigned pixelCount;
 			unsigned matchCount;
 			unsigned fuzzyCount;
 		};
-		typedef struct _CompareResult_t CompareResultT;
 
 		Texture(); ~Texture();
 

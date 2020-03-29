@@ -239,8 +239,9 @@ m_overrideWidth(),m_overrideHeight()
 void TextureWidget::setModel(Model *model)
 {
 	m_model = model;
-	m_texture = nullptr;
-	m_materialId = -1; //NEW
+	//m_texture = nullptr;
+	//m_materialId = -1; //NEW
+	setTexture(-1,nullptr);
 	clearCoordinates();
 	//glDisable(GL_TEXTURE_2D); //???
 }
@@ -1383,7 +1384,7 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		GLfloat diffuse[] = { 1,1,1,1 };
 		GLfloat position[] = { 0,0,3,0 };
 		
-		glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,false);
+		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???
 		glLightfv(GL_LIGHT0,GL_AMBIENT,ambient);
 		glLightfv(GL_LIGHT0,GL_DIFFUSE,diffuse);
 		glLightfv(GL_LIGHT0,GL_POSITION,position);

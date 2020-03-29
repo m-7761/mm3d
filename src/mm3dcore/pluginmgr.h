@@ -42,7 +42,7 @@ typedef void *LibHandle;
 class PluginManager
 {
 	public:
-		enum _PluginStatus_e
+		enum PluginStatusE
 		{
 			PluginActive,
 			PluginUserDisabled,
@@ -50,7 +50,6 @@ class PluginManager
 			PluginNotPlugin, //???
 			PluginError
 		};
-		typedef enum _PluginStatus_e PluginStatusE;
 
 		static PluginManager *getInstance();
 		static void release();
@@ -74,7 +73,7 @@ class PluginManager
 		PluginStatusE getPluginStatus(int id);
 
 	protected:
-		struct _PluginData_t
+		struct PluginDataT
 		{
 			public:
 				int  m_id;
@@ -87,9 +86,8 @@ class PluginManager
 				const char *(*m_descFunction)();
 				LibHandle m_fileHandle; //LibHandle (HMODULE)
 		};
-		typedef _PluginData_t PluginDataT;
 
-		typedef std::vector<PluginDataT *> PluginDataList;
+		typedef std::vector<PluginDataT*> PluginDataList;
 
 		int getNextId(){ return m_nextId++; };
 

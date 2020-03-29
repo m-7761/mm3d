@@ -69,11 +69,11 @@ struct BackgroundTool : Tool
 		TRANSLATE("Tool","Scale background image"));
 	}
  
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 	
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,m_op?
 		TRANSLATE("Tool","Background move complete"):
@@ -89,13 +89,13 @@ struct BackgroundTool : Tool
 
 Tool *backgroundtool(){ return new BackgroundTool; }
 
-void BackgroundTool::mouseButtonDown(int buttonState, int x, int y)
+void BackgroundTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 	int index = parent->getView()-1;
 	if((unsigned int)index<Model::MAX_BACKGROUND_IMAGES) //NEW
 	{
-		parent->getXYZ(x,y,&m_x,&m_y,&m_z);
+		parent->getXYZ(&m_x,&m_y,&m_z);
 
 		if(!m_op) //Scaling?
 		{
@@ -118,14 +118,14 @@ void BackgroundTool::mouseButtonDown(int buttonState, int x, int y)
 	if(m_op==1&&index<0) msg = TRANSLATE("Tool","Cannot move background from 3D view");
 	model_status(model,StatusNormal,STATUSTIME_SHORT,msg);
 }
-void BackgroundTool::mouseButtonMove(int buttonState, int x, int y)
+void BackgroundTool::mouseButtonMove()
 {
 	Model *model = parent->getModel();
 	int index = parent->getView()-1;
 	if((unsigned)index<Model::MAX_BACKGROUND_IMAGES) //NEW
 	{
 		double newX,newY,newZ;
-		parent->getXYZ(x,y,&newX,&newY,&newZ);
+		parent->getXYZ(&newX,&newY,&newZ);
 
 		float cenX,cenY,cenZ;
 		model->getBackgroundCenter(index,cenX,cenY,cenZ);

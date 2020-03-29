@@ -37,10 +37,14 @@
 #include "translate.h"
 #include "file_closer.h"
 
-const char	  MisfitFilter::MAGIC[] = "MISFIT3D";
-
-const uint8_t  MisfitFilter::WRITE_VERSION_MAJOR = 0x01;
-const uint8_t  MisfitFilter::WRITE_VERSION_MINOR = 0x07;
+//NOTE: Misfit Model 3D doesn't check the version number
+//but it does check this magic-number. 
+const char MisfitFilter::MAGIC[] = "MISFIT3D";
+//const uint8_t  MisfitFilter::WRITE_VERSION_MAJOR = 0x01; //???
+//const uint8_t  MisfitFilter::WRITE_VERSION_MINOR = 0x7;
+const char MisfitFilter::MAGIC2020[] = "MM3D2020";
+const uint8_t  MisfitFilter::WRITE_VERSION_MAJOR = 0x02;
+const uint8_t  MisfitFilter::WRITE_VERSION_MINOR = 0;
 
 const uint16_t MisfitFilter::OFFSET_TYPE_MASK  = 0x3fff;
 const uint16_t MisfitFilter::OFFSET_UNI_MASK	= 0x8000;
@@ -285,21 +289,20 @@ namespace {
 //			COORD_Z_OFFSET  float32
 // 
 
-typedef struct _MisfitOffset_t
+struct MisfitOffsetT
 {
 	uint16_t offsetType;
 	uint32_t offsetValue;
-} MisfitOffsetT;
-
+};
 typedef std::vector<MisfitOffsetT>  MisfitOffsetList;
 
-typedef enum _MisfitDataTypes_e {
-
+enum MisfitDataTypesE
+{
 	// A Types
 	MDT_Meta,
 	MDT_TypeInfo,
 	MDT_Groups,
-	MDT_EmbTextures,
+	MDT_EmbTextures, //UNIMPLEMENTED //BINARY PLACEHOLDER?
 	MDT_ExtTextures,
 	MDT_Materials,
 	MDT_ProjectionTriangles,
@@ -312,11 +315,11 @@ typedef enum _MisfitDataTypes_e {
 	// B Types
 	MDT_Vertices,
 	MDT_Triangles,
-	MDT_TriangleNormals,
+	MDT_TriangleNormals, //IGNORED
 	MDT_Joints,
 	MDT_JointVertices,
 	MDT_Points,
-	MDT_SmoothAngles,
+	MDT_SmoothAngles, //???
 	MDT_WeightedInfluences,
 	MDT_TexProjections,
 	MDT_TexCoords,
@@ -324,9 +327,9 @@ typedef enum _MisfitDataTypes_e {
 	// End of list
 	MDT_EndOfFile,
 	MDT_MAX
-} MisfitDataTypesE;
+};
 
-typedef enum _MisfitFlags_e
+enum MisfitFlagsE
 {
 	MF_HIDDEN	 = 1, // powers of 2
 	MF_SELECTED  = 2,
@@ -334,20 +337,35 @@ typedef enum _MisfitFlags_e
 
 	// Type-specific flags
 	MF_MAT_CLAMP_S = 16,
-	MF_MAT_CLAMP_T = 32
-} MisfitFlagsE;
+	MF_MAT_CLAMP_T = 32,
 
-typedef enum _MisfitFrameAnimFlags_e
+	MF_POS_SCALE_2020 = 16,
+};
+
+enum MisfitFrameAnimFlagsE
 {
-	MFAF_ANIM_LOOP = 0x0001
-} MisfitFrameAnimFlagsE;
+	MFAF_ANIM_LOOP = 0x0001,
 
-typedef enum _MisfitSkelAnimFlags_e
+	//https://github.com/zturtleman/mm3d/issues/106
+	MFAF_MODE_2020 = 0x1000
+};
+
+enum MisfitSkelAnimFlagsE
 {
-	MSAF_ANIM_LOOP = 0x0001
-} MisfitSkelAnimFlagsE;
+	MSAF_ANIM_LOOP = 0x0001,
 
-static const uint16_t _misfitOffsetTypes[MDT_MAX]  = {
+	//https://github.com/zturtleman/mm3d/issues/106
+	MSAF_MODE_2020 = 0x1000
+};
+
+enum MisfitTextureProjectionFlagsE
+{
+	//https://github.com/zturtleman/mm3d/issues/114
+	MTPF_MODE_2020 = 0x1000
+};
+
+static const uint16_t MisfitOffsetTypes[MDT_MAX] = 
+{
 
 	// Offset A types
 	0x1001,		  // Meta information
@@ -378,7 +396,8 @@ static const uint16_t _misfitOffsetTypes[MDT_MAX]  = {
 	0x3fff,		  // End of file
 };
 
-static const char _misfitOffsetNames[MDT_MAX][30] = {
+static const char MisfitOffsetNames[MDT_MAX][30] = 
+{
 	// Offset A types
 	"Meta information",
 	"Type identity",
@@ -407,85 +426,77 @@ static const char _misfitOffsetNames[MDT_MAX][30] = {
 	"End of file"
 };
 
-
 // File header
-struct _MM3DFILE_Header_t
+struct MM3DFILE_HeaderT
 {
 	char magic[8];
 	uint8_t versionMajor;
 	uint8_t versionMinor;
-	uint8_t modelFlags;
+	uint8_t modelFlags; //UNUSED
 	uint8_t offsetCount;
 };
-typedef struct _MM3DFILE_Header_t MM3DFILE_HeaderT;
 
 // Data header A (Variable data size)
-struct _MM3DFILE_DataHeaderA_t
+struct MM3DFILE_DataHeaderAT
 {
 	uint16_t flags;
 	uint32_t count;
 };
-typedef struct _MM3DFILE_DataHeaderA_t MM3DFILE_DataHeaderAT;
 
 // Data header B (Uniform data size)
-struct _MM3DFILE_DataHeaderB_t
+struct MM3DFILE_DataHeaderBT
 {
 	uint16_t flags;
 	uint32_t count;
 	uint32_t size;
 };
-typedef struct _MM3DFILE_DataHeaderB_t MM3DFILE_DataHeaderBT;
 
-struct _MM3DFILE_Vertex_t
+struct MM3DFILE_VertexT
 {
 	uint16_t  flags;
 	float32_t coord[3];
 };
-typedef struct _MM3DFILE_Vertex_t MM3DFILE_VertexT;
 
 const size_t FILE_VERTEX_SIZE = 14;
 
-struct _MM3DFILE_Triangle_t
+struct MM3DFILE_TriangleT
 {
 	uint16_t  flags;
 	uint32_t  vertex[3];
 };
-typedef struct _MM3DFILE_Triangle_t MM3DFILE_TriangleT;
 
 const size_t FILE_TRIANGLE_SIZE = 14;
 
-struct _MM3DFILE_TriangleNormals_t
+struct MM3DFILE_TriangleNormalsT
 {
 	uint16_t	flags;
 	uint32_t	index;
 	float32_t  normal[3][3];
 };
-typedef struct _MM3DFILE_TriangleNormals_t MM3DFILE_TriangleNormalsT;
 
 const size_t FILE_TRIANGLE_NORMAL_SIZE = 42;
 
-struct _MM3DFILE_Joint_t
+struct MM3DFILE_JointT
 {
 	uint16_t  flags;
 	char		name[40];
 	int32_t	parentIndex;
 	float32_t localRot[3];
 	float32_t localTrans[3];
+	float32_t localScale[3];
 };
-typedef struct _MM3DFILE_Joint_t MM3DFILE_JointT;
 
 const size_t FILE_JOINT_SIZE = 70;
 
-struct _MM3DFILE_JointVertex_t
+struct MM3DFILE_JointVertexT
 {
 	uint32_t  vertexIndex;
 	int32_t	jointIndex;
 };
-typedef struct _MM3DFILE_JointVertex_t MM3DFILE_JointVertexT;
 
 const size_t FILE_JOINT_VERTEX_SIZE = 8;
 
-struct _MM3DFILE_WeightedInfluence_t
+struct MM3DFILE_WeightedInfluenceT
 {
 	uint8_t	posType;
 	uint32_t  posIndex;
@@ -493,176 +504,165 @@ struct _MM3DFILE_WeightedInfluence_t
 	uint8_t	infType;
 	int8_t	 infWeight;
 };
-typedef struct _MM3DFILE_WeightedInfluence_t MM3DFILE_WeightedInfluenceT;
 
 const size_t FILE_WEIGHTED_INFLUENCE_SIZE = 11;
 
-struct _MM3DFILE_Point_t
+struct MM3DFILE_PointT
 {
 	uint16_t  flags;
 	char		name[40];
-	int32_t	type;
+	int32_t	type; //UNUSED
 	int32_t	boneIndex;
 	float32_t rot[3];
 	float32_t trans[3];
+	float32_t scale[3];
 };
-typedef struct _MM3DFILE_Point_t MM3DFILE_PointT;
 
 const size_t FILE_POINT_SIZE = 74;
 
-struct _MM3DFILE_SmoothAngle_t
+struct MM3DFILE_SmoothAngleT
 {
 	uint32_t  groupIndex;
 	uint8_t	angle;
 };
-typedef struct _MM3DFILE_SmoothAngle_t MM3DFILE_SmoothAngleT;
 
 const size_t FILE_SMOOTH_ANGLE_SIZE = 5;
 
-struct _MM3DFILE_CanvasBackground_t
+struct MM3DFILE_CanvasBackgroundT
 {
 	uint16_t  flags;
 	uint8_t	viewIndex;
 	float32_t scale;
 	float32_t center[3];
 };
-typedef struct _MM3DFILE_CanvasBackground_t MM3DFILE_CanvasBackgroundT;
 
 const size_t FILE_CANVAS_BACKGROUND_SIZE = 19;
 
-struct _MM3DFILE_SkelKeyframe_t
+struct MM3DFILE_KeyframeT
 {
-	uint32_t	jointIndex;
+	uint32_t	objectIndex;
+	//0 is Rotate, 1 Translate, 2 Scale
 	uint8_t	 keyframeType;
 	float32_t  param[3];
 };
-typedef struct _MM3DFILE_SkelKeyframe_t MM3DFILE_SkelKeyframeT;
 
-const size_t FILE_SKEL_KEYFRAME_SIZE = 17;
+const size_t FILE_KEYFRAME_SIZE = 17;
 
-struct _MM3DFILE_TexCoord_t
+struct MM3DFILE_TexCoordT
 {
 	uint16_t  flags;
 	uint32_t  triangleIndex;
 	float32_t sCoord[3];
 	float32_t tCoord[3];
 };
-typedef struct _MM3DFILE_TexCoord_t MM3DFILE_TexCoordT;
 
 const size_t FILE_TEXCOORD_SIZE = 30;
 
 const size_t FILE_TEXTURE_PROJECTION_SIZE = 98;
 
-struct _UnknownData_t
+struct UnknownDataT
 {
 	uint16_t offsetType;
 	uint32_t offsetValue;
 	uint32_t dataLen;
 };
 
-typedef struct _UnknownData_t UnknownDataT;
+typedef std::vector<UnknownDataT> UnknownDataList;
 
-typedef std::list<UnknownDataT> UnknownDataList;
-
-static void _addOffset(MisfitDataTypesE type,bool include,MisfitOffsetList &list)
+static void mm3dfilter_addOffset(MisfitDataTypesE type,bool include,MisfitOffsetList &list)
 {
 	if(include)
 	{
 		MisfitOffsetT mo;
-		mo.offsetType = _misfitOffsetTypes[type];
+		mo.offsetType = MisfitOffsetTypes[type];
 		mo.offsetValue = 0;
 		log_debug("adding offset type %04X\n",mo.offsetType);
 		list.push_back(mo);
 	}
 }
 
-static void _setOffset(MisfitDataTypesE type,uint32_t offset,MisfitOffsetList &list)
+static void mm3dfilter_setOffset(MisfitDataTypesE type,uint32_t offset,MisfitOffsetList &list)
 {
 	unsigned count = list.size();
 	for(unsigned n = 0; n<count; n++)
+	if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==MisfitOffsetTypes[type])
 	{
-		if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==_misfitOffsetTypes[type])
-		{
-			list[n].offsetValue = offset;
-			log_debug("updated offset for %04X to %08X\n",list[n].offsetType,list[n].offsetValue);
-			break;
-		}
+		list[n].offsetValue = offset;
+		log_debug("updated offset for %04X to %08X\n",list[n].offsetType,list[n].offsetValue);
+		break;
 	}
 }
 
-static void _setUniformOffset(MisfitDataTypesE type,bool uniform,MisfitOffsetList &list)
+static void mm3dfilter_setUniformOffset(MisfitDataTypesE type,bool uniform,MisfitOffsetList &list)
 {
 	unsigned count = list.size();
 	for(unsigned n = 0; n<count; n++)
+	if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==MisfitOffsetTypes[type])
 	{
-		if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==_misfitOffsetTypes[type])
+		if(uniform)
 		{
-			if(uniform)
-			{
-				log_debug("before uniform: %04X\n",list[n].offsetType);
-				list[n].offsetType |= MisfitFilter::OFFSET_UNI_MASK;
-				log_debug("after uniform: %04X\n",list[n].offsetType);
-			}
-			else
-			{
-				log_debug("before variable: %04X\n",list[n].offsetType);
-				list[n].offsetType &= MisfitFilter::OFFSET_TYPE_MASK;
-				log_debug("after variable: %04X\n",list[n].offsetType);
-			}
-			break;
+			log_debug("before uniform: %04X\n",list[n].offsetType);
+			list[n].offsetType |= MisfitFilter::OFFSET_UNI_MASK;
+			log_debug("after uniform: %04X\n",list[n].offsetType);
 		}
+		else
+		{
+			log_debug("before variable: %04X\n",list[n].offsetType);
+			list[n].offsetType &= MisfitFilter::OFFSET_TYPE_MASK;
+			log_debug("after variable: %04X\n",list[n].offsetType);
+		}
+		break;
 	}
 }
 
-bool _offsetIncluded(MisfitDataTypesE type,MisfitOffsetList &list)
+bool mm3dfilter_offsetIncluded(MisfitDataTypesE type,MisfitOffsetList &list)
 {
 	unsigned count = list.size();
 	for(unsigned n = 0; n<count; n++)
+	if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==MisfitOffsetTypes[type])
 	{
-		if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==_misfitOffsetTypes[type])
-		{
-			return true;
-		}
+		return true;
 	}
 	return false;
 }
 
-unsigned _offsetGet(MisfitDataTypesE type,MisfitOffsetList &list)
+unsigned mm3dfilter_offsetGet(MisfitDataTypesE type,MisfitOffsetList &list)
 {
 	unsigned count = list.size();
 	for(unsigned n = 0; n<count; n++)
+	if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==MisfitOffsetTypes[type])
 	{
-		if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==_misfitOffsetTypes[type])
-		{
-			return list[n].offsetValue;
-		}
+		return list[n].offsetValue;
 	}
 	return 0;
 }
 
-bool _offsetIsVariable(MisfitDataTypesE type,MisfitOffsetList &list)
+bool mm3dfilter_offsetIsVariable(MisfitDataTypesE type,MisfitOffsetList &list)
 {
 	unsigned count = list.size();
 	for(unsigned n = 0; n<count; n++)
+	if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==MisfitOffsetTypes[type])
 	{
-		if((list[n].offsetType &MisfitFilter::OFFSET_TYPE_MASK)==_misfitOffsetTypes[type])
-		{
-			return ((list[n].offsetType &MisfitFilter::OFFSET_UNI_MASK)==0);
-		}
+		return ((list[n].offsetType &MisfitFilter::OFFSET_UNI_MASK)==0);
 	}
 	return false;
 }
 
 }  // namespace
 
-MisfitFilter::MisfitFilter()
+template<int I> struct mm3dfilter_cmp_t //convertAnimToFrame
 {
-}
+	float32_t params[3*I]; int diff;
 
-MisfitFilter::~MisfitFilter()
-{
-}
-
+	float32_t *compare(float32_t(&cmp)[3*I], int &prev, int &curr)
+	{
+		curr = 0;
+		for(int i=0;i<I;i++)
+		if(memcmp(params+i*3,cmp+i*3,sizeof(*cmp)*3)) 
+		curr|=1<<i;
+		prev = curr&~diff; diff = curr; return params;
+	}
+};
 Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filename)
 {
 	if(filename==nullptr||filename[0]=='\0')
@@ -700,16 +700,23 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 	m_src->read(fileHeader.versionMajor);
 	m_src->read(fileHeader.versionMinor);
-	m_src->read(fileHeader.modelFlags);
+	m_src->read(fileHeader.modelFlags); //UNUSED
 	m_src->read(fileHeader.offsetCount);
 
-	if(strncmp(fileHeader.magic,MAGIC,strlen(MAGIC))!=0)
+	bool mm3d2020 = !strncmp(fileHeader.magic,MAGIC2020,strlen(MAGIC));
+	if(!mm3d2020)
+	if(!strncmp(fileHeader.magic,MAGIC,strlen(MAGIC))) //MISFIT3D?
 	{
 		log_warning("bad magic number file\n");
 		return Model::ERROR_BAD_MAGIC;
 	}
 
-	if(fileHeader.versionMajor!=WRITE_VERSION_MAJOR)
+	//if(fileHeader.versionMajor!=WRITE_VERSION_MAJOR) //???
+	if(fileHeader.versionMajor>WRITE_VERSION_MAJOR)
+	{
+		return Model::ERROR_UNSUPPORTED_VERSION;
+	}
+	if(fileHeader.versionMinor>WRITE_VERSION_MINOR) //2020
 	{
 		return Model::ERROR_UNSUPPORTED_VERSION;
 	}
@@ -723,7 +730,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 	log_debug("Offset information:\n");
 
-	unsigned t;
+	unsigned t; //REMOVE ME
 
 	MisfitOffsetList offsetList;
 
@@ -756,9 +763,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		bool found = false;
 		for(unsigned e = 0; !found&&e<MDT_MAX; e++)
 		{
-			if(_misfitOffsetTypes[e]==(mo.offsetType &OFFSET_TYPE_MASK))
+			if(MisfitOffsetTypes[e]==(mo.offsetType &OFFSET_TYPE_MASK))
 			{
-				log_debug("  %08X %s\n",mo.offsetValue,_misfitOffsetNames[e]);
+				log_debug("  %08X %s\n",mo.offsetValue,MisfitOffsetNames[e]);
 				found = true;
 
 				if(e==MDT_EndOfFile)
@@ -793,20 +800,23 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		}
 	}
 
-	std::vector<Model::Vertex *>	&modelVertices  = getVertexList(model);
-	std::vector<Model::Triangle *> &modelTriangles = getTriangleList(model);
-	std::vector<Model::Group *>	 &modelGroups	 = getGroupList(model);
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
-	std::vector<Model::Joint *>	 &modelJoints	 = getJointList(model);
+	auto &modelVertices = model->getVertexList();
+	auto &modelTriangles = model->getTriangleList();
+	auto &modelGroups = model->getGroupList();
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	std::vector<Model::Joint*>	 &modelJoints	 = getJointList(model);
+	std::vector<Model::Point*>	 &modelPoints	 = getPointList(model);
+	//std::vector<Model::SkelAnim*> &modelSkelAnims = getSkelList(model);
+	std::vector<Model::FrameAnim*> &modelFrameAnims = getFrameList(model);
 
 	// Used to track whether indices are valid
 	bool missingElements = false;
 
 	// Meta data
-	if(_offsetIncluded(MDT_Meta,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_Meta,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_Meta,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Meta,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Meta,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Meta,offsetList);
 
 		m_src->seek(offset);
 
@@ -847,10 +857,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	// Vertices
-	if(_offsetIncluded(MDT_Vertices,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_Vertices,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_Vertices,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Vertices,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Vertices,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Vertices,offsetList);
 
 		m_src->seek(offset);
 
@@ -879,27 +889,20 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(fileVert.coord[1]);
 			m_src->read(fileVert.coord[2]);
 
-			Model::Vertex	 *vert = Model::Vertex::get();
-
 			//vert->m_boneId = -1;
-			vert->m_coord[0] = fileVert.coord[0];
-			vert->m_coord[1] = fileVert.coord[1];
-			vert->m_coord[2] = fileVert.coord[2];
-
-			uint16_t vertFlags = fileVert.flags;
-			vert->m_selected = ((vertFlags &MF_SELECTED)==MF_SELECTED);
-			vert->m_visible  = ((vertFlags &MF_HIDDEN)!=MF_HIDDEN);
-			vert->m_free	  = ((vertFlags &MF_VERTFREE)==MF_VERTFREE);
-
-			modelVertices.push_back(vert);
+			model->addVertex(fileVert.coord[0],fileVert.coord[1],fileVert.coord[2]);			
+			if(fileVert.flags&MF_SELECTED) model->selectVertex(v);
+			if(fileVert.flags&MF_HIDDEN) model->hideVertex(v);
+			if(fileVert.flags&MF_VERTFREE) model->setVertexFree(v,true);
 		}
 	}
+	unsigned vcount = modelVertices.size(); //2020
 
 	// Triangles
-	if(_offsetIncluded(MDT_Triangles,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_Triangles,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_Triangles,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Triangles,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Triangles,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Triangles,offsetList);
 
 		m_src->seek(offset);
 
@@ -927,28 +930,20 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(fileTri.vertex[1]);
 			m_src->read(fileTri.vertex[2]);
 
-			Model::Triangle	 *tri = Model::Triangle::get();
-
-			tri->m_vertexIndices[0] = fileTri.vertex[0];
-			tri->m_vertexIndices[1] = fileTri.vertex[1];
-			tri->m_vertexIndices[2] = fileTri.vertex[2];
-			uint16_t triFlags = fileTri.flags;
-			tri->m_selected = ((triFlags &MF_SELECTED)==MF_SELECTED);
-			tri->m_visible  = ((triFlags &MF_HIDDEN)!=MF_HIDDEN);
-			tri->m_projection = -1;
-
-			modelTriangles.push_back(tri);
+			int tri = model->addTriangle(fileTri.vertex[0],fileTri.vertex[1],fileTri.vertex[2]);
+			if(MF_SELECTED&fileTri.flags) model->selectTriangle(tri);
+			if(MF_HIDDEN&fileTri.flags) model->hideTriangle(tri);
 		}
 	}
 
 #if 0
 	// Triangle Normals
-	if(_offsetIncluded(MDT_TriangleNormals,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_TriangleNormals,offsetList))
 	{
 		// Just for debugging... we don't actually use any of this
 
-		bool	  variable = _offsetIsVariable(MDT_TriangleNormals,offsetList);
-		uint32_t offset	= _offsetGet(MDT_TriangleNormals,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_TriangleNormals,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_TriangleNormals,offsetList);
 
 		m_src->seek(offset);
 
@@ -996,73 +991,16 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 #endif // 0
 
+	/*https://github.com/zturtleman/mm3d/issues/130)
 	// Groups
-	if(_offsetIncluded(MDT_Groups,offsetList))
-	{
-		bool	  variable = _offsetIsVariable(MDT_Groups,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Groups,offsetList);
-
-		m_src->seek(offset);
-
-		uint16_t flags = 0;
-		uint32_t count = 0;
-		m_src->read(flags);
-		m_src->read(count);
-
-		uint32_t size = 0;
-		if(!variable)
-		{
-			m_src->read(size);
-		}
-
-		for(unsigned g = 0; g<count; g++)
-		{
-			if(variable)
-			{
-				m_src->read(size);
-			}
-
-			Model::Group	 *grp = Model::Group::get();
-
-			uint16_t flags;
-			uint32_t triCount;
-			uint8_t  smoothness;
-			uint32_t materialIndex;
-			char name[1024];
-
-			m_src->read(flags);
-
-			m_src->readAsciiz(name,sizeof(name));
-			utf8chrtrunc(name,sizeof(name)-1);
-
-			m_src->read(triCount);
-
-			for(unsigned t = 0; t<triCount; t++)
-			{
-				uint32_t triIndex = 0;
-				m_src->read(triIndex);
-				grp->m_triangleIndices.insert(triIndex);
-			}
-
-			m_src->read(smoothness);
-			m_src->read(materialIndex);
-
-			grp->m_name = name;
-			grp->m_smooth = smoothness;
-			grp->m_selected = ((flags &MF_SELECTED)==MF_SELECTED);
-			grp->m_visible  = ((flags &MF_HIDDEN)!=MF_HIDDEN);
-			grp->m_materialIndex = materialIndex;
-
-			modelGroups.push_back(grp);
-		}
-	}
+	if(mm3dfilter_offsetIncluded(MDT_Groups,offsetList))*/
 
 	// External Textures
 	std::vector<std::string>texNames;
-	if(_offsetIncluded(MDT_ExtTextures,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_ExtTextures,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_ExtTextures,offsetList);
-		uint32_t offset	= _offsetGet(MDT_ExtTextures,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_ExtTextures,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_ExtTextures,offsetList);
 
 		m_src->seek(offset);
 
@@ -1085,7 +1023,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(size);
 			}
 
-			uint16_t flags;
+			uint16_t flags; //SHADOWING
 			char filename[PATH_MAX];
 
 			m_src->read(flags);
@@ -1103,10 +1041,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	// Materials
-	if(_offsetIncluded(MDT_Materials,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_Materials,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_Materials,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Materials,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Materials,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Materials,offsetList);
 
 		m_src->seek(offset);
 
@@ -1129,7 +1067,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(size);
 			}
 
-			uint16_t flags = 0;
+			uint16_t flags = 0; //SHADOWING
 			uint32_t texIndex = 0;
 			char name[1024];
 
@@ -1146,39 +1084,39 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			mat->m_name = name;
 			switch (flags &0x0f)
 			{
-				case 0:
-					log_debug("  got external texture %d\n",texIndex);
-					mat->m_type = Model::Material::MATTYPE_TEXTURE;
-					if(texIndex<texNames.size())
-					{
-						mat->m_filename = texNames[texIndex];
-					}
-					else
-					{
-						mat->m_filename = "";
-					}
-					break;
-				case 13:
-					mat->m_type = Model::Material::MATTYPE_COLOR;
+			case 0:
+				log_debug("  got external texture %d\n",texIndex);
+				mat->m_type = Model::Material::MATTYPE_TEXTURE;
+				if(texIndex<texNames.size())
+				{
+					mat->m_filename = texNames[texIndex];
+				}
+				else
+				{
 					mat->m_filename = "";
-					memset(mat->m_color,255,sizeof(mat->m_color));
-					break;
-				case 14:
-					mat->m_type = Model::Material::MATTYPE_GRADIENT;
-					mat->m_filename = "";
-					memset(mat->m_color,255,sizeof(mat->m_color));
-					break;
-				case 15:
-					mat->m_type = Model::Material::MATTYPE_BLANK;
-					mat->m_filename = "";
-					memset(mat->m_color,255,sizeof(mat->m_color));
-					break;
-				default:
-					log_debug("  got unknown material type\n",texIndex);
-					mat->m_type = Model::Material::MATTYPE_BLANK;
-					mat->m_filename = "";
-					memset(mat->m_color,255,sizeof(mat->m_color));
-					break;
+				}
+				break;
+			case 13: //UNUSED
+				mat->m_type = Model::Material::MATTYPE_COLOR;
+				mat->m_filename = "";
+				memset(mat->m_color,255,sizeof(mat->m_color));
+				break;
+			case 14: //UNUSED
+				mat->m_type = Model::Material::MATTYPE_GRADIENT;
+				mat->m_filename = "";
+				memset(mat->m_color,255,sizeof(mat->m_color));
+				break;
+			case 15:
+				mat->m_type = Model::Material::MATTYPE_BLANK;
+				mat->m_filename = "";
+				memset(mat->m_color,255,sizeof(mat->m_color));
+				break;
+			default:
+				log_debug("  got unknown material type\n",texIndex);
+				mat->m_type = Model::Material::MATTYPE_BLANK;
+				mat->m_filename = "";
+				memset(mat->m_color,255,sizeof(mat->m_color));
+				break;
 			}
 
 			mat->m_sClamp = ((flags &MF_MAT_CLAMP_S)!=0);
@@ -1212,12 +1150,111 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			modelMaterials.push_back(mat);
 		}
 	}
+	if(mm3dfilter_offsetIncluded(MDT_Groups,offsetList))
+	{
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Groups,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Groups,offsetList);
+
+		m_src->seek(offset);
+
+		uint16_t flags = 0;
+		uint32_t count = 0;
+		m_src->read(flags);
+		m_src->read(count);
+
+		uint32_t size = 0;
+		if(!variable)
+		{
+			m_src->read(size);
+		}
+
+		for(unsigned g = 0; g<count; g++)
+		{
+			if(variable)
+			{
+				m_src->read(size);
+			}
+			
+			uint16_t flags; //SHADOWING
+			uint32_t triCount;
+			uint8_t  smoothness;
+			uint32_t materialIndex;
+			char name[1024];
+
+			m_src->read(flags);
+
+			m_src->readAsciiz(name,sizeof(name));
+			utf8chrtrunc(name,sizeof(name)-1);
+
+			m_src->read(triCount);
+
+			model->addGroup(name);
+			for(unsigned t=triCount;t-->0;)
+			{
+				uint32_t triIndex;
+				if(m_src->read(triIndex))
+				model->addTriangleToGroup(g,triIndex);			
+			}
+
+			m_src->read(smoothness);
+			m_src->read(materialIndex);
+
+			model->setGroupSmooth(g,smoothness);
+			if(flags&MF_SELECTED) model->selectGroup(g);
+			//if(flags&MF_HIDDEN) model->hideGroup(g); //???
+
+			if(materialIndex>=0)
+			model->setGroupTextureId(g,materialIndex);
+		}
+	}//REMOVE ME
+	// Smooth Angles
+	if(mm3dfilter_offsetIncluded(MDT_SmoothAngles,offsetList))
+	{
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_SmoothAngles,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_SmoothAngles,offsetList);
+
+		m_src->seek(offset);
+
+		uint16_t flags = 0;
+		uint32_t count = 0;
+		m_src->read(flags);
+		m_src->read(count);
+
+		uint32_t size = 0;
+		if(!variable)
+		{
+			m_src->read(size);
+		}
+
+		for(unsigned t = 0; t<count; t++)
+		{
+			if(variable)
+			{
+				m_src->read(size);
+			}
+
+			MM3DFILE_SmoothAngleT fileSa;
+			m_src->read(fileSa.groupIndex);
+			m_src->read(fileSa.angle);
+
+			if(fileSa.angle>180)
+			{
+				fileSa.angle = 180;
+			}
+			if(fileSa.groupIndex<modelGroups.size())
+			{
+				model->setGroupAngle(fileSa.groupIndex,fileSa.angle);
+			}
+		}
+
+		log_debug("read %d group smoothness angles\n",count);
+	}
 
 	// Texture coordinates
-	if(_offsetIncluded(MDT_TexCoords,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_TexCoords,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_TexCoords,offsetList);
-		uint32_t offset	= _offsetGet(MDT_TexCoords,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_TexCoords,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_TexCoords,offsetList);
 
 		m_src->seek(offset);
 
@@ -1249,24 +1286,16 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(tc.tCoord[1]);
 			m_src->read(tc.tCoord[2]);
 
-			uint32_t triIndex = tc.triangleIndex;
-
-			if(triIndex<modelTriangles.size())
-			{
-				for(unsigned v = 0; v<3; v++)
-				{
-					modelTriangles[triIndex]->m_s[v] = tc.sCoord[v];
-					modelTriangles[triIndex]->m_t[v] = tc.tCoord[v];
-				}
-			}
+			for(unsigned v=0;v<3;v++)				
+			model->setTextureCoords(tc.triangleIndex,v,tc.sCoord[v],tc.tCoord[v]);			
 		}
 	}
 
 	// Canvas Background Images
-	if(_offsetIncluded(MDT_CanvasBackgrounds,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_CanvasBackgrounds,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_CanvasBackgrounds,offsetList);
-		uint32_t offset	= _offsetGet(MDT_CanvasBackgrounds,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_CanvasBackgrounds,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_CanvasBackgrounds,offsetList);
 
 		m_src->seek(offset);
 
@@ -1313,10 +1342,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	// Joints
-	if(_offsetIncluded(MDT_Joints,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_Joints,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_Joints,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Joints,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Joints,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Joints,offsetList);
 
 		m_src->seek(offset);
 
@@ -1341,6 +1370,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			MM3DFILE_JointT fileJoint;
 			m_src->read(fileJoint.flags);
+			int jointFlags = fileJoint.flags;
 			m_src->readBytes(fileJoint.name,sizeof(fileJoint.name));
 			m_src->read(fileJoint.parentIndex);
 			m_src->read(fileJoint.localRot[0]);
@@ -1349,6 +1379,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(fileJoint.localTrans[0]);
 			m_src->read(fileJoint.localTrans[1]);
 			m_src->read(fileJoint.localTrans[2]);
+			if(jointFlags&MF_POS_SCALE_2020)
+			{
+				m_src->read(fileJoint.localScale[0]);
+				m_src->read(fileJoint.localScale[1]);
+				m_src->read(fileJoint.localScale[2]);
+			}
 
 			Model::Joint	 *joint = Model::Joint::get();
 
@@ -1358,12 +1394,15 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			joint->m_parent = fileJoint.parentIndex;
 			for(unsigned i = 0; i<3; i++)
 			{
-				joint->m_localRotation[i]	 = fileJoint.localRot[i];
-				joint->m_localTranslation[i] = fileJoint.localTrans[i];
-			}
-			uint16_t jointFlags = fileJoint.flags;
-			joint->m_selected = ((jointFlags &MF_SELECTED)==MF_SELECTED);
-			joint->m_visible  = ((jointFlags &MF_HIDDEN)!=MF_HIDDEN);
+				joint->m_rot[i] = fileJoint.localRot[i];
+				joint->m_rel[i] = fileJoint.localTrans[i];
+				if(jointFlags&MF_POS_SCALE_2020)
+				joint->m_xyz[i] = fileJoint.localScale[i];
+			}			
+			if(jointFlags&MF_SELECTED)
+			joint->m_selected = true;
+			if(jointFlags&MF_HIDDEN)
+			joint->m_visible  = false;
 
 			modelJoints.push_back(joint);
 		}
@@ -1376,10 +1415,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Newer versions of the file format use MDT_WeightedInfluences instead.
 	// We still want to read this data to use as a default in case the
 	// weighted influences are not present.
-	if(_offsetIncluded(MDT_JointVertices,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_JointVertices,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_JointVertices,offsetList);
-		uint32_t offset	= _offsetGet(MDT_JointVertices,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_JointVertices,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_JointVertices,offsetList);
 
 		m_src->seek(offset);
 
@@ -1406,7 +1445,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(vertexIndex);
 			m_src->read(jointIndex);
 
-			if(vertexIndex<modelVertices.size()&&(unsigned)jointIndex<modelJoints.size())
+			if(vertexIndex<vcount&&(unsigned)jointIndex<modelJoints.size())
 			{
 				//modelVertices[vertexIndex]->m_boneId = jointIndex;
 				model->addVertexInfluence(vertexIndex,jointIndex,Model::IT_Custom,1.0);
@@ -1422,10 +1461,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	// Points
-	if(_offsetIncluded(MDT_Points,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_Points,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_Points,offsetList);
-		uint32_t offset	= _offsetGet(MDT_Points,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Points,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_Points,offsetList);
 
 		m_src->seek(offset);
 
@@ -1450,8 +1489,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			MM3DFILE_PointT filePoint;
 			m_src->read(filePoint.flags);
+			int pointFlags = filePoint.flags;
 			m_src->readBytes(filePoint.name,sizeof(filePoint.name));
-			m_src->read(filePoint.type);
+			m_src->read(filePoint.type); //UNUSED
 			m_src->read(filePoint.boneIndex);
 			m_src->read(filePoint.rot[0]);
 			m_src->read(filePoint.rot[1]);
@@ -1459,6 +1499,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(filePoint.trans[0]);
 			m_src->read(filePoint.trans[1]);
 			m_src->read(filePoint.trans[2]);
+			if(pointFlags&MF_POS_SCALE_2020)
+			{
+				m_src->read(filePoint.scale[0]);
+				m_src->read(filePoint.scale[1]);
+				m_src->read(filePoint.scale[2]);
+			}
 
 			filePoint.name[sizeof(filePoint.name)-1] = '\0';
 
@@ -1470,22 +1516,29 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				trans[i] = filePoint.trans[i];
 			}
 
-			int boneIndex = filePoint.boneIndex;
+			//2020: addPoint ignored this parameter so
+			//I removed it.
+			//int boneIndex = filePoint.boneIndex;
 
 			int p = model->addPoint(filePoint.name,
 					trans[0],trans[1],trans[2],
-					rot[0],rot[1],rot[2],
-					boneIndex);
+					rot[0],rot[1],rot[2]/*,boneIndex*/);
 
-			int type = filePoint.type;
-			model->setPointType(p,type);
+			if(pointFlags&MF_POS_SCALE_2020)
+			{
+				double s[3];
+				for(int i=3;i-->0;)
+				s[i] = filePoint.scale[i];
+				model->getPointScale(p,s);
+			}
 
-			uint16_t pointFlags = filePoint.flags;
-			if((pointFlags &MF_SELECTED)==MF_SELECTED)
+			//model->setPointType(p,filePoint.type); //UNUSED
+						
+			if(pointFlags&MF_SELECTED)
 			{
 				model->selectPoint(p);
 			}
-			if((pointFlags &MF_HIDDEN)==MF_HIDDEN)
+			if(pointFlags&MF_HIDDEN)
 			{
 				model->hidePoint(p);
 			}
@@ -1493,55 +1546,13 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		log_debug("read %d points\n");
 	}
-
-	// Smooth Angles
-	if(_offsetIncluded(MDT_SmoothAngles,offsetList))
-	{
-		bool	  variable = _offsetIsVariable(MDT_SmoothAngles,offsetList);
-		uint32_t offset	= _offsetGet(MDT_SmoothAngles,offsetList);
-
-		m_src->seek(offset);
-
-		uint16_t flags = 0;
-		uint32_t count = 0;
-		m_src->read(flags);
-		m_src->read(count);
-
-		uint32_t size = 0;
-		if(!variable)
-		{
-			m_src->read(size);
-		}
-
-		for(unsigned t = 0; t<count; t++)
-		{
-			if(variable)
-			{
-				m_src->read(size);
-			}
-
-			MM3DFILE_SmoothAngleT fileSa;
-			m_src->read(fileSa.groupIndex);
-			m_src->read(fileSa.angle);
-
-			if(fileSa.angle>180)
-			{
-				fileSa.angle = 180;
-			}
-			if(fileSa.groupIndex<modelGroups.size())
-			{
-				model->setGroupAngle(fileSa.groupIndex,fileSa.angle);
-			}
-		}
-
-		log_debug("read %d group smoothness angles\n",count);
-	}
+	unsigned pcount = modelPoints.size(); //2020	
 
 	// Weighted influences
-	if(_offsetIncluded(MDT_WeightedInfluences,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_WeightedInfluences,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_WeightedInfluences,offsetList);
-		uint32_t offset	= _offsetGet(MDT_WeightedInfluences,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_WeightedInfluences,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_WeightedInfluences,offsetList);
 
 		m_src->seek(offset);
 
@@ -1556,13 +1567,13 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		unsigned vcount = model->getVertexCount();
+		//unsigned vcount = model->getVertexCount();
 		for(unsigned v = 0; v<vcount; v++)
 		{
 			model->removeAllVertexInfluences(v);
 		}
 
-		unsigned pcount = model->getVertexCount();
+		//unsigned pcount = model->getVertexCount(); //BUG
 		for(unsigned p = 0; p<pcount; p++)
 		{
 			model->removeAllPointInfluences(p);
@@ -1614,10 +1625,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	// Texture Projections
-	if(_offsetIncluded(MDT_TexProjections,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_TexProjections,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_TexProjections,offsetList);
-		uint32_t offset	= _offsetGet(MDT_TexProjections,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_TexProjections,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_TexProjections,offsetList);
 
 		m_src->seek(offset);
 
@@ -1640,7 +1651,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(size);
 			}
 
-			uint16_t flags = 0;
+			uint16_t flags = 0; //SHADOWING
 			m_src->read(flags);
 
 			char nameBytes[40];
@@ -1651,7 +1662,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			int32_t type = 0;
 			m_src->read(type);
 
-			double vec[3];
+			double seam[3],up[3];
 			float  fvec[3];
 
 			unsigned i = 0;
@@ -1660,29 +1671,53 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			for(unsigned i = 0; i<3; i++)
 			{
 				m_src->read(fvec[i]);
-				vec[i] = fvec[i];
+				seam[i] = fvec[i];
 			}
 
-			int proj = model->addProjection(name.c_str(),type,
-					vec[0],vec[1],vec[2]);
+			unsigned proj = model->addProjection
+			(name.c_str(),type,seam[0],seam[1],seam[2]);
 
-			// up vector
+			// up vector (or scale if newer file)
 			for(unsigned i = 0; i<3; i++)
 			{
 				m_src->read(fvec[i]);
-				vec[i] = fvec[i];
+				up[i] = fvec[i];
 			}
 
-			model->setProjectionUp(proj,vec);
+			if(flags&MTPF_MODE_2020) 
+			{				
+				//HACK: Go ahead and set all three values.
+				//model->setProjectionScale(proj,up[0]);
+				model->setPositionScale({Model::PT_Projection,proj},up);				
+			}
+			else
+			{
+				//model->setProjectionUp(proj,up);
+				model->setProjectionScale(proj,mag3(up));
+			}
 
-			// seam vector
+			// seam vector (or rotation if newer file)
 			for(unsigned i = 0; i<3; i++)
 			{
 				m_src->read(fvec[i]);
-				vec[i] = fvec[i];
+				seam[i] = fvec[i];
 			}
 
-			model->setProjectionSeam(proj,vec);
+			if(~flags&MTPF_MODE_2020) //Older file?
+			{
+				//model->setProjectionSeam(proj,seam);
+				//NOTE: The "seam" is reversed here
+				//so it matches the viewport matrix.				
+				//NOTE: The "seam" isn't normalized.
+				normalize3(seam);
+				normalize3(up);
+				double m[4][4] = 
+				{{1,0,0,0},{up[0],up[1],up[2]},
+				{-seam[0],-seam[1],-seam[2]},{0,0,0,1}};
+				calculate_normal(m[0],m[3],m[1],m[2]);
+				((Matrix*)m)->getRotation(seam);
+			}
+			model->setProjectionRotation(proj,seam);
 
 			double uv[2][2];
 			float  fuv[2][2];
@@ -1697,18 +1732,17 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				}
 			}
 
-			model->setProjectionRange(proj,
-					uv[0][0],uv[0][1],uv[1][0],uv[1][1]);
+			model->setProjectionRange(proj,uv[0][0],uv[0][1],uv[1][0],uv[1][1]);
 		}
 
 		log_debug("read %d projections\n");
 	}
 
 	// Texture Projection Triangles (have to read this after projections)
-	if(_offsetIncluded(MDT_ProjectionTriangles,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_ProjectionTriangles,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_ProjectionTriangles,offsetList);
-		uint32_t offset	= _offsetGet(MDT_ProjectionTriangles,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_ProjectionTriangles,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_ProjectionTriangles,offsetList);
 
 		m_src->seek(offset);
 
@@ -1748,10 +1782,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	// Skeletal Animations
-	if(_offsetIncluded(MDT_SkelAnims,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_SkelAnims,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_SkelAnims,offsetList);
-		uint32_t offset	= _offsetGet(MDT_SkelAnims,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_SkelAnims,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_SkelAnims,offsetList);
 
 		m_src->seek(offset);
 
@@ -1766,20 +1800,24 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		for(unsigned s = 0; s<count; s++)
+		std::vector<bool> sparse;
+		for(unsigned a = 0; a<count; a++)
 		{
-			log_debug("reading skel anim %d/%d\n",s,count);
+			log_debug("reading skel anim %d/%d\n",a,count);
 			if(variable)
 			{
 				m_src->read(size);
 			}
 
-			uint16_t  flags;
-			char		name[1024];
+			uint16_t flags; //SHADOWING
+			char name[1024];
 			float32_t fps;
-			uint32_t  frameCount;
+			uint32_t frameCount;
 
 			m_src->read(flags);
+		  
+			//https://github.com/zturtleman/mm3d/issues/106
+			bool y2020 = 0!=(flags&MSAF_MODE_2020);
 
 			m_src->readAsciiz(name,sizeof(name));
 			utf8chrtrunc(name,sizeof(name)-1);
@@ -1788,39 +1826,74 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			m_src->read(fps);
 			m_src->read(frameCount);
-
+			
 			unsigned anim = model->addAnimation(Model::ANIMMODE_SKELETAL,name);
 			model->setAnimFPS(Model::ANIMMODE_SKELETAL,anim,fps);
 			model->setAnimFrameCount(Model::ANIMMODE_SKELETAL,anim,frameCount);
-			model->setAnimLooping(Model::ANIMMODE_SKELETAL,anim,(flags &MSAF_ANIM_LOOP)!=0);
+			model->setAnimWrap(Model::ANIMMODE_SKELETAL,anim,(flags&MSAF_ANIM_LOOP)!=0);
+			
+			if(y2020)
+			{
+				float32_t frame2020;
+				m_src->read(frame2020);
+				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frame2020);
+			
+				for(uint32_t f=0;f<frameCount;f++)
+				{
+					m_src->read(frame2020);
+					model->setAnimFrameTime(Model::ANIMMODE_SKELETAL,anim,f,frame2020);
+				}
+			}
+			else sparse.assign(frameCount,true);
 
-			for(unsigned f = 0; f<frameCount; f++)
+			//NOTE: The number of frames is at most the same
+			//as the number of joints, so it might be better
+			//to not filter by frames, but vertex-data is so
+			for(unsigned f=0;f<frameCount;f++)
 			{
 				uint32_t keyframeCount;
 				m_src->read(keyframeCount);
 
-				for(unsigned k = 0; k<keyframeCount; k++)
+				if(!keyframeCount) //Legacy?
 				{
-					MM3DFILE_SkelKeyframeT fileKf;
-					m_src->read(fileKf.jointIndex);
+					//Note: Assume intentionally empty if MSAF_MODE_2020 file
+					if(!y2020) sparse[f] = false;
+				}
+
+				for(unsigned k=0;k<keyframeCount;k++)
+				{
+					MM3DFILE_KeyframeT fileKf;
+					m_src->read(fileKf.objectIndex);
 					m_src->read(fileKf.keyframeType);
 					m_src->read(fileKf.param[0]);
 					m_src->read(fileKf.param[1]);
 					m_src->read(fileKf.param[2]);
 
-					model->setSkelAnimKeyframe(anim,f,
-							fileKf.jointIndex,(fileKf.keyframeType ? false : true),
-							fileKf.param[0],fileKf.param[1],fileKf.param[2]);
+					auto t = Model::KeyTranslate;
+					if(~fileKf.keyframeType&1) 
+					t = fileKf.keyframeType?Model::KeyScale:Model::KeyRotate;
+
+					model->setKeyframe(anim,f,
+					{Model::PT_Joint,fileKf.objectIndex},t,
+					fileKf.param[0],fileKf.param[1],fileKf.param[2]);
 				}
+			}			
+
+			if(!y2020) //2020: Remove unused frames to improve editing experience
+			{
+				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frameCount);
+				for(unsigned count=frameCount,f=count;f-->0;)
+				if(!sparse[f]) 
+				model->setAnimFrameCount(Model::ANIMMODE_SKELETAL,anim,--count,f,nullptr);
 			}
 		}
 	}
 
 	// Frame Animations
-	if(_offsetIncluded(MDT_FrameAnims,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_FrameAnims,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_FrameAnims,offsetList);
-		uint32_t offset	= _offsetGet(MDT_FrameAnims,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_FrameAnims,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_FrameAnims,offsetList);
 
 		m_src->seek(offset);
 
@@ -1835,6 +1908,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
+		std::vector<mm3dfilter_cmp_t<1>> cmp;
 		for(unsigned a = 0; a<count; a++)
 		{
 			log_debug("reading frame animation %d/%d\n",a,count);
@@ -1851,12 +1925,16 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				return Model::ERROR_BAD_DATA;
 			}
 
-			uint16_t  flags;
+			uint16_t flags; //SHADOWING
 			char		name[1024];
 			float32_t fps;
 			uint32_t  frameCount;
+			float32_t frame2020;
 
 			m_src->read(flags);
+
+			//https://github.com/zturtleman/mm3d/issues/106
+			bool y2020 = 0!=(flags&MFAF_MODE_2020);
 
 			m_src->readAsciiz(name,sizeof(name));
 			utf8chrtrunc(name,sizeof(name)-1);
@@ -1867,9 +1945,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(frameCount);
 			log_debug("frame count %u\n",frameCount);
 
-			if((frameCount>size)||
-					 ((frameCount *modelVertices.size()*sizeof(float32_t))*3>
-						  (size-10)))
+			if(y2020) m_src->read(frame2020);
+			if(y2020) log_debug("mode 2020 loop/stop frame %f\n",frame2020);
+
+			if(!y2020)
+			if(frameCount>size //???
+			 ||frameCount*vcount*sizeof(float32_t)*3>size-10)
 			{
 				log_error("Frame count for animation is too large for file data\n");
 				return Model::ERROR_BAD_DATA;
@@ -1878,38 +1959,114 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			unsigned anim = model->addAnimation(Model::ANIMMODE_FRAME,name);
 			model->setAnimFPS(Model::ANIMMODE_FRAME,anim,fps);
 			model->setAnimFrameCount(Model::ANIMMODE_FRAME,anim,frameCount);
-			model->setAnimLooping(Model::ANIMMODE_FRAME,anim,(flags &MFAF_ANIM_LOOP)!=0);
+			model->setAnimWrap(Model::ANIMMODE_FRAME,anim,(flags &MFAF_ANIM_LOOP)!=0);
 
-			for(unsigned f = 0; f<frameCount; f++)
+			Model::FrameAnim *fa = modelFrameAnims[a];
+
+			if(y2020) fa->m_frame2020 = frame2020;
+						
+			Model::Interpolate2020E e2020 = Model::InterpolateLerp;
+						
+			if(!y2020) //LEGACY?
 			{
-				unsigned maxVertex = 0;
-				float32_t coord[3];
-				for(unsigned v = 0; v<modelVertices.size(); v++)
+				cmp.resize(vcount);
+				for(unsigned v=vcount;v-->0;)
 				{
-					for(unsigned i = 0; i<3; i++)
-					{
-						m_src->read(coord[i]);
-					}
-					model->setFrameAnimVertexCoords(anim,f,v,
-							coord[0],coord[1],coord[2]);
-					maxVertex = v;
+					auto *vt = modelVertices[v];
+					auto *params = cmp[v].params;
+					for(int i=3;i-->0;)
+					params[i] = (float32_t)vt->m_coord[i];					
+					cmp[v].diff = ~0;
 				}
+			}
+			for(unsigned f=0;f<frameCount;f++)
+			{
+				unsigned vM,vN,v = 0;
 
-				maxVertex = maxVertex+1;
-				if((maxVertex)!=modelVertices.size())
-				{
-					missingElements = true;
-					log_error("Vertex count for frame animation %d,frame %d has %d vertices,should be %d\n",anim,f,maxVertex,modelVertices.size());
+				vM = vcount; if(y2020)
+				{					
+					m_src->read(frame2020);					
+					fa->m_timetable2020[f] = frame2020;					
+
+					vN = 0;
+
+				restart2020: //FIX ME: Consult 'size' variable here!
+
+						//DWORD hack = m_src->offset();
+
+					uint32_t m,n;					
+					m_src->read(m);
+					m_src->read(n);
+					vN+=n;
+
+						/*patching test file?
+						m = m?Model::InterpolateLerp:Model::InterpolateCopy;
+						SetFilePointer(((FileDataSource*)m_src)->m_handle,hack,0,FILE_BEGIN);
+						WriteFile(((FileDataSource*)m_src)->m_handle,&m,4,&hack,0);						
+						//SetFilePointer(((FileDataSource*)m_src)->m_handle,+8,0,FILE_CURRENT);
+						*/
+
+					if(vN>vM) 
+					{
+						missingElements = true; //HACK
+						log_error("Vertex count for frame animation %d, frame %d has %d vertices, should be %d\n",anim,f,vN,vM);
+
+						//HACK: InterpolateCopy code below is bypassing safe API.
+						break;
+					}
+
+					auto e = (Model::Interpolate2020E)m;
+
+					//NOTE: Current data structure leaves dummies in
+					//place. They could point to sentinel objects or 
+					//they could store their values to not recompute.
+					if(e<=Model::InterpolateCopy) 
+					{
+						if(e==Model::InterpolateCopy)
+						for(auto fp=fa->m_frame0+f;v<vN;v++)
+						{
+							//FIX ME
+							//UNSAFE: Need an API for this!
+							modelVertices[v]->m_frames[fp]->m_interp2020 = Model::InterpolateCopy;
+						}
+						else //InterpolateNone?
+						{
+							v+=n; assert(!e);
+						}
+						if(v<vM) goto restart2020;
+					}
+
+					float32_t coord[3]; for(;v<vN;v++)
+					{
+						for(int i=0;i<3;i++) m_src->read(coord[i]);
+						model->setQuickFrameAnimVertexCoords(anim,f,v,coord[0],coord[1],coord[2],e);
+					}
 				}
+				else
+				{
+					vN = vM;
+
+					float32_t coord[3]; for(;v<vN;v++)
+					{
+						for(int i=0;i<3;i++) m_src->read(coord[i]);
+						int prev, curr;
+						float32_t *pcoord = cmp[v].compare(coord,prev,curr);
+						//model->setFrameAnimVertexCoords(anim,f,v,coord[0],coord[1],coord[2]);
+						if(prev&1) model->setQuickFrameAnimVertexCoords(anim,f-1,v,pcoord[0],pcoord[1],pcoord[2]);
+						if(curr&1) model->setQuickFrameAnimVertexCoords(anim,f,v,coord[0],coord[1],coord[2]);
+						memcpy(pcoord,coord,sizeof(coord));				
+					}
+				}
+				if(vN<vM) goto restart2020;
 			}
 		}
 	}
 
 	// Frame Animation Points
-	if(_offsetIncluded(MDT_FrameAnimPoints,offsetList))
+	if(mm3dfilter_offsetIncluded(MDT_FrameAnimPoints,offsetList))
 	{
-		bool	  variable = _offsetIsVariable(MDT_FrameAnimPoints,offsetList);
-		uint32_t offset	= _offsetGet(MDT_FrameAnimPoints,offsetList);
+		bool	  variable = mm3dfilter_offsetIsVariable(MDT_FrameAnimPoints,offsetList);
+		uint32_t offset	= mm3dfilter_offsetGet(MDT_FrameAnimPoints,offsetList);
 
 		m_src->seek(offset);
 
@@ -1924,6 +2081,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
+		std::vector<mm3dfilter_cmp_t<2>> cmpt;
 		for(unsigned a = 0; a<count; a++)
 		{
 			if(variable)
@@ -1931,35 +2089,75 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(size);
 			}
 
-			uint16_t  flags;
-			uint32_t  anim;
-			uint32_t  frameCount;
+			uint16_t flags; //SHADOWING
+			uint32_t anim;
+			uint32_t frameCount; //frameCount;
 
 			m_src->read(flags);
+
+			//https://github.com/zturtleman/mm3d/issues/106
+			bool y2020 = 0!=(flags&MFAF_MODE_2020);
 
 			m_src->read(anim);
 			m_src->read(frameCount);
 
-			size_t pcount = model->getPointCount();
-
-			for(unsigned f = 0; f<frameCount; f++)
+			if(!y2020) //LEGACY?
 			{
-				float32_t rot[3];
-				float32_t trans[3];
-				for(unsigned p = 0; p<pcount; p++)
+				cmpt.resize(pcount);
+				for(unsigned p=pcount;p-->0;)
 				{
-					for(unsigned i = 0; i<3; i++)
+					auto *pt = modelPoints[p];
+					auto *params = cmpt[p].params;
+					for(int i=3;i-->0;)
 					{
-						m_src->read(rot[i]);
+						params[0+i] = (float32_t)pt->m_abs[i];
+						params[3+i] = (float32_t)pt->m_rot[i];
 					}
-					for(unsigned i = 0; i<3; i++)
+					cmpt[p].diff = ~0;
+				}
+			}
+
+			//NOTE: The number of frames is at most the same
+			//as the number of points, so it might be better
+			//to not filter by frames, but vertex-data is so
+			for(unsigned f=0;f<frameCount;f++)
+			{
+				if(y2020) //MFAF_MODE_2020
+				{							
+					uint32_t keyframeCount;
+					m_src->read(keyframeCount);
+
+					for(unsigned k=0;k<keyframeCount;k++)
 					{
-						m_src->read(trans[i]);
+						MM3DFILE_KeyframeT fileKf;
+						m_src->read(fileKf.objectIndex);
+						m_src->read(fileKf.keyframeType);
+						m_src->read(fileKf.param[0]);
+						m_src->read(fileKf.param[1]);
+						m_src->read(fileKf.param[2]);
+
+						auto t = Model::KeyTranslate;
+						if(~fileKf.keyframeType&1) 
+						t = fileKf.keyframeType?Model::KeyScale:Model::KeyRotate;
+
+						model->setKeyframe(anim,f,
+						{Model::PT_Point,fileKf.objectIndex},t,
+						fileKf.param[0],fileKf.param[1],fileKf.param[2]);
 					}
-					model->setFrameAnimPointCoords(anim,f,p,
-							trans[0],trans[1],trans[2]);
-					model->setFrameAnimPointRotation(anim,f,p,
-							rot[0],rot[1],rot[2]);
+				}
+				else for(Model::Position p{Model::PT_Point,0};p<pcount;p++) //LEGACY
+				{
+					float32_t params[3+3];
+					for(int i=0;i<3;i++) m_src->read(params[3+i]);					
+					for(int i=0;i<3;i++) m_src->read(params[0+i]);
+					int prev, curr;
+					float32_t *pparams = cmpt[p].compare(params,prev,curr);						
+					//model->setQuickFrameAnimPoint(anim,f,p,trans[0],trans[1],trans[2],rot[0],rot[1],rot[2]);
+					if(prev&1) model->setKeyframe(anim,f-1,p,Model::KeyTranslate,pparams[0],pparams[1],pparams[2]);
+					if(prev&2) model->setKeyframe(anim,f-1,p,Model::KeyRotate,pparams[3],pparams[4],pparams[5]);
+					if(curr&1) model->setKeyframe(anim,f,p,Model::KeyTranslate,params[0],params[1],params[2]);					
+					if(curr&2) model->setKeyframe(anim,f,p,Model::KeyRotate,params[3],params[4],params[5]);					
+					memcpy(pparams,params,sizeof(params));
 				}
 			}
 		}
@@ -2016,12 +2214,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned g = 0; g<gcount; g++)
 		{
-			for(auto it
-					= modelGroups[g]->m_triangleIndices.cbegin();
-					it!=modelGroups[g]->m_triangleIndices.cend();
-					++it)
+			for(int i:modelGroups[g]->m_triangleIndices)
 			{
-				if(*it>=(signed)tcount)
+				if(i>=(signed)tcount)
 				{
 					missingElements = true;
 					log_error("Group %d uses missing triangle %d\n",g,*it);
@@ -2064,7 +2259,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 	else
 	{
-		model->setupJoints();
 		return Model::ERROR_NONE;
 	}
 }
@@ -2101,15 +2295,15 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 	// Get model data
 
-	std::vector<Model::Vertex *>		&modelVertices	  = getVertexList(model);
-	std::vector<Model::Triangle *>	 &modelTriangles	 = getTriangleList(model);
-	std::vector<Model::Group *>		 &modelGroups		 = getGroupList(model);
-	std::vector<Model::Material *>	 &modelMaterials	 = getMaterialList(model);
-	std::vector<Model::Joint *>		 &modelJoints		 = getJointList(model);
-	std::vector<Model::Point *>		 &modelPoints		 = getPointList(model);
-	//std::vector<Model::TextureProjection *> &modelProjections = getProjectionList(model);
-	std::vector<Model::SkelAnim *>	 &modelSkels		  = getSkelList(model);
-	std::vector<Model::FrameAnim *>	&modelFrames		 = getFrameList(model);
+	auto &modelVertices = model->getVertexList();
+	auto &modelTriangles = model->getTriangleList();
+	auto &modelGroups = model->getGroupList();
+	std::vector<Model::Material*>	 &modelMaterials	 = getMaterialList(model);
+	std::vector<Model::Joint*>		 &modelJoints		 = getJointList(model);
+	std::vector<Model::Point*>		 &modelPoints		 = getPointList(model);
+	//std::vector<Model::TextureProjection*> &modelProjections = getProjectionList(model);
+	std::vector<Model::SkelAnim*>	 &modelSkels		  = getSkelList(model);
+	std::vector<Model::FrameAnim*>	&modelFrames		 = getFrameList(model);
 
 	int backgrounds = 0;
 	for(t = 0; t<6; t++)
@@ -2139,16 +2333,17 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	doWrite[MDT_Vertices]				= (modelVertices.size()>0);
 	doWrite[MDT_Triangles]			  = (modelTriangles.size()>0);
 	doWrite[MDT_TriangleNormals]	  = (modelTriangles.size()>0);
-	doWrite[MDT_Groups]				  = (modelGroups.size()>0);
 	doWrite[MDT_Materials]			  = (modelMaterials.size()>0);
+	doWrite[MDT_Groups]				  = (modelGroups.size()>0);
+	doWrite[MDT_SmoothAngles]		  = (modelGroups.size()>0);
 	doWrite[MDT_ExtTextures]			=  doWrite[MDT_Materials];
 	doWrite[MDT_TexCoords]			  = true; // Some users map texture coordinates before assigning a texture (think: paint texture)
 	doWrite[MDT_ProjectionTriangles] = haveProjectionTriangles;
 	doWrite[MDT_CanvasBackgrounds]	= (backgrounds>0);
 	doWrite[MDT_Joints]				  = (modelJoints.size()>0);
-	doWrite[MDT_JointVertices]		 =  doWrite[MDT_Joints];
+	//REFERENCE
+	//doWrite[MDT_JointVertices]		 =  doWrite[MDT_Joints];
 	doWrite[MDT_Points]				  = (model->getPointCount()>0);
-	doWrite[MDT_SmoothAngles]		  = (modelGroups.size()>0);
 	doWrite[MDT_WeightedInfluences]  = (modelJoints.size()>0);
 	doWrite[MDT_TexProjections]		= (model->getProjectionCount()>0);
 	doWrite[MDT_SkelAnims]			  = (model->getAnimCount(Model::ANIMMODE_SKELETAL)>0);
@@ -2157,30 +2352,31 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	//UNIMPLEMENTED
 	//doWrite[MDT_RelativeAnims]		 = (model->getAnimCount(Model::ANIMMODE_FRAMERELATIVE)>0);
 
-	uint8_t modelFlags = 0x00;
+	uint8_t modelFlags = 0x00; //UNUSED
 
 	// Write header
 	MisfitOffsetList offsetList;
 
-	_addOffset(MDT_Meta,					doWrite[MDT_Meta],					offsetList);
-	_addOffset(MDT_Vertices,			  doWrite[MDT_Vertices],			  offsetList);
-	_addOffset(MDT_Triangles,			 doWrite[MDT_Triangles],			 offsetList);
-	_addOffset(MDT_TriangleNormals,	 doWrite[MDT_TriangleNormals],	 offsetList);
-	_addOffset(MDT_Groups,				 doWrite[MDT_Groups],				 offsetList);
-	_addOffset(MDT_Materials,			 doWrite[MDT_Materials],			 offsetList);
-	_addOffset(MDT_ExtTextures,		  doWrite[MDT_ExtTextures],		  offsetList);
-	_addOffset(MDT_TexCoords,			 doWrite[MDT_TexCoords],			 offsetList);
-	_addOffset(MDT_ProjectionTriangles,doWrite[MDT_ProjectionTriangles],offsetList);
-	_addOffset(MDT_CanvasBackgrounds,  doWrite[MDT_CanvasBackgrounds],  offsetList);
-	_addOffset(MDT_Joints,				 doWrite[MDT_Joints],				 offsetList);
-	_addOffset(MDT_JointVertices,		doWrite[MDT_JointVertices],		offsetList);
-	_addOffset(MDT_Points,				 doWrite[MDT_Points],				 offsetList);
-	_addOffset(MDT_SmoothAngles,		 doWrite[MDT_SmoothAngles],		 offsetList);
-	_addOffset(MDT_WeightedInfluences, doWrite[MDT_WeightedInfluences], offsetList);
-	_addOffset(MDT_TexProjections,	  doWrite[MDT_TexProjections],	  offsetList);
-	_addOffset(MDT_SkelAnims,			 doWrite[MDT_SkelAnims],			 offsetList);
-	_addOffset(MDT_FrameAnims,			doWrite[MDT_FrameAnims],			offsetList);
-	_addOffset(MDT_FrameAnimPoints,	 doWrite[MDT_FrameAnimPoints],	 offsetList);
+	mm3dfilter_addOffset(MDT_Meta,					doWrite[MDT_Meta],					offsetList);
+	mm3dfilter_addOffset(MDT_Vertices,			  doWrite[MDT_Vertices],			  offsetList);
+	mm3dfilter_addOffset(MDT_Triangles,			 doWrite[MDT_Triangles],			 offsetList);
+	mm3dfilter_addOffset(MDT_TriangleNormals,	 doWrite[MDT_TriangleNormals],	 offsetList);
+	mm3dfilter_addOffset(MDT_Materials,			 doWrite[MDT_Materials],			 offsetList);
+	mm3dfilter_addOffset(MDT_Groups,				 doWrite[MDT_Groups],				 offsetList);
+	mm3dfilter_addOffset(MDT_SmoothAngles,		 doWrite[MDT_SmoothAngles],		 offsetList);
+	mm3dfilter_addOffset(MDT_ExtTextures,		  doWrite[MDT_ExtTextures],		  offsetList);
+	mm3dfilter_addOffset(MDT_TexCoords,			 doWrite[MDT_TexCoords],			 offsetList);
+	mm3dfilter_addOffset(MDT_ProjectionTriangles,doWrite[MDT_ProjectionTriangles],offsetList);
+	mm3dfilter_addOffset(MDT_CanvasBackgrounds,  doWrite[MDT_CanvasBackgrounds],  offsetList);
+	mm3dfilter_addOffset(MDT_Joints,				 doWrite[MDT_Joints],				 offsetList);
+	//REFERENCE
+	//mm3dfilter_addOffset(MDT_JointVertices,		doWrite[MDT_JointVertices],		offsetList);
+	mm3dfilter_addOffset(MDT_Points,				 doWrite[MDT_Points],				 offsetList);
+	mm3dfilter_addOffset(MDT_WeightedInfluences, doWrite[MDT_WeightedInfluences], offsetList);
+	mm3dfilter_addOffset(MDT_TexProjections,	  doWrite[MDT_TexProjections],	  offsetList);
+	mm3dfilter_addOffset(MDT_SkelAnims,			 doWrite[MDT_SkelAnims],			 offsetList);
+	mm3dfilter_addOffset(MDT_FrameAnims,			doWrite[MDT_FrameAnims],			offsetList);
+	mm3dfilter_addOffset(MDT_FrameAnimPoints,	 doWrite[MDT_FrameAnimPoints],	 offsetList);
 
 	unsigned formatDataCount = model->getFormatDataCount();
 	unsigned f = 0;
@@ -2198,14 +2394,15 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		}
 	}
 
-	_addOffset(MDT_EndOfFile,true,offsetList);
+	mm3dfilter_addOffset(MDT_EndOfFile,true,offsetList);
 
 	uint8_t offsetCount = (uint8_t)offsetList.size();
 
-	m_dst->writeBytes(MAGIC,strlen(MAGIC));
+	//m_dst->writeBytes(MAGIC,strlen(MAGIC));
+	m_dst->writeBytes(MAGIC2020,strlen(MAGIC));
 	m_dst->write(WRITE_VERSION_MAJOR);
 	m_dst->write(WRITE_VERSION_MINOR);
-	m_dst->write(modelFlags);
+	m_dst->write(modelFlags); //UNUSED
 	m_dst->write(offsetCount);
 
 	for(t = 0; t<offsetCount; t++)
@@ -2221,8 +2418,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Meta data
 	if(doWrite[MDT_Meta])
 	{
-		_setOffset(MDT_Meta,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Meta,false,offsetList);
+		mm3dfilter_setOffset(MDT_Meta,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Meta,false,offsetList);
 
 		unsigned count = model->getMetaDataCount();
 
@@ -2235,8 +2432,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 			model->getMetaData(m,key,sizeof(key),value,sizeof(value));
 
-			unsigned keyLen = strlen(key)+1;
-			unsigned valueLen = strlen(value)+1;
+			uint32_t keyLen = strlen(key)+1;
+			uint32_t valueLen = strlen(value)+1;
 
 			m_dst->write(keyLen+valueLen);
 
@@ -2249,8 +2446,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Vertices
 	if(doWrite[MDT_Vertices])
 	{
-		_setOffset(MDT_Vertices,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Vertices,true,offsetList);
+		mm3dfilter_setOffset(MDT_Vertices,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Vertices,true,offsetList);
 
 		unsigned count = modelVertices.size();
 
@@ -2265,9 +2462,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			fileVertex.flags |= (modelVertices[v]->m_selected)? MF_SELECTED : 0;
 			fileVertex.flags |= (modelVertices[v]->m_free)	? MF_VERTFREE : 0;
 
-			fileVertex.coord[0] = modelVertices[v]->m_coord[0];
-			fileVertex.coord[1] = modelVertices[v]->m_coord[1];
-			fileVertex.coord[2] = modelVertices[v]->m_coord[2];
+			fileVertex.coord[0] = (float32_t)modelVertices[v]->m_coord[0];
+			fileVertex.coord[1] = (float32_t)modelVertices[v]->m_coord[1];
+			fileVertex.coord[2] = (float32_t)modelVertices[v]->m_coord[2];
 
 			m_dst->write(fileVertex.flags);
 			m_dst->write(fileVertex.coord[0]);
@@ -2280,8 +2477,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Triangles
 	if(doWrite[MDT_Triangles])
 	{
-		_setOffset(MDT_Triangles,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Triangles,true,offsetList);
+		mm3dfilter_setOffset(MDT_Triangles,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Triangles,true,offsetList);
 
 		unsigned count = modelTriangles.size();
 
@@ -2311,8 +2508,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Triangle Normals
 	if(doWrite[MDT_TriangleNormals])
 	{
-		_setOffset(MDT_TriangleNormals,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_TriangleNormals,true,offsetList);
+		mm3dfilter_setOffset(MDT_TriangleNormals,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_TriangleNormals,true,offsetList);
 
 		unsigned count = modelTriangles.size();
 
@@ -2327,9 +2524,15 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 			for(unsigned v = 0; v<3; v++)
 			{
-				fileNormals.normal[v][0] = modelTriangles[t]->m_vertexNormals[v][0];
-				fileNormals.normal[v][1] = modelTriangles[t]->m_vertexNormals[v][1];
-				fileNormals.normal[v][2] = modelTriangles[t]->m_vertexNormals[v][2];
+				//Can this source from m_finalNormals instead?
+				//NOTE: m_vertexNormals did not factor in smoothing... it can be
+				//disabled by calculateNormals if necessary.
+				//fileNormals.normal[v][0] = modelTriangles[t]->m_vertexNormals[v][0];
+				//fileNormals.normal[v][1] = modelTriangles[t]->m_vertexNormals[v][1];
+				//fileNormals.normal[v][2] = modelTriangles[t]->m_vertexNormals[v][2];
+				fileNormals.normal[v][0] = modelTriangles[t]->m_finalNormals[v][0];
+				fileNormals.normal[v][1] = modelTriangles[t]->m_finalNormals[v][1];
+				fileNormals.normal[v][2] = modelTriangles[t]->m_finalNormals[v][2];
 			}
 
 			m_dst->write(fileNormals.flags);
@@ -2347,58 +2550,17 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		log_debug("wrote %d triangle normals\n",count);
 	}
 
+	/*https://github.com/zturtleman/mm3d/issues/130
 	// Groups
-	if(doWrite[MDT_Groups])
-	{
-		_setOffset(MDT_Groups,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Groups,false,offsetList);
-
-		unsigned count = modelGroups.size();
-
-		writeHeaderA(0x0000,count);
-
-		unsigned baseSize = sizeof(uint16_t)+sizeof(uint32_t)
-		  +sizeof(uint8_t)+sizeof(uint32_t);
-
-		for(unsigned g = 0; g<count; g++)
-		{
-			Model::Group *grp = modelGroups[g];
-			unsigned groupSize = baseSize+grp->m_name.length()+1 
-			  +(grp->m_triangleIndices.size()*sizeof(uint32_t));
-
-			uint16_t flags = 0x0000;
-			flags |= (modelGroups[g]->m_visible)? 0 : MF_HIDDEN;
-			flags |= (modelGroups[g]->m_selected)? MF_SELECTED : 0;
-			uint32_t triCount = grp->m_triangleIndices.size();
-
-			m_dst->write(groupSize);
-			m_dst->write(flags);
-			m_dst->writeBytes(grp->m_name.c_str(),grp->m_name.length()+1);
-			m_dst->write(triCount);
-
-			for(auto it = grp->m_triangleIndices.cbegin();
-					it!=grp->m_triangleIndices.cend();
-					++it)
-			{
-				uint32_t triIndex = *it;
-				m_dst->write(triIndex);
-			}
-			uint8_t  smoothness = grp->m_smooth;
-			uint32_t materialIndex = grp->m_materialIndex;
-			m_dst->write(smoothness);
-			m_dst->write(materialIndex);
-
-		}
-		log_debug("wrote %d groups\n",count);
-	}
+	if(doWrite[MDT_Groups])*/	
 
 	int texNum = 0;
 
 	// Materials
 	if(doWrite[MDT_Materials])
 	{
-		_setOffset(MDT_Materials,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Materials,false,offsetList);
+		mm3dfilter_setOffset(MDT_Materials,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Materials,false,offsetList);
 
 		unsigned count = modelMaterials.size();
 
@@ -2410,17 +2572,17 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		for(unsigned m = 0; m<count; m++)
 		{
 			Model::Material *mat = modelMaterials[m];
-			unsigned matSize = baseSize+mat->m_name.length()+1;
+			uint32_t matSize = baseSize+mat->m_name.length()+1;
 
 			uint16_t flags = 0x0000;
 			uint32_t texIndex = texNum;  // TODO deal with embedded textures
 
 			switch (mat->m_type)
 			{
-				case Model::Material::MATTYPE_COLOR:
+				case Model::Material::MATTYPE_COLOR: //UNUSED
 					flags = 0x000d;
 					break;
-				case Model::Material::MATTYPE_GRADIENT:
+				case Model::Material::MATTYPE_GRADIENT: //UNUSED
 					flags = 0x000e;
 					break;
 				case Model::Material::MATTYPE_BLANK:
@@ -2476,12 +2638,74 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		}
 		log_debug("wrote %d materials with %d internal textures\n",count,texNum);
 	}
+	if(doWrite[MDT_Groups])
+	{
+		mm3dfilter_setOffset(MDT_Groups,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Groups,false,offsetList);
+
+		unsigned count = modelGroups.size();
+
+		writeHeaderA(0x0000,count);
+
+		unsigned baseSize = sizeof(uint16_t)+sizeof(uint32_t)
+		  +sizeof(uint8_t)+sizeof(uint32_t);
+
+		for(unsigned g = 0; g<count; g++)
+		{
+			auto *grp = modelGroups[g];
+			uint32_t groupSize = baseSize+grp->m_name.length()+1 
+			  +(grp->m_triangleIndices.size()*sizeof(uint32_t));
+
+			uint16_t flags = 0x0000;
+		//	flags |= (modelGroups[g]->m_visible)? 0 : MF_HIDDEN; //UNUSED
+			flags |= (modelGroups[g]->m_selected)? MF_SELECTED : 0;
+			uint32_t triCount = grp->m_triangleIndices.size();
+
+			m_dst->write(groupSize);
+			m_dst->write(flags);
+			m_dst->writeBytes(grp->m_name.c_str(),grp->m_name.length()+1);
+			m_dst->write(triCount);
+
+			for(int i:grp->m_triangleIndices)
+			{
+				m_dst->write((uint32_t)i);
+			}
+			uint8_t  smoothness = grp->m_smooth;
+			uint32_t materialIndex = grp->m_materialIndex;
+			m_dst->write(smoothness);
+			m_dst->write(materialIndex);
+
+		}
+		log_debug("wrote %d groups\n",count);
+	}
+	//REMOVE ME: Why is this not in MDT_Groups?!
+	// Smooth Angles
+	if(doWrite[MDT_SmoothAngles])
+	{
+		mm3dfilter_setOffset(MDT_SmoothAngles,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_SmoothAngles,true,offsetList);
+
+		unsigned count = modelGroups.size();
+
+		writeHeaderB(0x0000,count,FILE_SMOOTH_ANGLE_SIZE);
+
+		for(unsigned t = 0; t<count; t++)
+		{
+			MM3DFILE_SmoothAngleT fileSa;
+			fileSa.groupIndex = t;
+			fileSa.angle = model->getGroupAngle(t);
+
+			m_dst->write(fileSa.groupIndex);
+			m_dst->write(fileSa.angle);
+		}
+		log_debug("wrote %d group smoothness angles\n",count);
+	}
 
 	// External Textures
 	if(doWrite[MDT_ExtTextures])
 	{
-		_setOffset(MDT_ExtTextures,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_ExtTextures,false,offsetList);
+		mm3dfilter_setOffset(MDT_ExtTextures,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_ExtTextures,false,offsetList);
 
 		unsigned count = modelMaterials.size();
 
@@ -2502,7 +2726,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 				replaceSlash(filename);
 
-				unsigned texSize = baseSize+strlen(filename)+1;
+				uint32_t texSize = baseSize+strlen(filename)+1;
 
 				uint16_t flags = 0x0000;
 
@@ -2519,8 +2743,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Texture Coordinates
 	if(doWrite[MDT_TexCoords])
 	{
-		_setOffset(MDT_TexCoords,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_TexCoords,true,offsetList);
+		mm3dfilter_setOffset(MDT_TexCoords,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_TexCoords,true,offsetList);
 
 		unsigned count = modelTriangles.size();
 
@@ -2528,7 +2752,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		for(unsigned t = 0; t<count; t++)
 		{
-			Model::Triangle *tri = modelTriangles[t];
+			auto *tri = modelTriangles[t];
 			MM3DFILE_TexCoordT tc;
 
 			tc.flags = 0x0000;
@@ -2554,8 +2778,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Texture Projection Triangles
 	if(doWrite[MDT_ProjectionTriangles])
 	{
-		_setOffset(MDT_ProjectionTriangles,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_ProjectionTriangles,false,offsetList);
+		mm3dfilter_setOffset(MDT_ProjectionTriangles,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_ProjectionTriangles,false,offsetList);
 
 		unsigned pcount = model->getProjectionCount();
 
@@ -2599,8 +2823,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Canvas Backgrounds
 	if(doWrite[MDT_CanvasBackgrounds])
 	{
-		_setOffset(MDT_CanvasBackgrounds,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_CanvasBackgrounds,false,offsetList);
+		mm3dfilter_setOffset(MDT_CanvasBackgrounds,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_CanvasBackgrounds,false,offsetList);
 
 		unsigned count = backgrounds;
 
@@ -2625,7 +2849,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				cb.center[2] = cb.center[2];
 
 				std::string fileStr = getRelativePath(modelPath.c_str(),file);
-				unsigned backSize = baseSize+fileStr.size()+1;
+				uint32_t backSize = baseSize+fileStr.size()+1;
 
 				char *filedup = strdup(fileStr.c_str());
 				replaceSlash(filedup);
@@ -2649,8 +2873,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Joints
 	if(doWrite[MDT_Joints])
 	{
-		_setOffset(MDT_Joints,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Joints,true,offsetList);
+		mm3dfilter_setOffset(MDT_Joints,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Joints,true,offsetList);
 
 		unsigned count = modelJoints.size();
 
@@ -2671,8 +2895,18 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			fileJoint.parentIndex = joint->m_parent;
 			for(unsigned i = 0; i<3; i++)
 			{
-				fileJoint.localRot[i]	= joint->m_localRotation[i];
-				fileJoint.localTrans[i] = joint->m_localTranslation[i];
+				fileJoint.localRot[i]	= joint->m_rot[i];
+				fileJoint.localTrans[i] = joint->m_rel[i];
+			}
+			for(unsigned i = 0; i<3; i++)
+			{
+				if(1!=joint->m_xyz[i])
+				{
+					fileJoint.flags|=MF_POS_SCALE_2020;
+					for(unsigned i = 0; i<3; i++)					
+					fileJoint.localScale[i] = joint->m_xyz[i];
+					break;
+				}
 			}
 
 			m_dst->write(fileJoint.flags);
@@ -2684,18 +2918,25 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fileJoint.localTrans[0]);
 			m_dst->write(fileJoint.localTrans[1]);
 			m_dst->write(fileJoint.localTrans[2]);
+			if(fileJoint.flags&MF_POS_SCALE_2020)
+			{
+				m_dst->write(fileJoint.localScale[0]);
+				m_dst->write(fileJoint.localScale[1]);
+				m_dst->write(fileJoint.localScale[2]);
+			}
 		}
 		log_debug("wrote %d joints\n",count);
 	}
 
+	/*REFERENCE
 	// Joint Vertices
 	// Newer versions of the file format do not use this section,but old
 	// versions of mm3d need it.  Write it for the sake of backwards 
 	// compatibility
 	if(doWrite[MDT_JointVertices])
 	{
-		_setOffset(MDT_JointVertices,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_JointVertices,true,offsetList);
+		mm3dfilter_setOffset(MDT_JointVertices,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_JointVertices,true,offsetList);
 
 		unsigned count = 0;
 		unsigned vcount = modelVertices.size();
@@ -2725,13 +2966,13 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			}
 		}
 		log_debug("wrote %d joint vertex assignments\n",count);
-	}
+	}*/
 
 	// Points
 	if(doWrite[MDT_Points])
 	{
-		_setOffset(MDT_Points,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_Points,true,offsetList);
+		mm3dfilter_setOffset(MDT_Points,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_Points,true,offsetList);
 
 		unsigned count = model->getPointCount();
 
@@ -2753,13 +2994,24 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			Model::Point *point = modelPoints[p];
 			for(unsigned i = 0; i<3; i++)
 			{
-				filePoint.rot[i]	= point->m_rot[i];
-				filePoint.trans[i] = point->m_trans[i];
+				filePoint.rot[i] = point->m_rot[i];
+				filePoint.trans[i] = point->m_abs[i];
+			}
+			for(unsigned i = 0; i<3; i++)
+			{
+				if(1!=point->m_xyz[i])
+				{
+					filePoint.flags|=MF_POS_SCALE_2020;
+					for(unsigned i = 0; i<3; i++)					
+					filePoint.scale[i] = point->m_xyz[i];
+					break;
+				}
 			}
 
 			m_dst->write(filePoint.flags);
 			m_dst->writeBytes(filePoint.name,sizeof(filePoint.name));
-			m_dst->write(filePoint.type);
+			//NOTE: This previously wrote uninitialized garbage data.
+			m_dst->write(filePoint.type=0);
 			m_dst->write(filePoint.boneIndex);
 			m_dst->write(filePoint.rot[0]);
 			m_dst->write(filePoint.rot[1]);
@@ -2767,37 +3019,21 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(filePoint.trans[0]);
 			m_dst->write(filePoint.trans[1]);
 			m_dst->write(filePoint.trans[2]);
+			if(filePoint.flags&MF_POS_SCALE_2020)
+			{
+				m_dst->write(filePoint.scale[0]);
+				m_dst->write(filePoint.scale[1]);
+				m_dst->write(filePoint.scale[2]);
+			}
 		}
 		log_debug("wrote %d points\n",count);
-	}
-
-	// Smooth Angles
-	if(doWrite[MDT_SmoothAngles])
-	{
-		_setOffset(MDT_SmoothAngles,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_SmoothAngles,true,offsetList);
-
-		unsigned count = modelGroups.size();
-
-		writeHeaderB(0x0000,count,FILE_SMOOTH_ANGLE_SIZE);
-
-		for(unsigned t = 0; t<count; t++)
-		{
-			MM3DFILE_SmoothAngleT fileSa;
-			fileSa.groupIndex = t;
-			fileSa.angle = model->getGroupAngle(t);
-
-			m_dst->write(fileSa.groupIndex);
-			m_dst->write(fileSa.angle);
-		}
-		log_debug("wrote %d group smoothness angles\n",count);
-	}
+	}	
 
 	// Weighted influences
 	if(doWrite[MDT_WeightedInfluences])
 	{
-		_setOffset(MDT_WeightedInfluences,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_WeightedInfluences,true,offsetList);
+		mm3dfilter_setOffset(MDT_WeightedInfluences,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_WeightedInfluences,true,offsetList);
 
 		//infl_list ilist;
 		infl_list::const_iterator it;
@@ -2875,8 +3111,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Texture Projections
 	if(doWrite[MDT_TexProjections])
 	{
-		_setOffset(MDT_TexProjections,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_TexProjections,true,offsetList);
+		mm3dfilter_setOffset(MDT_TexProjections,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_TexProjections,true,offsetList);
 
 		unsigned count = model->getProjectionCount();
 
@@ -2884,7 +3120,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		for(unsigned p = 0; p<count; p++)
 		{
-			uint16_t flags = 0x0000;
+			uint16_t flags = MTPF_MODE_2020;
 			m_dst->write(flags);
 
 			char name[40];
@@ -2906,7 +3142,11 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fcoord[1]);
 			m_dst->write(fcoord[2]);
 
-			model->getProjectionUp(p,coord);
+			//MTPF_MODE_2020			
+			//model->getProjectionUp(p,coord);
+			//HACK: Go ahead and get all three values.
+			model->getPositionScale({Model::PT_Projection,p},coord);
+
 			fcoord[0] = coord[0];
 			fcoord[1] = coord[1];
 			fcoord[2] = coord[2];
@@ -2914,7 +3154,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fcoord[1]);
 			m_dst->write(fcoord[2]);
 
-			model->getProjectionSeam(p,coord);
+			//MTPF_MODE_2020
+			//model->getProjectionSeam(p,coord);
+			model->getProjectionRotation(p,coord);
 			fcoord[0] = coord[0];
 			fcoord[1] = coord[1];
 			fcoord[2] = coord[2];
@@ -2941,97 +3183,77 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Skel Anims
 	if(doWrite[MDT_SkelAnims])
 	{
-		_setOffset(MDT_SkelAnims,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_SkelAnims,false,offsetList);
+		mm3dfilter_setOffset(MDT_SkelAnims,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_SkelAnims,false,offsetList);
 
 		unsigned count = modelSkels.size();
 
 		writeHeaderA(0x0000,count);
 
-		unsigned baseSize = sizeof(uint16_t)+sizeof(float32_t)+sizeof(uint32_t);
+		unsigned baseSize = 0;
+		baseSize+=sizeof(uint16_t)+sizeof(float32_t)+sizeof(uint32_t);
+		baseSize+=sizeof(float32_t); //m_frame2020
 
-		for(unsigned s = 0; s<count; s++)
+		for(Model::SkelAnim*sa:modelSkels)
 		{
-			Model::SkelAnim *sa = modelSkels[s];
-			unsigned animSize = baseSize+sa->m_name.length()+1;
+			uint32_t animSize = baseSize+sa->m_name.length()+1;
 
-			uint32_t frameCount = sa->m_frameCount;
-			uint32_t keyframeCount = 0;
-			unsigned f = 0;
-			for(f = 0; f<frameCount; f++)
-			{
-				for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
-				{
-					for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-					{
-						if(sa->m_jointKeyframes[j][k]->m_frame==f)
-						{
-							keyframeCount++;
-						}
-					}
-				}
-			}
+			uint32_t frameCount = sa->_frame_count();
+			uint32_t keyframeCount = 0;			
+			for(auto&ea:sa->m_keyframes) keyframeCount+=ea.size(); 
 
-			animSize += frameCount	 *sizeof(uint32_t);
-			animSize += keyframeCount *FILE_SKEL_KEYFRAME_SIZE;
+			animSize += frameCount *sizeof(float32_t); //m_timetable2020 
+			animSize += keyframeCount *FILE_KEYFRAME_SIZE;
 
-			uint16_t  flags = 0x0000;
+			uint16_t flags = MFAF_MODE_2020;
 			float32_t fps = sa->m_fps;
-
-			if(sa->m_loop)
-			{
-				flags |= MSAF_ANIM_LOOP;
-			}
+			
+			if(sa->m_wrap) flags|=MSAF_ANIM_LOOP;
 
 			m_dst->write(animSize);
 			m_dst->write(flags);
 			m_dst->writeBytes(sa->m_name.c_str(),sa->m_name.length()+1);
 			m_dst->write(fps);
-			uint32_t temp32 = frameCount;
-			m_dst->write(temp32);
+			m_dst->write(frameCount);
+			float32_t tempf;
+			m_dst->write(tempf=sa->m_frame2020); //2020
+			for(uint32_t f=0;f<frameCount;f++)
+			m_dst->write(tempf=sa->m_timetable2020[f]); //2020
 
-			for(f = 0; f<frameCount; f++)
+			unsigned ajcount = sa->m_keyframes.size();
+			assert(ajcount==model->getBoneJointCount());
+
+			for(unsigned f=0;f<frameCount;f++)
 			{
-				keyframeCount = 0;
-				unsigned j = 0;
-				for(j = 0; j<sa->m_jointKeyframes.size(); j++)
-				{
-					for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
+				keyframeCount = 0;			
+				for(auto&ea:sa->m_keyframes)
+				for(auto*kf:ea)
+				if(kf->m_frame==f) keyframeCount++; 
+
+				m_dst->write(keyframeCount);
+						
+				for(unsigned j=0;j<ajcount;j++)				
+				for(auto*kf:sa->m_keyframes[j])
+				{					
+					if(f!=kf->m_frame) continue;
+
+					MM3DFILE_KeyframeT fileKf;
+					fileKf.objectIndex = j;
+					switch(kf->m_isRotation)
 					{
-						if(sa->m_jointKeyframes[j][k]->m_frame==f)
-						{
-							keyframeCount++;
-						}
+					case 1: fileKf.keyframeType = 1; break; //translate
+					case 2: fileKf.keyframeType = 0; break; //rotate
+					case 4: fileKf.keyframeType = 2; break; //scale
 					}
-				}
+					fileKf.param[0] = kf->m_parameter[0];
+					fileKf.param[1] = kf->m_parameter[1];
+					fileKf.param[2] = kf->m_parameter[2];
 
-				temp32 = keyframeCount;
-				m_dst->write(temp32);
-
-				unsigned written = 0;
-				for(j = 0; j<sa->m_jointKeyframes.size(); j++)
-				{
-					for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-					{
-						Model::Keyframe *kf = sa->m_jointKeyframes[j][k];
-						if(kf->m_frame==f)
-						{
-							MM3DFILE_SkelKeyframeT fileKf;
-							fileKf.jointIndex = j;
-							fileKf.keyframeType = kf->m_isRotation ? 0 : 1;
-							fileKf.param[0] = kf->m_parameter[0];
-							fileKf.param[1] = kf->m_parameter[1];
-							fileKf.param[2] = kf->m_parameter[2];
-
-							m_dst->write(fileKf.jointIndex);
-							m_dst->write(fileKf.keyframeType);
-							m_dst->write(fileKf.param[0]);
-							m_dst->write(fileKf.param[1]);
-							m_dst->write(fileKf.param[2]);
-
-							written++;
-						}
-					}
+					m_dst->write(fileKf.objectIndex);
+					m_dst->write(fileKf.keyframeType);
+					m_dst->write(fileKf.param[0]);
+					m_dst->write(fileKf.param[1]);
+					m_dst->write(fileKf.param[2]);
 				}
 			}
 		}
@@ -3041,134 +3263,161 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Frame Anims
 	if(doWrite[MDT_FrameAnims])
 	{
-		_setOffset(MDT_FrameAnims,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_FrameAnims,false,offsetList);
+		mm3dfilter_setOffset(MDT_FrameAnims,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_FrameAnims,false,offsetList);
 
 		unsigned count = modelFrames.size();
 
 		writeHeaderA(0x0000,count);
 
-		unsigned baseSize = sizeof(uint16_t)+sizeof(float32_t)+sizeof(uint32_t);
+		//unsigned baseSize = sizeof(uint16_t)+sizeof(float32_t)+sizeof(uint32_t);
 
-		for(unsigned a = 0; a<count; a++)
+		for(Model::FrameAnim*fa:modelFrames)
 		{
-			Model::FrameAnim *fa = modelFrames[a];
-			unsigned animSize = baseSize+fa->m_name.length()+1;
+			//2020: Filled in afterward.
+			//uint32_t animSize = baseSize+fa->m_name.length()+1; //unsigned
+			uint32_t animSize = 0;
 
-			uint32_t frameCount = fa->m_frameData.size();
+			uint32_t frameCount = fa->_frame_count();
+			
+			//animSize += frameCount *vcount *sizeof(float32_t)*3;
 
-			unsigned vcount = modelVertices.size();
-
-			animSize += frameCount *vcount *sizeof(float32_t)*3;
-
-			uint16_t  flags = 0x0000;
+			uint16_t flags = MFAF_MODE_2020; //EXTENSION
 			float32_t fps = fa->m_fps;
 
-			if(fa->m_loop)
-			{
-				flags |= MFAF_ANIM_LOOP;
-			}
+			if(fa->m_wrap) flags|=MFAF_ANIM_LOOP;
 
+			auto off1 = m_dst->offset();
 			m_dst->write(animSize);
 			m_dst->write(flags);
 			m_dst->writeBytes(fa->m_name.c_str(),fa->m_name.length()+1);
 			m_dst->write(fps);
 			uint32_t temp32 = frameCount;
 			m_dst->write(temp32);
+			float32_t tempf;
+			m_dst->write(tempf=fa->m_frame2020); //2020
 
-			for(unsigned f = 0; f<frameCount; f++)
+			unsigned fp = fa->m_frame0;
+			size_t vcount = modelVertices.size();
+			auto *vdata = modelVertices.data();
+
+			//CACHE-UNFRIENDLY
+			//NOTE: Filtering by frames is not cache-friendly but
+			//it seems like it's probably more friendly to import
+			//algorithms. Historically MM3D filters data by frame
+			for(unsigned f=0;f<frameCount;f++,fp++)
 			{
-				Model::FrameAnimVertexList *list = fa->m_frameData[f]->m_frameVertices;
-				unsigned avcount = list->size();
-				log_debug("vcount = %d,avcount = %d,size = %d\n",
-						vcount,avcount,animSize);
-				for(unsigned v = 0; v<vcount; v++)
+				m_dst->write(tempf=fa->m_timetable2020[f]); //2020
+
+				//log_debug("vcount = %d,avcount = %d,size = %d\n",vcount,avcount,animSize); //???
+								
+				for(size_t w=0,v=0;v<vcount;)
 				{
-					if(v<avcount)
+					Model::Interpolate2020E cmp = vdata[v]->m_frames[fp]->m_interp2020;
+					for(w++;w<vcount&&cmp==vdata[w]->m_frames[fp]->m_interp2020;)
+					w++;
+					m_dst->write(temp32=cmp); //MFAF_MODE_2020
+					m_dst->write(temp32=w-v); //MFAF_MODE_2020
+
+					if(cmp>Model::InterpolateCopy) for(;v<w;v++)
 					{
-						for(unsigned i = 0; i<3; i++)
+						double *coord = vdata[v]->m_frames[fp]->m_coord;
+
+						for(unsigned i=0;i<3;i++)
 						{
-							float32_t coord = (*list)[v]->m_coord[i];
-							m_dst->write(coord);
+							m_dst->write((float32_t)coord[i]);
 						}
 					}
-					else
-					{
-						m_dst->write(0.0f);
-						m_dst->write(0.0f);
-						m_dst->write(0.0f);
-					}
+					else v = w;
 				}
 			}
+
+			//TODO: Can MisfitOffsetList do this?
+			auto off2 = m_dst->offset();
+			animSize = off2-off1-sizeof(animSize);
+			m_dst->seek(off1);
+			m_dst->write(animSize);
+			m_dst->seek(off2);
 		}
 		log_debug("wrote %d frame anims\n",count);
 	}
 
 	// Frame Anim Points
+	//
+	// NOTE: Depends on MDT_FrameAnims definition. 
+	//
 	if(doWrite[MDT_FrameAnimPoints])
 	{
-		_setOffset(MDT_FrameAnimPoints,m_dst->offset(),offsetList);
-		_setUniformOffset(MDT_FrameAnimPoints,false,offsetList);
+		mm3dfilter_setOffset(MDT_FrameAnimPoints,m_dst->offset(),offsetList);
+		mm3dfilter_setUniformOffset(MDT_FrameAnimPoints,false,offsetList);
 
-		unsigned count = modelFrames.size();
-
+		unsigned count = 0; 
+		unsigned acount = modelFrames.size();
+		for(auto*fa:modelFrames)
+		for(auto&ea:fa->m_keyframes) if(!ea.empty())
+		{
+			count++; break; //Emit animation data?
+		}
 		writeHeaderA(0x0000,count);
 
 		unsigned baseSize = sizeof(uint16_t)+sizeof(uint32_t)+sizeof(uint32_t);
 
-		unsigned pcount = model->getPointCount();
-
-		for(unsigned a = 0; a<count; a++)
+		for(uint32_t anim=0;anim<acount;anim++)
 		{
-			Model::FrameAnim *fa = modelFrames[a];
+			Model::FrameAnim *fa = modelFrames[anim];
 
-			uint32_t frameCount = fa->m_frameData.size();
-			uint32_t animSize = baseSize+frameCount *(pcount *6 *sizeof(float32_t));
-
-			uint16_t  flags = 0x0000;
-
-			uint32_t anim = a;
+			uint32_t frameCount = fa->_frame_count();
+			uint32_t keyframeCount = 0;			
+			for(auto&ea:fa->m_keyframes)
+			keyframeCount+=ea.size(); 
+			if(!keyframeCount) continue;
+			
+			uint32_t animSize = baseSize;
+			animSize += keyframeCount*FILE_KEYFRAME_SIZE;
 
 			m_dst->write(animSize);
-			m_dst->write(flags);
+			m_dst->write((uint16_t)MFAF_MODE_2020); //flags
 			m_dst->write(anim);
 			m_dst->write(frameCount);
 
-			for(unsigned f = 0; f<frameCount; f++)
-			{
-				Model::FrameAnimPointList *list = fa->m_frameData[f]->m_framePoints;
-				unsigned apcount = list->size();
-				for(unsigned p = 0; p<pcount; p++)
-				{
-					unsigned i;
-					if(p<apcount)
-					{
-						for(i = 0; i<3; i++)
-						{
-							float32_t rot = (*list)[p]->m_rot[i];
-							m_dst->write(rot);
-						}
-						for(i = 0; i<3; i++)
-						{
-							float32_t trans = (*list)[p]->m_trans[i];
-							m_dst->write(trans);
-						}
-					}
-					else
-					{
-						// rot
-						m_dst->write(0.0f);
-						m_dst->write(0.0f);
-						m_dst->write(0.0f);
+			unsigned apcount = fa->m_keyframes.size();
+			assert(apcount==model->getPointCount());
 
-						// trans
-						m_dst->write(0.0f);
-						m_dst->write(0.0f);
-						m_dst->write(0.0f);
+			for(unsigned f=0;f<frameCount;f++)
+			{
+				keyframeCount = 0;			
+				for(auto&ea:fa->m_keyframes)
+				for(auto*kf:ea)
+				if(kf->m_frame==f) keyframeCount++; 
+
+				m_dst->write(keyframeCount);
+
+				for(unsigned j=0;j<apcount;j++)
+				for(auto*kf:fa->m_keyframes[j])
+				{					
+					if(f!=kf->m_frame) continue;
+
+					MM3DFILE_KeyframeT fileKf;
+					fileKf.objectIndex = j;
+					switch(kf->m_isRotation)
+					{
+					case 1: fileKf.keyframeType = 1; break; //translate
+					case 2: fileKf.keyframeType = 0; break; //rotate
+					case 4: fileKf.keyframeType = 2; break; //scale
 					}
+					fileKf.param[0] = kf->m_parameter[0];
+					fileKf.param[1] = kf->m_parameter[1];
+					fileKf.param[2] = kf->m_parameter[2];
+
+					m_dst->write(fileKf.objectIndex);
+					m_dst->write(fileKf.keyframeType);
+					m_dst->write(fileKf.param[0]);
+					m_dst->write(fileKf.param[1]);
+					m_dst->write(fileKf.param[2]);
 				}
 			}
 		}
+
 		log_debug("wrote %d frame anim points\n",count);
 	}
 
@@ -3195,7 +3444,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 	// Re-write header with offsets
 
-	_setOffset(MDT_EndOfFile,m_dst->offset(),offsetList);
+	mm3dfilter_setOffset(MDT_EndOfFile,m_dst->offset(),offsetList);
 
 	m_dst->seek(12);
 	for(t = 0; t<offsetCount; t++)

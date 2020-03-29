@@ -36,7 +36,7 @@ struct EllipseTool : Tool
 	EllipseTool():Tool(TT_Creator,1,TOOLS_CREATE_MENU)
 	{
 		m_smoothness = 2; //config defaults
-		m_isSphere = m_fromCenter = false;
+		m_sphere = m_fromCenter = false;
 	}
 				  		
 	virtual const char *getName(int)
@@ -51,15 +51,15 @@ struct EllipseTool : Tool
 	virtual void activated(int)
 	{
 		parent->addInt(true,&m_smoothness,TRANSLATE_NOOP("Param","Smoothness"),0,5);		
-		parent->addBool(true,&m_isSphere,TRANSLATE_NOOP("Param","Sphere"));
+		parent->addBool(true,&m_sphere,TRANSLATE_NOOP("Param","Sphere"));
 		parent->addBool(true,&m_fromCenter,TRANSLATE_NOOP("Param","From Center"));
 	}
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 		
 		int m_smoothness;
-		bool m_isSphere, m_fromCenter;
+		bool m_sphere, m_fromCenter;
 
 		bool m_created; //NEW
 		ToolCoordList m_vertices;
@@ -71,26 +71,38 @@ struct EllipseTool : Tool
 
 extern Tool *ellipsetool(){ return new EllipseTool; }
 
-void EllipseTool::mouseButtonDown(int buttonState, int x, int y)
+void EllipseTool::mouseButtonDown()
 {
 	m_created = false;
 	
 	double pos[3];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 	m_startX = pos[0]; m_startY = pos[1];
 }
-void EllipseTool::mouseButtonMove(int buttonState, int x, int y)
+void EllipseTool::mouseButtonMove()
 {
 	double pos[2],rad[3];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
-	rad[0] = fabs(m_startX-pos[0])/2;
-	rad[1] = fabs(m_startY-pos[1])/2;		
+	//rad[0] = fabs(m_startX-pos[0])/2;
+	//rad[1] = fabs(m_startY-pos[1])/2;		
+	//rad[2] = std::min(rad[0],rad[1]);
+	double xdiff = m_startX-pos[0];
+	double ydiff = m_startY-pos[1];	
+	rad[0] = fabs(xdiff);
+	rad[1] = fabs(ydiff);
 	rad[2] = std::min(rad[0],rad[1]);
-
+	
 	//NEW: Don't degenerate, as drawVertices now has trouble with
 	//that, and it's just not cool.
 	if(!rad[2]) return;
+
+	if(m_sphere)
+	{
+		//This isn't helpful for snapping and feels bad.
+		//rad[0] = rad[1] = rad[2];
+		rad[0] = rad[1] = rad[2] = sqrt(xdiff*xdiff+ydiff*ydiff);
+	}
 
 	if(!m_created)
 	{
@@ -116,12 +128,12 @@ void EllipseTool::mouseButtonMove(int buttonState, int x, int y)
 			// upper vertex
 			xoff = sin((t*72)*PIOVER180)*adjust;
 			zoff = cos((t*72)*PIOVER180)*adjust;
-			top[t] = addPosition(Model::PT_Vertex,nullptr,xoff,offset,zoff);
+			top[t] = addPosition(Model::PT_Vertex,xoff,offset,zoff);
 
 			// lower vertex
 			xoff = sin((t*72+36)*PIOVER180)*adjust;
 			zoff = cos((t*72+36)*PIOVER180)*adjust;
-			bot[t] = addPosition(Model::PT_Vertex,nullptr,xoff,-offset,zoff);
+			bot[t] = addPosition(Model::PT_Vertex,xoff,-offset,zoff);
 		}
 
 		// Create top and bottom faces
@@ -160,18 +172,17 @@ void EllipseTool::mouseButtonMove(int buttonState, int x, int y)
 		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Tool","Ellipsoid created"));
 	}
 
-	if(m_isSphere) rad[0] = rad[1] = rad[2];
-
 	if(m_fromCenter)
 	{
 		pos[0] = m_startX;
 		pos[1] = m_startY;
-		rad[0]*=2; rad[1]*=2; rad[2]*=2;
 	}
 	else
-	{
+	{	
 		pos[0] = (pos[0]+m_startX)/2;
 		pos[1] = (pos[1]+m_startY)/2;
+
+		for(int i=3;i-->0;) rad[i]/=2;
 	}
 
 	updateVertexCoords(pos[0],pos[1],0,rad[0],rad[1],rad[2]);

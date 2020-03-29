@@ -72,11 +72,11 @@ public: //slots:
 	void view2x1(){ config.set("ui_viewport_tall",1); _makeViews(2*1); }
 	void view2x2(){ _makeViews(2*2); } //void view2x3();
 	void view3x2(){ _makeViews(3*2); } //void view3x3();	
-	void rearrange(int);
+	void rearrange(int),reset();
 
 //protected:
 
-	void _deleteViews(),_makeViews(int),_defaultViews(int);
+	void _deleteViews(),_makeViews(int),_defaultViews(int,bool);
 
 	MainWin &model;
 
@@ -130,7 +130,6 @@ public: //slots:
 	virtual void updateParams();
 	virtual void removeParams();
 	virtual void updateView();
-	virtual void update3dView(); //NOTE: This is limited to animation.
 	virtual void updateAllViews();
 
 	utf8 param_config_key(utf8);

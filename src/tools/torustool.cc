@@ -59,10 +59,10 @@ struct TorusTool : Tool
 		parent->addBool(true,&m_center,TRANSLATE_NOOP("Param","From Center","Checkbox that indicates if torus is created from center or from far corner"));
 	}
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);	
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();	
+	virtual void mouseButtonMove();
 	
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		weldSelectedVertices(parent->getModel());		
 		parent->updateAllViews();		
@@ -86,26 +86,28 @@ struct TorusTool : Tool
 
 extern Tool *torustool(){ return new TorusTool; }
 
-void TorusTool::mouseButtonDown(int buttonState, int x, int y)
+void TorusTool::mouseButtonDown()
 {
 	m_created = m_inverted = false;
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 	m_startX = pos[0]; m_startY = pos[1];
 }
-void TorusTool::mouseButtonMove(int buttonState, int x, int y)
+void TorusTool::mouseButtonMove()
 {	
 	Model *model = parent->getModel();
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	double xdiff = pos[0]-m_startX;
 	double ydiff = pos[1]-m_startY;
 	if(m_circle)
 	{
-		double diff = sqrt(fabs(xdiff*ydiff));
+		//This isn't helpful for snapping and feels bad.
+		//double diff = sqrt(fabs(xdiff*ydiff));
+		double diff = magnitude(xdiff,ydiff);
 		ydiff = ydiff<0?-diff:diff;
 		xdiff = xdiff<0?-diff:diff;
 	}

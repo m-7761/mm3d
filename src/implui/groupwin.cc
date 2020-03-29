@@ -31,6 +31,8 @@ struct GroupWin : Win
 {
 	void submit(int);
 	
+	enum{ id_smooth=1000,id_angle };
+
 	GroupWin(Model *model)
 		:
 	Win("Groups"),
@@ -90,12 +92,9 @@ struct GroupWin : Win
 
 	void group_selected();
 	void new_group_or_name(int);	
-	bool smooth_differs(),angle_differs();
 };
 void GroupWin::submit(int id)
 {
-	enum{ id_smooth=1000,id_angle };
-
 	switch(id)
 	{
 	case id_init:
@@ -113,17 +112,18 @@ void GroupWin::submit(int id)
 		texture.setModel(model);
 		
 		int_list l; model->getSelectedTriangles(l);
-		for(int_list::iterator it=l.begin(),itt=l.end();it<itt;it++)	
-		if(int g=model->getTriangleGroup(*it)+1)
+		for(auto i:l)
+		if(int g=model->getTriangleGroup(i)+1)
 		{
 			group.select_id(g-1); break;
 		}
-		group_selected(); 
-				
 		smooth.set_range(0,255).id(id_smooth).expand();
-		submit(id_smooth); //HACK
 		angle.set_range(0,180).id(id_angle).expand();
-		submit(id_angle); //HACK
+		{
+			group_selected();		
+		}
+		submit(id_smooth);
+		submit(id_angle);
 		smooth.sspace<left>({angle}); //EXPERIMENTAL
 
 		break;
@@ -175,11 +175,17 @@ void GroupWin::submit(int id)
 		//Obscuring this adds phantom positions to this slider.
 		//smooth.name().format("%s%03d\t",::tr("Smoothness: "),(int)((val/255.0)*100));
 		smooth.name().format("%s\t%03d",::tr("Smoothness: "),(int)smooth);
+		model->setGroupSmooth((int)group,0xFF&smooth);
+		if(model->validateNormals())
+		model->updateObservers();
 		break;
 
 	case id_angle:
 
 		angle.name().format("%s\t%03d",::tr("Max Angle: "),(int)angle);
+		model->setGroupAngle((int)group,0xFF&angle);
+		if(model->validateNormals())
+		model->updateObservers();
 		break;
 
 	case id_new: case id_name:
@@ -188,12 +194,8 @@ void GroupWin::submit(int id)
 		break;
 
 	case id_item:
-	case id_ok:
+	case id_ok:		
 
-		//FIX ME: https://github.com/zturtleman/mm3d/issues/53
-		if(!group.empty())
-		if(smooth_differs()||angle_differs())		
-		model->calculateNormals();
 		if(id==id_item)		
 		group_selected();
 		if(id==id_ok)
@@ -249,42 +251,11 @@ void GroupWin::new_group_or_name(int id)
 			group.add_item(g,name);
 			group.select_id(g);
 			group_selected();
+			submit(id_smooth);
+			submit(id_angle);
 		}
 		else assert(0);
 	}
-}
-bool GroupWin::smooth_differs()
-{
-	int g = group;
-
-	unsigned char yuck = 0xFF&smooth; //FIX ME
-
-	//REMOVE ME: setGroupSmooth ought to return false.
-	if(yuck==model->getGroupSmooth(g)) 
-	return false;
-
-	//FIX ME: https://github.com/zturtleman/mm3d/issues/53
-	return model->setGroupSmooth(g,yuck);
-	//Converting 255 to 100???
-	//smooth.name().format("%s%03d",::tr("Smoothness: "),(int)((val/255.0)*100));
-	//model->calculateNormals();
-	//DecalManager::getInstance()->modelUpdated(model); //???
-}
-bool GroupWin::angle_differs()
-{
-	int g = group;
-
-	unsigned char yuck = 0xFF&angle; //FIX ME
-
-	//REMOVE ME: setGroupAngle ought to return false.
-	if(yuck==model->getGroupAngle(g))
-	return false;
-
-	//FIX ME: https://github.com/zturtleman/mm3d/issues/53
-	return model->setGroupAngle(g,yuck);
-	//angle.name().format("%s%03d",::tr("Max Angle: "),val);
-	//model->calculateNormals();
-	//DecalManager::getInstance()->modelUpdated(model); //???
 }
 
 extern void groupwin(Model *m){ GroupWin(m).return_on_close(); }

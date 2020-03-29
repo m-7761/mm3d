@@ -35,8 +35,6 @@
 class MisfitFilter : public ModelFilter
 {
 	public:
-		MisfitFilter();
-		virtual ~MisfitFilter();
 
 		Model::ModelErrorE readFile(Model *model, const char *const filename);
 		Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
@@ -44,14 +42,14 @@ class MisfitFilter : public ModelFilter
 		const char *getReadTypes(){ return "MM3D"; }
 		const char *getWriteTypes(){ return "MM3D"; }
 
-		static const char	  MAGIC[];
+		static const char MAGIC[], MAGIC2020[];;
 
 		static const uint8_t WRITE_VERSION_MAJOR;
 		static const uint8_t WRITE_VERSION_MINOR;
 
 		static const uint16_t OFFSET_TYPE_MASK;
 		static const uint16_t OFFSET_UNI_MASK;
-		static const uint16_t OFFSET_DIRTY_MASK;
+		static const uint16_t OFFSET_DIRTY_MASK; //DIRTY?
 
 	protected:
 

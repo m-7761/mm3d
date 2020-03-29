@@ -33,7 +33,7 @@
 
 typedef std::vector<int> IntList;
 
-static std::string _getWriteFileName(const char *file)
+static std::string scriptif_getWriteFileName(const char *file)
 {
 	std::string s = file;
 	const char *ext = strrchr(file,'.');
@@ -78,7 +78,7 @@ bool scriptif_modelSaveAs(Model *model, const char *f)
 {
 	if(model)
 	{
-		std::string filename = _getWriteFileName(f);
+		std::string filename = scriptif_getWriteFileName(f);
 		log_debug("saving file as %s\n",filename.c_str());
 		Model::ModelErrorE err = FilterManager::getInstance()->writeFile(model,filename.c_str(),true,FilterManager::WO_ModelNoPrompt);
 		if(err==Model::ERROR_NONE)
@@ -168,9 +168,9 @@ MeshRectangle *scriptif_modelCreateMeshRectangle(Model *model, double x0, double
 }
 
 int scriptif_modelCreateBoneJoint(Model *model, const char *name,
-		double x, double y, double z, double xrot, double yrot, double zrot, int parent)
+		double x, double y, double z/*, double xrot, double yrot, double zrot*/, int parent)
 {
-	return model->addBoneJoint(name,x,y,z,xrot,yrot,zrot,parent);
+	return model->addBoneJoint(name,x,y,z/*,xrot,yrot,zrot*/,parent);
 }
 
 //-----------------------------------------------------------------------------
@@ -223,16 +223,12 @@ void scriptif_selectedRotate(Model *model,
 void scriptif_selectedTranslate(Model *model,
 		double x, double y, double z)
 {
-	double trans[3] = { 0,0,0 };
-
-	trans[0] = x;
-	trans[1] = y;
-	trans[2] = z;
+	double trans[3] = { x,y,z };
 
 	//FIX ME: Translate via vector.
-	Matrix m;
-	m.setTranslation(trans);
-	model->translateSelected(m);
+	//Matrix m; m.setTranslation(trans);
+	//model->translateSelected(m);
+	model->translateSelected(trans);
 }
 
 void scriptif_selectedScale(Model *model,
@@ -461,7 +457,7 @@ void scriptif_animSetFPS(Model *model,Model::AnimationModeE mode,
 void scriptif_animClearFrame(Model *model,Model::AnimationModeE mode,
 		unsigned animIndex, unsigned frame)
 {
-	model->clearAnimFrame(mode,animIndex,frame);
+	model->deleteAnimFrame(mode,animIndex,frame);
 }
 
 void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
@@ -478,32 +474,31 @@ void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
 					double y = 0.0;
 					double z = 0.0;
 
-					if(model->getFrameAnimVertexCoords(animIndex,src,v,
-								x,y,z))
-					{
-						model->setFrameAnimVertexCoords(animIndex,dest,v,x,y,z);
-					}
+					auto e = model->getFrameAnimVertexCoords(animIndex,src,v,x,y,z);
+					
+					model->setFrameAnimVertexCoords(animIndex,dest,v,x,y,z,e);
 				}
+				#ifdef NDEBUG
+				#error And points?
+				#endif
 			}
 			break;
 		case Model::ANIMMODE_SKELETAL:
 			{
 				unsigned count = model->getBoneJointCount();
-				for(unsigned j = 0; j<count; j++)
+				for(Model::Position j{Model::PT_Joint,0}; j<count; j++)
 				{
 					double x = 0.0;
 					double y = 0.0;
 					double z = 0.0;
 
-					if(model->getSkelAnimKeyframe(animIndex,src,j,true,x,y,z))
-					{
-						model->setSkelAnimKeyframe(animIndex,dest,j,true,x,y,z);
-					}
-
-					if(model->getSkelAnimKeyframe(animIndex,src,j,false,x,y,z))
-					{
-						model->setSkelAnimKeyframe(animIndex,dest,j,false,x,y,z);
-					}
+					auto e = model->getKeyframe(animIndex,src,j,Model::KeyRotate,x,y,z);
+					
+					model->setKeyframe(animIndex,dest,j,Model::KeyRotate,x,y,z,e);
+					
+					e = model->getKeyframe(animIndex,src,j,Model::KeyTranslate,x,y,z);
+					
+					model->setKeyframe(animIndex,dest,j,Model::KeyTranslate,x,y,z,e);
 				}
 			}
 			break;
@@ -534,16 +529,16 @@ void scriptif_animJoin(Model *model,Model::AnimationModeE mode, unsigned anim1, 
 	model->joinAnimations(mode,anim1,anim2);
 }
 
-int scriptif_animConvertToFrame(Model *model,Model::AnimationModeE mode, unsigned animIndex, const char *newName, unsigned frameCount)
+int scriptif_animConvertToFrame(Model *model,Model::AnimationModeE mode, unsigned animIndex, const char *newName, unsigned frameCount, Model::Interpolate2020E how)
 {
-	return model->convertAnimToFrame(mode,animIndex,newName,frameCount);
+	return model->convertAnimToFrame(mode,animIndex,newName,frameCount,how);
 }
 
 // Skeletal Animation
 
 void scriptif_skelAnimSetKeyframe(Model *model,
-		unsigned animIndex, unsigned frame, unsigned joint,bool isRotation,
-		double x, double y, double z)
+		unsigned animIndex, unsigned frame, unsigned joint, Model::KeyType2020E isRotation,
+		double x, double y, double z, Model::Interpolate2020E e)
 {
 	if(isRotation)
 	{
@@ -552,21 +547,21 @@ void scriptif_skelAnimSetKeyframe(Model *model,
 		z *= PIOVER180;
 	}
 
-	model->setSkelAnimKeyframe(animIndex,frame,joint,isRotation,x,y,z);
+	model->setKeyframe(animIndex,frame,{Model::PT_Joint,joint},isRotation,x,y,z,e);
 }
 
 void scriptif_skelAnimDeleteKeyframe(Model *model,
-		unsigned animIndex, unsigned frame, unsigned joint,bool isRotation)
+		unsigned animIndex, unsigned frame, unsigned joint, Model::KeyType2020E isRotation)
 {
-	model->deleteSkelAnimKeyframe(animIndex,frame,joint,isRotation);
+	model->deleteKeyframe(animIndex,frame,{Model::PT_Joint,joint},isRotation);
 }
 
 // Frame Animation
 
 void scriptif_frameAnimSetVertex(Model *model, unsigned animIndex,
-		unsigned frame, unsigned v, double x, double y, double z)
+		unsigned frame, unsigned v, double x, double y, double z, Model::Interpolate2020E e)
 {
-	model->setFrameAnimVertexCoords(animIndex,frame,v,x,y,z);
+	model->setFrameAnimVertexCoords(animIndex,frame,v,x,y,z,e);
 }
 
 //-----------------------------------------------------------------------------

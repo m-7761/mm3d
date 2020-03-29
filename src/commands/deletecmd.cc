@@ -41,7 +41,7 @@ struct DeleteCommand : Command
 	//NOTE: Duplicate is Ctrl+D. These two may be grouped in
 	//the Geometry menu. Other D functions are Subdivide and
 	//Edge Divide.
-	virtual const char *getKeymap(int){ return "Ctrl+Shift+D"; }	
+	virtual const char *getKeymap(int){ return "Shift+Ctrl+D"; }	
 
 	virtual bool activated(int, Model *model);
 };
@@ -50,12 +50,9 @@ extern Command *deletecmd(){ return new DeleteCommand; }
 
 bool DeleteCommand::activated(int arg,Model *model)
 {
-	int_list joints;
-	model->getSelectedBoneJoints(joints);
-
-	if(model->getAnimationMode()==Model::ANIMMODE_NONE
-	&&!joints.empty()
-	&&model->getAnimCount(Model::ANIMMODE_SKELETAL))
+	//if(!model->getAnimationMode())
+	if(model->getAnimCount(Model::ANIMMODE_SKELETAL)
+	 &&model->getSelectedBoneJointCount())
 	{
 		if('Y'!=msg_warning_prompt
 		(TRANSLATE("Command","Deleting joints may destroy skeletal animations\nDo you wish to continue?"),"yN"))

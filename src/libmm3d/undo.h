@@ -29,10 +29,17 @@ class Undo
 	public:
 
 		virtual bool combine(Undo *u)= 0;
-		virtual void undoRelease(){};
-		virtual void redoRelease(){};
-		virtual void release(){ delete this; };
-		virtual unsigned size(){ return sizeof(Undo); };
+
+		//FIX US
+		//I give up for now:
+		//https://github.com/zturtleman/mm3d/issues/128
+		virtual void undoRelease(){}
+		virtual void redoRelease(){}
+		virtual unsigned size(){ return sizeof(Undo); }
+
+		//UNUSED
+		//Plugin business???
+		virtual void release(){ delete this; }
 
 	protected:
 		virtual ~Undo(){}

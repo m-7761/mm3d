@@ -46,15 +46,14 @@ public:
 
 	Ms3dFilter():m_options(){};
 
-	struct _VertexWeight_t
+	struct VertexWeightT
 	{
 		int boneId;
 		int weight;
 	}; 
-	typedef struct _VertexWeight_t VertexWeightT;
 	typedef std::vector<VertexWeightT> VertexWeightList;
 
-	enum _CommentType_e
+	enum CommentTypeE
 	{
 		CT_GROUP,
 		CT_MATERIAL,
@@ -62,7 +61,6 @@ public:
 		CT_MODEL,
 		CT_MAX,
 	};
-	typedef enum _CommentType_e CommentTypeE;
 
 	Model::ModelErrorE readFile(Model *model, const char *const filename);
 	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);

@@ -59,8 +59,8 @@ struct SnapCommand : Command
 	{
 		switch(arg)
 		{
-		case 0: return "Ctrl+Shift+V";
-		case 1: return "Ctrl+Shift+W";
+		case 0: return "Shift+Ctrl+S";
+		case 1: return "Shift+Ctrl+W";
 		}
 		return "";
 	}

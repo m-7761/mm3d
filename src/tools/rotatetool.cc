@@ -67,15 +67,15 @@ struct RotateTool : Tool
 		parent->updateAllViews();
 	}
 	
-	int mouse2(int buttonState, int x, int y);
+	int mouse2();
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{	
-		if(buttonState&BS_Left)	
+		if(parent->getButtons()&BS_Left)	
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Rotate complete"));
 	
@@ -129,8 +129,8 @@ void RotateTool::activated2()
 		//FIX ME
 		//Min/max/scale the pivot accordingly.
 		//https://github.com/zturtleman/mm3d/issues/89
-		pos_list l;
-		model->getSelectedPositions(l);
+		pos_list l; model->getSelectedPositions(l);
+		if(l.empty()) goto empty1; //NEW
 		double min[3] = {+DBL_MAX,+DBL_MAX,+DBL_MAX}; 
 		double max[3] = {-DBL_MAX,-DBL_MAX,-DBL_MAX}; 
 		for(auto&ea:l) 
@@ -145,13 +145,20 @@ void RotateTool::activated2()
 		}
 		for(int i=0;i<3;i++)
 		m_rotatePoint[i] = (min[i]+max[i])/2;
-		m_rotatePoint.scale = distance(min,max)/6;
+		double dist = distance(min,max);
+		if(!dist) goto empty2; //NEW
+		m_rotatePoint.scale = dist/6;
 	}
-	else //??? //REMOVE ME //???
+	else 
 	{
-		m_rotatePoint.scale = 0.25f; //Old default???
-
-		m_rotatePoint.x = m_rotatePoint.y = m_rotatePoint.z = 0;
+		for(int_list l;model->getSelectedBoneJoints(l),!l.empty();)
+		{
+			model->getBoneJointCoords(l.front(),m_rotatePoint);
+			goto empty2;
+		}
+		
+	empty1: m_rotatePoint.x = m_rotatePoint.y = m_rotatePoint.z = 0;
+	empty2:	m_rotatePoint.scale = model->getViewportUnits().inc3d/4; //0.25
 	}
 	m_rotatePoint.w = 1;		
 
@@ -164,14 +171,14 @@ void RotateTool::activated2()
 	TRANSLATE("Tool","Tip: Hold shift to rotate in 15 degree increments"));
 }
 
-int RotateTool::mouse2(int buttonState, int x, int y)
+int RotateTool::mouse2()
 {
 	Model *model = parent->getModel();
 	
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1],true);
 
-	int ret = 0; if(buttonState&BS_Left)
+	int ret = 0; if(parent->getButtons()&BS_Left)
 	{
 		ret = 1;
 
@@ -183,16 +190,19 @@ int RotateTool::mouse2(int buttonState, int x, int y)
 		double xDiff = pos[0]-coords[0];
 		double yDiff = pos[1]-coords[1];
 		double angle = rotatepoint_diff_to_angle(xDiff,yDiff);
-		if(buttonState&BS_Shift) 
+		if(parent->getButtons()&BS_Shift) 
 		angle = rotatepoint_adjust_to_nearest(angle,15);
 
 		m_mouse2_angle = angle;
 	}
-	else if(buttonState&BS_Right
+	else if(parent->getButtons()&BS_Right
 	&&model->getAnimationMode()!=Model::ANIMMODE_SKELETAL)
 	{
 		ret = 2;
 
+		//FIX ME
+		//ModelViewport::frameArea determines Z for ortho
+		//views. RotateTool::activated places Z elsewhere.
 		m_rotatePoint.x = pos[0];
 		m_rotatePoint.y = pos[1];
 		m_rotatePoint.z = 0;
@@ -203,7 +213,7 @@ int RotateTool::mouse2(int buttonState, int x, int y)
 
 	parent->updateAllViews(); return ret;
 }
-void RotateTool::mouseButtonDown(int buttonState, int x, int y)
+void RotateTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
@@ -219,7 +229,7 @@ void RotateTool::mouseButtonDown(int buttonState, int x, int y)
 		}
 	}
 	 
-	if(int mode=mouse2(buttonState,x,y))
+	if(int mode=mouse2())
 	{
 		const char *msg;
 		if(mode==1) msg = TRANSLATE("Tool","Rotating selected primitives");	
@@ -227,12 +237,12 @@ void RotateTool::mouseButtonDown(int buttonState, int x, int y)
 		model_status(model,StatusNormal,STATUSTIME_SHORT,msg);
 	}
 }
-void RotateTool::mouseButtonMove(int buttonState, int x, int y)
+void RotateTool::mouseButtonMove()
 {
 	double angle = m_mouse2_angle;
-	if(1==mouse2(buttonState,x,y))
+	if(1==mouse2())
 	{
-		double vec[4] = { 0,0,1,1 };
+		double vec[3] = { 0,0,1 };
 		parent->getParentViewInverseMatrix().apply3(vec);
 		Matrix m;
 		m.setRotationOnAxis(vec,m_mouse2_angle-angle);

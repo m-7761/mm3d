@@ -87,19 +87,17 @@ public:
 			std::string textureMap;
 	};
 
-	typedef struct _UvData_t
+	struct UvDataT
 	{
-		float u;
-		float v;
-	} UvDataT;
-	typedef std::vector<UvDataT>UvDataList;
+		float u,v;
+	};
+	typedef std::vector<UvDataT> UvDataList;
 
-	typedef struct _MaterialGroup_t
+	struct MaterialGroupT
 	{
-		unsigned material;
-		unsigned group;
-	} MaterialGroupT;
-	typedef std::vector<MaterialGroupT>MaterialGroupList;
+		unsigned material,group;
+	};
+	typedef std::vector<MaterialGroupT> MaterialGroupList;
 
 protected:
 	bool readLine(char *line);

@@ -46,7 +46,7 @@ struct AnimSetWin : Win
 		name_col(header,"Name"),
 		fps_col(header,"FPS"),
 		frames_col(header,"Frames"),
-		loop(name_col,"Loop",id_check),
+		loop(name_col,"Wrap",id_check),
 	nav1(main),
 		up(nav1,"&Up",id_up),
 		down(nav1,"&Down",id_down),
@@ -104,10 +104,10 @@ struct AnimSetWin : Win
 	{
 		utf8 n = model->getAnimName(mode,id);		
 		double fps = model->getAnimFPS(mode,id);
-		int frames = model->getAnimFrameCount(mode,id);
+		double frames = model->getAnimTimeFrame(mode,id);
 		auto i = new checkbox_item(id,nullptr);
-		i->check(model->getAnimLooping(mode,id));
-		i->text().format(&"%s\0%g\0%d",n,fps,frames);
+		i->check(model->getAnimWrap(mode,id));
+		i->text().format(&"%s\0%g\0%g",n,fps,frames);
 		return i;
 	}
 
@@ -115,7 +115,7 @@ struct AnimSetWin : Win
 	{
 		assert(impl&it.impl_checkbox);
 		auto w = (AnimSetWin*)it.list().ui();
-		w->model->setAnimLooping(w->mode,it.id(),it.checkbox());
+		w->model->setAnimWrap(w->mode,it.id(),it.checkbox());
 	}
 
 	//HACK: Since the columns can be sorted it's
@@ -232,8 +232,8 @@ void AnimConvertWin::submit(int id)
 			auto row = new li::item(ea->id());
 
 			utf8 name = ea->text().c_str();
-			row->text().format(&"%s\0%s\0%d",name,name,
-			owner.model->getAnimFrameCount(owner.mode,ea->id()));
+			row->text().format(&"%s\0%s\0%g",name,name,
+			owner.model->getAnimTimeFrame(owner.mode,ea->id()));
 			
 			table.add_item(row);
 		};
@@ -248,7 +248,8 @@ void AnimConvertWin::submit(int id)
 			utf8 row2[3]; b->text().c_row(row2);
 			switch(int col=header)
 			{
-			case 2: return atoi(row1[col])<atoi(row2[col]);
+			//case 2: return atoi(row1[col])<atoi(row2[col]);
+			case 2: return strtod(row1[col],0)<strtod(row2[col],0);
 			default: return strcmp(row1[col],row2[col])<0;
 			}
 		});
@@ -272,7 +273,8 @@ void AnimConvertWin::submit(int id)
 		table^[&](li::allitems ea)
 		{
 			utf8 row[3]; ea->text().c_row(row);
-			owner.model->convertAnimToFrame(owner.mode,ea->id(),row[1],atoi(row[2]));
+			auto fix_me = Model::InterpolateLerp; //FIX ME
+			owner.model->convertAnimToFrame(owner.mode,ea->id(),row[1],atoi(row[2]),fix_me);
 		};
 		break;
 	}
@@ -338,7 +340,7 @@ void AnimSetWin::submit(int id)
 			switch(int col=header)
 			{			
 			case 0: return strcmp(row1[col],row2[col])<0;
-			case 1: return atoi(row1[col])<atoi(row2[col]);
+			case 1: //return atoi(row1[col])<atoi(row2[col]);
 			case 2: return strtod(row1[2],0)<strtod(row2[2],0);
 			}
 		});
@@ -368,7 +370,7 @@ void AnimSetWin::submit(int id)
 				{
 				case 0: model->setAnimName(mode,(int)table,modal); break;
 				case 1: model->setAnimFPS(mode,(int)table,modal); break;
-				case 2: model->setAnimFrameCount(mode,(int)table,(int)modal); break;
+				case 2: model->setAnimTimeFrame(mode,(int)table,(int)modal); break;
 				}
 			}
 			return;		
@@ -486,7 +488,7 @@ void AnimSetWin::submit(int id)
 					name.push_back(' '); //MERGE US 
 					name.append(model->getAnimName(mode,a));
 					name.push_back(' '); //MERGE US
-					name.append(::tr("at frame number","the frame number where the second (split)animation begins"));
+					name.append(::tr("at frame number","the frame number where the second (split) animation begins"));
 
 					int split = b/2;
 					if(id_ok!=EditBox(&split,::tr("Split at frame","Split animation frame window title"),name.c_str(),2,b))

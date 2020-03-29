@@ -57,8 +57,8 @@ struct PolyTool : Tool
 		parent->addEnum(true,&m_type,TRANSLATE_NOOP("Param","Poly Type"),e);
 	}
 
-	void mouseButtonDown(int buttonState, int x, int y);		
-	void mouseButtonMove(int buttonState, int x, int y);
+	void mouseButtonDown();		
+	void mouseButtonMove();
 		
 		int m_type;
 		
@@ -72,11 +72,11 @@ struct PolyTool : Tool
 
 extern Tool *polytool(){ return new PolyTool; }
 
-void PolyTool::mouseButtonDown(int buttonState, int x, int y)
+void PolyTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
-	if(buttonState!=BS_Left) return;
+	if(parent->getButtons()!=BS_Left) return;
 
 	//FIX ME
 	std::vector<int> selected;
@@ -85,7 +85,7 @@ void PolyTool::mouseButtonDown(int buttonState, int x, int y)
 	
 	//TODO: Change to "true" and lift BS_Left constraint. 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],/*true*/false);
+	parent->getParentXYValue(pos[0],pos[1],/*true*/false);
 	m_lastVertex = addPosition(Model::PT_Vertex,pos[0],pos[1],0);
 
 	if(3==selected.size())
@@ -110,15 +110,13 @@ void PolyTool::mouseButtonDown(int buttonState, int x, int y)
 		Vector viewNorm(0,0,1);
 		viewNorm.transform3(viewMatrix);
 
-		float fNorm[3];
-		model->calculateNormals(); //FIX ME!
-		model->getNormal(tri,0,fNorm);		
-		Vector dNorm(fNorm[0],fNorm[1],fNorm[2]);
+		double dNorm[3];
+		model->getNormal(tri,0,dNorm);
 
 		log_debug("view normal is %f %f %f\n",viewNorm[0],viewNorm[1],viewNorm[2]);
 		log_debug("triangle normal is %f %f %f\n",dNorm[0],dNorm[1],dNorm[2]);
 
-		double d = viewNorm.dot3(dNorm);
+		double d = dot3(viewNorm.getVector(),dNorm);
 		log_debug("dot product is %f\n",d);
 
 		if(d<0) model->invertNormals(tri);
@@ -127,13 +125,13 @@ void PolyTool::mouseButtonDown(int buttonState, int x, int y)
 
 	parent->updateAllViews();	
 }
-void PolyTool::mouseButtonMove(int buttonState, int x, int y)
+void PolyTool::mouseButtonMove()
 {
-	if(buttonState==BS_Left)
+	if(parent->getButtons()==BS_Left)
 	{
 		//TODO: Change to "true" and lift BS_Left constraint. 
 		double pos[2];
-		parent->getParentXYValue(x,y,pos[0],pos[1],/*true*/false);
+		parent->getParentXYValue(pos[0],pos[1],/*true*/false);
 		movePosition(m_lastVertex.pos,pos[0],pos[1],0);
 
 		parent->updateAllViews();

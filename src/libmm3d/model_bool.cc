@@ -31,7 +31,7 @@
 const double TOLERANCE = 0.00005;
 const double ATOLERANCE = 0.00000001;
 
-static bool _coord_equiv(double *ac, double *bc)
+static bool model_bool_coord_equiv(double *ac, double *bc)
 {
 	double d = distance(ac[0],ac[1],ac[2],
 			bc[0],bc[1],bc[2]);
@@ -46,7 +46,7 @@ static bool _coord_equiv(double *ac, double *bc)
 	}
 }
 
-typedef struct _UnionTriangle_t
+struct model_bool_UnionTriangleT
 {
 	int tri;
 	double norm[3];
@@ -55,19 +55,19 @@ typedef struct _UnionTriangle_t
 	double center[3];
 	double tpoint[3];
 	double tnorm[3][3];
-} UnionTriangleT;
-typedef std::list<UnionTriangleT>UnionTriangleList;
+};
+typedef std::list<model_bool_UnionTriangleT> model_bool_UnionTriangleList;
 
-typedef enum _IntersectionCheck_e
+enum IntersectionCheckE
 {
 	IC_TryAgain, // Swap A and B and try again
 	IC_No,		 // No intersection found
 	IC_Yes,		// Intersection found
 	IC_MAX
-} IntersectionCheckE;
+};
 
 // This function returns the angle on pivot from point p1 to p2
-static double _angleToPoint(double *pivot, double *p1, double *p2)
+static double model_bool_angleToPoint(double *pivot, double *p1, double *p2)
 {
 	double vec1[3];
 	double vec2[3];
@@ -98,7 +98,7 @@ static double _angleToPoint(double *pivot, double *p1, double *p2)
 //	 1 = in front
 //	 0 = on plane
 //	-1 = in back
-static int _pointInPlane(double *coord, double *triCoord, double *triNorm)
+static int model_bool_pointInPlane(double *coord, double *triCoord, double *triNorm)
 {
 	double btoa[3];
 
@@ -122,14 +122,14 @@ static int _pointInPlane(double *coord, double *triCoord, double *triNorm)
 //	 1 = inside triangle
 //	 0 = on triangle edge
 //	-1 = outside triangle
-static int _pointInTriangle(double *coord,UnionTriangleT &tri)
+static int model_bool_pointInTriangle(double *coord,model_bool_UnionTriangleT &tri)
 {
 	int vside[3];
 
 	int i;
 	for(i = 0; i<3; i++)
 	{
-		vside[i] = _pointInPlane(coord,tri.tpoint,tri.tnorm[i]);
+		vside[i] = model_bool_pointInPlane(coord,tri.tpoint,tri.tnorm[i]);
 	}
 
 	if(vside[0]<0&&vside[1]<0&&vside[2]<0)
@@ -170,7 +170,7 @@ static int _pointInTriangle(double *coord,UnionTriangleT &tri)
 // returns:
 //	 ipoint = coordinates of edge line and plane
 //	 bool	= whether or not ipoint is between p1 and p2
-static bool _findEdgePlaneIntersection(double *ipoint, double *p1, double *p2,
+static bool model_bool_findEdgePlaneIntersection(double *ipoint, double *p1, double *p2,
 		double *triCoord, double *triNorm,bool checkRange = true)
 {
 	double edgeVec[3];
@@ -234,7 +234,7 @@ static bool _findEdgePlaneIntersection(double *ipoint, double *p1, double *p2,
 	}
 }
 
-static void _initUnionTriangle(Model *model,UnionTriangleT &ut, int triIndex)
+static void model_bool_initUnionTriangle(Model *model, model_bool_UnionTriangleT &ut, int triIndex)
 {
 	ut.tri = triIndex;
 	model->getTriangleVertices(triIndex,ut.v[0],ut.v[1],ut.v[2]);
@@ -267,7 +267,7 @@ static void _initUnionTriangle(Model *model,UnionTriangleT &ut, int triIndex)
 			ut.tpoint,ut.coord[2],ut.coord[0]);
 }
 
-static bool _isValidTriangle(Model *model, int v1, int v2, int v3)
+static bool model_bool_isValidTriangle(Model *model, int v1, int v2, int v3)
 {
 	double coord[3][3];
 
@@ -275,15 +275,15 @@ static bool _isValidTriangle(Model *model, int v1, int v2, int v3)
 	model->getVertexCoords(v2,coord[1]);
 	model->getVertexCoords(v3,coord[2]);
 
-	if(_coord_equiv(coord[0],coord[1]))
+	if(model_bool_coord_equiv(coord[0],coord[1]))
 	{
 		return false;
 	}
-	if(_coord_equiv(coord[0],coord[2]))
+	if(model_bool_coord_equiv(coord[0],coord[2]))
 	{
 		return false;
 	}
-	if(_coord_equiv(coord[1],coord[2]))
+	if(model_bool_coord_equiv(coord[1],coord[2]))
 	{
 		return false;
 	}
@@ -292,9 +292,9 @@ static bool _isValidTriangle(Model *model, int v1, int v2, int v3)
 	double aval2;
 	double aval3;
 	
-	aval1 = fabs(_angleToPoint(coord[0],coord[1],coord[2]));
-	aval2 = fabs(_angleToPoint(coord[1],coord[0],coord[2]));
-	aval3 = fabs(_angleToPoint(coord[2],coord[0],coord[1]));
+	aval1 = fabs(model_bool_angleToPoint(coord[0],coord[1],coord[2]));
+	aval2 = fabs(model_bool_angleToPoint(coord[1],coord[0],coord[2]));
+	aval3 = fabs(model_bool_angleToPoint(coord[2],coord[0],coord[1]));
 
 	if(aval1<TOLERANCE&&aval2<TOLERANCE)
 	{
@@ -314,25 +314,27 @@ static bool _isValidTriangle(Model *model, int v1, int v2, int v3)
 	return true;
 }
 
-typedef struct _NewTriangle_t
+typedef struct model_bool_NewTriangle_t
 {
 	int v[3];
 } NewTriangleT;
 typedef std::vector<NewTriangleT>NewTriangleList;
 
-static void _cutTriangle(Model *model,UnionTriangleList &utl,
-		UnionTriangleT &ut,UnionTriangleT &utCut, double *p1, double *p2)
+static void model_bool_cutTriangle(Model *model,
+	model_bool_UnionTriangleList &utl,
+	model_bool_UnionTriangleT &ut,
+	model_bool_UnionTriangleT &utCut, double *p1, double *p2)
 {
 	log_debug("cutting triangle %d\n",ut.tri);
 
 	int onVertex = 0;
 	for(int n = 0; n<3; n++)
 	{
-		if(_coord_equiv(ut.coord[n],p1))
+		if(model_bool_coord_equiv(ut.coord[n],p1))
 		{
 			onVertex++;
 		}
-		else if(_coord_equiv(ut.coord[n],p2))
+		else if(model_bool_coord_equiv(ut.coord[n],p2))
 		{
 			onVertex++;
 		}
@@ -340,8 +342,8 @@ static void _cutTriangle(Model *model,UnionTriangleList &utl,
 
 	//log_debug("onVertex = %d\n",onVertex);
 
-	double a1 = fabs(_angleToPoint(ut.coord[0],p1,ut.coord[1]));
-	double a2 = fabs(_angleToPoint(ut.coord[0],p2,ut.coord[1]));
+	double a1 = fabs(model_bool_angleToPoint(ut.coord[0],p1,ut.coord[1]));
+	double a2 = fabs(model_bool_angleToPoint(ut.coord[0],p2,ut.coord[1]));
 
 	if((a1==0&&a2==0))
 	{
@@ -351,11 +353,11 @@ static void _cutTriangle(Model *model,UnionTriangleList &utl,
 		return;
 	}
 
-	if(_coord_equiv(ut.coord[0],p1))
+	if(model_bool_coord_equiv(ut.coord[0],p1))
 	{
 		a1 = 0.0;
 	}
-	if(_coord_equiv(ut.coord[0],p2))
+	if(model_bool_coord_equiv(ut.coord[0],p2))
 	{
 		a2 = 0.0;
 	}
@@ -445,7 +447,7 @@ static void _cutTriangle(Model *model,UnionTriangleList &utl,
 	NewTriangleList::iterator it;
 	for(it = ntl.begin(); it!=ntl.end(); it++)
 	{
-		if(_isValidTriangle(model,
+		if(model_bool_isValidTriangle(model,
 					(*it).v[0],(*it).v[1],(*it).v[2]))
 		{
 			if(setUt)
@@ -453,7 +455,7 @@ static void _cutTriangle(Model *model,UnionTriangleList &utl,
 				setUt = false;
 				model->setTriangleVertices(ut.tri,
 					(*it).v[0],(*it).v[1],(*it).v[2]);
-				_initUnionTriangle(model,ut,ut.tri);
+				model_bool_initUnionTriangle(model,ut,ut.tri);
 			}
 			else
 			{
@@ -463,8 +465,8 @@ static void _cutTriangle(Model *model,UnionTriangleList &utl,
 					model->addTriangleToGroup(group,tri);
 				}
 
-				UnionTriangleT nut;
-				_initUnionTriangle(model,nut,tri);
+				model_bool_UnionTriangleT nut;
+				model_bool_initUnionTriangle(model,nut,tri);
 				utl.push_back(nut);
 			}
 		}
@@ -476,9 +478,9 @@ static void _cutTriangle(Model *model,UnionTriangleList &utl,
 	}
 }
 
-static IntersectionCheckE _findIntersection(Model *model,
-		UnionTriangleList &la,UnionTriangleList &lb,
-		UnionTriangleT &a,UnionTriangleT &b)
+static IntersectionCheckE model_bool_findIntersection(Model *model,
+		model_bool_UnionTriangleList &la, model_bool_UnionTriangleList &lb,
+		model_bool_UnionTriangleT &a ,model_bool_UnionTriangleT &b)
 {
 	//log_debug("checking %d against %d\n",a.tri,b.tri);
 	int i;
@@ -510,7 +512,7 @@ static IntersectionCheckE _findIntersection(Model *model,
 			// If the triangles share a vertex or if the vertices
 			// are at the same point in space,they are considered "shared"
 			if(a.v[i]==b.v[j] 
-				  ||_coord_equiv(a.coord[i],b.coord[j]))
+				  ||model_bool_coord_equiv(a.coord[i],b.coord[j]))
 			{
 				sharedVertices++;
 			}
@@ -612,9 +614,9 @@ static IntersectionCheckE _findIntersection(Model *model,
 		double ipoint1[3];
 		double ipoint2[3];
 
-		bool	hit1 = _findEdgePlaneIntersection(ipoint1,
+		bool	hit1 = model_bool_findEdgePlaneIntersection(ipoint1,
 				a.coord[oddSide],a.coord[far1],b.coord[0],b.norm);
-		bool	hit2 = _findEdgePlaneIntersection(ipoint2,
+		bool	hit2 = model_bool_findEdgePlaneIntersection(ipoint2,
 				a.coord[oddSide],a.coord[far2],b.coord[0],b.norm);
 
 		// hit1 and hit2 indicate that the edge crosses the plane
@@ -622,12 +624,12 @@ static IntersectionCheckE _findIntersection(Model *model,
 		// On the triangle's edge counts as "inside"
 		if(hit1)
 		{
-			hit1 = (_pointInTriangle(ipoint1,b)>=0);
+			hit1 = (model_bool_pointInTriangle(ipoint1,b)>=0);
 			//log_debug("  intersects plane at %f,%f,%f (%s)\n",ipoint1[0],ipoint1[1],ipoint1[2],(hit1 ? "yes" : "no"));
 		}
 		if(hit2)
 		{
-			hit2 = (_pointInTriangle(ipoint2,b)>=0);
+			hit2 = (model_bool_pointInTriangle(ipoint2,b)>=0);
 			//log_debug("  intersects plane at %f,%f,%f (%s)\n",ipoint2[0],ipoint2[1],ipoint2[2],(hit2 ? "yes" : "no"));
 		}
 
@@ -640,9 +642,9 @@ static IntersectionCheckE _findIntersection(Model *model,
 				//log_debug("  one hit\n");
 				if(hit1)
 				{
-					//int i = _pointInTriangle(ipoint1,b);
+					//int i = model_bool_pointInTriangle(ipoint1,b);
 					//log_debug("  in triangle: %d\n",i);
-					if(_pointInTriangle(ipoint1,b)==0)
+					if(model_bool_pointInTriangle(ipoint1,b)==0)
 					{
 						// One intersection,on edge,bail
 						return IC_TryAgain;
@@ -650,9 +652,9 @@ static IntersectionCheckE _findIntersection(Model *model,
 				}
 				if(hit2)
 				{
-					//int i = _pointInTriangle(ipoint2,b);
+					//int i = model_bool_pointInTriangle(ipoint2,b);
 					//log_debug("  in triangle: %d\n",i);
-					if(_pointInTriangle(ipoint2,b)==0)
+					if(model_bool_pointInTriangle(ipoint2,b)==0)
 					{
 						// One intersection,on edge,bail
 						return IC_TryAgain;
@@ -662,8 +664,8 @@ static IntersectionCheckE _findIntersection(Model *model,
 
 			if(hit1&&hit2)
 			{
-				_cutTriangle(model,la,a,b,ipoint1,ipoint2);
-				_cutTriangle(model,lb,b,a,ipoint1,ipoint2);
+				model_bool_cutTriangle(model,la,a,b,ipoint1,ipoint2);
+				model_bool_cutTriangle(model,lb,b,a,ipoint1,ipoint2);
 			}
 			else
 			{
@@ -673,7 +675,7 @@ static IntersectionCheckE _findIntersection(Model *model,
 				{
 					for(int i = 0; !hit1&&i<3; i++)
 					{
-						hit1 = _findEdgePlaneIntersection(epoint,
+						hit1 = model_bool_findEdgePlaneIntersection(epoint,
 								ipoint1,ipoint2,b.tpoint,b.tnorm[i]);
 					}
 					memcpy(ipoint1,epoint,sizeof(epoint));
@@ -682,14 +684,14 @@ static IntersectionCheckE _findIntersection(Model *model,
 				{
 					for(int i = 0; !hit2&&i<3; i++)
 					{
-						hit2 = _findEdgePlaneIntersection(epoint,
+						hit2 = model_bool_findEdgePlaneIntersection(epoint,
 								ipoint1,ipoint2,b.tpoint,b.tnorm[i]);
 					}
 					memcpy(ipoint2,epoint,sizeof(epoint));
 				}
 
-				_cutTriangle(model,la,a,b,ipoint1,ipoint2);
-				_cutTriangle(model,lb,b,a,ipoint1,ipoint2);
+				model_bool_cutTriangle(model,la,a,b,ipoint1,ipoint2);
+				model_bool_cutTriangle(model,lb,b,a,ipoint1,ipoint2);
 			}
 			return IC_Yes;
 		}
@@ -703,8 +705,8 @@ static IntersectionCheckE _findIntersection(Model *model,
 	return IC_No;
 }
 
-static void _buildUnionTriangleList(Model *model,
-		UnionTriangleList &buildList,
+static void model_bool_build_UnionTriangleList(Model *model,
+		model_bool_UnionTriangleList &buildList,
 		int_list &sourceList)
 {
 	buildList.clear();
@@ -713,13 +715,13 @@ static void _buildUnionTriangleList(Model *model,
 	int_list::iterator it;
 	for(it = sourceList.begin(); it!=sourceList.end(); it++)
 	{
-		UnionTriangleT ut;
-		_initUnionTriangle(model,ut,*it);
+		model_bool_UnionTriangleT ut;
+		model_bool_initUnionTriangle(model,ut,*it);
 		buildList.push_back(ut);
 	}
 }
 
-static void _findNearTriangles(Model *model,UnionTriangleT &ut,UnionTriangleList &lb, int &coplanar, int &front)
+static void model_bool_findNearTriangles(Model *model,model_bool_UnionTriangleT &ut,model_bool_UnionTriangleList &lb, int &coplanar, int &front)
 {
 	coplanar = -1;
 	front	 = -1;
@@ -728,19 +730,19 @@ static void _findNearTriangles(Model *model,UnionTriangleT &ut,UnionTriangleList
 
 	double ipoint[3];
 
-	UnionTriangleList::iterator it;
-	UnionTriangleList::iterator save_it;
+	model_bool_UnionTriangleList::iterator it;
+	model_bool_UnionTriangleList::iterator save_it;
 
 	for(it = lb.begin(); it!=lb.end(); it++)
 	{
-		if(_findEdgePlaneIntersection(ipoint,
+		if(model_bool_findEdgePlaneIntersection(ipoint,
 				ut.center,ut.tpoint,(*it).center,(*it).norm,false))
 		{
 			//log_debug("found line/plane intersection\n");
-			if(_pointInTriangle(ipoint,(*it))>=0)
+			if(model_bool_pointInTriangle(ipoint,(*it))>=0)
 			{
 				//log_debug("  intersection is in far triangle\n");
-				if(_pointInPlane(ipoint,ut.center,ut.norm)==0)
+				if(model_bool_pointInPlane(ipoint,ut.center,ut.norm)==0)
 				{
 					//log_debug("	 intersection is in self (co planar)\n");
 					coplanar = (*it).tri;
@@ -762,7 +764,7 @@ static void _findNearTriangles(Model *model,UnionTriangleT &ut,UnionTriangleList
 
 	if(front>=0)
 	{
-		if(_pointInPlane(ut.center,(*save_it).center,(*save_it).norm)>0)
+		if(model_bool_pointInPlane(ut.center,(*save_it).center,(*save_it).norm)>0)
 		{
 			//log_debug("	 front triangle faces us,we're outside\n");
 
@@ -773,7 +775,7 @@ static void _findNearTriangles(Model *model,UnionTriangleT &ut,UnionTriangleList
 	}
 }
 
-static void _removeInternalTriangles(Model *model,UnionTriangleList &la,UnionTriangleList &lb)
+static void model_bool_removeInternalTriangles(Model *model,model_bool_UnionTriangleList &la,model_bool_UnionTriangleList &lb)
 {
 	int_list removeList;
 	int_list removeList2;
@@ -781,10 +783,10 @@ static void _removeInternalTriangles(Model *model,UnionTriangleList &la,UnionTri
 	int coplanar;
 	int front;
 
-	UnionTriangleList::iterator it;
+	model_bool_UnionTriangleList::iterator it;
 	for(it = la.begin(); it!=la.end(); it++)
 	{
-		_findNearTriangles(model,*it,lb,coplanar,front);
+		model_bool_findNearTriangles(model,*it,lb,coplanar,front);
 
 		if(front>=0)
 		{
@@ -795,7 +797,7 @@ static void _removeInternalTriangles(Model *model,UnionTriangleList &la,UnionTri
 
 	for(it = lb.begin(); it!=lb.end(); it++)
 	{
-		_findNearTriangles(model,*it,la,coplanar,front);
+		model_bool_findNearTriangles(model,*it,la,coplanar,front);
 
 		if(front>=0||coplanar>=0)
 		{
@@ -837,7 +839,7 @@ static void _removeInternalTriangles(Model *model,UnionTriangleList &la,UnionTri
 	model->deleteOrphanedVertices();
 }
 
-static void _removeExternalTriangles(Model *model,UnionTriangleList &la,UnionTriangleList &lb)
+static void model_bool_removeExternalTriangles(Model *model,model_bool_UnionTriangleList &la,model_bool_UnionTriangleList &lb)
 {
 	int_list removeList;
 	int_list removeList2;
@@ -845,10 +847,10 @@ static void _removeExternalTriangles(Model *model,UnionTriangleList &la,UnionTri
 	int coplanar;
 	int front;
 
-	UnionTriangleList::iterator it;
+	model_bool_UnionTriangleList::iterator it;
 	for(it = la.begin(); it!=la.end(); it++)
 	{
-		_findNearTriangles(model,*it,lb,coplanar,front);
+		model_bool_findNearTriangles(model,*it,lb,coplanar,front);
 
 		if(front<0)
 		{
@@ -859,7 +861,7 @@ static void _removeExternalTriangles(Model *model,UnionTriangleList &la,UnionTri
 
 	for(it = lb.begin(); it!=lb.end(); it++)
 	{
-		_findNearTriangles(model,*it,la,coplanar,front);
+		model_bool_findNearTriangles(model,*it,la,coplanar,front);
 
 		if(front<0||coplanar>=0)
 		{
@@ -901,7 +903,7 @@ static void _removeExternalTriangles(Model *model,UnionTriangleList &la,UnionTri
 	model->deleteOrphanedVertices();
 }
 
-static void _removeSubtractionTriangles(Model *model,UnionTriangleList &la,UnionTriangleList &lb)
+static void model_bool_removeSubtractionTriangles(Model *model,model_bool_UnionTriangleList &la,model_bool_UnionTriangleList &lb)
 {
 	int_list invertList;
 	int_list removeList;
@@ -910,10 +912,10 @@ static void _removeSubtractionTriangles(Model *model,UnionTriangleList &la,Union
 	int coplanar;
 	int front;
 
-	UnionTriangleList::iterator it;
+	model_bool_UnionTriangleList::iterator it;
 	for(it = lb.begin(); it!=lb.end(); it++)
 	{
-		_findNearTriangles(model,*it,la,coplanar,front);
+		model_bool_findNearTriangles(model,*it,la,coplanar,front);
 
 		if(coplanar>=0)
 		{
@@ -936,7 +938,7 @@ static void _removeSubtractionTriangles(Model *model,UnionTriangleList &la,Union
 
 	for(it = la.begin(); it!=la.end(); it++)
 	{
-		_findNearTriangles(model,*it,lb,coplanar,front);
+		model_bool_findNearTriangles(model,*it,lb,coplanar,front);
 
 		if((coplanar>=0&&front<0)
 			  ||(coplanar<0&&front>=0))
@@ -988,22 +990,22 @@ static void _removeSubtractionTriangles(Model *model,UnionTriangleList &la,Union
 void Model::booleanOperation(Model::BooleanOpE op,
 		int_list &listA,int_list &listB)
 {
-	UnionTriangleList la;
-	UnionTriangleList lb;
+	model_bool_UnionTriangleList la;
+	model_bool_UnionTriangleList lb;
 
-	_buildUnionTriangleList(this,la,listA);
-	_buildUnionTriangleList(this,lb,listB);
+	model_bool_build_UnionTriangleList(this,la,listA);
+	model_bool_build_UnionTriangleList(this,lb,listB);
 
-	UnionTriangleList::iterator a;
-	UnionTriangleList::iterator b;
+	model_bool_UnionTriangleList::iterator a;
+	model_bool_UnionTriangleList::iterator b;
 
 	for(a = la.begin(); a!=la.end(); a++)
 	{
 		for(b = lb.begin(); b!=lb.end(); b++)
 		{
-			if(IC_TryAgain==_findIntersection(this,la,lb,*a,*b))
+			if(IC_TryAgain==model_bool_findIntersection(this,la,lb,*a,*b))
 			{
-				_findIntersection(this,lb,la,*b,*a);
+				model_bool_findIntersection(this,lb,la,*b,*a);
 			}
 		}
 	}
@@ -1022,13 +1024,13 @@ void Model::booleanOperation(Model::BooleanOpE op,
 	switch (op)
 	{
 		case BO_UnionRemove:
-			_removeInternalTriangles(this,la,lb);
+			model_bool_removeInternalTriangles(this,la,lb);
 			break;
 		case BO_Subtraction:
-			_removeSubtractionTriangles(this,la,lb);
+			model_bool_removeSubtractionTriangles(this,la,lb);
 			break;
 		case BO_Intersection:
-			_removeExternalTriangles(this,la,lb);
+			model_bool_removeExternalTriangles(this,la,lb);
 			break;
 		default:
 			log_error("Uknown boolean op: %d\n",op);

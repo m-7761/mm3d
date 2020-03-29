@@ -45,20 +45,20 @@ struct JointTool : Tool
 
 	virtual const char *getKeymap(int){ return "F10"; }
 	
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 		ToolCoordT m_joint;
 };
 
 extern Tool *jointtool(){ return new JointTool; }
 
-void JointTool::mouseButtonDown(int buttonState, int x, int y)
+void JointTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 
 	const Matrix &mat = parent->getParentViewMatrix();
 
@@ -91,7 +91,7 @@ void JointTool::mouseButtonDown(int buttonState, int x, int y)
 	}
 	sprintf(name+nameN,"%d",num+1);
 
-	m_joint = addPosition(Model::PT_Joint,name,pos[0],pos[1],0,0,0,0,p);
+	m_joint = addPosition(Model::PT_Joint,pos[0],pos[1],0,name,p);
 
 	model->unselectAll();
 	model->selectBoneJoint(m_joint);
@@ -102,13 +102,12 @@ void JointTool::mouseButtonDown(int buttonState, int x, int y)
 
 	parent->updateAllViews();
 }
-void JointTool::mouseButtonMove(int buttonState, int x, int y)
+void JointTool::mouseButtonMove()
 {
 	if(m_joint.pos.type==Model::PT_Joint)
 	{
 		double pos[2];
-		parent->getParentXYValue(x,y,pos[0],pos[1]);
-
+		parent->getParentXYValue(pos[0],pos[1]);
 		movePosition(m_joint.pos,pos[0],pos[1],0);
 
 		parent->updateAllViews();

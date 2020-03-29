@@ -25,33 +25,33 @@
 #include "log.h"
 
 #ifdef CODE_DEBUG
-static bool _log_show_debug	= true;
-static bool _log_show_warning = true;
-static bool _log_show_error	= true;
+static bool log_log_show_debug	= true;
+static bool log_log_show_warning = true;
+static bool log_log_show_error	= true;
 #else
-static bool _log_show_debug	= false;
-static bool _log_show_warning = false;
-static bool _log_show_error	= false;
+static bool log_log_show_debug	= false;
+static bool log_log_show_warning = false;
+static bool log_log_show_error	= false;
 #endif // CODE_DEBUG
 
 void log_enable_debug(bool o)
 {
-	_log_show_debug = o;
+	log_log_show_debug = o;
 }
 
 void log_enable_warning(bool o)
 {
-	_log_show_warning = o;
+	log_log_show_warning = o;
 }
 
 void log_enable_error(bool o)
 {
-	_log_show_error = o;
+	log_log_show_error = o;
 }
 
 void log_debug(const char *fmt,...)
 {
-	if(_log_show_debug)
+	if(log_log_show_debug)
 	{
 		va_list ap;
 
@@ -64,7 +64,7 @@ void log_debug(const char *fmt,...)
 
 void log_warning(const char *fmt,...)
 {
-	if(_log_show_warning)
+	if(log_log_show_warning)
 	{
 		va_list ap;
 
@@ -77,7 +77,7 @@ void log_warning(const char *fmt,...)
 
 void log_error(const char *fmt,...)
 {
-	if(_log_show_error)
+	if(log_log_show_error)
 	{
 		va_list ap;
 
@@ -90,22 +90,22 @@ void log_error(const char *fmt,...)
 
 #ifdef __DO_PROFILE
 
-FILE *_logProfileFP = nullptr;
+static FILE *log_logProfileFP = nullptr;
 
 void log_profile_init(const char *filename)
 {
-	if(_logProfileFP==nullptr)
+	if(log_logProfileFP==nullptr)
 	{
-		_logProfileFP = fopen(filename,"w");
+		log_logProfileFP = fopen(filename,"w");
 	}
 }
 
 void log_profile_shutdown()
 {
-	if(_logProfileFP)
+	if(log_logProfileFP)
 	{
-		fclose(_logProfileFP);
-		_logProfileFP = nullptr;
+		fclose(log_logProfileFP);
+		log_logProfileFP = nullptr;
 	}
 }
 

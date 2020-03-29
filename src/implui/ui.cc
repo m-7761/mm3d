@@ -108,7 +108,9 @@ const char *ui_translate(const char *ctxt, const char *msg) //transimp.h
 //#include "pixmap/mm3dlogo-32x32.xpm"
 #include "pixmap/mm3dlogo-32x32.h"
 #include "pixmap/play.xpm"
+#include "pixmap/pause.xpm"
 #include "pixmap/stop.xpm"
+#include "pixmap/loop.xpm"
 #include "pixmap/zoomin.xpm"
 #include "pixmap/zoomout.xpm"
 
@@ -122,7 +124,7 @@ int ui_prep(int &argc, char *argv[]) //extern
 	glutext::glutCreateImageList((char**)x##_xpm);
 	auto &png = mm3dlogo_32x32_png;
 	const void *icon_xpm[] = {"PNG",png,png+sizeof(png)};
-	_(icon)_(play)_(stop)_(zoomin)_(zoomout)
+	_(icon)_(play)_(pause)_(stop)_(loop)_(zoomin)_(zoomout)
 	#undef _
 
 	//s_app = new ModelApp(argc,argv);

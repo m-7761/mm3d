@@ -26,7 +26,7 @@
 #include "texture.h"
 #include "log.h"
 
-static bool _model_recycle = true;
+static bool model_inner_recycle = true;
 
 int Model::Vertex::s_allocated = 0;
 int Model::Triangle::s_allocated = 0;
@@ -39,20 +39,20 @@ int Model::TextureProjection::s_allocated = 0;
 int Model::SkelAnim::s_allocated = 0;
 int Model::FrameAnim::s_allocated = 0;
 int Model::FrameAnimVertex::s_allocated = 0;
-int Model::FrameAnimPoint::s_allocated = 0;
+//int Model::FrameAnimPoint::s_allocated = 0;
 
 //FIX THESE: list/pop_front for stack????
-std::vector<Model::Vertex *> Model::Vertex::s_recycle;
-std::vector<Model::Triangle *> Model::Triangle::s_recycle;
-std::vector<Model::Group *> Model::Group::s_recycle;
-std::vector<Model::Material *> Model::Material::s_recycle;
-std::vector<Model::Keyframe *> Model::Keyframe::s_recycle;
-std::vector<Model::Joint *> Model::Joint::s_recycle;
-std::vector<Model::Point *> Model::Point::s_recycle;
-std::vector<Model::SkelAnim *> Model::SkelAnim::s_recycle;
-std::vector<Model::FrameAnim *> Model::FrameAnim::s_recycle;
-std::vector<Model::FrameAnimVertex *> Model::FrameAnimVertex::s_recycle;
-std::vector<Model::FrameAnimPoint *> Model::FrameAnimPoint::s_recycle;
+std::vector<Model::Vertex*> Model::Vertex::s_recycle;
+std::vector<Model::Triangle*> Model::Triangle::s_recycle;
+std::vector<Model::Group*> Model::Group::s_recycle;
+std::vector<Model::Material*> Model::Material::s_recycle;
+std::vector<Model::Keyframe*> Model::Keyframe::s_recycle;
+std::vector<Model::Joint*> Model::Joint::s_recycle;
+std::vector<Model::Point*> Model::Point::s_recycle;
+std::vector<Model::SkelAnim*> Model::SkelAnim::s_recycle;
+std::vector<Model::FrameAnim*> Model::FrameAnim::s_recycle;
+std::vector<Model::FrameAnimVertex*> Model::FrameAnimVertex::s_recycle;
+//std::vector<Model::FrameAnimPoint*> Model::FrameAnimPoint::s_recycle;
 
 const double EQ_TOLERANCE = 0.00001;
 
@@ -68,20 +68,28 @@ bool floatCompareVector(T *lhs,T *rhs, size_t len, double tolerance = EQ_TOLERAN
 static bool influencesMatch(const infl_list &lhs,
 		const infl_list &rhs, int propBits, double tolerance)
 {
-	typedef std::unordered_map<int,Model::InfluenceT> InfluenceMap;
-	InfluenceMap lhsInfMap;
+	//2020: Seems like silly business to me?
+	//typedef std::unordered_map<int,Model::InfluenceT> InfluenceMap;
+	//InfluenceMap lhsInfMap;
 
-	infl_list::const_iterator it;
+	infl_list::const_iterator it,jt;
 
+	/*
 	for(it = lhs.begin(); it!=lhs.end(); ++it)
 	{
 		lhsInfMap[it->m_boneId] = *it;
-	}
+	}*/
 
-	for(it = rhs.begin(); it!=rhs.end(); ++it)
+	for(it = rhs.begin(); it!=rhs.end(); it++)
 	{
-		InfluenceMap::const_iterator lhs_it = lhsInfMap.find(it->m_boneId);
-		if(lhs_it==lhsInfMap.end())
+		for(jt = lhs.begin(); jt!=lhs.end(); jt++)
+		{
+			if(it->m_boneId==jt->m_boneId) break;
+		}
+
+		//InfluenceMap::const_iterator lhs_it = lhsInfMap.find(it->m_boneId);
+		//if(lhs_it==lhsInfMap.end())
+		if(jt==lhs.end())
 		{
 			log_warning("match failed on missing lhs bone %d\n",it->m_boneId);
 			return false;
@@ -90,28 +98,32 @@ static bool influencesMatch(const infl_list &lhs,
 		// This doesn't matter if we only care about weights
 		if(propBits &Model::PropInfluences)
 		{
-			if(lhs_it->second.m_type!=it->m_type)
+			//if(lhs_it->second.m_type!=it->m_type)
+			if(jt->m_type!=it->m_type)
 			{
 				log_warning("match failed on influence type (%d vs %d)for bone %d\n",
-						lhs_it->second.m_type,it->m_type,it->m_boneId);
+						jt->m_type,it->m_type,it->m_boneId);
 				return false;
 			}
 		}
 
-		if(fabs(lhs_it->second.m_weight-it->m_weight)>tolerance)
+		//if(fabs(lhs_it->second.m_weight-it->m_weight)>tolerance)
+		if(fabs(jt->m_weight-it->m_weight)>tolerance)
 		{
 			log_warning("match failed on influence weight (%f vs %f)for bone %d\n",
-					(float)lhs_it->second.m_weight,(float)it->m_weight,it->m_boneId);
+					(float)jt->m_weight,(float)it->m_weight,it->m_boneId);
 			return false;
 		}
 
-		lhsInfMap.erase(it->m_boneId);
+		//lhsInfMap.erase(it->m_boneId);
 	}
 
-	if(!lhsInfMap.empty())
+	/*if(!lhsInfMap.empty())*/
+	if(rhs.size()>lhs.size())
 	{
-		log_warning("match failed on missing rhs bone %d\n",
-				lhsInfMap.begin()->second.m_boneId);
+		//log_warning("match failed on missing rhs bone %d\n",
+		//		lhsInfMap.begin()->second.m_boneId);
+		log_warning("match failed on missing rhs bone %d\n",lhs[rhs.size()].m_boneId);
 		return false;
 	}
 
@@ -119,17 +131,22 @@ static bool influencesMatch(const infl_list &lhs,
 }
 
 Model::Vertex::Vertex()
+	/*2020: NOT init()?
 	: m_selected(false),
 	  m_visible(true),
 	  m_free(false),
-	  m_drawSource(m_coord)
+	  m_absSource(m_coord)*/
 {
 	s_allocated++;
+
+	init(); //2020
 }
 
 Model::Vertex::~Vertex()
 {
 	s_allocated--;
+
+	init(); //2020
 }
 
 void Model::Vertex::init()
@@ -138,15 +155,15 @@ void Model::Vertex::init()
 	m_visible  = true;
 	m_free	  = false;
 
-	m_drawSource = m_coord;
+	m_absSource = m_coord;
 
-	m_influences.clear();
+	releaseData(); //2020 //???
 }
 
 int Model::Vertex::flush()
 {
 	int c = 0;
-	std::vector<Vertex *>::iterator it = s_recycle.begin();
+	std::vector<Vertex*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -179,7 +196,7 @@ Model::Vertex *Model::Vertex::get()
 
 void Model::Vertex::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -187,6 +204,14 @@ void Model::Vertex::release()
 	{
 		delete this;
 	}
+}
+void Model::Vertex::releaseData() //2020
+{
+	m_influences.clear();
+	m_faces.clear();
+	for(auto j=m_frames.size();j-->0;)
+	m_frames[j]->release();
+	m_frames.clear();
 }
 
 bool Model::Vertex::propEqual(const Vertex &rhs, int propBits, double tolerance)const
@@ -209,18 +234,32 @@ bool Model::Vertex::propEqual(const Vertex &rhs, int propBits, double tolerance)
 		if(m_free!=rhs.m_free)
 			return false;
 
-	// FIXME apply this to points also
 	if((propBits &(PropInfluences | PropWeights))!=0)
 	{
 		if(!influencesMatch(m_influences,rhs.m_influences,propBits,tolerance))
 			return false;
 	}
 
+	if((propBits &(PropInfluences | PropWeights))!=0)
+	{
+		if(!influencesMatch(m_influences,rhs.m_influences,propBits,tolerance))
+			return false;
+	}
+
+	if((propBits&PartFrameAnims)!=0)
+	{
+		size_t i = 0, iN = m_frames.size();
+		if(iN==rhs.m_frames.size()) 
+		for(;i<iN;i++) if(!m_frames[i]->propEqual(*rhs.m_frames[i],propBits,tolerance))
+		return false; else return false;
+	}
+
 	return true;
 }
 
 Model::Triangle::Triangle()
-	: m_selected(false),
+	: 
+	  m_selected(false),
 	  m_visible(true),
 	  m_marked(false),
 	  m_projection(-1)
@@ -237,12 +276,12 @@ Model::Triangle::~Triangle()
 
 void Model::Triangle::init()
 {
-	m_s[0] = 0.0;
-	m_t[0] = 1.0;
-	m_s[1] = 0.0;
-	m_t[1] = 0.0;
-	m_s[2] = 1.0;
-	m_t[2] = 0.0;
+	m_s[0] = 0;
+	m_t[0] = 1;
+	m_s[1] = 0;
+	m_t[1] = 0;
+	m_s[2] = 1;
+	m_t[2] = 0;
 
 	m_selected = false;
 	m_marked	= false;
@@ -253,12 +292,13 @@ void Model::Triangle::init()
 	m_normalSource[0] = m_finalNormals[0];
 	m_normalSource[1] = m_finalNormals[1];
 	m_normalSource[2] = m_finalNormals[2];
+	m_angleSource = m_vertAngles;
 }
 
 int Model::Triangle::flush()
 {
 	int c = 0;
-	std::vector<Triangle *>::iterator it = s_recycle.begin();
+	std::vector<Triangle*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -291,7 +331,7 @@ Model::Triangle *Model::Triangle::get()
 
 void Model::Triangle::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -343,8 +383,8 @@ Model::Group::Group()
 	: m_materialIndex(-1),
 	  m_smooth(255),
 	  m_angle(89),
-	  m_selected(false),
-	  m_visible(true)
+	  m_selected(false)
+//	  m_visible(true) //UNUSED
 {
 	s_allocated++;
 }
@@ -360,15 +400,15 @@ void Model::Group::init()
 	m_smooth = 255;
 	m_angle = 89;
 	m_selected = false;
-	m_visible = true;
-	m_name.clear();
-	m_triangleIndices.clear();
+//	m_visible = true;
+	m_name.clear(); //ABUSED (init?)
+	m_triangleIndices.clear(); //ABUSED (init?)
 }
 
 int Model::Group::flush()
 {
 	int c = 0;
-	std::vector<Group *>::iterator it = s_recycle.begin();
+	std::vector<Group*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -401,7 +441,7 @@ Model::Group *Model::Group::get()
 
 void Model::Group::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -437,9 +477,9 @@ bool Model::Group::propEqual(const Group &rhs, int propBits, double tolerance)co
 		if(m_selected!=rhs.m_selected)
 			return false;
 
-	if((propBits &PropVisibility)!=0)
-		if(m_visible!=rhs.m_visible)
-			return false;
+//	if((propBits &PropVisibility)!=0)
+//		if(m_visible!=rhs.m_visible)
+//			return false;
 
 	return true;
 }
@@ -462,9 +502,9 @@ Model::Material::~Material()
 
 void Model::Material::init()
 {
-	m_name.clear();
-	m_filename.clear();
-	m_alphaFilename.clear();
+	m_name.clear(); //ABUSED (init?)
+	m_filename.clear(); //ABUSED (init?)
+	m_alphaFilename.clear(); //ABUSED (init?)
 	m_textureData	= nullptr;
 	m_texture		 = 0;
 	m_type			 = MATTYPE_TEXTURE;
@@ -475,7 +515,7 @@ void Model::Material::init()
 int Model::Material::flush()
 {
 	int c = 0;
-	std::vector<Material *>::iterator it = s_recycle.begin();
+	std::vector<Material*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -508,7 +548,7 @@ Model::Material *Model::Material::get()
 
 void Model::Material::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -588,6 +628,8 @@ bool Model::Material::propEqual(const Material &rhs, int propBits, double tolera
 
 Model::Keyframe::Keyframe()
 {
+	init(); //2020 (UNUSED)
+
 	s_allocated++;
 }
 
@@ -598,12 +640,15 @@ Model::Keyframe::~Keyframe()
 
 void Model::Keyframe::init()
 {
+	//NOP???
+
+	m_interp2020 = InterpolateLerp; //NEW
 }
 
 int Model::Keyframe::flush()
 {
 	int c = 0;
-	std::vector<Keyframe *>::iterator it = s_recycle.begin();
+	std::vector<Keyframe*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -628,27 +673,21 @@ Model::Keyframe *Model::Keyframe::get()
 		v->init();
 		return v;
 	}
-	else
-	{
-		return new Keyframe();
-	}
+	return new Keyframe();
 }
 
 void Model::Keyframe::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 
 bool Model::Keyframe::propEqual(const Keyframe &rhs, int propBits, double tolerance)const
 {
-	if(m_jointIndex!=rhs.m_jointIndex)
+	if(m_objectIndex!=rhs.m_objectIndex)
 		return false;
 
 	if((propBits &PropType)!=0)
@@ -659,12 +698,12 @@ bool Model::Keyframe::propEqual(const Keyframe &rhs, int propBits, double tolera
 	{
 		if(m_frame!=rhs.m_frame)
 			return false;
-		if(fabs(m_time-rhs.m_time)>tolerance)
-			return false;
+	//	if(fabs(m_time-rhs.m_time)>tolerance)
+	//		return false;
 	}
 
-	if((m_isRotation&&(propBits &PropRotation)!=0)
-		  ||(!m_isRotation&&(propBits &PropCoords)!=0))
+	if((m_isRotation==KeyRotate&&(propBits &PropRotation)!=0)
+		  ||(m_isRotation==KeyTranslate&&(propBits &PropCoords)!=0))
 		if(!floatCompareVector(m_parameter,rhs.m_parameter,3,tolerance))
 			return false;
 
@@ -687,6 +726,12 @@ void Model::Joint::init()
 {
 	m_selected = false;
 	m_visible  = true;
+
+	for(int i=0;i<3;i++) //NECESSARY?
+	{
+		m_kfRot[0] = 0;
+		m_kfXyz[1] = 1;
+	}
 }
 
 Model::Joint *Model::Joint::get()
@@ -706,7 +751,7 @@ Model::Joint *Model::Joint::get()
 
 void Model::Joint::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -719,7 +764,7 @@ void Model::Joint::release()
 int Model::Joint::flush()
 {
 	int c = 0;
-	std::vector<Joint *>::iterator it = s_recycle.begin();
+	std::vector<Joint*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -741,7 +786,7 @@ bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)co
 	{
 		for(unsigned i = 0; i<3; i++)
 		{
-			if(fabs(m_localRotation[i]-rhs.m_localRotation[i])>tolerance)
+			if(fabs(m_rot[i]-rhs.m_rot[i])>tolerance)
 				return false;
 		}
 	}
@@ -749,7 +794,7 @@ bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)co
 	{
 		for(unsigned i = 0; i<3; i++)
 		{
-			if(fabs(m_localTranslation[i]-rhs.m_localTranslation[i])>tolerance)
+			if(fabs(m_rel[i]-rhs.m_rel[i])>tolerance)
 				return false;
 		}
 	}
@@ -788,20 +833,14 @@ void Model::Point::init()
 {
 	m_selected = false;
 	m_visible  = true;
-	m_type	  = 0;
 
-	m_kfTrans[0] = 0.0;
-	m_kfTrans[1] = 0.0;
-	m_kfTrans[2] = 0.0;
+	for(int i=0;i<3;i++) //NECESSARY?
+	{
+		m_kfAbs[0] = m_kfRot[0] = 0;
+		m_kfXyz[1] = 1;
+	}
 
-	m_kfRot[0] = 0.0;
-	m_kfRot[1] = 0.0;
-	m_kfRot[2] = 0.0;
-
-	m_drawSource = m_trans;
-	m_rotSource  = m_rot;
-
-	m_influences.clear();
+	m_influences.clear(); //ABUSED (init?)
 }
 
 Model::Point *Model::Point::get()
@@ -821,7 +860,7 @@ Model::Point *Model::Point::get()
 
 void Model::Point::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -834,7 +873,7 @@ void Model::Point::release()
 int Model::Point::flush()
 {
 	int c = 0;
-	std::vector<Point *>::iterator it = s_recycle.begin();
+	std::vector<Point*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -853,7 +892,7 @@ void Model::Point::stats()
 bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)const
 {
 	if((propBits &PropCoords)!=0)
-		if(!floatCompareVector(m_trans,rhs.m_trans,3,tolerance))
+		if(!floatCompareVector(m_abs,rhs.m_abs,3,tolerance))
 			return false;
 
 	if((propBits &PropRotation)!=0)
@@ -864,10 +903,6 @@ bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)co
 		if(m_name!=rhs.m_name)
 			return false;
 
-	if((propBits &PropType)!=0)
-		if(m_type!=rhs.m_type)
-			return false;
-
 	if((propBits &PropSelection)!=0)
 		if(m_selected!=rhs.m_selected)
 			return false;
@@ -875,30 +910,12 @@ bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)co
 	if((propBits &PropVisibility)!=0)
 		if(m_visible!=rhs.m_visible)
 			return false;
-
+  	
 	if((propBits &(PropInfluences | PropWeights))!=0)
 	{
-		infl_list::const_iterator lhs_it = m_influences.begin();
-		infl_list::const_iterator rhs_it = rhs.m_influences.begin();
-
-		for(; lhs_it!=m_influences.end()&&rhs_it!=rhs.m_influences.end();
-				++lhs_it,++rhs_it)
-		{
-			// This doesn't matter if we only care about weights
-			if(propBits &PropInfluences)
-				if(lhs_it->m_type!=rhs_it->m_type)
-					return false;
-
-			// This matters if we're comparing influences or weights
-			if(lhs_it->m_boneId!=rhs_it->m_boneId)
-				return false;
-			if(fabs(lhs_it->m_weight-rhs_it->m_weight)>tolerance)
-				return false;
-		}
-
-		if(lhs_it!=m_influences.end()||rhs_it!=rhs.m_influences.end())
+		if(!influencesMatch(m_influences,rhs.m_influences,propBits,tolerance))
 			return false;
-	}
+	}	
 
 	return true;
 }
@@ -946,7 +963,7 @@ Model::TextureProjection *Model::TextureProjection::get()
 void Model::TextureProjection::release()
 {
 	/*
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -961,7 +978,7 @@ int Model::TextureProjection::flush()
 {
 	int c = 0;
 	/*
-	std::vector<TextureProjection *>::iterator it = s_recycle.begin();
+	std::vector<TextureProjection*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -985,14 +1002,14 @@ bool Model::TextureProjection::propEqual(const TextureProjection &rhs, int propB
 			return false;
 
 	if((propBits &PropCoords)!=0)
-		if(!floatCompareVector(m_pos,rhs.m_pos,3,tolerance))
+		if(!floatCompareVector(m_abs,rhs.m_abs,3,tolerance))
 			return false;
 
 	if((propBits &PropRotation)!=0)
 	{
-		if(!floatCompareVector(m_upVec,rhs.m_upVec,3,tolerance))
+		if(!floatCompareVector(m_xyz,rhs.m_xyz,3,tolerance))
 			return false;
-		if(!floatCompareVector(m_seamVec,rhs.m_seamVec,3,tolerance))
+		if(!floatCompareVector(m_rot,rhs.m_rot,3,tolerance))
 			return false;
 	}
 
@@ -1016,7 +1033,6 @@ bool Model::TextureProjection::propEqual(const TextureProjection &rhs, int propB
 }
 
 Model::SkelAnim::SkelAnim()
-	: m_fps(10.0)
 {
 	s_allocated++;
 	init();
@@ -1028,24 +1044,33 @@ Model::SkelAnim::~SkelAnim()
 	init();
 }
 
-void Model::SkelAnim::init()
+void Model::AnimBase2020::init()
 {
-	m_name = "Skel";
-	m_validNormals = false;
-	releaseData();
+	//CAUTION: Several fields are assigned 
+	//by addAnimation.
+
+	//m_name = "Skel";
+	//m_validNormals = false;
+	m_fps = 10; //10???
+	m_frame2020 = 0;
+	m_wrap = false; //true;
+
+	releaseData(); //???
+
+	m_timetable2020.clear(); //2020 //Assuming correct???
 }
 
-void Model::SkelAnim::releaseData()
+void Model::AnimBase2020::releaseData()
 {
-	for(unsigned j = 0; j<m_jointKeyframes.size(); j++)
+	for(unsigned j = 0; j<m_keyframes.size(); j++)
 	{
-		for(unsigned k = 0; k<m_jointKeyframes[j].size(); k++)
+		for(unsigned k = 0; k<m_keyframes[j].size(); k++)
 		{
-			m_jointKeyframes[j][k]->release();
+			m_keyframes[j][k]->release();
 		}
-		m_jointKeyframes[j].clear();
+		m_keyframes[j].clear();
 	}
-	m_jointKeyframes.clear();
+	m_keyframes.clear();
 }
 
 Model::SkelAnim *Model::SkelAnim::get()
@@ -1064,7 +1089,7 @@ Model::SkelAnim *Model::SkelAnim::get()
 
 void Model::SkelAnim::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		init();
 		s_recycle.push_back(this);
@@ -1078,7 +1103,7 @@ void Model::SkelAnim::release()
 int Model::SkelAnim::flush()
 {
 	int c = 0;
-	std::vector<SkelAnim *>::iterator it = s_recycle.begin();
+	std::vector<SkelAnim*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -1094,13 +1119,13 @@ void Model::SkelAnim::stats()
 	log_debug("SkelAnim: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
-bool Model::SkelAnim::propEqual(const SkelAnim &rhs, int propBits, double tolerance)const
+bool Model::AnimBase2020::propEqual(const AnimBase2020 &rhs, int propBits, double tolerance)const
 {
 	if((propBits &PropName)!=0)
 	{
 		if(m_name!=rhs.m_name)
 		{
-			log_warning("match failed at anim name,lhs = '%s',rhs = '%s'\n",
+			log_warning("match failed at anim name, lhs = '%s', rhs = '%s'\n",
 					m_name.c_str(),rhs.m_name.c_str());
 			return false;
 		}
@@ -1110,51 +1135,62 @@ bool Model::SkelAnim::propEqual(const SkelAnim &rhs, int propBits, double tolera
 	{
 		if(fabs(m_fps-rhs.m_fps)>tolerance)
 		{
-			log_warning("match failed at anim fps,lhs = %f,rhs = %f\n",
+			log_warning("match failed at anim fps, lhs = %f, rhs = %f\n",
 					(float)m_fps,(float)rhs.m_fps);
 			return false;
 		}
 	}
 
-	if((propBits &PropLoop)!=0)
+	if((propBits &PropWrap)!=0)
 	{
-		if(m_loop!=rhs.m_loop)
+		if(m_wrap!=rhs.m_wrap)
 		{
-			log_warning("match failed at anim loop,lhs = %d,rhs = %d\n",
-					m_loop,rhs.m_loop);
+			log_warning("match failed at anim wrap, lhs = %d, rhs = %d\n",
+					m_wrap,rhs.m_wrap);
 			return false;
 		}
 	}
 
-	if((propBits &PropDimensions)!=0)
+	if(_frame_count()!=rhs._frame_count())
 	{
-		if(m_frameCount!=rhs.m_frameCount)
+		if((propBits &PropDimensions)!=0)
 		{
-			log_warning("match failed at anim frame count,lhs = %d,rhs = %d\n",
-					m_frameCount,rhs.m_frameCount);
+			log_warning("match failed at anim frame count, lhs = %d, rhs = %d\n",
+					_frame_count(),rhs._frame_count());
 			return false;
+		}
+
+		if((propBits &PropTimestamps)!=0) //2020
+		{
+			for(auto i=_frame_count();i-->0;)
+			if(fabs(m_timetable2020[i]-rhs.m_timetable2020[i])>tolerance)
+			{
+				log_warning("match failed at anim fps, lhs = %f, rhs = %f\n",
+						(float)m_timetable2020[i],(float)rhs.m_timetable2020[i]);
+				return false;
+			}
 		}
 	}
 
 	if((propBits &(PropCoords | PropRotation | PropType))!=0)
 	{
-		if(m_jointKeyframes.size()!=rhs.m_jointKeyframes.size())
+		if(m_keyframes.size()!=rhs.m_keyframes.size())
 		{
-			log_warning("match failed at anim keyframe size,lhs = %d,rhs = %d\n",
-					m_jointKeyframes.size(),rhs.m_jointKeyframes.size());
+			log_warning("match failed at anim keyframe size, lhs = %d, rhs = %d\n",
+					m_keyframes.size(),rhs.m_keyframes.size());
 			return false;
 		}
 
-		JointKeyframeList::const_iterator lhs_it = m_jointKeyframes.begin();
-		JointKeyframeList::const_iterator rhs_it = rhs.m_jointKeyframes.begin();
-		for(; lhs_it!=m_jointKeyframes.end()&&rhs_it!=m_jointKeyframes.end();
+		auto lhs_it = m_keyframes.begin();
+		auto rhs_it = rhs.m_keyframes.begin();
+		for(; lhs_it!=m_keyframes.end()&&rhs_it!=m_keyframes.end();
 				++lhs_it,++rhs_it)
 		{
 			if(lhs_it->size()!=rhs_it->size())
 				return false;
 
-			KeyframeList::const_iterator l = lhs_it->begin();
-			KeyframeList::const_iterator r = rhs_it->begin();
+			auto l = lhs_it->begin();
+			auto r = rhs_it->begin();
 			for(; l!=lhs_it->end()&&r!=rhs_it->end(); ++l,++r)
 			{
 				if(!(*l)->propEqual(**r,propBits,tolerance))
@@ -1166,28 +1202,28 @@ bool Model::SkelAnim::propEqual(const SkelAnim &rhs, int propBits, double tolera
 	return true;
 }
 
+/*REFERENCE
 void Model::FrameAnimData::releaseData()
 {
-	if(m_frameVertices)
+	//if(m_frameVertices)
 	{
-		for(unsigned v = 0; v<m_frameVertices->size(); v++)
+		for(unsigned v = 0; v<m_frameVertices.size(); v++)
 		{
-			(*m_frameVertices)[v]->release();
+			m_frameVertices[v]->release();
 		}
-		m_frameVertices->clear();
+		m_frameVertices.clear(); //shrink_to_fit???
 	}
-	if(m_framePoints)
+	//if(m_framePoints)
 	{
-		for(unsigned p = 0; p<m_framePoints->size(); p++)
+		for(unsigned p = 0; p<m_framePoints.size(); p++)
 		{
-			(*m_framePoints)[p]->release();
+			m_framePoints[p]->release();
 		}
-		m_framePoints->clear();
+		m_framePoints.clear(); //shrink_to_fit???
 	}
-}
+}*/
 
 Model::FrameAnim::FrameAnim()
-	: m_fps(10.0)
 {
 	s_allocated++;
 	init();
@@ -1199,12 +1235,15 @@ Model::FrameAnim::~FrameAnim()
 	init();
 }
 
+/*REFERENCE
 void Model::FrameAnim::init()
 {
 	m_name = "Frame";
-	m_validNormals = false;
-	releaseData();
-}
+	//m_validNormals = false;
+	m_fps = 10;
+	m_frame2020 = 0;
+	releaseData();	
+}*/
 
 Model::FrameAnim *Model::FrameAnim::get()
 {
@@ -1222,7 +1261,7 @@ Model::FrameAnim *Model::FrameAnim::get()
 
 void Model::FrameAnim::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		init();
 		s_recycle.push_back(this);
@@ -1233,23 +1272,20 @@ void Model::FrameAnim::release()
 	}
 }
 
+/*
 void Model::FrameAnim::releaseData()
 {
-	while(!m_frameData.empty())
+	for(auto*ea:m_frameData)
 	{
-		m_frameData.back()->releaseData();
-		delete m_frameData.back()->m_frameVertices;
-		delete m_frameData.back()->m_framePoints;
-		delete m_frameData.back();
-		m_frameData.pop_back();
+		ea->releaseData(); delete ea;
 	}
-	m_frameData.clear();
-}
+	m_frameData.clear(); //shrink_to_fit???
+}*/
 
 int Model::FrameAnim::flush()
 {
 	int c = 0;
-	std::vector<FrameAnim *>::iterator it = s_recycle.begin();
+	std::vector<FrameAnim*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -1263,63 +1299,6 @@ int Model::FrameAnim::flush()
 void Model::FrameAnim::stats()
 {
 	log_debug("FrameAnim: %d/%d\n",s_recycle.size(),s_allocated);
-}
-
-bool Model::FrameAnim::propEqual(const FrameAnim &rhs, int propBits, double tolerance)const
-{
-	if((propBits &PropName)!=0)
-	{
-		if(m_name!=rhs.m_name)
-		{
-			log_warning("match failed at anim name lhs '%s',rhs '%s'\n",
-					m_name.c_str(),rhs.m_name.c_str());
-			return false;
-		}
-	}
-
-	if((propBits &PropTime)!=0)
-	{
-		if(fabs(m_fps-rhs.m_fps)>tolerance)
-		{
-			log_warning("match failed at anim fps lhs %f,rhs %f\n",
-					(float)m_fps,(float)rhs.m_fps);
-			return false;
-		}
-	}
-
-	if((propBits &PropLoop)!=0)
-	{
-		if(m_loop!=rhs.m_loop)
-		{
-			log_warning("match failed at anim loop lhs = %d,rhs = %d\n",
-					m_loop,rhs.m_loop);
-			return false;
-		}
-	}
-
-	if((propBits &(PropCoords | PropRotation))!=0)
-	{
-		if(m_frameData.size()!=rhs.m_frameData.size())
-		{
-			log_warning("match failed at anim frame size lhs %d,rhs %d\n",
-					m_frameData.size(),rhs.m_frameData.size());
-			return false;
-		}
-
-		FrameAnimDataList::const_iterator lhs_it = m_frameData.begin();
-		FrameAnimDataList::const_iterator rhs_it = rhs.m_frameData.begin();
-		for(; lhs_it!=m_frameData.end()&&rhs_it!=m_frameData.end();
-				++lhs_it,++rhs_it)
-		{
-			if(!(*lhs_it)->propEqual(**rhs_it,propBits,tolerance))
-			{
-				log_warning("match failed at frame %d\n",lhs_it-m_frameData.begin());
-				return false;
-			}
-		}
-	}
-
-	return true;
 }
 
 Model::FrameAnimVertex::FrameAnimVertex()
@@ -1337,9 +1316,9 @@ void Model::FrameAnimVertex::init()
 {
 	for(unsigned t = 0; t<3; t++)
 	{
-		m_coord[t]  = 0;
-		m_normal[t] = 0;
+		m_coord[t]  = 0; //m_normal[t] = 0;
 	}
+	m_interp2020 = InterpolateNone; //NEW (2020)
 }
 
 Model::FrameAnimVertex *Model::FrameAnimVertex::get()
@@ -1359,7 +1338,7 @@ Model::FrameAnimVertex *Model::FrameAnimVertex::get()
 
 void Model::FrameAnimVertex::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -1372,7 +1351,7 @@ void Model::FrameAnimVertex::release()
 int Model::FrameAnimVertex::flush()
 {
 	int c = 0;
-	std::vector<FrameAnimVertex *>::iterator it = s_recycle.begin();
+	std::vector<FrameAnimVertex*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -1389,8 +1368,13 @@ void Model::FrameAnimVertex::stats()
 }
 
 bool Model::FrameAnimVertex::propEqual(const FrameAnimVertex &rhs, int propBits, double tolerance)const
-{
-	if((propBits &PropCoords)!=0)
+{	
+	if((propBits &PropType)!=0) //???
+	{
+		if(m_interp2020!=rhs.m_interp2020) return false;
+	}
+
+	if((propBits &PropCoords)!=0) //???
 	{
 		if(!floatCompareVector(m_coord,rhs.m_coord,3,tolerance))
 		{
@@ -1404,26 +1388,25 @@ bool Model::FrameAnimVertex::propEqual(const FrameAnimVertex &rhs, int propBits,
 	return true;
 }
 
+/*REFERENCE
 Model::FrameAnimPoint::FrameAnimPoint()
 {
 	s_allocated++;
 	init();
 }
-
 Model::FrameAnimPoint::~FrameAnimPoint()
 {
 	s_allocated--;
 }
-
 void Model::FrameAnimPoint::init()
 {
 	for(unsigned t = 0; t<3; t++)
 	{
-		m_trans[t] = 0;
-		m_rot[t]	= 0;
+		m_abs[t] = 0; m_rot[t] = 0; m_xyz[t] = 0;
+
+		m_interp2020[t] = InterpolateNone; //2020
 	}
 }
-
 Model::FrameAnimPoint *Model::FrameAnimPoint::get()
 {
 	if(s_recycle.empty())
@@ -1438,10 +1421,9 @@ Model::FrameAnimPoint *Model::FrameAnimPoint::get()
 		return val;
 	}
 }
-
 void Model::FrameAnimPoint::release()
 {
-	if(_model_recycle)
+	if(model_inner_recycle)
 	{
 		s_recycle.push_back(this);
 	}
@@ -1450,11 +1432,10 @@ void Model::FrameAnimPoint::release()
 		delete this;
 	}
 }
-
 int Model::FrameAnimPoint::flush()
 {
 	int c = 0;
-	std::vector<FrameAnimPoint *>::iterator it = s_recycle.begin();
+	std::vector<FrameAnimPoint*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -1464,21 +1445,19 @@ int Model::FrameAnimPoint::flush()
 	s_recycle.clear();
 	return c;
 }
-
 void Model::FrameAnimPoint::stats()
 {
 	log_debug("FrameAnimPoint: %d/%d\n",s_recycle.size(),s_allocated);
 }
-
 bool Model::FrameAnimPoint::propEqual(const FrameAnimPoint &rhs, int propBits, double tolerance)const
 {
 	if((propBits &PropCoords)!=0)
 	{
-		if(!floatCompareVector(m_trans,rhs.m_trans,3,tolerance))
+		if(!floatCompareVector(m_abs,rhs.m_abs,3,tolerance))
 		{
 			log_warning("frame anim point translation mismatch,lhs (%f,%f,%f)rhs (%f,%f,%f)tolerance (%f)\n",
-					(float)m_trans[0],(float)m_trans[1],(float)m_trans[2],
-					(float)rhs.m_trans[0],(float)rhs.m_trans[1],(float)rhs.m_trans[2],
+					(float)m_abs[0],(float)m_abs[1],(float)m_abs[2],
+					(float)rhs.m_abs[0],(float)rhs.m_abs[1],(float)rhs.m_abs[2],
 					(float)tolerance);
 			return false;
 		}
@@ -1496,55 +1475,54 @@ bool Model::FrameAnimPoint::propEqual(const FrameAnimPoint &rhs, int propBits, d
 	}
 
 	return true;
-}
+}*/
 
+/*REFERENCE
 bool Model::FrameAnimData::propEqual(const FrameAnimData &rhs, int propBits, double tolerance)const
 {
 	if((propBits &(PropCoords | PropRotation))!=0)
 	{
-		if(m_frameVertices->size()!=rhs.m_frameVertices->size())
+		if(m_frameVertices.size()!=rhs.m_frameVertices.size())
 		{
 			log_warning("anim frame vertex size mismatch lhs %d,rhs %d\n",
-					m_frameVertices->size(),rhs.m_frameVertices->size());
+					m_frameVertices.size(),rhs.m_frameVertices.size());
 			return false;
 		}
 
-		if(m_framePoints->size()!=rhs.m_framePoints->size())
+		if(m_framePoints.size()!=rhs.m_framePoints.size())
 		{
 			log_warning("anim frame point size mismatch lhs %d,rhs %d\n",
-					m_framePoints->size(),rhs.m_framePoints->size());
+					m_framePoints.size(),rhs.m_framePoints.size());
 			return false;
 		}
 
-		FrameAnimVertexList::iterator lv = m_frameVertices->begin();
-		FrameAnimVertexList::iterator rv = rhs.m_frameVertices->begin();
-
-		for(; lv!=m_frameVertices->end()&&rv!=rhs.m_frameVertices->end(); ++lv,++rv)
+		auto lv = m_frameVertices.begin();
+		auto rv = rhs.m_frameVertices.begin();
+		for(; lv!=m_frameVertices.end()&&rv!=rhs.m_frameVertices.end(); ++lv,++rv)
 		{
 			if(!(*lv)->propEqual(**rv,propBits,tolerance))
 			{
 				log_warning("anim frame vertex mismatch at %d\n",
-						lv-m_frameVertices->begin());
+						lv-m_frameVertices.begin());
 				return false;
 			}
 		}
 
-		FrameAnimPointList::iterator lp = m_framePoints->begin();
-		FrameAnimPointList::iterator rp = rhs.m_framePoints->begin();
-
-		for(; lp!=m_framePoints->end()&&rp!=rhs.m_framePoints->end(); ++lp,++rp)
+		auto lp = m_framePoints.begin();
+		auto rp = rhs.m_framePoints.begin();
+		for(; lp!=m_framePoints.end()&&rp!=rhs.m_framePoints.end(); ++lp,++rp)
 		{
 			if(!(*lp)->propEqual(**rp,propBits,tolerance))
 			{
 				log_warning("anim frame point mismatch at %d\n",
-						lp-m_framePoints->begin());
+						lp-m_framePoints.begin());
 				return false;
 			}
 		}
 	}
 
 	return true;
-}
+}*/
 
 Model::FormatData::~FormatData()
 {
@@ -1564,30 +1542,18 @@ void Model::FormatData::serialize()
 
 #ifdef MM3D_EDIT
 
-Model::BackgroundImage::BackgroundImage()
-	: m_scale(30.0f)
-{
-	m_center[0] =  0.0f;
-	m_center[1] =  0.0f;
-	m_center[2] =  0.0f;
-}
-
-Model::BackgroundImage::~BackgroundImage()
-{
-}
-
 bool Model::BackgroundImage::propEqual(const BackgroundImage &rhs, int propBits, double tolerance)const
 {
 	if((propBits &PropPaths)!=0)
-		if(m_filename!=rhs.m_filename)
+		if(m_name!=rhs.m_name)
 			return false;
 
 	if((propBits &PropScale)!=0)
-		if(fabs(m_scale-rhs.m_scale)>tolerance)
+		if(fabs(m_xyz[0]-rhs.m_xyz[0])>tolerance)
 			return false;
 
 	if((propBits &PropCoords)!=0)
-		if(!floatCompareVector(m_center,rhs.m_center,3,tolerance))
+		if(!floatCompareVector(m_abs,rhs.m_abs,3,tolerance))
 			return false;
 
 	return true;

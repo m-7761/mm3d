@@ -22,7 +22,6 @@
 
 
 #include "mm3dtypes.h" //PCH
-#include "win.h"
 
 #include "viewwin.h"
  
@@ -69,7 +68,10 @@ void ViewBar::StatusBar::timer_expired()
 	m_queue.pop_front();
 
 	setText(tqi.str.c_str());
-	if(tqi.type==StatusError) text.select_all();
+	if(tqi.type==StatusError)
+	{
+		text.select_all(); beep();
+	}
 
 	m_queueDisplay = true;
 		
@@ -94,12 +96,24 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 		m_queueDisplay = true;
 
 		setText(str);
-		if(type==StatusError) text.select_all();
+		if(type==StatusError)
+		{
+			text.select_all(); beep();
+		}
 
 		glutTimerFunc(ms,statusbar_timer,nav.ui()->glut_window_id());
 	}
 	else //FIX ME (Looks like errors are hidden from user?)
 	{
+		//2020: Mouse tools are generating too many errors.		
+		if(!m_queue.empty())
+		{
+			if(//tqi==m_queue.back()
+			m_queue.back().type==type&&
+			m_queue.back().ms==ms&&
+			m_queue.back().str==str) return;
+		}
+
 		// Clear non-errors first
 		size_t max_queue_size = 2;
 		bool removing = true;
@@ -134,13 +148,16 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 }
 void ViewBar::StatusBar::setStats()
 {	
+	int sn[4] = {};	
+	for(auto&i:model.selection) sn[i.type]++;
+
 	int d[6][2] = 
 	{
-		{m_model->getVertexCount(),m_model->getSelectedVertexCount()},
+		{m_model->getVertexCount(),sn[Model::PT_Vertex]},
 		{m_model->getTriangleCount(),m_model->getSelectedTriangleCount()},
 		{m_model->getGroupCount()},
-		{m_model->getBoneJointCount(),m_model->getSelectedBoneJointCount()},
-		{m_model->getPointCount(),m_model->getSelectedPointCount()},
+		{m_model->getBoneJointCount(),sn[Model::PT_Joint]},
+		{m_model->getPointCount(),sn[Model::PT_Point]},
 		{m_model->getTextureCount()},
 	};
 

@@ -53,9 +53,9 @@ struct CubeTool : Tool
 		parent->addInt(true,&m_segments,TRANSLATE_NOOP("Param","Segments"),1,32); //25
 	}
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
-	virtual void mouseButtonUp(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
+	virtual void mouseButtonUp();
 
 		bool m_isCube; 
 		int m_segments;
@@ -90,7 +90,7 @@ static void cubetool_cubify(bool isCube, double &coord, double &diff_d, double &
 	coord = fabs(diff_s1/2); diff_d = -fabs(diff_s1); //???
 }
 
-void CubeTool::mouseButtonDown(int buttonState, int x, int y)
+void CubeTool::mouseButtonDown()
 {
 	if(m_tracking) return; //???
 
@@ -99,7 +99,7 @@ void CubeTool::mouseButtonDown(int buttonState, int x, int y)
 
 	m_x1 = 0; m_y1 = 0;
 
-	parent->getParentXYValue(x,y,m_x1,m_y1,true);
+	parent->getParentXYValue(m_x1,m_y1,true);
 
 	Model *model = parent->getModel();
 
@@ -196,7 +196,7 @@ void CubeTool::mouseButtonDown(int buttonState, int x, int y)
 	TRANSLATE("Tool","Cube created"));
 }
 
-void CubeTool::mouseButtonUp(int buttonState, int x, int y)
+void CubeTool::mouseButtonUp()
 {
 	if(!m_tracking) return; //???
 
@@ -204,7 +204,7 @@ void CubeTool::mouseButtonUp(int buttonState, int x, int y)
 
 	double x2 = 0, y2 = 0;
 
-	parent->getParentXYValue(x,y,x2,y2);
+	parent->getParentXYValue(x2,y2);
 	updateVertexCoords(m_x1,m_y1,0,x2,y2,0);
 	weldSelectedVertices(parent->getModel());
 	parent->updateAllViews();
@@ -212,12 +212,12 @@ void CubeTool::mouseButtonUp(int buttonState, int x, int y)
 	m_vertices.clear(); m_triangles.clear();
 }
 
-void CubeTool::mouseButtonMove(int buttonState, int x, int y)
+void CubeTool::mouseButtonMove()
 {
 	if(!m_tracking) return; //???
 	
 	double x2 = 0, y2 = 0;
-	parent->getParentXYValue(x,y,x2,y2);
+	parent->getParentXYValue(x2,y2);
 	updateVertexCoords(m_x1,m_y1,0,x2,y2,0);
 	parent->updateAllViews();
 }

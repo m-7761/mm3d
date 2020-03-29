@@ -44,11 +44,11 @@ struct DragVertexTool: public Tool
 
 	virtual const char **getPixmap(int){ return dragvertextool_xpm; }
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Drag complete"));
@@ -62,7 +62,7 @@ struct DragVertexTool: public Tool
 
 extern Tool *dragvertextool(){ return new DragVertexTool; }
 
-void DragVertexTool::mouseButtonDown(int buttonState, int x, int y)
+void DragVertexTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 	
@@ -123,12 +123,12 @@ void DragVertexTool::mouseButtonDown(int buttonState, int x, int y)
 		TRANSLATE("Tool","Must a vertex selected")); //FIX ME
 	}
 }
-void DragVertexTool::mouseButtonMove(int buttonState, int x, int y)
+void DragVertexTool::mouseButtonMove()
 {
 	Model *model = parent->getModel();
 
 	Vector newPos;
-	parent->getParentXYValue(x,y,newPos[0],newPos[1]);
+	parent->getParentXYValue(newPos[0],newPos[1]);
 
 	//log_debug("pos is (%f,%f,%f)\n",newPos[0],newPos[1],newPos[2]); //???
 

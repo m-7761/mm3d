@@ -85,7 +85,7 @@ Texture::ErrorE PcxTextureFilter::readData(Texture &texture, DataSource &src, co
 	m_texture = nullptr; return e;
 }
 
-static uint8_t _mono[6]= { 0,0,0,255,255,255 };
+static uint8_t pcxtex_mono[6]= { 0,0,0,255,255,255 };
 
 static struct
 {
@@ -151,7 +151,7 @@ Texture::ErrorE PcxTextureFilter::load_image(DataSource &src)
 
 	if(pcx_header.planes==1&&pcx_header.bpp==1)
 	{
-		memcpy(m_palette,_mono,(2*3));
+		memcpy(m_palette,pcxtex_mono,(2*3));
 		load_1 (src,m_texture->m_width,m_texture->m_height,data, (pcx_header.bytesperline));
 	}
 #if 0 //UNIMPLEMENTED

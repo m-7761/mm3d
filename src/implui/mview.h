@@ -135,7 +135,7 @@ struct ViewBar::StatusBar : StatusObject
 {
 	StatusBar(ViewBar &bar)
 		:
-	mainwin(bar.glut_parent_id()),
+	model(bar.model),
 	m_queueDisplay(),
 	nav(bar.exterior_row,bi::sunken),
 	text(nav,""),stats(nav,"")
@@ -147,7 +147,7 @@ struct ViewBar::StatusBar : StatusObject
 	}
 	~StatusBar();
 
-	const int mainwin;
+	MainWin &model;
 
 	row nav;
 	textbox text;

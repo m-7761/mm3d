@@ -196,39 +196,7 @@ void Matrix::getRotation(double &x, double &y, double &z)const
 
 void Matrix::getRotation(double *radians)const
 {
-	if(radians)
-	{
-		double sinYaw;
-		double cosYaw;
-		double sinPitch = -m_val[2];
-		double cosPitch;
-		double sinRoll;
-		double cosRoll;
-
-		// if sinPitch is close to 1.0 or -1.0 it's a gimbal lock
-		if(fabs(sinPitch)+EQ_TOLERANCE>1.0)
-		{
-			cosPitch = 0.0;
-
-			sinRoll = -m_val[9];
-			cosRoll = m_val[5];
-			sinYaw  = 0;
-			cosYaw  = 1;
-		}
-		else
-		{
-			cosPitch = sqrt(1-sinPitch*sinPitch);
-
-			sinRoll = m_val[6] /cosPitch;
-			cosRoll = m_val[10]/cosPitch;
-			sinYaw  = m_val[1] /cosPitch;
-			cosYaw  = m_val[0] /cosPitch;
-		}
-
-		radians[2] = atan2(sinYaw,cosYaw);
-		radians[1] = atan2(sinPitch,cosPitch);
-		radians[0] = atan2(sinRoll,cosRoll);
-	}
+	if(radians) getRotation(radians[0],radians[1],radians[2]);
 }
 
 void Matrix::getRotation(Vector &radians)const
@@ -411,6 +379,16 @@ void Matrix::inverseRotateVector(double *pVect)const
 
 	 memcpy(pVect,vec,sizeof(double)*3);
 }
+void Matrix::rotateVector(double *pVect)const //2020
+{
+	 double vec[3];
+
+	 vec[0] = pVect[0] *m_val[0]+pVect[1] *m_val[4]+pVect[2] *m_val[8];
+	 vec[1] = pVect[0] *m_val[1]+pVect[1] *m_val[5]+pVect[2] *m_val[9];
+	 vec[2] = pVect[0] *m_val[2]+pVect[1] *m_val[6]+pVect[2] *m_val[10];
+
+	 memcpy(pVect,vec,sizeof(double)*3);
+}
 
 void Matrix::inverseTranslateVector(double *pVect)const
 {
@@ -418,12 +396,24 @@ void Matrix::inverseTranslateVector(double *pVect)const
 	 pVect[1] = pVect[1]-m_val[13];
 	 pVect[2] = pVect[2]-m_val[14];
 }
+void Matrix::translateVector(double *pVect)const //2020
+{
+	 pVect[0] = pVect[0]+m_val[12];
+	 pVect[1] = pVect[1]+m_val[13];
+	 pVect[2] = pVect[2]+m_val[14];
+}
 
 void Matrix::normalizeRotation()
 {
 	normalize3(&m_val[0]);
 	normalize3(&m_val[4]);
 	normalize3(&m_val[8]);
+}
+void Matrix::getScale(double xyz[3])const //2020
+{
+	xyz[0] = mag3(&m_val[0]);
+	xyz[1] = mag3(&m_val[4]);
+	xyz[2] = mag3(&m_val[8]);
 }
 
 void Matrix::apply(float *pVec)const
@@ -699,6 +689,15 @@ Vector operator*(const Vector &lhs, const double &rhs)
 	v.m_val[3] = lhs.m_val[3] *rhs;
 	return v;
 }
+Vector operator*(const double &rhs, const Vector &lhs)
+{
+	Vector v;
+	v.m_val[0] = lhs.m_val[0] *rhs;
+	v.m_val[1] = lhs.m_val[1] *rhs;
+	v.m_val[2] = lhs.m_val[2] *rhs;
+	v.m_val[3] = lhs.m_val[3] *rhs;
+	return v;
+}
 
 Vector operator-(const Vector &lhs, const Vector &rhs)
 {
@@ -731,6 +730,12 @@ Quaternion operator*(const Quaternion &lhs, const Quaternion &rhs)
 
 	return res;
 }
+Vector operator*(const Vector &lhs, const Quaternion &rhs) //q*v*q-1
+{
+	Quaternion q(lhs,0),conj(rhs.neg3(),rhs.m_val[3]); //or (v,-s) ?
+
+	q = rhs * q * conj; q.m_val[3] = lhs[3]; return q;
+}
 
 Vector::Vector(const double *val)
 {
@@ -756,26 +761,6 @@ Vector::Vector(const double &x, const double &y, const double &z, const double &
 	m_val[1] = y;
 	m_val[2] = z;
 	m_val[3] = w;
-}
-
-Vector::~Vector()
-{
-}
-
-void Vector::translate(const Matrix &rhs)
-{
-	Vector v;
-	for(int r = 0; r<4; r++)
-	{
-		v.m_val[r] 
-			= m_val[0] *rhs.m_val[(0<<2)+r]
-		  +m_val[1] *rhs.m_val[(1<<2)+r]
-		  +m_val[2] *rhs.m_val[(2<<2)+r]
-		  +m_val[3] *rhs.m_val[(3<<2)+r]
-			;
-	}
-
-	*this = v;
 }
 
 void Vector::set(int c, double val)
@@ -808,15 +793,32 @@ void Vector::show()const
 	printf("\n");
 }
 
+/*//??? //REMOVE ME
+void Vector::translate(const Matrix &rhs
+{
+	Vector v;
+	for(int r = 0; r<4; r++)
+	{
+		v.m_val[r] 
+		 = m_val[0] *rhs.m_val[(0<<2)+r]
+		  +m_val[1] *rhs.m_val[(1<<2)+r]
+		  +m_val[2] *rhs.m_val[(2<<2)+r]
+		  +m_val[3] *rhs.m_val[(3<<2)+r]
+			;
+	}
+
+	*this = v;
+}*/
 void Vector::transform(const Matrix& rhs)
 {
 	 double vector[4];
 	 const double *matrix = rhs.getMatrix();
 
-	 vector[0] = m_val[0] *matrix[0]+m_val[1] *matrix[4]+m_val[2] *matrix[8]+matrix[12];
-	 vector[1] = m_val[0] *matrix[1]+m_val[1] *matrix[5]+m_val[2] *matrix[9]+matrix[13];
-	 vector[2] = m_val[0] *matrix[2]+m_val[1] *matrix[6]+m_val[2] *matrix[10]+matrix[14];
-	 vector[3] = m_val[0] *matrix[3]+m_val[1] *matrix[7]+m_val[2] *matrix[11]+matrix[15];
+	 //2020: Shouldn't m_val[3] be included in this calculation?
+	 vector[0] = m_val[0]*matrix[0] +m_val[1]*matrix[4] +m_val[2]*matrix[8] /*m_val[3]*/+matrix[12];
+	 vector[1] = m_val[0]*matrix[1] +m_val[1]*matrix[5] +m_val[2]*matrix[9] /*m_val[3]*/+matrix[13];
+	 vector[2] = m_val[0]*matrix[2] +m_val[1]*matrix[6] +m_val[2]*matrix[10] /*m_val[3]*/+matrix[14];
+	 vector[3] = m_val[0]*matrix[3] +m_val[1]*matrix[7] +m_val[2]*matrix[11] /*m_val[3]*/+matrix[15];
 
 	 m_val[0] = (double)(vector[0]);
 	 m_val[1] = (double)(vector[1]);
@@ -947,36 +949,6 @@ bool Vector::operator==(const Vector &rhs)const
 	return floatCompareVector(this->getVector(),rhs.getVector(),4);
 }
 
-Quaternion::Quaternion(const double *val)
-{
-	if(val)
-	{
-		m_val[0] = val[0];
-		m_val[1] = val[1];
-		m_val[2] = val[2];
-		m_val[3] = val[3];
-	}
-	else
-	{
-		m_val[0] = 0.0;
-		m_val[1] = 0.0;
-		m_val[2] = 0.0;
-		m_val[3] = 1.0;
-	}
-}
-
-Quaternion::Quaternion(const Vector &val)
-{
-	m_val[0] = val[0];
-	m_val[1] = val[1];
-	m_val[2] = val[2];
-	m_val[3] = val[3];
-}
-
-Quaternion::~Quaternion()
-{
-}
-
 void Quaternion::set(int c, double val)
 {
 	m_val[c] = val;
@@ -1013,19 +985,16 @@ void Quaternion::setEulerAngles(const double *radians)
 	axis[2] = 1.0;
 	z.setRotationOnAxis(axis,radians[2]);
 
-	z = z *y;
-	z = z *x;
-	*this = z;
+	*this = z * y * x;
 }
 
 void Quaternion::setRotationOnAxis(const double *axis, double radians)
 {
-	if(axis&&::mag3(axis)>0.00001)
+	//if(axis&&::mag3(axis)>0.00001) //???
+	if(axis&&::squared_mag3(axis)>0.00001) //???
 	{
-		for(int t = 0; t<3; t++)
-		{
-			m_val[t] = axis[t];
-		}
+		for(int t=0;t<3;t++)		
+		m_val[t] = axis[t];
 		m_val[3] = 0;
 		normalize3();
 
@@ -1041,7 +1010,7 @@ void Quaternion::setRotationOnAxis(const double *axis, double radians)
 
 void Quaternion::setRotationOnAxis(double x, double y, double z, double radians)
 {
-	double m = sqrt(x*x+y*y+z*z);
+	double m = /*sqrt*/(x*x+y*y+z*z); //???
 	if(m>0.00001)
 	{
 		m_val[0] = x;
@@ -1061,51 +1030,28 @@ void Quaternion::setRotationOnAxis(double x, double y, double z, double radians)
 	}
 }
 
+/*
 void Quaternion::setRotationToPoint(const Vector &face, const Vector &point)
-{
-	setRotationToPoint(face.get(0),face.get(1),face.get(2),
-			point.get(0),point.get(1),point.get(2));
-}
+{	
+	//???
+	//Vector v1(faceX,faceY,faceZ); // Facing
+	//Vector v2(pointX,pointY,pointZ); // Want to face
+	Vector v1 = face; v1.normalize3();
+	Vector v2 = point; v2.normalize3();
 
-void Quaternion::setRotationToPoint(const double &faceX, const double &faceY, const double &faceZ,
-		const double &pointX, const double &pointY, const double &pointZ)
-{
-	Vector v1;
-	Vector v2;
-
-	v1.set(0,faceX);	// Facing
-	v1.set(1,faceY);	// Facing
-	v1.set(2,faceZ);	// Facing
-
-	v2.set(0,pointX);	// Want to face
-	v2.set(1,pointY);	// Want to face
-	v2.set(2,pointZ);	// Want to face
-
-	v1.normalize3();
-	v2.normalize3();
-
-	float anglec = v1.get(0)*v2.get(0)+v1.get(1)*v2.get(1)+v1.get(2)*v2.get(2);
-	double angle  = acos(anglec);
-
-	// Plane equation: (given three points)
-	//
-	//	  A = y1 (z2-z3)+y2 (z3-z1)+y3 (z1-z2)
-	//	  B = z1 (x2-x3)+z2 (x3-x1)+z3 (x1-x2)
-	//	  C = x1 (y2-y3)+x2 (y3-y1)+x3 (y1-y2)
-	//  -D = x1 (y2 z3-y3 z2)+x2 (y3 z1-y1 z3)+x3 (y1 z2-y2 z1)
-
-	float A = v1.get(1)*v2.get(2)-v2.get(1)*v1.get(2);
-	float B = v1.get(2)*v2.get(0)-v2.get(3)*v1.get(0);
-	float C = v1.get(0)*v2.get(1)-v2.get(0)*v1.get(1);
-
+	//This fails if the angle is Pi (180) but I'm not sure 
+	//what is the best fix. The normal will be degenerated.
+	double anglec = v1.dot3(v2);
 	Vector normal;
-	normal.set(0,A);
-	normal.set(1,B);
-	normal.set(2,C);
-	normal.normalize3();
+	if(anglec>-1&&anglec<1) //2020
+	{
+		normal = v1.cross3(v2);
+		normal.normalize3();
+	}
+	else normal.setAll(v2.get(1),v2.get(0),v2.get(3)); //HACK
 
-	setRotationOnAxis(normal.getVector(),angle);
-}
+	setRotationOnAxis(normal.getVector(),acos(anglec));
+}*/
 
 void Quaternion::getRotationOnAxis(double *axis, double &radians)const
 {
@@ -1126,6 +1072,50 @@ void Quaternion::getRotationOnAxis(double *axis, double &radians)const
 	axis[2] = q.m_val[2]/sin_a;
 }
 
+template<int H, int A, int B, int C>
+///////////////////////////////////////////////////////////////////////////
+//   template arguments -
+// H: handedness. possible values, +1 for right handed, -1 for left handed.
+// A: first angle in a Euler angle sequence; 1 for X, 2 for Y, 3 for Z.
+// B: second angle; C, and so on. 
+///////////////////////////////////////////////////////////////////////////
+static void glmath_EulerAnglesFromQuaternion(double vOut[3], const Quaternion &qIn)
+{
+	//! assuming normalized
+	Quaternion qOut(qIn[A],qIn[B],qIn[C],qIn[3]);	
+
+	float test = qOut[3]*qOut[1] + qOut[0]*qOut[2]*float(H);
+
+	if(test>0.499f) //! singularity at north pole
+	{
+		vOut[0] = atan2(qOut[0],qOut[3])*+2.0f;
+		vOut[1] = PI/2;
+		vOut[2] = 0;
+
+		return;
+	}
+	if(test<-0.499f) //! singularity at south pole
+	{
+		vOut[0] = atan2(qOut[0],qOut[3])*-2;
+		vOut[1] = -PI/2;
+		vOut[2] = 0;
+
+		return;
+	}
+
+	float sqx = qOut[0]*qOut[0];
+	float sqy = qOut[1]*qOut[1];
+	float sqz = qOut[2]*qOut[2];
+
+	vOut[0] = atan2f(2*qOut[3]*qOut[0]-2*qOut[1]*qOut[2]*H,1-2*sqx-2*sqy);
+	vOut[1] = asinf(2*test);
+	vOut[2] = atan2f(2*qOut[3]*qOut[2]-2*qOut[0]*qOut[1]*H,1-2*sqy-2*sqz);
+} 
+void Quaternion::getEulerAngles(double radians[3])
+{
+	glmath_EulerAnglesFromQuaternion<-1,0,1,2>(radians,*this);
+}
+
 void Quaternion::normalize()
 {
 	double mag = 0;
@@ -1143,18 +1133,19 @@ void Quaternion::normalize()
 	}
 }
 
+/*REMOVE ME
 Quaternion Quaternion::swapHandedness()
 {
 	double axis[3] = { 0,0,0 };
 	double rad = 0;
 
-	this->getRotationOnAxis(axis,rad);
+	getRotationOnAxis(axis,rad);
 
 	Quaternion rval;
 	rval.setRotationOnAxis(axis,-rad);
 
 	return rval;
-}
+}*/
 
 double distance (const Vector &v1, const Vector &v2)
 {

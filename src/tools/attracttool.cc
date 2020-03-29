@@ -65,11 +65,11 @@ struct AttractTool : Tool
 
 	virtual void activated(int arg){ m_op = arg; }
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,m_op?
 		TRANSLATE("Tool","Attract far complete"):
@@ -88,12 +88,12 @@ struct AttractTool : Tool
 
 Tool *attracttool(){ return new AttractTool; }
 
-void AttractTool::mouseButtonDown(int buttonState, int x, int y)
+void AttractTool::mouseButtonDown()
 {	
 	Model *model = parent->getModel();
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);	
+	parent->getParentXYValue(pos[0],pos[1],true);	
 	m_startX = pos[0];
 	m_startY = pos[1];
 
@@ -117,10 +117,10 @@ void AttractTool::mouseButtonDown(int buttonState, int x, int y)
 	TRANSLATE("Tool","Attracting far selected primitives"):
 	TRANSLATE("Tool","Attracting near selected primitives"));
 }
-void AttractTool::mouseButtonMove(int buttonState, int x, int y)
+void AttractTool::mouseButtonMove()
 {
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	double lengthX = pos[0]-m_startX;
 	double lengthY = pos[1]-m_startY;

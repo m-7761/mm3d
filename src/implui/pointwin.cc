@@ -88,7 +88,7 @@ void PointWin::submit(int id)
 		{
 			model->unselectAllPoints();
 			model->selectPoint((int)point);			
-			joint.select_id(model->getPointBoneJoint((int)point)+1);
+			joint.select_id(model->getPrimaryPointInfluence((int)point)+1);
 			//https://github.com/zturtleman/mm3d/issues/90
 			//DecalManager::getInstance()->modelUpdated(model); //???
 			model->updateObservers();

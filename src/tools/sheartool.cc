@@ -43,11 +43,11 @@ struct ShearTool : Tool
 
 	virtual const char **getPixmap(int){ return sheartool_xpm; }
 	 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Shear complete"));
@@ -64,7 +64,7 @@ struct ShearTool : Tool
 
 extern Tool *sheartool(){ return new ShearTool; }
 
-void ShearTool::mouseButtonDown(int buttonState, int x, int y)
+void ShearTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
@@ -85,7 +85,7 @@ void ShearTool::mouseButtonDown(int buttonState, int x, int y)
 	}
 
 	double curX,curY;
-	parent->getParentXYValue(x,y,curX,curY,true);
+	parent->getParentXYValue(curX,curY,true);
 
 	double minX = fabs(cminX-curX);
 	double minY = fabs(cminY-curY);
@@ -150,10 +150,10 @@ void ShearTool::mouseButtonDown(int buttonState, int x, int y)
 	model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Starting shear on selected primitives"));
 }
-void ShearTool::mouseButtonMove(int buttonState, int x, int y)
+void ShearTool::mouseButtonMove()
 {
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	int a = m_axis, b = !m_axis;
 

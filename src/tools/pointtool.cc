@@ -45,20 +45,20 @@ struct PointTool : Tool
 
 	virtual const char *getKeymap(int){ return "F12"; }
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 		ToolCoordT m_point;
 };
 
 extern Tool *pointtool(){ return new PointTool; }
 
-void PointTool::mouseButtonDown(int buttonState, int x, int y)
+void PointTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 
  	// Find a unique name for the projection
 	char name[64] = "Point ";
@@ -73,7 +73,7 @@ void PointTool::mouseButtonDown(int buttonState, int x, int y)
 	}
 	sprintf(name+nameN,"%d",num+1);
 
-	m_point = addPosition(Model::PT_Point,name,pos[0],pos[1],0);
+	m_point = addPosition(Model::PT_Point,pos[0],pos[1],0,name);
 
 	model->unselectAll();
 	model->selectPoint(m_point);
@@ -83,10 +83,10 @@ void PointTool::mouseButtonDown(int buttonState, int x, int y)
 
 	parent->updateAllViews();
 }
-void PointTool::mouseButtonMove(int buttonState, int x, int y)
+void PointTool::mouseButtonMove()
 {
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	movePosition(m_point.pos,pos[0],pos[1],0);
 

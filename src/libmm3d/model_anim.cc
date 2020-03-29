@@ -27,11 +27,57 @@
 #include "translate.h" //2019
 
 #ifdef MM3D_EDIT
+#include "modelstatus.h"
 #include "modelundo.h"
 #endif // MM3D_EDIT
 
 #include "log.h"
 #include "glmath.h"
+
+Model::AnimBase2020 *Model::_anim(AnimationModeE m, unsigned index)const
+{
+	switch(m)
+	{
+	case ANIMMODE_SKELETAL: if(index<m_skelAnims.size()) return m_skelAnims[index]; break;
+	case ANIMMODE_FRAME: if(index<m_frameAnims.size()) return m_frameAnims[index]; break;
+	}
+	return nullptr;
+}
+Model::AnimBase2020 *Model::_anim(unsigned anim, unsigned frame, Position pos, bool verbose)const
+{
+	AnimBase2020 *ab = nullptr;
+	size_t objects;
+	if(pos.type==PT_Joint //TEMPORARY API
+	&&anim<m_skelAnims.size())
+	{
+		ab = m_skelAnims[anim]; objects = m_joints.size();
+	}
+	else if(pos.type==PT_Point //TEMPORARY API
+	&&anim<m_frameAnims.size())
+	{
+		ab = m_frameAnims[anim]; objects = m_points.size();
+	}	
+	int c = ab?pos.type==PT_Joint?'j':'c':'?';
+	if(!ab||frame>=ab->_frame_count()||pos>=objects)
+	{
+		assert(!verbose); //PROGRAMMER ERROR
+
+		//REMOVE US
+		if(verbose)
+		log_error("anim keyframe out of range: anim %d, frame %d, %coint %d\n",anim,frame,pos.index); //???
+		if(verbose&&ab)		
+		log_error("max frame is %d, max %coint is %d\n",c,ab->_frame_count());
+
+		ab = nullptr;
+	}	
+	else //YUCK
+	{
+		assert(ab->m_keyframes.size()==objects);
+
+		ab->m_keyframes.resize(objects);	
+	}
+	return ab;
+}
 
 #ifdef MM3D_EDIT
 
@@ -45,42 +91,44 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 	case ANIMMODE_SKELETAL:
 	{
 		num = m_skelAnims.size();
+		auto sa = SkelAnim::get();
+		sa->m_name = name;
+				
+		sa->m_keyframes.resize(m_joints.size()); //YUCK
 
-		SkelAnim *anim = SkelAnim::get();
-		anim->m_name = name;
-		anim->m_fps  = 30.0;
-		anim->m_spf  = (1.0/anim->m_fps);
-		anim->m_loop = true;
-		anim->m_frameCount = 1;
-		anim->m_validNormals = false;
-
-		for(unsigned j = 0; j<m_joints.size(); j++)
-		{
-			anim->m_jointKeyframes.push_back(KeyframeList());
+		if(m_undoEnabled)
+		{			
+			auto undo = new MU_AddAnimation;
+			undo->addAnimation(num,sa);
+			sendUndo(undo);
 		}
 
-		MU_AddAnimation *undo = new MU_AddAnimation();
-		undo->addAnimation(num,anim);
-		sendUndo(undo);
-
-		insertSkelAnim(num,anim);
+		insertSkelAnim(num,sa);
 		break;
 	}
 	case ANIMMODE_FRAME:
 	{
 		num = m_frameAnims.size();
+		auto fa = FrameAnim::get();
+		fa->m_name = name;
 
-		FrameAnim *anim = FrameAnim::get();
-		anim->m_name = name;
-		anim->m_fps = 10.0;
-		anim->m_loop = true;
-		anim->m_validNormals = false;
+		fa->m_frame0 = 0;
+		if(!m_frameAnims.empty())
+		{
+			fa->m_frame0+=m_frameAnims.back()->m_frame0;
+			fa->m_frame0+=m_frameAnims.back()->_frame_count();
+		}
 
-		MU_AddAnimation *undo = new MU_AddAnimation();
-		undo->addAnimation(num,anim);
-		sendUndo(undo);
+		fa->m_keyframes.resize(m_points.size()); //YUCK
 
-		insertFrameAnim(num,anim);
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_AddAnimation;
+			undo->addAnimation(num,fa);
+			sendUndo(undo);
+		}
+
+		insertFrameAnim(num,fa);
 		break;
 	}}
 	return num;
@@ -90,253 +138,246 @@ void Model::deleteAnimation(AnimationModeE m, unsigned index)
 {
 	LOG_PROFILE();
 
-	switch(m)
-	{
-	case ANIMMODE_SKELETAL:
+	auto ab = _anim(m,index); if(!ab) return;
 	
-		if(index<m_skelAnims.size())
-		{
-			MU_DeleteAnimation *undo = new MU_DeleteAnimation;
-			undo->deleteAnimation(index,m_skelAnims[index]);
-			sendUndo(undo);
+	auto undo = m_undoEnabled?new MU_DeleteAnimation:nullptr;
 
-			removeSkelAnim(index);
-		}
-		break;
-
-	case ANIMMODE_FRAME:
+	if(m==ANIMMODE_SKELETAL)
+	{
+		if(undo) undo->deleteAnimation(index,(SkelAnim*)ab); //?
 		
-		if(index<m_frameAnims.size())
-		{
-			MU_DeleteAnimation *undo = new MU_DeleteAnimation;
-			undo->deleteAnimation(index,m_frameAnims[index]);
-			sendUndo(undo);
-
-			removeFrameAnim(index);
-		}
-		break;
+		removeSkelAnim(index);
 	}
+	else //ANIMMODE_FRAME
+	{
+		FrameAnim *fa;
+		if(undo) undo->deleteAnimation(index,fa=(FrameAnim*)ab); //?
+
+		auto fp = fa->m_frame0;
+		auto dt = undo?undo->removeVertexData():nullptr;
+		removeFrameAnimFrame(fp,fp+fa->_frame_count(),m_undoEnabled?dt:nullptr);			
+
+		removeFrameAnim(index);
+	}
+
+	if(undo) sendUndo(undo);
 }
 
 bool Model::setAnimName(AnimationModeE m, unsigned anim, const char *name)
 {
-	switch(m)
+	if(auto*ab=_anim(m,anim))
 	{
-	case ANIMMODE_SKELETAL:
-		
-		if(anim<m_skelAnims.size())
+		if(m_undoEnabled)
 		{
-			MU_SetAnimName *undo = new MU_SetAnimName();
-			undo->setName(m,anim,name,m_skelAnims[anim]->m_name.c_str());
+			auto undo = new MU_SetAnimName;
+			undo->setName(m,anim,name,ab->m_name.c_str());
 			sendUndo(undo);
-
-			m_skelAnims[anim]->m_name = name;
-			return true;
 		}
-		break;
 
-	case ANIMMODE_FRAME:
-
-		if(anim<m_frameAnims.size())
-		{
-			MU_SetAnimName *undo = new MU_SetAnimName();
-			undo->setName(m,anim,name,m_frameAnims[anim]->m_name.c_str());
-			sendUndo(undo);
-
-			m_frameAnims[anim]->m_name = name;
-			return true;
-		}
-		break;
+		ab->m_name = name; return true;
 	}
 	return false;
 }
 
-bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count)
+bool Model::setAnimFrameCount(AnimationModeE mode, unsigned anim, unsigned count)
 {
-	switch(m)
+	return setAnimFrameCount(mode,anim,count,~0u,nullptr);
+}
+bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, unsigned where, FrameAnimData *ins)
+{
+	unsigned old_count = getAnimFrameCount(m,anim);
+	int diff = (int)count-(int)old_count;
+	if(!diff) return true;
+
+	//NOTE: where is for makeCurrentAnimationFrame.
+	bool compat_mode = where==~0u; if(compat_mode)
 	{
-	case ANIMMODE_SKELETAL:
-
-		if(anim<m_skelAnims.size())
-		{
-			SkelAnim *sa = m_skelAnims[anim];
-
-			for(unsigned j = 0; j<m_joints.size(); j++)
-			{
-				KeyframeList &list = sa->m_jointKeyframes[j];
-				unsigned k = 0;
-				while(k<list.size()) if(list[k]->m_frame>=count)
-				{
-					deleteSkelAnimKeyframe(anim,list[k]->m_frame,list[k]->m_jointIndex,list[k]->m_isRotation);
-				}
-				else k++;
-			}
-
-			MU_SetAnimFrameCount *undo = new MU_SetAnimFrameCount();
-			undo->setAnimFrameCount(m,anim,count,m_skelAnims[anim]->m_frameCount);
-			sendUndo(undo);
-
-			m_skelAnims[anim]->m_frameCount = count;
-
-			if(m_currentAnim==anim&&m_currentFrame>=count)
-			{
-				setCurrentAnimationFrame(0);
-			}
-
-			return true;
-		}
-		break;
-
-	case ANIMMODE_FRAME:
-
-		if(anim<m_frameAnims.size())
-		{
-			FrameAnim *fa = m_frameAnims[anim];
-
-			if(count==fa->m_frameData.size())
-			{
-				return true;
-			}
-
-			if(count<fa->m_frameData.size())
-			{
-				MU_DeleteFrameAnimFrame *undo = new MU_DeleteFrameAnimFrame;
-				undo->setAnimationData(anim);
-
-				while(count<fa->m_frameData.size())
-				{
-					unsigned off = fa->m_frameData.size()-1;
-					removeFrameAnimFrame(anim,off);
-					undo->deleteFrame(off,fa->m_frameData[off]);
-				}
-
-				sendUndo(undo);
-			}
-			if(count>fa->m_frameData.size())
-			{
-				MU_AddFrameAnimFrame *undo = new MU_AddFrameAnimFrame;
-				undo->setAnimationData(anim);
-
-				while(count>fa->m_frameData.size())
-				{
-					fa->m_validNormals = false;
-					FrameAnimData *d = new FrameAnimData;
-					d->m_frameVertices = new FrameAnimVertexList;
-					d->m_framePoints	= new FrameAnimPointList;
-
-					undo->addFrame(fa->m_frameData.size(),d);
-					insertFrameAnimFrame(anim,fa->m_frameData.size(),d);
-
-					unsigned t;
-					for(t = 0; t<m_vertices.size(); t++)
-					{
-						FrameAnimVertex *fav = FrameAnimVertex::get();
-						for(unsigned v = 0; v<3; v++)
-						{
-							fav->m_coord[v] = m_vertices[t]->m_coord[v];
-						}
-						d->m_frameVertices->push_back(fav);
-					}
-					for(t = 0; t<m_points.size(); t++)
-					{
-						FrameAnimPoint *fap = FrameAnimPoint::get();
-						for(unsigned v = 0; v<3; v++)
-						{
-							fap->m_trans[v] = m_points[t]->m_trans[v];
-							fap->m_rot[v] = m_points[t]->m_rot[v];
-						}
-						d->m_framePoints->push_back(fap);
-					}
-				}
-
-				sendUndo(undo);
-			}
-
-			return true;
-		}
-		break;
+		where = diff>0?old_count:(int)count+diff;
 	}
-	return false;
+	else if(diff<0)
+	{
+		if(where+(unsigned)-diff>old_count)
+		{
+			assert(where+(unsigned)-diff<=old_count); 
+		
+			return false;
+		}
+	}
+	else if(where+diff>count)
+	{
+		assert(where+diff<=count); return false;
+	}
+
+	AnimBase2020 *ab; Position j;
+	if(m==ANIMMODE_SKELETAL&&anim<m_skelAnims.size())
+	{
+		ab = m_skelAnims[anim];		
+		j = {PT_Joint,m_joints.size()};
+	}
+	else if(m==ANIMMODE_FRAME&&anim<m_frameAnims.size())
+	{
+		ab = m_frameAnims[anim];
+		j = {PT_Point,m_points.size()};
+	}
+	else return false;
+
+	auto undo = m_undoEnabled?new MU_SetAnimFrameCount:nullptr;
+
+	if(undo) undo->setAnimFrameCount(m,anim,count,old_count,where);	
+	if(undo) undo->removeTimeTable(ab->m_timetable2020);
+
+	if(m==ANIMMODE_FRAME)
+	{
+		FrameAnim *fa = m_frameAnims[anim];
+		auto fp = fa->m_frame0+where;
+
+		if(diff<0)
+		{
+			auto dt = undo?undo->removeVertexData():nullptr;
+			removeFrameAnimFrame(fp,-diff,m_undoEnabled?dt:nullptr);
+		}
+		else insertFrameAnimFrame(fp,diff,ins);
+
+		for(size_t a=anim+1;a<m_frameAnims.size();a++)
+		{
+			m_frameAnims[a]->m_frame0+=diff;
+		}
+	}
+
+	while(j-->0) //m_points/joints.size()
+	{	
+		KeyframeList &l = ab->m_keyframes[j];
+		if(diff<0)
+		{
+			size_t i;
+			for(i=0;i<l.size()&&l[i]->m_frame<where;)
+			i++;
+			unsigned whereto = where-diff;
+			while(i<l.size()&&l[i]->m_frame<whereto)
+			deleteKeyframe(anim,l[i]->m_frame,j);
+			for(;i<l.size();i++)
+			l[i]->m_frame+=diff;
+		}
+		else for(auto*ea:l) if(ea->m_frame>=where)
+		{
+			ea->m_frame+=diff;
+		}
+	}
+	
+	if(undo) sendUndo(undo);
+			
+	auto it = ab->m_timetable2020.begin()+where;
+
+	if(compat_mode) //Compatibility mode.
+	{
+		ab->m_timetable2020.resize(count);
+		for(auto i=old_count;i<count;i++)
+		ab->m_timetable2020[i] = i;
+	}
+	else if(diff>0)
+	{				
+		ab->m_timetable2020.insert(it,diff,-1); //!!!
+	}
+	else ab->m_timetable2020.erase(it,it-diff);
+
+	if(m_currentAnim==anim&&m_currentFrame>=count)
+	{
+		//setCurrentAnimationFrame(0);
+		setCurrentAnimationFrame(count?count-1:0);
+	}
+
+	invalidateAnim(m,anim,m_currentFrame);
+	
+	return true;
 }
 
 bool Model::setAnimFPS(AnimationModeE m, unsigned anim, double fps)
 {
-	switch(m)
+	if(auto*ab=_anim(m,anim))
 	{
-	case ANIMMODE_SKELETAL:
-		
-		if(anim<m_skelAnims.size())
+		if(m_undoEnabled)
 		{
-			MU_SetAnimFPS *undo = new MU_SetAnimFPS();
-			undo->setFPS(m,anim,fps,m_skelAnims[anim]->m_fps);
-			sendUndo(undo);
-
-			m_skelAnims[anim]->m_fps = fps;
-			m_skelAnims[anim]->m_spf = (1.0/fps);
-
-			Keyframe *kf;
-			for(unsigned j = 0; j<m_skelAnims[anim]->m_jointKeyframes.size(); j++)
-			{
-				for(unsigned f = 0; f<m_skelAnims[anim]->m_jointKeyframes[j].size(); f++)
-				{
-					kf = m_skelAnims[anim]->m_jointKeyframes[j][f];
-					kf->m_time = m_skelAnims[anim]->m_spf *kf->m_frame;
-				}
-			}
-			return true;
+			auto undo = new MU_SetAnimFPS;
+			undo->setFPS(m,anim,fps,ab->m_fps);
+			sendUndo(undo,true);
 		}
-		break;
 
-	case ANIMMODE_FRAME:
-	
-		if(anim<m_frameAnims.size())
-		{
-			MU_SetAnimFPS *undo = new MU_SetAnimFPS();
-			undo->setFPS(m,anim,fps,m_frameAnims[anim]->m_fps);
-			sendUndo(undo);
-
-			m_frameAnims[anim]->m_fps = fps;
-			return true;
-		}
-		break;
+		ab->m_fps = fps; return true;
 	}
 	return false;
 }
 
-bool Model::setAnimLooping(AnimationModeE m, unsigned anim,bool loop)
+bool Model::setAnimWrap(AnimationModeE m, unsigned anim, bool wrap)
 {
-	switch(m)
+	if(auto*ab=_anim(m,anim))
 	{
-	case ANIMMODE_SKELETAL:
-		
-		if(anim<m_skelAnims.size())
+		if(m_undoEnabled)
 		{
-			MU_SetAnimLoop *undo = new MU_SetAnimLoop();
-			undo->setAnimLoop(m,anim,loop,m_skelAnims[anim]->m_loop);
-			sendUndo(undo);
-
-			m_skelAnims[anim]->m_loop = loop;
-			return true;
+			auto undo = new MU_SetAnimWrap;
+			undo->setAnimWrap(m,anim,wrap,ab->m_wrap);
+			sendUndo(undo,true);
 		}
-		break;
 
-	case ANIMMODE_FRAME:
-
-		if(anim<m_frameAnims.size())
-		{
-			MU_SetAnimLoop *undo = new MU_SetAnimLoop();
-			undo->setAnimLoop(m,anim,loop,m_frameAnims[anim]->m_loop);
-			sendUndo(undo);
-
-			m_frameAnims[anim]->m_loop = loop;
-			return true;
-		}
-		break;
+		ab->m_wrap = wrap; return true;
 	}
-
 	return false;
 }
 
+bool Model::setAnimTimeFrame(AnimationModeE m, unsigned anim, double time)
+{	
+	AnimBase2020 *ab = _anim(m,anim); if(!ab) return false;
+
+	size_t frames = ab->m_timetable2020.size();
+	if(frames&&time<ab->m_timetable2020.back())
+	{
+		model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","Cannot set timeframe before keyframes"));
+		return false;
+	}
+
+	if(m_undoEnabled)
+	{
+		auto undo = new MU_SetAnimTime;
+		undo->setAnimTimeFrame(m,anim,time,ab->m_frame2020);
+		sendUndo(undo,true);
+	}
+
+	ab->m_frame2020 = time;
+
+	if(time<m_currentTime&&m==m_animationMode&&anim==m_currentAnim)
+	{
+		//REMINDER: If this were to be an error case I'm skeptical
+		//that "redo" operations could backfire.
+		setCurrentAnimationTime(time);
+	}
+	else invalidateAnim(m,anim,(unsigned)frames-1);	
+			
+	return true;
+}
+
+bool Model::setAnimFrameTime(AnimationModeE m, unsigned anim, unsigned frame, double time)
+{
+	AnimBase2020 *ab = _anim(m,anim);
+
+	if(!ab||frame>=ab->m_timetable2020.size()) return false;
+
+	auto &cmp = ab->m_timetable2020[frame];
+	if(cmp!=time) 
+	{
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_SetAnimTime;
+			undo->setAnimFrameTime(m,anim,frame,time,cmp);
+			sendUndo(undo,true);
+		}
+
+		cmp = time;			
+	
+		invalidateAnim(m,anim,frame);
+	}
+	return true;
+}
+
+/*
 void Model::setFrameAnimPointCount(unsigned pointCount)
 {
 	unsigned anim = 0;
@@ -347,22 +388,22 @@ void Model::setFrameAnimPointCount(unsigned pointCount)
 	unsigned acount = m_frameAnims.size();
 	for(anim = 0; anim<acount; anim++)
 	{
-		unsigned fcount = m_frameAnims[anim]->m_frameData.size();
-		oldCount = m_frameAnims[anim]->m_frameData[0]->m_framePoints->size();
+		unsigned fcount = m_frameAnims[anim]->_frame_count();
+		oldCount = m_frameAnims[anim]->m_frameData[0]->m_framePoints.size();
 		for(frame = 0; frame<fcount; frame++)
 		{
 			FrameAnimPoint *fap = nullptr;
-			unsigned pcount = m_frameAnims[anim]->m_frameData[frame]->m_framePoints->size();
+			unsigned pcount = m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size();
 			while(pointCount>pcount)
 			{
 				fap = FrameAnimPoint::get();
-				m_frameAnims[anim]->m_frameData[frame]->m_framePoints->push_back(fap);
+				m_frameAnims[anim]->m_frameData[frame]->m_framePoints.push_back(fap);
 				pcount++;
 			}
 			while(pointCount<pcount)
 			{
-				m_frameAnims[anim]->m_frameData[frame]->m_framePoints->back()->release();
-				m_frameAnims[anim]->m_frameData[frame]->m_framePoints->pop_back();
+				m_frameAnims[anim]->m_frameData[frame]->m_framePoints.back()->release();
+				m_frameAnims[anim]->m_frameData[frame]->m_framePoints.pop_back();
 				pcount--;
 			}
 		}
@@ -372,66 +413,192 @@ void Model::setFrameAnimPointCount(unsigned pointCount)
 	undo->setCount(pointCount,oldCount);
 	sendUndo(undo);
 }
-
 bool Model::setFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point,
-		double x, double y, double z)
+		double x, double y, double z, Interpolate2020E interp2020)
 {
 	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
+		  &&frame<m_frameAnims[anim]->_frame_count()
 		  &&point<m_points.size())
 	{
+		m_changeBits|=MoveOther; //2020
+
 		FrameAnimPoint *fap = nullptr;
 
-		while(point>=m_frameAnims[anim]->m_frameData[frame]->m_framePoints->size())
+		while(point>=m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size())
 		{
 			fap = FrameAnimPoint::get();
-			m_frameAnims[anim]->m_frameData[frame]->m_framePoints->push_back(fap);
+			m_frameAnims[anim]->m_frameData[frame]->m_framePoints.push_back(fap);
 		}
 
-		fap = (*m_frameAnims[anim]->m_frameData[frame]->m_framePoints)[point];
+		fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
 
-		MU_MoveFramePoint *undo = new MU_MoveFramePoint;
+		//HACK: Let MU_MoveFramePoint pass setQuickFrameAnimPoint assert. 
+		if(InterpolateKeep==interp2020)
+		{
+			//REMINDER: Assuming "keep" wants a valid interpolation mode.
+			interp2020 = fap->m_interp2020[0]?fap->m_interp2020[0]:InterpolateLerp;
+		}
+
+		MU_MoveFramePoint::Point p(*fap), o = p;
+		p.setPoint(x,y,z,interp2020);
+
+		//TODO: Let sendUndo regect no-op changes.
+		if(!memcmp(&p,&o,sizeof(o))) return true; //2020
+
+		m_changeBits|=MoveOther; //2020
+
+		auto undo = new MU_MoveFramePoint;
 		undo->setAnimationData(anim,frame);
-		undo->addPoint(point,x,y,z,fap->m_trans[0],fap->m_trans[1],fap->m_trans[2]);
-		sendUndo(undo);
+		//undo->addPoint(point,x,y,z,fap->m_abs[0],fap->m_abs[1],fap->m_abs[2]);
+		undo->addPoint(point,p,o);
+		sendUndo(undo,true); //2020
 
-		fap->m_trans[0] = x;
-		fap->m_trans[1] = y;
-		fap->m_trans[2] = z;
+		fap->m_abs[0] = x;
+		fap->m_abs[1] = y;
+		fap->m_abs[2] = z;
+		fap->m_interp2020[0] = interp2020;
+
+		invalidateAnim(ANIMMODE_FRAME,anim,frame); //OVERKILL
 
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-
 bool Model::setFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point,
-		double x, double y, double z)
+		double x, double y, double z, Interpolate2020E interp2020)
 {
 	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
+		  &&frame<m_frameAnims[anim]->_frame_count()
 		  &&point<m_points.size())
 	{
 		FrameAnimPoint *fap = nullptr;
 
-		while(point>=m_frameAnims[anim]->m_frameData[frame]->m_framePoints->size())
+		while(point>=m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size())
 		{
 			fap = FrameAnimPoint::get();
-			m_frameAnims[anim]->m_frameData[frame]->m_framePoints->push_back(fap);
+			m_frameAnims[anim]->m_frameData[frame]->m_framePoints.push_back(fap);
 		}
 
-		fap = (*m_frameAnims[anim]->m_frameData[frame]->m_framePoints)[point];
+		fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
 
-		MU_RotateFramePoint *undo = new MU_RotateFramePoint;
-		undo->setAnimationData(anim,frame);
-		undo->addPointRotation(point,x,y,z,fap->m_rot[0],fap->m_rot[1],fap->m_rot[2]);
-		sendUndo(undo);
+		//HACK: Let MU_MoveFramePoint pass setQuickFrameAnimPoint assert. 
+		if(InterpolateKeep==interp2020)
+		{
+			//REMINDER: Assuming "keep" wants a valid interpolation mode.
+			interp2020 = fap->m_interp2020[1]?fap->m_interp2020[1]:InterpolateLerp;
+		}
+
+		MU_MoveFramePoint::Point p(*fap), o = p;
+		p.setPointRotation(x,y,z,interp2020);
+
+		//TODO: Let sendUndo regect no-op changes.
+		if(!memcmp(&p,&o,sizeof(o))) return true; //2020
+
+		m_changeBits|=MoveOther; //2020
+
+		//MU_RotateFramePoint *undo = new MU_RotateFramePoint;
+		auto undo = new MU_MoveFramePoint;
+		undo->setAnimationData(anim,frame);		
+		//undo->addPointRotation(point,x,y,z,fap->m_rot[0],fap->m_rot[1],fap->m_rot[2]);		
+		undo->addPoint(point,p,o);
+		sendUndo(undo,true);
 
 		fap->m_rot[0] = x;
 		fap->m_rot[1] = y;
 		fap->m_rot[2] = z;
+		fap->m_interp2020[1] = interp2020;
+
+		invalidateAnim(ANIMMODE_FRAME,anim,frame); //OVERKILL
+
+		return true;
+	}
+	return false;
+}
+bool Model::setFrameAnimPointScale(unsigned anim, unsigned frame, unsigned point,
+		double x, double y, double z, Interpolate2020E interp2020)
+{
+	if(anim<m_frameAnims.size()
+		  &&frame<m_frameAnims[anim]->_frame_count()
+		  &&point<m_points.size())
+	{
+		FrameAnimPoint *fap = nullptr;
+
+		while(point>=m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size())
+		{
+			fap = FrameAnimPoint::get();
+			m_frameAnims[anim]->m_frameData[frame]->m_framePoints.push_back(fap);
+		}
+
+		fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
+
+		//HACK: Let MU_MoveFramePoint pass setQuickFrameAnimPoint assert. 
+		if(InterpolateKeep==interp2020)
+		{
+			//REMINDER: Assuming "keep" wants a valid interpolation mode.
+			interp2020 = fap->m_interp2020[2]?fap->m_interp2020[2]:InterpolateLerp;
+		}
+
+		MU_MoveFramePoint::Point p(*fap), o = p;
+		p.setPointScale(x,y,z,interp2020);
+
+		//TODO: Let sendUndo regect no-op changes.
+		if(!memcmp(&p,&o,sizeof(o))) return true; //2020
+
+		m_changeBits|=MoveOther; //2020
+
+		//MU_RotateFramePoint *undo = new MU_RotateFramePoint;
+		auto undo = new MU_MoveFramePoint;
+		undo->setAnimationData(anim,frame);		
+		//undo->addPointScale(point,x,y,z,fap->m_rot[0],fap->m_rot[1],fap->m_rot[2]);		
+		undo->addPoint(point,p,o);
+		sendUndo(undo,true);
+
+		fap->m_xyz[0] = x;
+		fap->m_xyz[1] = y;
+		fap->m_xyz[2] = z;
+		fap->m_interp2020[2] = interp2020;
+
+		invalidateAnim(ANIMMODE_FRAME,anim,frame); //OVERKILL
+
+		return true;
+	}
+	return false;
+}*/
+
+/*REFERENCE
+bool Model::setQuickFrameAnimPoint(unsigned anim, unsigned frame, unsigned point,
+				double x, double y, double z,
+				double rx, double ry, double rz, Interpolate2020E interp2020[2])
+{
+	if(anim<m_frameAnims.size()
+		  &&frame<m_frameAnims[anim]->_frame_count()
+		  &&point<m_points.size())
+	{
+		if(point>=m_frameAnims[anim]->m_frameData[frame]->m_frameVertices.size())
+		{
+			//REMINDER: setAnimFrameCount covers this too.
+			log_warning("resize the animation point list before calling setQuickFrameAnimVertexCoords\n");
+			setFrameAnimPointCount(point);
+		}
+
+		FrameAnimPoint *fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
+
+		fap->m_abs[0] = x;
+		fap->m_abs[1] = y;
+		fap->m_abs[2] = z;
+		fap->m_rot[0] = rx;
+		fap->m_rot[1] = ry;
+		fap->m_rot[2] = rz;
+
+		if(interp2020) for(int i=2;i-->0;)
+		{
+			assert(interp2020[i]!=InterpolateKeep);
+			fap->m_interp2020[i] = interp2020[i];
+		}
+		else for(int i=2;i-->0;)
+		{
+			fap->m_interp2020[i] = InterpolateLerp;
+		}
 
 		return true;
 	}
@@ -439,60 +606,100 @@ bool Model::setFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned po
 	{
 		return false;
 	}
-}
+}*/
 
-bool Model::getFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point,
+/*REFERENCE
+Model::Interpolate2020E Model::hasFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point)const
+{
+	double _; auto ret = getFrameAnimPointCoords(anim,frame,point,_,_,_);
+	return ret>0?ret:InterpolateNone; //YUCK
+}
+Model::Interpolate2020E Model::getFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point,
 		double &x, double &y, double &z)const
 {
 	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
-		  &&point<m_frameAnims[anim]->m_frameData[frame]->m_framePoints->size())
+		  &&frame<m_frameAnims[anim]->_frame_count()
+		  &&point<m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size())
 	{
-		FrameAnimPoint *fap = (*m_frameAnims[anim]->m_frameData[frame]->m_framePoints)[point];
-		x = fap->m_trans[0];
-		y = fap->m_trans[1];
-		z = fap->m_trans[2];
-		return true;
+		FrameAnimPoint *fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
+		x = fap->m_abs[0];
+		y = fap->m_abs[1];
+		z = fap->m_abs[2];
+		return fap->m_interp2020[0];
 	}
-	else if(point<m_points.size())
+	else if(point<m_points.size()) //REMOVE ME
 	{
-		x = m_points[point]->m_trans[0];
-		y = m_points[point]->m_trans[1];
-		z = m_points[point]->m_trans[2];
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
+		x = m_points[point]->m_abs[0];
+		y = m_points[point]->m_abs[1];
+		z = m_points[point]->m_abs[2];
 
-bool Model::getFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point,
+		//CAUTION: InterpolateVoid is only a nonzero return value for these getters.
+		//return true;
+		return InterpolateVoid; //YUCK
+	}
+	//return false;
+	return InterpolateNone;
+}
+Model::Interpolate2020E Model::hasFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point)const
+{
+	double _; auto ret = getFrameAnimPointRotation(anim,frame,point,_,_,_);
+	return ret>0?ret:InterpolateNone; //YUCK
+}
+Model::Interpolate2020E Model::getFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point,
 		double &x, double &y, double &z)const
 {
 	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
-		  &&point<m_frameAnims[anim]->m_frameData[frame]->m_framePoints->size())
+		  &&frame<m_frameAnims[anim]->_frame_count()
+		  &&point<m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size())
 	{
-		FrameAnimPoint *fap = (*m_frameAnims[anim]->m_frameData[frame]->m_framePoints)[point];
+		FrameAnimPoint *fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
 		x = fap->m_rot[0];
 		y = fap->m_rot[1];
 		z = fap->m_rot[2];
-		return true;
+		return fap->m_interp2020[1];
 	}
-	else if(point<m_points.size())
+	else if(point<m_points.size()) //REMOVE ME
 	{
 		x = m_points[point]->m_rot[0];
 		y = m_points[point]->m_rot[1];
 		z = m_points[point]->m_rot[2];
-		return true;
+		//CAUTION: InterpolateVoid is only a nonzero return value for these getters.
+		//return true;
+		return InterpolateVoid; //YUCK
 	}
-	else
-	{
-		return false;
-	}
+	//return false;
+	return InterpolateNone;
 }
-
+Model::Interpolate2020E Model::hasFrameAnimPointScale(unsigned anim, unsigned frame, unsigned point)const
+{
+	double _; auto ret = getFrameAnimPointScale(anim,frame,point,_,_,_);
+	return ret>0?ret:InterpolateNone; //YUCK
+}
+Model::Interpolate2020E Model::getFrameAnimPointScale(unsigned anim, unsigned frame, unsigned point,
+		double &x, double &y, double &z)const
+{
+	if(anim<m_frameAnims.size()
+		  &&frame<m_frameAnims[anim]->_frame_count()
+		  &&point<m_frameAnims[anim]->m_frameData[frame]->m_framePoints.size())
+	{
+		FrameAnimPoint *fap = m_frameAnims[anim]->m_frameData[frame]->m_framePoints[point];
+		x = fap->m_xyz[0];
+		y = fap->m_xyz[1];
+		z = fap->m_xyz[2];
+		return fap->m_interp2020[2];
+	}
+	else if(point<m_points.size()) //REMOVE ME
+	{
+		x = m_points[point]->m_xyz[0];
+		y = m_points[point]->m_xyz[1];
+		z = m_points[point]->m_xyz[2];
+		//CAUTION: InterpolateVoid is only a nonzero return value for these getters.
+		//return true;
+		return InterpolateVoid; //YUCK
+	}
+	//return false;
+	return InterpolateNone;
+}
 void Model::setFrameAnimVertexCount(unsigned vertexCount)
 {
 	unsigned anim = 0;
@@ -503,22 +710,26 @@ void Model::setFrameAnimVertexCount(unsigned vertexCount)
 	unsigned acount = m_frameAnims.size();
 	for(anim = 0; anim<acount; anim++)
 	{
-		unsigned fcount = m_frameAnims[anim]->m_frameData.size();
-		oldCount = m_frameAnims[anim]->m_frameData[0]->m_frameVertices->size();
+		unsigned fcount = m_frameAnims[anim]->_frame_count();
+		oldCount = m_frameAnims[anim]->m_frameData[0]->m_frameVertices.size();
 		for(frame = 0; frame<fcount; frame++)
 		{
+			//2020
+			auto *fd = m_frameAnims[anim]->m_frameData[frame];
+			fd->m_frameVertices.reserve(vertexCount);
+
 			FrameAnimVertex *fav = nullptr;
-			unsigned vcount = m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->size();
+			unsigned vcount = fd->m_frameVertices.size();
 			while(vertexCount>vcount)
 			{
 				fav = FrameAnimVertex::get();
-				m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->push_back(fav);
+				fd->m_frameVertices.push_back(fav);
 				vcount++;
 			}
 			while(vertexCount<vcount)
 			{
-				m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->back()->release();
-				m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->pop_back();
+				fd->m_frameVertices.back()->release();
+				fd->m_frameVertices.pop_back();
 				vcount--;
 			}
 		}
@@ -527,705 +738,608 @@ void Model::setFrameAnimVertexCount(unsigned vertexCount)
 	MU_SetFrameAnimVertexCount *undo = new MU_SetFrameAnimVertexCount();
 	undo->setCount(vertexCount,oldCount);
 	sendUndo(undo);
-}
+}*/
 
 bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
-		double x, double y, double z)
+		double x, double y, double z, Interpolate2020E interp2020)
 {
-	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
-		  &&vertex<m_vertices.size())
+	if(anim>=m_frameAnims.size())
+	return false;
+	auto fa = m_frameAnims[anim];
+	const auto fc = fa->_frame_count();
+	if(frame>=fc||vertex>=m_vertices.size())
+	return false;
+		
+	//https://github.com/zturtleman/mm3d/issues/90
+	m_changeBits|=MoveGeometry;
+
+	const auto fp = fa->m_frame0;
+	
+	auto list = &m_vertices[vertex]->m_frames[fp];
+
+	FrameAnimVertex *fav = list[frame];
+
+	//HACK: Supply default interpolation mode to any
+	//neighboring keyframe
+	if(InterpolateKeep==interp2020) if(!fav->m_interp2020)
 	{
-		//https://github.com/zturtleman/mm3d/issues/56
-		m_changeBits|=AnimationFrame;
-
-		FrameAnimVertex *fav = nullptr;
-
-		while(vertex>=m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->size())
+		for(auto i=frame;++i<fc;)
+		if(interp2020=list[i]->m_interp2020) 
+		break;		
+		if(InterpolateKeep==interp2020)
+		if(fa->m_wrap)
 		{
-			int newVert = m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->size();
-			fav = FrameAnimVertex::get();
-			fav->m_coord[0] = m_vertices[newVert]->m_coord[0];
-			fav->m_coord[1] = m_vertices[newVert]->m_coord[1];
-			fav->m_coord[2] = m_vertices[newVert]->m_coord[2];
-			m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->push_back(fav);
+			for(unsigned i=0;i<frame;i++)
+			if(interp2020=list[i]->m_interp2020) 
+			break;
 		}
-
-		fav = (*m_frameAnims[anim]->m_frameData[frame]->m_frameVertices)[vertex];
-
-		MU_MoveFrameVertex *undo = new MU_MoveFrameVertex;
-		undo->setAnimationData(anim,frame);
-		undo->addVertex(vertex,x,y,z,fav->m_coord[0],fav->m_coord[1],fav->m_coord[2]);
-		sendUndo(undo);
-
-		fav->m_coord[0] = x;
-		fav->m_coord[1] = y;
-		fav->m_coord[2] = z;
-
-		m_frameAnims[anim]->m_validNormals = false;
-		return true;
+		else for(auto i=frame;i-->0;)
+		if(interp2020=list[i]->m_interp2020) 
+		break;
+		if(InterpolateKeep==interp2020) interp2020 = InterpolateLerp;
 	}
-	else
+	else interp2020 = fav->m_interp2020;
+
+	if(m_undoEnabled)
 	{
-		return false;
+		auto undo = new MU_MoveFrameVertex;
+		undo->setAnimationData(anim,frame);
+		undo->addVertex(vertex,x,y,z,interp2020,fav);
+		sendUndo(undo,true);
 	}
+
+	fav->m_coord[0] = x;
+	fav->m_coord[1] = y;
+	fav->m_coord[2] = z;
+		
+	assert(InterpolateKeep!=interp2020);
+	fav->m_interp2020 = interp2020;
+
+	invalidateAnim(ANIMMODE_FRAME,anim,frame); //OVERKILL
+
+	return true;
 }
 
 bool Model::setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
-		double x, double y, double z)
-{
-	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
-		  &&vertex<m_vertices.size())
-	{
-		if(vertex>=m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->size())
-		{
-			log_warning("resize the animation vertex list before calling setQuickFrameAnimVertexCoords\n");
-			setFrameAnimVertexCount(vertex);
-		}
+		double x, double y, double z, Interpolate2020E interp2020)
+{		
+	if(anim>=m_frameAnims.size())
+	return false;
+	auto fa = m_frameAnims[anim];
+	const auto fc = fa->_frame_count();
+	if(frame>=fc||vertex>=m_vertices.size())
+	return false;
 
-		FrameAnimVertex *fav = (*m_frameAnims[anim]->m_frameData[frame]->m_frameVertices)[vertex];
+	const auto fp = fa->m_frame0;	
+	auto list = &m_vertices[vertex]->m_frames[fp];
+	FrameAnimVertex *fav = list[frame];
 
-		fav->m_coord[0] = x;
-		fav->m_coord[1] = y;
-		fav->m_coord[2] = z;
+	fav->m_coord[0] = x;
+	fav->m_coord[1] = y;
+	fav->m_coord[2] = z;
 
-		m_frameAnims[anim]->m_validNormals = false;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	//invalidateNormals(); //OVERKILL
+
+	assert(interp2020!=InterpolateKeep);
+	fav->m_interp2020 = interp2020;
+
+	return true;
 }
 
-int Model::copyAnimation(AnimationModeE mode, unsigned anim, const char *newName)
+int Model::copyAnimation(AnimationModeE mode, unsigned index, const char *newName)
 {
-	int num = -1;
-	switch (mode)
+	AnimBase2020 *ab = _anim(mode,index); if(!ab) return -1;
+	int num = addAnimation(mode,newName); if(num<0) return num;
+
+	setAnimFrameCount(mode,num,ab->_frame_count());
+	setAnimFPS(mode,num,ab->m_fps);
+	setAnimWrap(mode,num,ab->m_wrap);
+
+	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
+	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
+	for(auto*kf:ab->m_keyframes[j])
 	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size())
-			{
-				num = addAnimation(mode,newName);
-				if(num>=0)
-				{
-					setAnimFrameCount(mode,num,getAnimFrameCount(mode,anim));
-					setAnimFPS(mode,num,getAnimFPS(mode,anim));
-					setAnimLooping(mode,num,getAnimLooping(mode,anim));
-
-					SkelAnim *sa = m_skelAnims[anim];
-
-					for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
-					{
-						for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-						{
-							Keyframe *kf = sa->m_jointKeyframes[j][k];
-
-							setSkelAnimKeyframe(num,kf->m_frame,j,kf->m_isRotation,
-									kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-						}
-					}
-				}
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size())
-			{
-				num = addAnimation(mode,newName);
-				if(num>=0)
-				{
-					setAnimFrameCount(mode,num,getAnimFrameCount(mode,anim));
-					setAnimFPS(mode,num,getAnimFPS(mode,anim));
-					setAnimLooping(mode,num,getAnimLooping(mode,anim));
-
-					FrameAnim *fa = m_frameAnims[anim];
-
-					for(unsigned f = 0; f<fa->m_frameData.size(); f++)
-					{
-						for(unsigned v = 0; v<fa->m_frameData[f]->m_frameVertices->size(); v++)
-						{
-							FrameAnimVertex *fav = (*fa->m_frameData[f]->m_frameVertices)[v];
-							setFrameAnimVertexCoords(num,f,v,
-									fav->m_coord[0],fav->m_coord[1],fav->m_coord[2]);
-						}
-						for(unsigned p = 0; p<fa->m_frameData[f]->m_framePoints->size(); p++)
-						{
-							FrameAnimPoint *fap = (*fa->m_frameData[f]->m_framePoints)[p];
-							setFrameAnimPointCoords(num,f,p,
-									fap->m_trans[0],fap->m_trans[1],fap->m_trans[2]);
-						}
-					}
-				}
-			}
-			break;
-		//case ANIMMODE_FRAMERELATIVE: //UNIMPLMENTED
-			//break;
-		default:
-			break;
+		setKeyframe(num,kf->m_frame,j,kf->m_isRotation,
+		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 	}
+	
+	if(fa) 
+	{	
+		auto fp = fa->m_frame0;
+		auto fd = m_frameAnims[num]->m_frame0;
+
+		bool ue = m_undoEnabled;
+		MU_MoveFrameVertex *undo;
+		for(unsigned f=fa->_frame_count();f-->0;fp++,fd++)
+		{
+			if(ue) undo = new MU_MoveFrameVertex;
+			if(ue) undo->setAnimationData(num,f);
+
+			int v = 0; for(auto*ea:m_vertices)
+			{
+				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
+				if(!p->m_interp2020) continue;
+				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				*d = *p;
+			}
+
+			if(ue) sendUndo(undo,false);
+		}
+	}		
 
 	return num;
 }
 
-int Model::splitAnimation(AnimationModeE mode, unsigned anim, const char *newName, unsigned frame)
+int Model::splitAnimation(AnimationModeE mode, unsigned index, const char *newName, unsigned frame)
 {
-	int num = -1;
-	switch (mode)
+	AnimBase2020 *ab = _anim(mode,index); if(!ab) return -1;
+
+	if(frame>ab->_frame_count()) return -1; //2020?
+
+	int num = addAnimation(mode,newName); if(num<0) return num;
+
+	setAnimFrameCount(mode,num,ab->_frame_count()-frame);
+	setAnimFPS(mode,num,ab->m_fps);
+	//setAnimWrap(mode,num,ab->m_wrap); //???
+	
+	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
+	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
+	for(auto*kf:ab->m_keyframes[j])
+	if(kf->m_frame>=frame)
 	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size())
-			{
-				num = addAnimation(mode,newName);
-				if(num>=0)
-				{
-					setAnimFrameCount(mode,num,getAnimFrameCount(mode,anim)-frame);
-					setAnimFPS(mode,num,getAnimFPS(mode,anim));
-
-					SkelAnim *sa = m_skelAnims[anim];
-
-					for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
-					{
-						for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-						{
-							Keyframe *kf = sa->m_jointKeyframes[j][k];
-
-							if(kf->m_frame>=frame)
-							{
-								setSkelAnimKeyframe(num,kf->m_frame-frame,j,kf->m_isRotation,
-										kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-							}
-						}
-					}
-
-					setAnimFrameCount(mode,anim,frame);
-					moveAnimation(mode,num,anim+1);
-				}
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size())
-			{
-				num = addAnimation(mode,newName);
-				if(num>=0)
-				{
-					setAnimFrameCount(mode,num,getAnimFrameCount(mode,anim)-frame);
-					setAnimFPS(mode,num,getAnimFPS(mode,anim));
-
-					FrameAnim *fa = m_frameAnims[anim];
-
-					for(unsigned f = frame; f<fa->m_frameData.size(); f++)
-					{
-						for(unsigned v = 0; v<fa->m_frameData[f]->m_frameVertices->size(); v++)
-						{
-							FrameAnimVertex *fav = (*fa->m_frameData[f]->m_frameVertices)[v];
-							setFrameAnimVertexCoords(num,f-frame,v,
-									fav->m_coord[0],fav->m_coord[1],fav->m_coord[2]);
-						}
-						for(unsigned p = 0; p<fa->m_frameData[f]->m_framePoints->size(); p++)
-						{
-							FrameAnimPoint *fap = (*fa->m_frameData[f]->m_framePoints)[p];
-							setFrameAnimPointCoords(num,f-frame,p,
-									fap->m_trans[0],fap->m_trans[1],fap->m_trans[2]);
-						}
-					}
-
-					setAnimFrameCount(mode,anim,frame);
-					moveAnimation(mode,num,anim+1);
-				}
-			}
-			break;
-		//case ANIMMODE_FRAMERELATIVE: //UNIMPLMENTED
-			//break;
-		default:
-			break;
+		setKeyframe(num,kf->m_frame,j,kf->m_isRotation,
+		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 	}
 
+	if(fa) 
+	{	
+		auto fp = fa->m_frame0;
+		auto fd = m_frameAnims[num]->m_frame0;
+
+		bool ue = m_undoEnabled;
+		MU_MoveFrameVertex *undo;
+		for(unsigned f=fa->_frame_count();f-->frame;fp++,fd++)
+		{
+			if(ue) undo = new MU_MoveFrameVertex;
+			if(ue) undo->setAnimationData(num,f);
+
+			int v = 0; for(auto*ea:m_vertices)
+			{
+				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
+				if(!p->m_interp2020) continue;
+				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				*d = *p;
+			}
+
+			if(ue) sendUndo(undo,false);
+		}
+	}	
+	
+	setAnimFrameCount(mode,index,frame);
+	moveAnimation(mode,num,index+1);
+	
 	return num;
 }
 
 bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 {
 	log_debug("join %d anim %d+%d\n",mode,anim1,anim2);
-	if(anim1==anim2)
+	if(anim1==anim2) return true;
+
+	auto aa = _anim(mode,anim1); //ab1
+	auto ab = _anim(mode,anim2); //ab2
+	if(!aa||!ab) return false;
+
+	unsigned fc1 = aa->_frame_count();
+	unsigned fc2 = ab->_frame_count();
+
+	setAnimFrameCount(mode,anim1,fc1+fc2);
+
+	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
+	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
+	for(auto*kf:ab->m_keyframes[j])
 	{
-		return true;
+		setKeyframe(anim1,kf->m_frame+fc1,j,kf->m_isRotation,
+		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 	}
+	
+	if(fa) 
+	{	
+		auto fp = ((FrameAnim*)ab)->m_frame0;
+		auto fd = ((FrameAnim*)aa)->m_frame0+fc1;
 
-	switch (mode)
-	{
-		case ANIMMODE_SKELETAL:
-			if(anim1<m_skelAnims.size()&&anim2<m_skelAnims.size())
+		bool ue = m_undoEnabled;
+		MU_MoveFrameVertex *undo;
+		for(unsigned f=0;f<fc2;f++,fp++,fd++)
+		{
+			if(ue) undo = new MU_MoveFrameVertex;
+			if(ue) undo->setAnimationData(anim1,fc1+f);
+
+			int v = 0; for(auto*ea:m_vertices)
 			{
-				unsigned fc1 = getAnimFrameCount(mode,anim1);
-				unsigned fc2 = getAnimFrameCount(mode,anim2);
-
-				setAnimFrameCount(mode,anim1,fc1+fc2);
-
-				SkelAnim *sa2 = m_skelAnims[anim2];
-
-				for(unsigned j = 0; j<sa2->m_jointKeyframes.size(); j++)
-				{
-					for(unsigned k = 0; k<sa2->m_jointKeyframes[j].size(); k++)
-					{
-						Keyframe *kf = sa2->m_jointKeyframes[j][k];
-
-						setSkelAnimKeyframe(anim1,kf->m_frame+fc1,j,kf->m_isRotation,
-								kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-					}
-				}
-
-				deleteAnimation(mode,anim2);
+				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
+				if(!p->m_interp2020) continue;
+				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				*d = *p;
 			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim1<m_frameAnims.size()&&anim2<m_frameAnims.size())
-			{
-				unsigned fc1 = getAnimFrameCount(mode,anim1);
-				unsigned fc2 = getAnimFrameCount(mode,anim2);
 
-				setAnimFrameCount(mode,anim1,fc1+fc2);
+			if(ue) sendUndo(undo,false);
+		}
+	}	
 
-				FrameAnim *fa2 = m_frameAnims[anim2];
-
-				for(unsigned f = 0; f<fc2; f++)
-				{
-					for(unsigned v = 0; v<fa2->m_frameData[f]->m_frameVertices->size(); v++)
-					{
-						FrameAnimVertex *fav = (*fa2->m_frameData[f]->m_frameVertices)[v];
-						setFrameAnimVertexCoords(anim1,f+fc1,v,
-								fav->m_coord[0],fav->m_coord[1],fav->m_coord[2]);
-					}
-					for(unsigned p = 0; p<fa2->m_frameData[f]->m_framePoints->size(); p++)
-					{
-						FrameAnimPoint *fap = (*fa2->m_frameData[f]->m_framePoints)[p];
-						setFrameAnimPointCoords(anim1,f+fc1,p,
-								fap->m_trans[0],fap->m_trans[1],fap->m_trans[2]);
-					}
-				}
-
-				deleteAnimation(mode,anim2);
-
-				return true;
-			}
-			break;
-		//case ANIMMODE_FRAMERELATIVE: //UNIMPLMENTED
-			//break;
-		default:
-			break;
-	}
-
-
-	return false;
+	deleteAnimation(mode,anim2); return true;
 }
 
 bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 {
 	log_debug("merge %d anim %d+%d\n",mode,anim1,anim2);
-	if(anim1==anim2)
+	if(anim1==anim2) return true;
+
+	auto aa = _anim(mode,anim1); //ab1
+	auto ab = _anim(mode,anim2); //ab2
+	if(!aa||!ab) return false;
+
+	unsigned fc1 = aa->_frame_count();
+	unsigned fc2 = ab->_frame_count();
+
+	if(fc1!=fc2)
 	{
-		return true;
+		/*str = ::tr("Cannot merge animation %1 and %2,\n frame counts differ.")
+		.arg(model->getAnimName(mode,a)).arg(model->getAnimName(mode,b));*/
+		msg_error(TRANSLATE("LowLevel",
+		"Cannot merge animation %d and %d,\n frame counts differ."),anim1,anim2);
+		return false;
 	}
 
-	switch (mode)
+	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
+	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
+	for(auto*kf:ab->m_keyframes[j]) 
+	if(kf->m_interp2020)
 	{
-		case ANIMMODE_SKELETAL:
-			if(anim1<m_skelAnims.size()&&anim2<m_skelAnims.size())
+		setKeyframe(anim1,kf->m_frame,j,kf->m_isRotation,
+		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
+	}
+
+	if(fa) 
+	{	
+		auto fp = fa->m_frame0;
+		auto fd = ((FrameAnim*)aa)->m_frame0;
+
+		bool ue = m_undoEnabled;
+		MU_MoveFrameVertex *undo;
+		for(unsigned f=fa->_frame_count();f-->0;fp++,fd++)
+		{
+			if(ue) undo = new MU_MoveFrameVertex;
+			if(ue) undo->setAnimationData(anim1,f);
+
+			int v = 0; for(auto*ea:m_vertices)
 			{
-				unsigned fc1 = getAnimFrameCount(mode,anim1);
-				unsigned fc2 = getAnimFrameCount(mode,anim2);
-
-				if(fc1==fc2)
-				{
-					SkelAnim *sa = m_skelAnims[anim2];
-
-					for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
-					{
-						for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-						{
-							Keyframe *kf = sa->m_jointKeyframes[j][k];
-
-							setSkelAnimKeyframe(anim1,kf->m_frame,j,kf->m_isRotation,
-									kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-						}
-					}
-
-					deleteAnimation(mode,anim2);
-
-					return true;
-				}
-				else
-				{
-					/*str = ::tr("Cannot merge animation %1 and %2,\n frame counts differ.")
-					.arg(model->getAnimName(mode,a)).arg(model->getAnimName(mode,b));*/
-					msg_error(TRANSLATE("LowLevel",
-					"Cannot merge animation %d and %d,\n frame counts differ."),anim1,anim2);
-				}
+				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
+				if(!p->m_interp2020) continue;
+				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				*d = *p;
 			}
-			break;
-		default:
-			break;
-	}
 
-	return false;
+			if(ue) sendUndo(undo,false);
+		}
+	}		
+
+	deleteAnimation(mode,anim2);
+
+	return true;
 }
 
 bool Model::moveAnimation(AnimationModeE mode, unsigned oldIndex, unsigned newIndex)
 {
-	if(oldIndex==newIndex)
-	{
-		return true;
-	}
+	if(oldIndex==newIndex) return true;
 
 	switch (mode)
 	{
-		case ANIMMODE_SKELETAL:
-			if(oldIndex<m_skelAnims.size()&&newIndex<m_skelAnims.size())
-			{
-				std::vector<SkelAnim *>::iterator it = m_skelAnims.begin();
-				unsigned t = 0;
-				while(t<oldIndex&&it!=m_skelAnims.end())
-				{
-					t++;
-					it++;
-				}
-				SkelAnim *sa = m_skelAnims[t];
-				m_skelAnims.erase(it);
-				t = 0;
-				it = m_skelAnims.begin();
-				while(t<newIndex&&it!=m_skelAnims.end())
-				{
-					t++;
-					it++;
-				}
-				m_skelAnims.insert(it,sa);
+	default: return false;
 
-				MU_MoveAnimation *undo = new MU_MoveAnimation();
-				undo->moveAnimation(mode,oldIndex,newIndex);
-				sendUndo(undo);
-				return true;
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(oldIndex<m_frameAnims.size()&&newIndex<m_frameAnims.size())
-			{
-				std::vector<FrameAnim *>::iterator it = m_frameAnims.begin();
-				unsigned t = 0;
-				while(t<oldIndex&&it!=m_frameAnims.end())
-				{
-					t++;
-					it++;
-				}
-				FrameAnim *fa = m_frameAnims[t];
-				m_frameAnims.erase(it);
-				t = 0;
-				it = m_frameAnims.begin();
-				while(t<newIndex&&it!=m_frameAnims.end())
-				{
-					t++;
-					it++;
-				}
-				m_frameAnims.insert(it,fa);
+	case ANIMMODE_SKELETAL:
 
-				MU_MoveAnimation *undo = new MU_MoveAnimation();
-				undo->moveAnimation(mode,oldIndex,newIndex);
-				sendUndo(undo);
-				return true;
-			}
-			break;
-		default:
-			break;
+		if(oldIndex<m_skelAnims.size()&&newIndex<m_skelAnims.size())
+		{
+			SkelAnim *sa = m_skelAnims[oldIndex];
+			m_skelAnims.erase(m_skelAnims.begin()+oldIndex);				
+			m_skelAnims.insert(m_skelAnims.begin()+newIndex,sa);
+		}
+		else return false; break;
+
+	case ANIMMODE_FRAME:
+
+		if(oldIndex<m_frameAnims.size()&&newIndex<m_frameAnims.size())
+		{
+			FrameAnim *fa = m_frameAnims[oldIndex];
+			m_frameAnims.erase(m_frameAnims.begin()+oldIndex);				
+			m_frameAnims.insert(m_frameAnims.begin()+newIndex,fa);
+		}
+		else return false; break;
 	}
 
-	return false;
+	if(m_undoEnabled)
+	{
+		auto undo = new MU_MoveAnimation;
+		undo->moveAnimation(mode,oldIndex,newIndex);
+		sendUndo(undo);
+	}
+	return true;
 }
 
-int Model::convertAnimToFrame(AnimationModeE mode, unsigned anim, const char *newName, unsigned frameCount)
+template<int I> struct model_cmp_t //convertAnimToFrame
 {
-	int num = -1;
-	
-	switch (mode)
+	double params[3*I]; int diff;
+
+	double *compare(double(&cmp)[3*I], int &prev, int &curr)
 	{
-		case ANIMMODE_SKELETAL:
-			if(newName&&anim<m_skelAnims.size())
-			{
-				num = addAnimation(ANIMMODE_FRAME,newName);
-				if(num>=0)
-				{
-					setAnimFrameCount(ANIMMODE_FRAME,num,frameCount);
-					setAnimLooping(ANIMMODE_FRAME,num,getAnimLooping(ANIMMODE_SKELETAL,anim));
-
-					if(frameCount>0)
-					{
-						double time = (m_skelAnims[anim]->m_frameCount *(1.0/m_skelAnims[anim]->m_fps));
-						double fps  = (double)frameCount/time;
-						double spf  = time/(double)frameCount;
-
-						log_debug("resampling %d frames at %.2f fps to %d frames at %.2f fps\n",
-								m_skelAnims[anim]->m_frameCount,m_skelAnims[anim]->m_fps,frameCount,fps);
-
-						setAnimFPS(ANIMMODE_FRAME,num,fps);
-
-						setCurrentAnimation(ANIMMODE_SKELETAL,anim);
-
-						for(unsigned f = 0; f<frameCount; f++)
-						{
-							double currentTime = spf *(double)f;
-							setCurrentAnimationTime(currentTime);
-
-							unsigned vcount = m_vertices.size();
-							for(unsigned v = 0; v<vcount; v++)
-							{
-								double coord[3];
-								getVertexCoords(v,coord);
-
-								setFrameAnimVertexCoords(num,f,v,
-										coord[0],coord[1],coord[2]);
-							}
-
-							unsigned pcount = m_points.size();
-							for(unsigned p = 0; p<pcount; p++)
-							{
-								double coord[3];
-								double rot[3];
-								getPointCoords(p,coord);
-								getPointOrientation(p,rot);
-
-								setFrameAnimPointCoords(num,f,p,
-										coord[0],coord[1],coord[2]);
-								setFrameAnimPointRotation(num,f,p,
-										rot[0],rot[1],rot[2]);
-							}
-						}
-
-						setNoAnimation();
-					}
-					else
-					{
-						setAnimFPS(ANIMMODE_FRAME,num,10.0);
-					}
-				}
-			}
-			break;
-		default:
-			break;
+		curr = 0;
+		for(int i=0;i<I;i++)
+		if(memcmp(params+i*3,cmp+i*3,sizeof(*cmp)*3)) 
+		curr|=1<<i;
+		prev = curr&~diff; diff = curr; return params;
 	}
+};
+int Model::convertAnimToFrame(AnimationModeE mode, unsigned anim, const char *newName, unsigned frameCount, Interpolate2020E how, Interpolate2020E how2)
+{
+	if(!how2) how2 = how; if(!how) return -1;
+
+	int num = -1;	
+	if(mode!=ANIMMODE_SKELETAL||anim>=m_skelAnims.size())
+	return num;		
+	if((num=addAnimation(ANIMMODE_FRAME,newName))<0)	
+	return num;
+
+	setAnimFrameCount(ANIMMODE_FRAME,num,frameCount);
+	setAnimWrap(ANIMMODE_FRAME,num,getAnimWrap(ANIMMODE_SKELETAL,anim));
+
+	if(!frameCount) //???
+	{
+		setAnimFPS(ANIMMODE_FRAME,num,10);
+		return num;
+	}
+
+	//double time = (m_skelAnims[anim]->_frame_count() *(1.0/m_skelAnims[anim]->m_fps));
+	double time = getAnimTimeFrame(mode,anim);
+	double fps  = (double)frameCount/time;
+	double spf  = time/(double)frameCount;
+
+	log_debug("resampling %d frames at %.2f fps to %d frames at %.2f fps\n",
+	m_skelAnims[anim]->_frame_count(),m_skelAnims[anim]->m_fps,frameCount,fps);
+
+	setAnimFPS(ANIMMODE_FRAME,num,fps);
+
+	setCurrentAnimation(ANIMMODE_SKELETAL,anim);
+
+	unsigned vcount = m_vertices.size();
+	std::vector<model_cmp_t<1>> cmp; cmp.resize(vcount);
+	for(unsigned v=0;v<vcount;v++)
+	{
+		getVertexCoords(v,cmp[v].params);
+		cmp[v].diff = ~0;
+	}
+	unsigned pcount = m_points.size();
+	std::vector<model_cmp_t<3>> cmpt; cmpt.resize(pcount);
+	for(unsigned p=0;p<pcount;p++)
+	{
+		auto params = cmpt[p].params;
+		m_points[p]->getParams(params,params+3,params+6);
+		cmpt[p].diff = ~0;
+	}
+	for(unsigned f=0;f<frameCount;f++)
+	{
+		setCurrentAnimationTime(spf*f);
+
+		for(unsigned v=0;v<vcount;v++)
+		{
+			double coord[3];
+			getVertexCoords(v,coord);
+			int prev, curr;
+			double *pcoord = cmp[v].compare(coord,prev,curr);
+			if(prev&1) setFrameAnimVertexCoords(num,f-1,v,pcoord[0],pcoord[1],pcoord[2],how2);
+			if(curr&1) setFrameAnimVertexCoords(num,f,v,coord[0],coord[1],coord[2],how);
+			memcpy(pcoord,coord,sizeof(coord));
+		}
+
+		for(Position p{PT_Point,0};p<pcount;p++)
+		{
+			double params[3+3+3];
+			m_points[p]->getParams(params,params+3,params+6);
+			int prev, curr;
+			double *pparams = cmpt[p].compare(params,prev,curr);
+			if(prev&1) setKeyframe(num,f-1,p,KeyTranslate,pparams[0],pparams[1],pparams[2],how2);
+			if(prev&2) setKeyframe(num,f-1,p,KeyRotate,pparams[3],pparams[4],pparams[5],how2);
+			if(prev&4) setKeyframe(num,f-1,p,KeyScale,pparams[6],pparams[7],pparams[8],how2);
+			if(curr&1) setKeyframe(num,f,p,KeyTranslate,params[0],params[1],params[2],how);
+			if(curr&2) setKeyframe(num,f,p,KeyRotate,params[3],params[4],params[5],how);
+			if(curr&4) setKeyframe(num,f,p,KeyScale,params[6],params[7],params[8],how);
+			memcpy(pparams,params,sizeof(params));
+		}
+	}
+
+	setNoAnimation(); //??? //FIX ME
 
 	return num;
 }
 
-bool Model::clearAnimFrame(AnimationModeE m, unsigned anim, unsigned frame)
+bool Model::deleteAnimFrame(AnimationModeE m, unsigned anim, unsigned frame)
 {
-	switch (m)
-	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size()&&frame<m_skelAnims[anim]->m_frameCount)
-			{
-				for(unsigned j = 0; j<m_skelAnims[anim]->m_jointKeyframes.size(); j++)
-				{
-					KeyframeList &list = m_skelAnims[anim]->m_jointKeyframes[j];
-					KeyframeList::iterator it = list.begin();
-					while(it!=list.end())
-					{
-						if((*it)->m_frame==frame)
-						{
-							deleteSkelAnimKeyframe(anim,frame,j,(*it)->m_isRotation);
-							it = list.begin();
-						}
-						else
-						{
-							it++;
-						}
-					}
-				}
-
-				if(anim==m_currentAnim&&frame==m_currentFrame)
-				{
-					setCurrentAnimationFrame(m_currentFrame);
-				}
-
-				return true;
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size()&&frame<m_frameAnims[anim]->m_frameData.size())
-			{
-				FrameAnim *fa = m_frameAnims[anim];
-				for(unsigned t = 0; t<m_vertices.size(); t++)
-				{
-					setFrameAnimVertexCoords(anim,frame,t,
-							m_vertices[t]->m_coord[0],m_vertices[t]->m_coord[1],m_vertices[t]->m_coord[2]);
-				}
-				for(unsigned p = 0; p<m_points.size(); p++)
-				{
-					setFrameAnimPointCoords(anim,frame,p,
-							m_points[p]->m_trans[0],m_points[p]->m_trans[1],m_points[p]->m_trans[2]);
-				}
-				fa->m_validNormals = false;
-				return true;
-			}
-			break;
-		default:
-			break;
-	}
-
-	return false;
+	//TODO: It would be nice if eliminating all of the frame data automatically
+	//deleted the frame but perhaps that shouldn't be implemented at this level.
+	if(size_t count=getAnimFrameCount(m,anim))
+	return setAnimFrameCount(m,anim,(unsigned)count-1,frame,nullptr); return false;
 }
 
-int Model::setSkelAnimKeyframe(unsigned anim, unsigned frame, unsigned joint,bool isRotation,
-		double x, double y, double z)
-{
-	if(anim<m_skelAnims.size()
-		  &&frame<m_skelAnims[anim]->m_frameCount
-		  &&joint<m_joints.size())
+int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E isRotation,
+		double x, double y, double z, Interpolate2020E interp2020)
+{	
+	AnimBase2020 *ab = _anim(anim,frame,pos); if(!ab) return -1;
+
+	m_changeBits|=MoveOther; //2020
+
+	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",
+	//		(isRotation ? "rotation" : "translation"),pos.index,x,y,z,frame);
+
+	//int num = ab->m_keyframes[pos].size();
+	auto kf = Keyframe::get();
+
+	kf->m_frame		  = frame;
+	kf->m_isRotation	= isRotation;
+
+	bool	isNew = false;
+	double old[3] = {};
+
+	unsigned index = 0;
+	auto &list = ab->m_keyframes[pos];
+	if(list.find_sorted(kf,index))
 	{
-		//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",
-		//		(isRotation ? "rotation" : "translation"),joint,x,y,z,frame);
+		isNew = false;
 
-		while(joint>=m_skelAnims[anim]->m_jointKeyframes.size())
+		kf->release();
+
+		kf = list[index];
+
+		memcpy(old,kf->m_parameter,sizeof(old));
+
+		if(x==old[0]&&y==old[1]&&z==old[2])
 		{
-			KeyframeList kl;
-			m_skelAnims[anim]->m_jointKeyframes.push_back(kl);
+			if(InterpolateKeep==interp2020
+			||kf->m_interp2020==interp2020)
+			{
+				return true; //2020
+			}
 		}
+	}
+	else
+	{
+		isNew = true;
 
-		//int num = m_skelAnims[anim]->m_jointKeyframes[joint].size();
-		Keyframe *kf = Keyframe::get();
+		list.insert_sorted(kf);
 
-		kf->m_frame		  = frame;
-		kf->m_isRotation	= isRotation;
-
-		bool	isNew = false;
-		double oldx  = 0.0;
-		double oldy  = 0.0;
-		double oldz  = 0.0;
-
-		unsigned index = 0;
-		if(m_skelAnims[anim]->m_jointKeyframes[joint].find_sorted(kf,index))
+		// Do lookup to return proper index
+		list.find_sorted(kf,index);
+	}
+	
+	//HACK: Supply default interpolation mode to any
+	//neighboring keyframe
+	if(InterpolateKeep==interp2020) if(!kf->m_interp2020)
+	{
+		for(auto i=index;++i<list.size();)
+		if(list[i]->m_isRotation==isRotation)		
+		if(interp2020=list[i]->m_interp2020) 
+		break;		
+		if(InterpolateKeep==interp2020)
+		if(ab->m_wrap)
 		{
-			isNew = false;
-
-			kf->release();
-
-			kf = m_skelAnims[anim]->m_jointKeyframes[joint][index];
-
-			oldx = kf->m_parameter[0];
-			oldy = kf->m_parameter[1];
-			oldz = kf->m_parameter[2];
-
-			kf->m_parameter[0] = x;
-			kf->m_parameter[1] = y;
-			kf->m_parameter[2] = z;
-			kf->m_jointIndex	= joint;
-			kf->m_time			= m_skelAnims[anim]->m_spf *frame;
+			for(unsigned i=0;i<index;i++) 
+			if(list[i]->m_isRotation==isRotation)
+			if(interp2020=list[i]->m_interp2020) 
+			break;
 		}
-		else
-		{
-			isNew = true;
+		else for(auto i=index;i-->0;)
+		if(list[i]->m_isRotation==isRotation)
+		if(interp2020=list[i]->m_interp2020) 
+		break;
+		if(InterpolateKeep==interp2020)
+		interp2020 = InterpolateLerp;
+	}
+	else interp2020 = kf->m_interp2020;
 
-			kf->m_parameter[0] = x;
-			kf->m_parameter[1] = y;
-			kf->m_parameter[2] = z;
-			kf->m_jointIndex	= joint;
-			kf->m_time			= m_skelAnims[anim]->m_spf *frame;
+	auto olde = kf->m_interp2020;
+	kf->m_parameter[0] = x;
+	kf->m_parameter[1] = y;
+	kf->m_parameter[2] = z;
+	kf->m_objectIndex	= pos;
+//	kf->m_time			= ab->m_spf *frame;
+	assert(InterpolateKeep!=interp2020);
+	//if(InterpolateKeep!=interp2020)
+	kf->m_interp2020 = interp2020;
 
-			m_skelAnims[anim]->m_jointKeyframes[joint].insert_sorted(kf);
+	if(m_undoEnabled)
+	{
+		//TEMPORARY FIX
+		MU_SetObjectKeyframe *undo;
+		if(PT_Joint==pos.type) undo = new MU_SetJointKeyframe;
+		if(PT_Point==pos.type) undo = new MU_SetPointKeyframe;
 
-			// Do lookup to return proper index
-			m_skelAnims[anim]->m_jointKeyframes[joint].find_sorted(kf,index);
-		}
-
-		MU_SetAnimKeyframe *undo = new MU_SetAnimKeyframe();
 		undo->setAnimationData(anim,frame,isRotation);
-		undo->addBoneJoint(joint,isNew,x,y,z,oldx,oldy,oldz);
+		undo->addKeyframe(pos,isNew,x,y,z,interp2020,old[0],old[1],old[2],olde);
 		sendUndo(undo);
+	}
 
-		return index;
-	}
-	else
-	{
-		log_error("anim keyframe out of range: anim %d,frame %d,joint %d\n",anim,frame,joint);
-		if(anim<m_skelAnims.size())
-		{
-			log_error("max frame is %d,max joint is %d\n",m_skelAnims[anim]->m_frameCount,m_joints.size());
-		}
-		return -1;
-	}
+	//TEMPORARY FIX
+	auto mode = pos.type==PT_Joint?ANIMMODE_SKELETAL:ANIMMODE_FRAME;
+
+	invalidateAnim(mode,anim,frame); //OVERKILL
+
+	return index;
 }
 
-bool Model::deleteSkelAnimKeyframe(unsigned anim, unsigned frame, unsigned joint,bool isRotation)
+bool Model::deleteKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E isRotation)
 {
-	if(anim<m_skelAnims.size()&&frame<m_skelAnims[anim]->m_frameCount)
+	AnimBase2020 *ab = _anim(anim,frame,pos); if(!ab) return false;
+	
+	KeyframeList &list = ab->m_keyframes[pos];
+	KeyframeList::iterator it = list.begin();
+	for(;it!=list.end();it++)	
+	if((*it)->m_frame==frame&&(*it)->m_isRotation&isRotation)
 	{
-		KeyframeList &list = m_skelAnims[anim]->m_jointKeyframes[joint];
-		KeyframeList::iterator it = list.begin();
-		while(it!=list.end())
+		m_changeBits |= MoveOther; //2020
+
+		//log_debug("deleting keyframe for anim %d frame %d joint %d\n",anim,frame,joint,isRotation ? "rotation" : "translation"); //???
+
+		if(m_undoEnabled)
 		{
-			if((*it)->m_frame==frame&&(*it)->m_isRotation==isRotation)
-			{
-				log_debug("deleting keyframe for anim %d frame %d joint %d\n",anim,frame,joint,isRotation ? "rotation" : "translation");
-				MU_DeleteKeyframe *undo = new MU_DeleteKeyframe;
-				undo->setAnimationData(anim);
-				undo->deleteKeyframe(*it);
-				sendUndo(undo);
-				break;
-			}
-			it++;
+			//TEMPORARY FIX
+			MU_DeleteObjectKeyframe *undo;
+			if(PT_Joint==pos.type) undo = new MU_DeleteJointKeyframe;
+			if(PT_Point==pos.type) undo = new MU_DeletePointKeyframe;
+
+			undo->setAnimationData(anim);
+			undo->deleteKeyframe(*it);
+			sendUndo(undo);
 		}
 	}
-
-	bool rval = removeSkelAnimKeyframe(anim,frame,joint,isRotation);
-
-	if(anim==m_currentAnim&&frame==m_currentFrame)
-	{
-		setCurrentAnimationFrame(m_currentFrame);
-	}
-
-	return rval;
+	return removeKeyframe(anim,frame,pos,isRotation);
 }
 
-bool Model::insertSkelAnimKeyframe(unsigned anim,Keyframe *keyframe)
+bool Model::insertKeyframe(unsigned anim, PositionTypeE pt, Keyframe *keyframe)
 {
-	if(anim<m_skelAnims.size()
-		  &&keyframe->m_frame<m_skelAnims[anim]->m_frameCount 
-		  &&keyframe->m_jointIndex<(signed int)m_joints.size())
-	{
-		log_debug("inserted keyframe for anim %d frame %d joint %d\n",anim,keyframe->m_frame,keyframe->m_jointIndex);
-		m_skelAnims[anim]->m_jointKeyframes[keyframe->m_jointIndex].insert_sorted(keyframe);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	Position pos = {pt,keyframe->m_objectIndex};
+	AnimBase2020 *ab = _anim(anim,keyframe->m_frame,pos); if(!ab) return false;
+
+	//log_debug("inserted keyframe for anim %d frame %d joint %d\n",anim,keyframe->m_frame,keyframe->m_objectIndex); //???
+
+	ab->m_keyframes[pos].insert_sorted(keyframe);
+
+	//TEMPORARY FIX
+	auto mode = pt==PT_Joint?ANIMMODE_SKELETAL:ANIMMODE_FRAME;
+
+	invalidateAnim(mode,anim,keyframe->m_frame); //OVERKILL
+
+	return true;
 }
 
-bool Model::removeSkelAnimKeyframe(unsigned anim, unsigned frame, unsigned joint,bool isRotation,bool release)
+bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E isRotation, bool release)
 {
-	if(anim<m_skelAnims.size()&&frame<m_skelAnims[anim]->m_frameCount)
-	{
-		KeyframeList &list = m_skelAnims[anim]->m_jointKeyframes[joint];
-		KeyframeList::iterator it = list.begin();
-		while(it!=list.end())
-		{
-			if((*it)->m_frame==frame&&(*it)->m_isRotation==isRotation)
-			{
-				Keyframe *kf = *it;
-				list.erase(it);
-				if(release)
-				{
-					kf->release();
-				}
-				break;
-			}
-			it++;
-		}
+	AnimBase2020 *ab = _anim(anim,frame,pos); if(!ab) return false;
 
-		return true;
-	}
-	else
+	auto &list = ab->m_keyframes[pos];
+	for(auto it=list.begin();it!=list.end();)
+	if((*it)->m_frame==frame&&(*it)->m_isRotation&isRotation)
 	{
-		return false;
+		Keyframe *kf = *it;
+		it = list.erase(it);
+		if(release) kf->release();
 	}
+	else it++;
+	
+	//TEMPORARY FIX
+	auto mode = pos.type==PT_Joint?ANIMMODE_SKELETAL:ANIMMODE_FRAME;
+
+	invalidateAnim(ANIMMODE_SKELETAL,anim,frame); //OVERKILL
+
+	return true;
 }
 
 void Model::insertFrameAnim(unsigned index, FrameAnim *anim)
@@ -1238,7 +1352,7 @@ void Model::insertFrameAnim(unsigned index, FrameAnim *anim)
 		m_changeBits|=Model::AddAnimation;
 
 		/*unsigned count = 0;
-		std::vector<FrameAnim *>::iterator it;
+		std::vector<FrameAnim*>::iterator it;
 		for(it = m_frameAnims.begin(); it!=m_frameAnims.end(); it++)
 		{
 			if(count==index)
@@ -1249,6 +1363,11 @@ void Model::insertFrameAnim(unsigned index, FrameAnim *anim)
 			count++;
 		}*/
 		m_frameAnims.insert(m_frameAnims.begin()+index,anim);
+
+		while(++index<m_frameAnims.size())
+		{
+			m_frameAnims[index]->m_frame0+=anim->_frame_count();
+		}
 	}
 	else
 	{
@@ -1265,19 +1384,27 @@ void Model::removeFrameAnim(unsigned index)
 		//2019: MU_AddAnimation?
 		m_changeBits|=Model::AddAnimation;
 
+		FrameAnim *anim = m_frameAnims[index];
+
 		/*unsigned num = 0;
-		std::vector<FrameAnim *>::iterator it = m_frameAnims.begin();
+		std::vector<FrameAnim*>::iterator it = m_frameAnims.begin();
 		while(num<index)
 		{
 			num++;
 			it++;
 		}
 		m_frameAnims.erase(it);*/
+		m_frameAnims.erase(m_frameAnims.begin()+index);
 
 		if(m_animationMode==ANIMMODE_FRAME)
 		while(m_currentAnim>=m_frameAnims.size())
 		{
 			m_currentAnim--;
+		}
+
+		for(;index<m_frameAnims.size();index++)
+		{
+			m_frameAnims[index]->m_frame0-=anim->_frame_count();
 		}
 	}
 	else //2019
@@ -1296,7 +1423,7 @@ void Model::insertSkelAnim(unsigned index, SkelAnim *anim)
 		m_changeBits|=Model::AddAnimation;
 
 		/*unsigned count = 0;
-		std::vector<SkelAnim *>::iterator it;
+		std::vector<SkelAnim*>::iterator it;
 		for(it = m_skelAnims.begin(); it!=m_skelAnims.end(); it++)
 		{
 			if(count==index)
@@ -1324,7 +1451,7 @@ void Model::removeSkelAnim(unsigned index)
 		m_changeBits|=Model::AddAnimation;
 
 		/*unsigned num = 0;
-		std::vector<SkelAnim *>::iterator it = m_skelAnims.begin();
+		std::vector<SkelAnim*>::iterator it = m_skelAnims.begin();
 		while(num<index)
 		{
 			num++;
@@ -1345,52 +1472,62 @@ void Model::removeSkelAnim(unsigned index)
 	}
 }
 
-void Model::insertFrameAnimFrame(unsigned anim, unsigned frame,
-		Model::FrameAnimData *data)
+void Model::insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data)
 {
-	if(anim<m_frameAnims.size())
+	if(!frames) return;
+
+	FrameAnimVertex **dp,**dpp; if(data) 
 	{
-		FrameAnim *fa = m_frameAnims[anim];
-		if(frame<=fa->m_frameData.size())
+		if(!data->empty())
 		{
-			/*unsigned count = 0;
-			std::vector<FrameAnimData *>::iterator it;
-			for(it = fa->m_frameData.begin(); it!=fa->m_frameData.end(); it++)
-			{
-				if(count==frame)
-				{
-					fa->m_frameData.insert(it,data);
-					break;
-				}
-				count++;
-			}*/
-			fa->m_frameData.insert(fa->m_frameData.begin()+frame,data);
+			dp = data->data(); assert(data->size()==m_vertices.size()*frames);
 		}
-		else
+		else data = nullptr;
+	}
+
+	for(auto*ea:m_vertices)
+	{
+		auto it = ea->m_frames.begin()+frame0;
+		if(data)
 		{
-			log_error("frame %d/%d out of range in insertFrameAnimFrame for frame %d\n",frame,fa->m_frameData.size(),anim);
+			dpp = dp+frames;
+
+			ea->m_frames.insert(it,dp,dpp); dp = dpp;
 		}
+		else 
+		{
+			//https://gcc.gnu.org/bugzilla/show_bug.cgi?id=55817
+			//it = ea->m_frames.insert(it,frames,nullptr);
+			ea->m_frames.insert(it,frames,nullptr);
+			it = ea->m_frames.begin()+frame0;
+
+			for(auto i=frames;i-->0;) *it++ = FrameAnimVertex::get(); 
+		}		
 	}
 }
 
-void Model::removeFrameAnimFrame(unsigned anim, unsigned frame)
+void Model::removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data)
 {
-	if(anim<m_frameAnims.size()&&m_frameAnims[anim]->m_frameData.size())
+	if(!frames) return;
+
+	FrameAnimData::iterator jt; if(data)
 	{
-		FrameAnim *fa = m_frameAnims[anim];
-		/*unsigned count = 0;
-		std::vector<FrameAnimData *>::iterator it;
-		for(it = fa->m_frameData.begin(); it!=fa->m_frameData.end(); it++)
-		{
-			if(count==frame)
-			{
-				fa->m_frameData.erase(it);
-				break;
-			}
-			count++;
-		}*/
-		fa->m_frameData.erase(fa->m_frameData.begin()+frame);
+		assert(data->empty());
+
+		data->resize(frames*m_vertices.size());
+
+		jt = data->begin();
 	}
+
+	for(auto*ea:m_vertices)
+	{
+		auto it = ea->m_frames.begin()+frame0, itt = it+frames;
+		if(data)
+		{
+			std::copy(it,itt,jt); jt+=frames;
+		}
+		ea->m_frames.erase(it,itt);		
+	}	
 }
 
 #endif // MM3D_EDIT
@@ -1418,20 +1555,22 @@ bool Model::setCurrentAnimation(AnimationModeE m, const char *name)
 
 bool Model::setCurrentAnimation(AnimationModeE m, unsigned index)
 {
-#ifdef MM3D_EDIT
+	//NOTE: NOT SETTING THE TIME IS IMPORTANT SO THIS IS ABLE
+	//TO RETURN HERE.
+	#ifdef MM3D_EDIT
 	/*2019: Don't know why this worked like this, but changing
 	//animation requires an undo too.
 	bool needUndo = (m_animationMode)?false:true;*/
 	if(m==m_animationMode&&index==m_currentAnim) //NEW
 	return false; 
 	const bool needUndo = true;
-#endif // MM3D_EDIT
+	#endif // MM3D_EDIT
 
 	AnimationModeE oldMode = m_animationMode;
 	int oldAnim = m_currentAnim; //2019
 	int oldFrame = m_currentFrame; //2019
 
-	m_animationMode = ANIMMODE_NONE;
+	m_animationMode = ANIMMODE_NONE; //???
 
 	m_changeBits |= AnimationSet;
 	if(m!=oldMode)
@@ -1441,128 +1580,28 @@ bool Model::setCurrentAnimation(AnimationModeE m, unsigned index)
 
 	m_validBspTree = false;
 
-	log_debug("Changing animation from %d to %d\n",oldMode,m);
+	//log_debug("Changing animation from %d to %d\n",oldMode,m); //???
 
-	switch (m)
+	size_t n = 0; switch(m)
 	{
-		case ANIMMODE_SKELETAL:
-			if(index<m_skelAnims.size())
-			{
-				if(!m_skelAnims[index]->m_validNormals)
-				{
-					calculateSkelNormals();
-				}
-
-				m_currentAnim = index;
-				m_animationMode = m;
-				m_currentFrame = 0;
-				m_currentTime = 0;
-
-#ifdef MM3D_EDIT
-				if(needUndo)
-				{
-					MU_ChangeAnimState *undo = new MU_ChangeAnimState();
-					//undo->setState(m_animationMode,ANIMMODE_NONE,m_currentAnim,m_currentFrame);
-					undo->setState(oldMode,oldAnim,oldFrame,*this);
-					sendUndo(undo);
-				}
-				//2019: Inappropriate/unexpected???
-				//updateObservers(false);
-#endif // MM3D_EDIT
-
-				log_debug("current animation: skeletal '%s'\n",m_skelAnims[index]->m_name.c_str());
-
-				unsigned vcount = m_vertices.size();
-				for(unsigned v = 0; v<vcount; v++)
-				{
-					m_vertices[v]->m_drawSource = m_vertices[v]->m_kfCoord;
-				}
-
-				unsigned pcount = m_points.size();
-				for(unsigned p = 0; p<pcount; p++)
-				{
-					m_points[p]->m_drawSource = m_points[p]->m_kfTrans;
-					m_points[p]->m_rotSource  = m_points[p]->m_kfRot;
-				}
-
-				unsigned tcount = m_triangles.size();
-				for(unsigned t = 0; t<tcount; t++)
-				{
-					m_triangles[t]->m_flatSource = m_triangles[t]->m_kfFlatNormals;
-					m_triangles[t]->m_normalSource[0] = m_triangles[t]->m_kfNormals[0];
-					m_triangles[t]->m_normalSource[1] = m_triangles[t]->m_kfNormals[1];
-					m_triangles[t]->m_normalSource[2] = m_triangles[t]->m_kfNormals[2];
-				}
-
-				return true;
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(index<m_frameAnims.size())
-			{
-				if(!m_frameAnims[index]->m_validNormals)
-				{
-					calculateFrameNormals(index);
-				}
-
-				m_currentAnim = index;
-				m_animationMode = m;
-				m_currentFrame = 0;
-				m_currentTime = 0;
-
-#ifdef MM3D_EDIT
-				if(needUndo)
-				{
-					MU_ChangeAnimState *undo = new MU_ChangeAnimState();
-					//undo->setState(m_animationMode,ANIMMODE_NONE,m_currentAnim,m_currentFrame);
-					undo->setState(oldMode,oldAnim,oldFrame,*this);
-					sendUndo(undo);
-				}
-				//2019: Inappropriate/unexpected???
-				//updateObservers(false);
-#endif // MM3D_EDIT
-
-				log_debug("current animation: frame '%s'\n",m_frameAnims[index]->m_name.c_str());
-
-				return true;
-			}
-			break;
-		default:
-			break;
+	case ANIMMODE_SKELETAL: n = m_skelAnims.size(); 		
+		//if(index<n) //???
+		//log_debug("current animation: skeletal '%s'\n",m_skelAnims[index]->m_name.c_str());
+		break;
+	case ANIMMODE_FRAME: n = m_frameAnims.size(); 
+		//if(index<n) //???
+		//log_debug("current animation: frame '%s'\n",m_frameAnims[index]->m_name.c_str());
+		break;
 	}
 
-	if(m!=ANIMMODE_SKELETAL)
-	{
-		unsigned vcount = m_vertices.size();
-		for(unsigned v = 0; v<vcount; v++)
-		{
-			m_vertices[v]->m_drawSource = m_vertices[v]->m_coord;
-		}
-
-		unsigned pcount = m_points.size();
-		for(unsigned p = 0; p<pcount; p++)
-		{
-			m_points[p]->m_drawSource = m_points[p]->m_trans;
-			m_points[p]->m_rotSource  = m_points[p]->m_rot;
-		}
-
-		unsigned tcount = m_triangles.size();
-		for(unsigned t = 0; t<tcount; t++)
-		{
-			m_triangles[t]->m_flatSource = m_triangles[t]->m_flatNormals;
-			m_triangles[t]->m_normalSource[0] = m_triangles[t]->m_finalNormals[0];
-			m_triangles[t]->m_normalSource[1] = m_triangles[t]->m_finalNormals[1];
-			m_triangles[t]->m_normalSource[2] = m_triangles[t]->m_finalNormals[2];
-		}
-	}
-
+	m_currentAnim = index<n?index:0;
 	m_animationMode = m;
-	m_currentAnim	= 0;
-	m_currentFrame  = 0;
-#ifdef MM3D_EDIT
-	if(needUndo)
+	m_currentTime = 0;
+	m_currentFrame = 0;
+
+	#ifdef MM3D_EDIT
+	if(needUndo&&m_undoEnabled)
 	{
-		log_debug("sending anim state undo\n");
 		MU_ChangeAnimState *undo = new MU_ChangeAnimState();
 		//undo->setState(m_animationMode,ANIMMODE_NONE,m_currentAnim,m_currentFrame);
 		undo->setState(oldMode,oldAnim,oldFrame,*this);
@@ -1570,415 +1609,438 @@ bool Model::setCurrentAnimation(AnimationModeE m, unsigned index)
 	}
 	//2019: Inappropriate/unexpected???
 	//updateObservers(false);
-#endif // MM3D_EDIT
+	#endif // MM3D_EDIT
 
-	return false;
+	//2020
+	//HACK: setCurrentAnimationTime builds its normals from the
+	//base model's flat normals.
+	if(!oldMode&&m) validateNormals();
+	
+	if(index>=n) m = ANIMMODE_NONE;
+	for(auto*ea:m_vertices) ea->_source(m);
+	for(auto*ea:m_triangles) ea->_source(m);
+	for(auto*ea:m_points) ea->_source(m);
+	for(auto*ea:m_joints) ea->_source(m);	
+	return m!=ANIMMODE_NONE;
 }
-
-bool Model::setCurrentAnimationFrame(unsigned frame)
-{	
-	m_validBspTree = false;
-
-	if(m_animationMode==ANIMMODE_FRAME 
-		  &&m_currentAnim<m_frameAnims.size()
-		  &&frame<m_frameAnims[m_currentAnim]->m_frameData.size())
-	{
-		if(!m_frameAnims[m_currentAnim]->m_validNormals)
-		{
-			calculateFrameNormals(m_currentAnim);
-		}
-
-		m_currentFrame = frame;
-
-		//2019: Inappropriate/unexpected???
-		//updateObservers(false);
-		m_changeBits |= AnimationFrame;
-
-		return true;
-	}
-	else if(m_animationMode==ANIMMODE_SKELETAL
-		  &&m_currentAnim<m_skelAnims.size()
-		  &&frame<m_skelAnims[m_currentAnim]->m_frameCount)
-	{
-		m_changeBits |= AnimationFrame;
-
-		m_currentFrame = frame;
-		setCurrentAnimationTime(frame *m_skelAnims[m_currentAnim]->m_spf);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::setCurrentAnimationTime(double frameTime, int loop)
+void Model::Vertex::_source(AnimationModeE m)
 {
-	m_currentTime = 0;
+	m_absSource = m?m_kfCoord:m_coord;
+}
+void Model::Triangle::_source(AnimationModeE m)
+{
+	m_flatSource = m?m_kfFlatNormals:m_flatNormals;
+	for(int i=3;i-->0;) 
+	m_normalSource[i] = m?m_kfNormals[i]:m_finalNormals[i];
+	m_angleSource = m?m_kfVertAngles:m_vertAngles;
+}
+void Model::Point::_source(AnimationModeE m)
+{
+	m_absSource = m?m_kfAbs:m_abs;
+	m_rotSource = m?m_kfRot:m_rot;
+	m_xyzSource = m?m_kfXyz:m_xyz;
+}
+void Model::Joint::_source(AnimationModeE m)
+{
+	bool mm = m==ANIMMODE_SKELETAL;
+	m_absSource = mm?m_kfAbs():m_abs;
+	m_rotSource = mm?m_kfRot:m_rot;
+	m_xyzSource = mm?m_kfXyz:m_xyz;
+}
 
+bool Model::setCurrentAnimationFrame(unsigned frame, AnimationTimeE calc)
+{	
+	auto ab = _anim(m_animationMode,m_currentAnim);
+
+	if(!ab||frame>=ab->_frame_count()) return false;
+
+	double t = ab->m_timetable2020[frame];
+
+	if(setCurrentAnimationFrameTime(ab->m_timetable2020[frame],calc))
+	{
+		assert(m_currentFrame==frame);
+
+		return true;
+	}
+	else return false;
+}
+
+bool Model::setCurrentAnimationTime(double seconds, int loop, AnimationTimeE calc)
+{
+	double t = seconds*getAnimFPS(m_animationMode,m_currentAnim);
+	double len = getAnimTimeFrame(m_animationMode,m_currentAnim);
+	//while(t>=len)
+	while((float)t>len) //Truncate somewhat.
+	{
+		switch(loop) //2019
+		{
+		case -1:
+
+			if(!getAnimWrap(m_animationMode,m_currentAnim))
+			{
+			case 0: return false;
+			}
+				
+		default: case 1: break;
+		}
+		t-=len;
+	}	
+	return setCurrentAnimationFrameTime(t,calc);
+}
+
+bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
+{
+	auto anim = m_currentAnim;
+	auto am = m_animationMode; if(!am) return false;
+	
+	/*2020
+	//This should be based on getAnimTimeFrame but
+	//should time be limited?
+	if(am==ANIMMODE_FRAME&&anim<m_frameAnims.size())
+	{
+		auto *fa = m_frameAnims[anim];
+
+		//validateFrameNormals(anim); //???
+
+		size_t totalFrames = fa->_frame_count();
+
+		if(!totalFrames) time = 0; //???
+	}
+	else if(am==ANIMMODE_SKELETAL&&anim<m_skelAnims.size())
+	{
+		SkelAnim *sa = m_skelAnims[anim];
+
+		if(!sa->_frame_count()) time = 0;
+	}
+	else time = 0;*/
+	if(time>0) //Best practice?
+	time = std::min(time,getAnimTimeFrame(am,anim));
+	else time = 0;
+	
 	m_changeBits |= AnimationFrame;
 
 	m_validBspTree = false;
 
-	if(m_animationMode==ANIMMODE_FRAME&&m_currentAnim<m_frameAnims.size())
+	//m_currentFrame = (unsigned)(frameTime/spf);
+	m_currentFrame = time?getAnimFrame(am,anim,time):0;
+	m_currentTime = time;
+
+	if(calc!=AT_invalidateAnim) 
 	{
-		if(!m_frameAnims[m_currentAnim]->m_validNormals)
-		{
-			calculateFrameNormals(m_currentAnim);
-		}
-
-		size_t totalFrames = m_frameAnims[m_currentAnim]->m_frameData.size();
-
-		if(totalFrames>0)
-		{
-			double spf = 1.0/m_frameAnims[m_currentAnim]->m_fps;
-			double totalTime = spf *m_frameAnims[m_currentAnim]->m_frameData.size();
-			while(frameTime>=totalTime)
-			{
-				switch(loop) //2019
-				{
-				case -1:
-
-					if(!m_frameAnims[m_currentAnim]->m_loop)
-					{
-					case 0: return false;
-					}
-				
-				default: case 1: break;
-				}
-				frameTime -= totalTime;
-			}
-			m_currentFrame = (unsigned)(frameTime/spf);
-		}
-		else
-		{
-			frameTime = 0.0;
-			m_currentFrame = 0;
-		}
-
-		m_currentTime = frameTime;
-
-		//2019: Inappropriate/unexpected???
-		//updateObservers(false);
-		return true;
+		calculateAnim();
 	}
-	else if(m_animationMode==ANIMMODE_SKELETAL&&m_currentAnim<m_skelAnims.size()&&m_skelAnims[m_currentAnim]->m_frameCount>0)
+	else invalidateAnim();
+
+	//HACK: When this is called more rapidly than the animation is
+	//rendered it's a performance problem to calculate the normals.
+	if(calc==AT_calculateNormals) 
 	{
-		LOG_PROFILE();
+		calculateNormals(); 
+	}
+	else //Concerned about BSP pathway.
+	{
+		//TODO: Maybe only invalidate flat normals for BSP pathway.
+		invalidateAnimNormals();
+	}
 
-		SkelAnim *sa = m_skelAnims[m_currentAnim];
-		if(sa->m_frameCount>0)
+	//2019: Inappropriate/unexpected???
+	//updateObservers(false);
+	return true;
+}
+void Model::invalidateSkel()
+{	
+	if(inSkeletalMode()) m_validAnimJoints = false;
+
+	m_validJoints = false; 
+}
+void Model::invalidateAnim()
+{
+	m_validAnim = m_validAnimJoints = false;
+}
+void Model::invalidateAnim(AnimationModeE a, unsigned b, unsigned c)
+{
+	if(a==m_animationMode&&b==m_currentAnim)
+	{	
+		if(m_currentFrame-c<=1) invalidateAnim();
+	}
+}
+void Model::validateAnim()const
+{
+	if(!m_validAnim)
+	const_cast<Model*>(this)->calculateAnim();
+}
+void Model::validateAnimSkel()const
+{
+	validateSkel();
+	if(!m_validAnimJoints)
+	const_cast<Model*>(this)->calculateAnimSkel();
+}
+void Model::calculateAnimSkel()
+{
+	m_validAnimJoints = true;
+
+	auto anim = m_currentAnim;
+	auto am = m_animationMode;
+
+	invalidateAnimNormals();
+
+	//const unsigned f = getAnimFrame(am,anim,t);
+	const unsigned f = m_currentFrame;
+
+	//double t = m_currentTime*getAnimFPS(am,anim);
+	double t = m_currentTime;
+
+	if(am==ANIMMODE_SKELETAL&&anim<m_skelAnims.size())
+	{
+		LOG_PROFILE(); //????
+
+		validateSkel();
+
+		SkelAnim *sa = m_skelAnims[anim];
+
+		Matrix transform;
+		auto jN = m_joints.size();
+		for(Position j{PT_Joint,0};j<jN;j++)
 		{
-			double totalTime = sa->m_spf *sa->m_frameCount;
-			while(frameTime>totalTime)
-			{
-				switch(loop) //2019
-				{
-				case -1:
+			double trans[3],rot[3],scale[3];
+			//interpSkelAnimKeyframeTime(anim,frameTime,sa->m_wrap,j,transform);
+			int ch = interpKeyframe(anim,f,t,j,trans,rot,scale);
+			transform.loadIdentity();		
+			if(ch&KeyRotate)
+			transform.setRotation(rot); 
+			if(ch&KeyScale)
+			transform.scale(scale);
+			if(ch&KeyTranslate)
+			transform.setTranslation(trans);
 
-					if(!sa->m_loop)
-					{
-					case 0: return false;
-					}
-				
-				default: case 1: break;
-				}
+			//FIX ME: What if a parent is later in the joint list?
 
-				frameTime -= totalTime;
-			}
+			int jp = m_joints[j]->m_parent;			
+			Matrix &b = m_joints[j]->m_relative;
+			Matrix &c = jp>=0?m_joints[jp]->m_final:m_localMatrix;
+
+			m_joints[j]->m_final = transform * b * c;
+
+			//LOCAL or GLOBAL? (RELATIVE or ABSOLUTE?)
+			//https://github.com/zturtleman/mm3d/issues/35
+			//NEW: For object system. Will try to refactor this at some point.
+			//transform.getRotation(m_joints[j]->m_kfRot);
+			memcpy(m_joints[j]->m_kfRel,trans,sizeof(trans)); //relative?
+			memcpy(m_joints[j]->m_kfRot,rot,sizeof(rot)); //relative?
+			memcpy(m_joints[j]->m_kfXyz,scale,sizeof(scale)); //relative?
 		}
-		else
+	}
+}
+void Model::calculateAnim()
+{
+	m_validAnim = true;
+
+	auto anim = m_currentAnim;
+	auto am = m_animationMode;
+
+	if(!am) return;
+
+	invalidateAnimNormals();
+
+	//const unsigned f = getAnimFrame(am,anim,t);
+	const unsigned f = m_currentFrame;
+
+	//double t = m_currentTime*getAnimFPS(am,anim);
+	double t = m_currentTime;
+
+	if(am==ANIMMODE_FRAME&&anim<m_frameAnims.size())
+	{
+		auto vN = m_vertices.size();
+		for(unsigned v=0;v<vN;v++)
 		{
-			m_currentTime = 0.0;
+			auto &vt = *m_vertices[v];
+			interpKeyframe(anim,f,t,v,vt.m_kfCoord);
 		}
-
-		m_currentTime = frameTime;
-
-		for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
+		auto jN = m_points.size();
+		for(Position j{PT_Point,0};j<jN;j++)
 		{
-			Matrix transform;
-			interpSkelAnimKeyframeTime(m_currentAnim,frameTime,
-					sa->m_loop,j,transform);
-
-			Matrix relativeFinal(m_joints[j]->m_relative);
-			relativeFinal = transform *relativeFinal;
-
-			if(m_joints[j]->m_parent==-1)
-			{
-				relativeFinal = relativeFinal *m_localMatrix;
-				m_joints[j]->m_final = relativeFinal;
-			}
-			else
-			{
-				m_joints[j]->m_final = m_joints[m_joints[j]->m_parent]->m_final;
-				m_joints[j]->m_final = relativeFinal *m_joints[j]->m_final;
-			}
+			auto &pt = *m_points[j];
+			interpKeyframe(anim,f,t,j,pt.m_kfAbs,pt.m_kfRot,pt.m_kfXyz);
 		}
+	}
+	else if(am==ANIMMODE_SKELETAL&&anim<m_skelAnims.size())
+	{
+		//NOTE: This exists so when valid joint (m_final) data
+		//is required but vertex data isn't the vertex data can
+		//wait until it's required (e.g. draw)
+		validateAnimSkel();
 
 		for(unsigned v = 0; v<m_vertices.size(); v++)
 		{
-			Vertex *vptr = m_vertices[v];
-			if(!vptr->m_influences.empty())
-			{
-				vptr->m_kfCoord[0] = 0.0;
-				vptr->m_kfCoord[1] = 0.0;
-				vptr->m_kfCoord[2] = 0.0;
-
-				double total = 0.0;
-
-				Vector vert;
-
-				infl_list::iterator it;
-				for(it = vptr->m_influences.begin(); it!=vptr->m_influences.end(); it++)
-				{
-					if(it->m_weight>0.00001)
-					{
-						const Matrix &final = m_joints[(*it).m_boneId]->m_final;
-						const Matrix &abs = m_joints[(*it).m_boneId]->m_absolute;
-
-						vert.setAll(vptr->m_coord);
-						vert[3] = 1.0;
-
-						abs.inverseTranslateVector((double *)vert.getVector());
-						abs.inverseRotateVector((double *)vert.getVector());
-
-						vert.transform(final);
-
-						vert.scale3((*it).m_weight);
-						vptr->m_kfCoord[0] += vert[0];
-						vptr->m_kfCoord[1] += vert[1];
-						vptr->m_kfCoord[2] += vert[2];
-
-						total += (*it).m_weight;
-					}
-				}
-
-				if(total>0.00001)
-				{
-					vptr->m_kfCoord[0] /= total;
-					vptr->m_kfCoord[1] /= total;
-					vptr->m_kfCoord[2] /= total;
-				}
-				else
-				{
-					vptr->m_kfCoord[0] = vptr->m_coord[0];
-					vptr->m_kfCoord[1] = vptr->m_coord[1];
-					vptr->m_kfCoord[2] = vptr->m_coord[2];
-				}
-			}
-			else
-			{
-				vptr->m_kfCoord[0] = vptr->m_coord[0];
-				vptr->m_kfCoord[1] = vptr->m_coord[1];
-				vptr->m_kfCoord[2] = vptr->m_coord[2];
-			}
+			m_vertices[v]->_calc_influences(*this);
 		}
 
 		for(unsigned p = 0; p<m_points.size(); p++)
 		{
-			Point *pptr = m_points[p];
-
-			if(!pptr->m_influences.empty())
-			{
-				pptr->m_kfTrans[0] = 0;
-				pptr->m_kfTrans[1] = 0;
-				pptr->m_kfTrans[2] = 0;
-
-				double axisX[3] = { 0,0,0 };
-				double axisY[3] = { 0,0,0 };
-				double axisZ[3] = { 0,0,0 };
-
-				Vector ax;
-				Vector ay;
-				Vector az;
-
-				double total = 0.0;
-
-				Vector vert;
-				Vector rot;
-
-				infl_list::iterator it;
-				for(it = pptr->m_influences.begin(); it!=pptr->m_influences.end(); it++)
-				{
-					const Matrix &final = m_joints[(*it).m_boneId]->m_final;
-					const Matrix &inv = m_joints[(*it).m_boneId]->m_absolute.getInverse();
-
-					Matrix mat;
-
-					mat.setTranslation(pptr->m_trans);
-					mat.setRotation(pptr->m_rot);
-
-					mat = mat *inv;
-
-					mat = mat *final;
-
-					vert[0] = mat.get(3,0);
-					vert[1] = mat.get(3,1);
-					vert[2] = mat.get(3,2);
-
-					for(int i = 0; i<3; i++)
-					{
-						ax[i] = mat.get(0,i);
-						ay[i] = mat.get(1,i);
-						az[i] = mat.get(2,i);
-					}
-
-					vert.scale3((*it).m_weight);
-
-					ax.scale3((*it).m_weight);
-					ay.scale3((*it).m_weight);
-					az.scale3((*it).m_weight);
-
-					pptr->m_kfTrans[0] += vert[0];
-					pptr->m_kfTrans[1] += vert[1];
-					pptr->m_kfTrans[2] += vert[2];
-
-					for(int j = 0; j<3; j++)
-					{
-						axisX[j] += ax[j];
-						axisY[j] += ay[j];
-						axisZ[j] += az[j];
-					}
-
-					total += (*it).m_weight;
-				}
-
-				if(total>0.0)
-				{
-					pptr->m_kfTrans[0] /= total;
-					pptr->m_kfTrans[1] /= total;
-					pptr->m_kfTrans[2] /= total;
-				}
-				else
-				{
-					pptr->m_kfTrans[0] = 0.0;
-					pptr->m_kfTrans[1] = 0.0;
-					pptr->m_kfTrans[2] = 0.0;
-					pptr->m_kfRot[0] = 0.0;
-					pptr->m_kfRot[1] = 0.0;
-					pptr->m_kfRot[2] = 0.0;
-				}
-
-				normalize3(axisX);
-				normalize3(axisY);
-				normalize3(axisZ);
-				Matrix m;
-				for(int i = 0; i<3; i++)
-				{
-					m.set(0,i,axisX[i]);
-					m.set(1,i,axisY[i]);
-					m.set(2,i,axisZ[i]);
-				}
-				m.getRotation(pptr->m_kfRot);
-			}
-			else
-			{
-				pptr->m_kfTrans[0] = pptr->m_trans[0];
-				pptr->m_kfTrans[1] = pptr->m_trans[1];
-				pptr->m_kfTrans[2] = pptr->m_trans[2];
-				pptr->m_kfRot[0] = pptr->m_rot[0];
-				pptr->m_kfRot[1] = pptr->m_rot[1];
-				pptr->m_kfRot[2] = pptr->m_rot[2];
-			}
+			m_points[p]->_calc_influences(*this);
 		}
+	}
+}
+void Model::Vertex::_calc_influences(Model &model)
+{
+	if(!m_influences.empty())
+	{
+		m_kfCoord[0] = 0.0;
+		m_kfCoord[1] = 0.0;
+		m_kfCoord[2] = 0.0;
 
-		unsigned tcount = m_triangles.size();
-		for(unsigned t = 0; t<tcount; t++)
+		double total = 0.0;
+
+		Vector vert;
+
+		infl_list::iterator it;
+		for(it = m_influences.begin(); it!=m_influences.end(); it++)
 		{
-			Triangle *tri = m_triangles[t];
-			for(int v = 0; v<3; v++)
+			if(it->m_weight>0.00001)
 			{
-				int vertexIndex = tri->m_vertexIndices[v];
-				infl_list *ilist = &m_vertices[vertexIndex]->m_influences;
-				if(ilist->empty())
-				{
-					tri->m_kfNormals[v][0] = tri->m_finalNormals[v][0];
-					tri->m_kfNormals[v][1] = tri->m_finalNormals[v][1];
-					tri->m_kfNormals[v][2] = tri->m_finalNormals[v][2];
-				}
-				else
-				{
-					double fnorm[3] = { 0,0,0 };
-					double total = 0.0;
+				auto *jp = model.m_joints[(*it).m_boneId];
 
-					Vector norm;
+				const Matrix &final = jp->m_final;
+				const Matrix &abs = jp->m_absolute;
 
-					infl_list::iterator it;
-					for(it = ilist->begin(); it!=ilist->end(); it++)
-					{
-						const Matrix &final = m_joints[(*it).m_boneId]->m_final;
-						const Matrix &abs = m_joints[(*it).m_boneId]->m_absolute;
+				vert.setAll(m_coord);
+				vert[3] = 1.0;
 
-						norm.setAll(tri->m_finalNormals[v]);
-						abs.inverseRotateVector((double *)norm.getVector());
-						norm.transform3(final);
+				abs.inverseTranslateVector((double *)vert.getVector());
+				abs.inverseRotateVector((double *)vert.getVector());
 
-						norm.scale3((*it).m_weight);
-						fnorm[0] += norm[0];
-						fnorm[1] += norm[1];
-						fnorm[2] += norm[2];
+				vert.transform(final);
 
-						total += (*it).m_weight;
-					}
-
-					if(total>0.0)
-					{
-						fnorm[0] /= total;
-						fnorm[1] /= total;
-						fnorm[2] /= total;
-					}
-
-					normalize3(fnorm);
-					tri->m_kfNormals[v][0] = fnorm[0];
-					tri->m_kfNormals[v][1] = fnorm[1];
-					tri->m_kfNormals[v][2] = fnorm[2];
-				}
-			}
-
-			infl_list *ilist = &m_vertices[tri->m_vertexIndices[0]]->m_influences;
-			double fnorm[3] = { 0,0,0 };
-			double total = 0.0;
-
-			Vector norm;
-
-			infl_list::iterator it;
-			for(it = ilist->begin(); it!=ilist->end(); it++)
-			{
-				const Matrix &final = m_joints[(*it).m_boneId]->m_final;
-				const Matrix &abs = m_joints[(*it).m_boneId]->m_absolute;
-
-				norm.setAll(tri->m_flatNormals);
-				abs.inverseRotateVector((double *)norm.getVector());
-				norm.transform3(final);
-
-				norm.scale3((*it).m_weight);
-				fnorm[0] += norm[0];
-				fnorm[1] += norm[1];
-				fnorm[2] += norm[2];
+				vert.scale3((*it).m_weight);
+				m_kfCoord[0] += vert[0];
+				m_kfCoord[1] += vert[1];
+				m_kfCoord[2] += vert[2];
 
 				total += (*it).m_weight;
 			}
-
-			if(total>0.0)
-			{
-				fnorm[0] /= total;
-				fnorm[1] /= total;
-				fnorm[2] /= total;
-			}
-
-			normalize3(fnorm);
-			tri->m_kfFlatNormals[0] = fnorm[0];
-			tri->m_kfFlatNormals[1] = fnorm[1];
-			tri->m_kfFlatNormals[2] = fnorm[2];
 		}
 
-		//2019: Inappropriate/unexpected???
-		//updateObservers(false);
-		return true;
+		if(total>0.00001)
+		{
+			m_kfCoord[0] /= total;
+			m_kfCoord[1] /= total;
+			m_kfCoord[2] /= total;
+		}
+		else goto uninfluenced; //zero divide
 	}
-	else
+	else uninfluenced:
 	{
-		return false;
+		m_kfCoord[0] = m_coord[0];
+		m_kfCoord[1] = m_coord[1];
+		m_kfCoord[2] = m_coord[2];
+	}
+}
+void Model::Point::_calc_influences(Model &model)
+{
+	//ALGORITHM
+	//The hell!
+	if(!m_influences.empty())
+	{
+		m_kfAbs[0] = 0;
+		m_kfAbs[1] = 0;
+		m_kfAbs[2] = 0;
+
+		double axisX[3] = { 0,0,0 };
+		double axisY[3] = { 0,0,0 };
+		double axisZ[3] = { 0,0,0 };
+
+		Vector ax;
+		Vector ay;
+		Vector az;
+
+		double total = 0.0;
+
+		Vector vert;
+		Vector rot;
+
+		//FIX ME		
+		Matrix m,mm = getMatrixUnanimated();
+		for(auto&ea:m_influences)
+		{
+			auto *jp = model.m_joints[ea.m_boneId];
+
+			const Matrix &final = jp->m_final;
+			const Matrix &inv = jp->getAbsoluteInverse(); 
+
+			m = mm * inv * final;
+
+			vert[0] = m.get(3,0);
+			vert[1] = m.get(3,1);
+			vert[2] = m.get(3,2);
+
+			for(int i = 0; i<3; i++)
+			{
+				ax[i] = m.get(0,i);
+				ay[i] = m.get(1,i);
+				az[i] = m.get(2,i);
+			}
+
+			vert.scale3(ea.m_weight);
+
+			ax.scale3(ea.m_weight);
+			ay.scale3(ea.m_weight);
+			az.scale3(ea.m_weight);
+
+			m_kfAbs[0] += vert[0];
+			m_kfAbs[1] += vert[1];
+			m_kfAbs[2] += vert[2];
+
+			for(int j = 0; j<3; j++)
+			{
+				axisX[j] += ax[j];
+				axisY[j] += ay[j];
+				axisZ[j] += az[j];
+			}
+
+			total += ea.m_weight;
+		}
+		
+		if(total>0.0)
+		{
+			total = 1/total; //2020
+
+			m_kfAbs[0] *= total;
+			m_kfAbs[1] *= total;
+			m_kfAbs[2] *= total;
+		}
+		else //zero divide
+		{
+			/*????
+			m_kfAbs[0] = 0.0;
+			m_kfAbs[1] = 0.0;
+			m_kfAbs[2] = 0.0;
+			m_kfRot[0] = 0.0;
+			m_kfRot[1] = 0.0;
+			m_kfRot[2] = 0.0;
+			*/
+			goto uninfluenced2; //2020
+		}
+
+		//FIX ME
+		m_kfXyz[0] = normalize3(axisX)*total;
+		m_kfXyz[1] = normalize3(axisY)*total;
+		m_kfXyz[2] = normalize3(axisZ)*total;
+		for(int i = 0; i<3; i++)
+		{
+			m.set(0,i,axisX[i]);
+			m.set(1,i,axisY[i]);
+			m.set(2,i,axisZ[i]);
+		}
+		m.getRotation(m_kfRot);
+	}
+	else uninfluenced2:
+	{
+		for(int i=3;i-->0;)
+		{
+			m_kfAbs[i] = m_abs[i];
+			m_kfRot[i] = m_rot[i];
+			m_kfXyz[i] = m_xyz[i];
+		}
 	}
 }
 
@@ -1994,6 +2056,22 @@ unsigned Model::getCurrentAnimationFrame()const
 
 double Model::getCurrentAnimationTime()const
 {
+	//return m_currentTime;
+	return m_currentTime/getAnimFPS(m_animationMode,m_currentAnim);
+}
+
+double Model::getCurrentAnimationFrameTime()const //2020
+{
+	/*
+	//Assuming animations selection states valid!
+	switch(m_animationMode)
+	{
+	case ANIMMODE_SKELETAL:		
+	return m_skelAnims[m_currentAnim]->m_timetable2020[m_currentFrame];
+	case ANIMMODE_FRAME:
+	return m_frameAnims[m_currentAnim]->m_frameData[m_currentFrame]->m_frame2020;
+	}
+	return 0;*/
 	return m_currentTime;
 }
 
@@ -2010,355 +2088,274 @@ void Model::setNoAnimation()
 #ifdef MM3D_EDIT
 	//if(m_animationMode) //2019
 	{
-		MU_ChangeAnimState *undo = new MU_ChangeAnimState();
-		//undo->setState(ANIMMODE_NONE,m_animationMode,m_currentAnim,m_currentFrame);
-		undo->setState(oldMode,m_currentAnim,m_currentFrame,*this);
-		sendUndo(undo);
+		if(m_undoEnabled)
+		{
+			MU_ChangeAnimState *undo = new MU_ChangeAnimState();
+			//undo->setState(ANIMMODE_NONE,m_animationMode,m_currentAnim,m_currentFrame);
+			undo->setState(oldMode,m_currentAnim,m_currentFrame,*this);
+			sendUndo(undo);
+		}
 	}
 #endif // MM3D_EDIT
 	
-	unsigned vcount = m_vertices.size();
-	for(unsigned v = 0; v<vcount; v++)
-	{
-		m_vertices[v]->m_drawSource = m_vertices[v]->m_coord;
-	}
+	for(auto*ea:m_vertices) ea->_source(ANIMMODE_NONE);
+	for(auto*ea:m_triangles) ea->_source(ANIMMODE_NONE);
+	for(auto*ea:m_points) ea->_source(ANIMMODE_NONE);
+	for(auto*ea:m_joints) ea->_source(ANIMMODE_NONE);
 
-	unsigned pcount = m_points.size();
-	for(unsigned p = 0; p<pcount; p++)
-	{
-		m_points[p]->m_drawSource = m_points[p]->m_trans;
-		m_points[p]->m_rotSource  = m_points[p]->m_rot;
-	}
-
-	unsigned tcount = m_triangles.size();
-	for(unsigned t = 0; t<tcount; t++)
-	{
-		m_triangles[t]->m_flatSource = m_triangles[t]->m_flatNormals;
-		m_triangles[t]->m_normalSource[0] = m_triangles[t]->m_finalNormals[0];
-		m_triangles[t]->m_normalSource[1] = m_triangles[t]->m_finalNormals[1];
-		m_triangles[t]->m_normalSource[2] = m_triangles[t]->m_finalNormals[2];
-	}
-
-	setupJoints();
+	//Not sure what's best in this case?
+	//if(1) calculateNormals(); else m_validNormals = false;
+	validateNormals();
 }
 
-void Model::setupJoints()
-{
+void Model::validateSkel()const
+{	
+	if(!m_validJoints) 
+	const_cast<Model*>(this)->calculateSkel();
+}
+void Model::calculateSkel()
+{	
 	LOG_PROFILE();
-	
+
 	m_validJoints = true;
 
-	if(m_animationMode)
+	//if(m_animationMode) return; //REMOVE ME?
+
+	if(inSkeletalMode()) //2020
 	{
-		return;
+		invalidateAnim(); //invalidateNormals?
 	}
 
-	log_debug("setupJoints()\n");
+	//log_debug("validateSkel()\n"); //???
+
+	/*REMOVE ME
+	//Assuming addAnimation covers this for loaders
+	for(auto*sa:m_skelAnims)
+	sa->m_keyframes.resize(m_joints.size());*/
 
 	for(unsigned j = 0; j<m_joints.size(); j++)
 	{
 		Joint *joint = m_joints[j];
 		joint->m_relative.loadIdentity();
-		joint->m_relative.setRotation(joint->m_localRotation);
-		joint->m_relative.setTranslation(joint->m_localTranslation);
+		joint->m_relative.setRotation(joint->m_rot);
+		joint->m_relative.scale(joint->m_xyz);
+		joint->m_relative.setTranslation(joint->m_rel);
 
-		if(joint->m_parent==-1)// parent
+		if(joint->m_parent>=0) // parented?
 		{
-			joint->m_absolute = joint->m_relative;
+			joint->m_absolute = joint->m_relative * m_joints[joint->m_parent]->m_absolute;
 		}
-		else
-		{
-			joint->m_absolute = m_joints[joint->m_parent]->m_absolute;
-			joint->m_absolute = joint->m_relative *joint->m_absolute;
-		}
+		else joint->m_absolute = joint->m_relative;
 
+		//TODO: Is it possible to build m_inv here with relative ease?
+		//Can Euler be trivially inverted?
+		joint->m_absolute_inverse = false; //2020
+
+		//REMINDER: This matrix is going to be animated. Not sure why it's
+		//set here.
 		joint->m_final = joint->m_absolute;
 //		log_debug("\n");
 //		log_debug("Joint %d:\n",j);
 //		joint->m_final.show();
 //		log_debug("local rotation: %.2f %.2f %.2f\n",
-//				joint->m_localRotation[0],joint->m_localRotation[1],joint->m_localRotation[2]);
+//				joint->m_rot[0],joint->m_rot[1],joint->m_localRotation[2]);
 //		log_debug("\n");
-	}
-	
-	for(unsigned anim = 0; anim<m_skelAnims.size(); ++anim)
-	{
-		while(m_joints.size()>m_skelAnims[anim]->m_jointKeyframes.size())
-		{
-			KeyframeList kl;
-			m_skelAnims[anim]->m_jointKeyframes.push_back(kl);
-		}
+
+		//NEW: For object system. Will try to refactor this at some point.
+		joint->m_absolute.getTranslation(joint->m_abs);
 	}
 }
 
 unsigned Model::getAnimCount(AnimationModeE m)const
 {
-	switch (m)
+	switch(m)
 	{
-		case ANIMMODE_SKELETAL:
-			return m_skelAnims.size();
-			break;
-		case ANIMMODE_FRAME:
-			return m_frameAnims.size();
-			break;
-		default:
-			break;
+	case ANIMMODE_SKELETAL: return (unsigned)m_skelAnims.size();
+	case ANIMMODE_FRAME: return (unsigned)m_frameAnims.size();
+	default: return 0;
 	}
-
-	return 0;
 }
 const char *Model::getAnimName(AnimationModeE m, unsigned anim)const
 {
-	switch (m)
-	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size())
-			{
-				return m_skelAnims[anim]->m_name.c_str();
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size())
-			{
-				return m_frameAnims[anim]->m_name.c_str();
-			}
-			break;
-		default:
-			break;
-	}
-
-	return nullptr;
+	if(auto*ab=_anim(m,anim)) 
+	return ab->m_name.c_str(); return nullptr;
 }
 
 unsigned Model::getAnimFrameCount(AnimationModeE m, unsigned anim)const
 {
-	switch (m)
-	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size())
-			{
-				return m_skelAnims[anim]->m_frameCount;
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size())
-			{
-				return m_frameAnims[anim]->m_frameData.size();
-			}
-			break;
-		default:
-			break;
-	}
+	if(auto*ab=_anim(m,anim))
+	return ab->_frame_count(); return 0;
+}
 
-	return 0;
+unsigned Model::getAnimFrame(AnimationModeE m, unsigned anim, double t)const
+{
+	if(auto*ab=_anim(m,anim)) 					
+	for(auto&tt=ab->m_timetable2020;!tt.empty();)
+	{
+		auto lb = std::upper_bound(tt.begin(),tt.end(),t);
+		return unsigned(lb==tt.begin()?0:lb-tt.begin()-1);
+	}
+	return -1;
 }
 
 double Model::getAnimFPS(AnimationModeE m, unsigned anim)const
 {
-	switch (m)
-	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size())
-			{
-				return m_skelAnims[anim]->m_fps;
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size())
-			{
-				return m_frameAnims[anim]->m_fps;
-			}
-			break;
-		default:
-			break;
-	}
-
-	return 0;
+	AnimBase2020 *ab = _anim(m,anim); return ab?ab->m_fps:0;
 }
 
-bool Model::getAnimLooping(AnimationModeE m, unsigned anim)const
+bool Model::getAnimWrap(AnimationModeE m, unsigned anim)const
 {
-	switch (m)
-	{
-		case ANIMMODE_SKELETAL:
-			if(anim<m_skelAnims.size())
-			{
-				return m_skelAnims[anim]->m_loop;
-			}
-			break;
-		case ANIMMODE_FRAME:
-			if(anim<m_frameAnims.size())
-			{
-				return m_frameAnims[anim]->m_loop;
-			}
-			break;
-		default:
-			break;
-	}
-
-	return true;
+	AnimBase2020 *ab = _anim(m,anim); return ab?ab->m_wrap:false; //true
 }
 
-bool Model::getFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
+double Model::getAnimTimeFrame(AnimationModeE m, unsigned anim)const
+{
+	AnimBase2020 *ab = _anim(m,anim); return ab?ab->_time_frame():0;
+}
+double Model::getAnimFrameTime(AnimationModeE m, unsigned anim, unsigned frame)const
+{
+	if(auto*ab=_anim(m,anim)) 
+	return ab->_frame_time(frame); return 0;
+}
+
+Model::Interpolate2020E Model::hasFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex)const
+{
+	double _; auto ret = getFrameAnimVertexCoords(anim,frame,vertex,_,_,_);
+	return ret>0?ret:InterpolateNone; //YUCK
+}
+Model::Interpolate2020E Model::getFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
 		double &x, double &y, double &z)const
 {
-	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
-		  &&vertex<m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->size())
+	if(vertex<m_vertices.size())
+	if(anim<m_frameAnims.size()&&frame<m_frameAnims[anim]->_frame_count())
 	{
-		FrameAnimVertex *fav = (*m_frameAnims[anim]->m_frameData[frame]->m_frameVertices)[vertex];
+		auto fp = m_frameAnims[anim]->m_frame0+frame;
+		FrameAnimVertex *fav = m_vertices[vertex]->m_frames[fp];
 		x = fav->m_coord[0];
 		y = fav->m_coord[1];
 		z = fav->m_coord[2];
-		return true;
+		return fav->m_interp2020;
 	}
-	else if(vertex<m_vertices.size())
+	else //REMOVE ME
 	{
 		x = m_vertices[vertex]->m_coord[0];
 		y = m_vertices[vertex]->m_coord[1];
 		z = m_vertices[vertex]->m_coord[2];
-		return true;
+
+		//CAUTION: InterpolateVoid is only a nonzero return value for these getters.
+		//return true;
+		return InterpolateVoid; //YUCK
 	}
-	else
-	{
-		return false;
-	}
+	//return false;
+	return InterpolateNone; 
 }
 
-bool Model::getFrameAnimVertexNormal(unsigned anim, unsigned frame, unsigned vertex,
+Model::Interpolate2020E Model::hasKeyframe(unsigned anim, unsigned frame,
+		Position pos, KeyType2020E isRotation)const
+{
+	AnimBase2020 *ab = _anim(anim,frame,pos,false); if(!ab) return InterpolateNone;
+
+	//Keyframe *kf = Keyframe::get(); //STUPID
+	Keyframe kf;
+
+	kf.m_frame		  = frame;
+	kf.m_isRotation	= isRotation;
+
+	unsigned index;
+	Interpolate2020E found = InterpolateNone;
+	auto &c = ab->m_keyframes[pos];
+	switch(isRotation)
+	{
+	case KeyTranslate:
+	case KeyRotate:
+	case KeyScale:
+
+		if(c.find_sorted(&kf,index))
+		{
+			found = c[index]->m_interp2020;
+		}
+		break;
+
+	default:
+
+		auto er = std::equal_range(c.begin(),c.end(),&kf,
+		[](Keyframe *a, Keyframe *b)->bool{ return a->m_frame<b->m_frame; });
+		while(er.first<er.second)
+		if((*er.first++)->m_isRotation&isRotation)
+		{
+			found = std::max(found,(er.first[-1]->m_interp2020));
+		}
+		break;
+	}
+
+	//kf->release();
+
+	return found;	
+}
+
+Model::Interpolate2020E Model::getKeyframe(unsigned anim, unsigned frame,
+		Position pos, KeyType2020E isRotation,
 		double &x, double &y, double &z)const
 {
-	if(anim<m_frameAnims.size()
-		  &&frame<m_frameAnims[anim]->m_frameData.size()
-		  &&vertex<m_frameAnims[anim]->m_frameData[frame]->m_frameVertices->size())
+	AnimBase2020 *ab = _anim(anim,frame,pos,false); if(!ab) return InterpolateNone;
+
+	//Keyframe *kf = Keyframe::get(); //STUPID
+	Keyframe kf; 
+
+	kf.m_frame		  = frame;
+	kf.m_isRotation	= isRotation;
+
+	unsigned index;
+	Interpolate2020E found = InterpolateNone;
+	if(ab->m_keyframes[pos].find_sorted(&kf,index))
 	{
-		FrameAnimVertex *fav = (*m_frameAnims[anim]->m_frameData[frame]->m_frameVertices)[vertex];
-		x = fav->m_normal[0];
-		y = fav->m_normal[1];
-		z = fav->m_normal[2];
-		return true;
-	}
-	else
-	{
-		size_t tcount = m_triangles.size();
-		for(size_t tri = 0; tri<tcount; tri++)
-		{
-			for(int i = 0; i<3; i++)
-			{
-				if(m_triangles[tri]->m_vertexIndices[i]==vertex)
-				{
-					x = m_triangles[tri]->m_vertexNormals[i][0];
-					y = m_triangles[tri]->m_vertexNormals[i][1];
-					z = m_triangles[tri]->m_vertexNormals[i][2];
-				}
-			}
-		}
-		return false;
-	}
-}
+		auto &f = *ab->m_keyframes[pos][index];
 
-bool Model::hasSkelAnimKeyframe(unsigned anim, unsigned frame,
-		unsigned joint,bool isRotation)const
-{
-	if(anim<m_skelAnims.size()
-		  &&frame<m_skelAnims[anim]->m_frameCount
-		  &&joint<m_joints.size())
-	{
-		while(joint>=m_skelAnims[anim]->m_jointKeyframes.size())
-		{
-			KeyframeList kl;
-			m_skelAnims[anim]->m_jointKeyframes.push_back(kl);
-		}
-
-		Keyframe *kf = Keyframe::get();
-
-		kf->m_frame		  = frame;
-		kf->m_isRotation	= isRotation;
-
-		unsigned index;
-		bool found = false;
-		if(m_skelAnims[anim]->m_jointKeyframes[joint].find_sorted(kf,index))
-		{
-			found = true;
-		}
-		kf->release();
-
-		return found;
-	}
-	else
-	{
-		log_error("anim keyframe out of range: anim %d,frame %d,joint %d\n",anim,frame,joint);
-		return false;
-	}
-}
-
-bool Model::getSkelAnimKeyframe(unsigned anim, unsigned frame,
-		unsigned joint,bool isRotation,
-		double &x, double &y, double &z)const
-{
-	if(anim<m_skelAnims.size()
-		  &&frame<m_skelAnims[anim]->m_frameCount
-		  &&joint<m_joints.size())
-	{
-		while(joint>=m_skelAnims[anim]->m_jointKeyframes.size())
-		{
-			KeyframeList kl;
-			m_skelAnims[anim]->m_jointKeyframes.push_back(kl);
-		}
-
-		Keyframe *kf = Keyframe::get();
-
-		kf->m_frame		  = frame;
-		kf->m_isRotation	= isRotation;
-
-		unsigned index;
-		bool found = false;
-		if(m_skelAnims[anim]->m_jointKeyframes[joint].find_sorted(kf,index))
-		{
 //			log_debug("found keyframe anim %d,frame %d,joint %d,%s\n",
 //					anim,frame,joint,isRotation ? "rotation" : "translation");
-			x = m_skelAnims[anim]->m_jointKeyframes[joint][index]->m_parameter[0];
-			y = m_skelAnims[anim]->m_jointKeyframes[joint][index]->m_parameter[1];
-			z = m_skelAnims[anim]->m_jointKeyframes[joint][index]->m_parameter[2];
-			found = true;
-		}
-		else
-		{
-			//log_debug("could not find keyframe anim %d,frame %d,joint %d,%s\n",
-			//		anim,frame,joint,isRotation ? "rotation" : "translation");
-		}
-		kf->release();
+		x = f.m_parameter[0];
+		y = f.m_parameter[1];
+		z = f.m_parameter[2];
 
-		return found;
+		//FIX ME: Needs InterpolateStep/InterpolateNone options.
+		found = f.m_interp2020; 
 	}
 	else
 	{
-		log_error("anim keyframe out of range: anim %d,frame %d,joint %d\n",anim,frame,joint);
-		return false;
+		//log_debug("could not find keyframe anim %d,frame %d,joint %d,%s\n",
+		//		anim,frame,joint,isRotation ? "rotation" : "translation");
 	}
+	//kf->release();
+
+	return found;
 }
 
+/*REFERENCE
 bool Model::interpSkelAnimKeyframe(unsigned anim, unsigned frame,
-		bool loop, unsigned j,bool isRotation,
+		bool loop, unsigned j, KeyType2020E isRotation,
 		double &x, double &y, double &z)const
 {
 	if(anim<m_skelAnims.size()
-		  &&frame<m_skelAnims[anim]->m_frameCount
+		  &&frame<m_skelAnims[anim]->_frame_count()
 		  &&j<m_joints.size())
 	{
 		SkelAnim *sa = m_skelAnims[anim];
-		double totalTime = sa->m_spf *sa->m_frameCount;
-		double frameTime = (double)frame/(double)sa->m_frameCount
-								 *totalTime;
+		double time = sa->m_timetable2020[frame];
 
 		Matrix relativeFinal;
-		bool rval = interpSkelAnimKeyframeTime(anim,frameTime,loop,j,
+		bool rval = interpSkelAnimKeyframeTime(anim,time,loop,j,
 				relativeFinal);
 
-		if(isRotation)
-			relativeFinal.getRotation(x,y,z);
-		else
-			relativeFinal.getTranslation(x,y,z);
+		switch(isRotation)
+		{
+		case KeyRotate:
+
+			relativeFinal.getRotation(x,y,z); break;
+
+		case KeyTranslate:
+
+			relativeFinal.getTranslation(x,y,z); break;
+		}
 
 		return rval;
 	}
@@ -2368,180 +2365,380 @@ bool Model::interpSkelAnimKeyframe(unsigned anim, unsigned frame,
 		return false;
 	}
 }
-
 bool Model::interpSkelAnimKeyframeTime(unsigned anim, double frameTime,
-		bool loop, unsigned j,Matrix &transform)const
+		bool loop, unsigned j, Matrix &transform)const
 {
-	if(anim<m_skelAnims.size()&&j<m_joints.size())
+	//2020: Historically frameTime unit is seconds!!
+	//frameTime*=sa->m_fps;
+	//double totalTime = sa->m_spf*sa->_frame_count();
+	frameTime*=getAnimFPS(ANIMMODE_SKELETAL,anim);
+	double totalTime = getAnimTimeFrame(ANIMMODE_SKELETAL,anim);
+	while(frameTime>totalTime)
 	{
-		SkelAnim *sa = m_skelAnims[anim];
-		double totalTime = sa->m_spf *sa->m_frameCount;
-		while(frameTime>totalTime)
-		{
-			if(!loop)
-			{
-				return false;
-			}
-			frameTime -= totalTime;
-		}
-
-		transform.loadIdentity();
-
-		if(!sa->m_jointKeyframes[j].empty())
-		{
-			int firstRot  = -1;
-			int firstTran = -1;
-			int lastRot  = -1;
-			int lastTran = -1;
-			int stopRot  = -1;
-			int stopTran = -1;
-			int rot  = -1;
-			int tran = -1;
-			for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-			{
-				if(sa->m_jointKeyframes[j][k]->m_isRotation)
-				{
-					if(firstRot==-1)
-						firstRot = k;
-					lastRot = k;
-				}
-				else
-				{
-					if(firstTran==-1)
-						firstTran = k;
-					lastTran = k;
-				}
-
-				if(sa->m_jointKeyframes[j][k]->m_time<=frameTime)
-				{
-					// Less than current time
-					// get latest keyframe for rotation and translation
-					if(sa->m_jointKeyframes[j][k]->m_isRotation)
-						rot = k;
-					else
-						tran = k;
-				}
-				else
-				{
-					// Greater than current time
-					// get earliest keyframe for rotation and translation
-					if(sa->m_jointKeyframes[j][k]->m_isRotation)
-					{
-						if(stopRot==-1)
-							stopRot = k;
-					}
-					else
-					{
-						if(stopTran==-1)
-							stopTran = k;
-					}
-				}
-			}
-
-			if(loop)
-			{
-				if(rot==-1)
-					rot = lastRot;
-				if(tran==-1)
-					tran = lastTran;
-
-				if(stopRot==-1)
-					stopRot = firstRot;
-				if(stopTran==-1)
-					stopTran = firstTran;
-			}
-
-			stopRot  = (stopRot ==-1)? rot  : stopRot;
-			stopTran = (stopTran==-1)? tran : stopTran;
-
-			if(rot>=0)
-			{
-				double temp[3];
-				double diff = sa->m_jointKeyframes[j][stopRot]->m_time-sa->m_jointKeyframes[j][rot]->m_time;
-
-				double tempTime = frameTime;
-
-				if(tempTime<sa->m_jointKeyframes[j][rot]->m_time)
-				{
-					tempTime += (sa->m_spf *sa->m_frameCount);
-				}
-
-				if(diff<0.0)
-				{
-					diff += (sa->m_spf *sa->m_frameCount);
-				}
-
-				Quaternion va;
-				va.setEulerAngles(sa->m_jointKeyframes[j][rot]->m_parameter);
-
-				if(diff>0)
-				{
-					Quaternion vb;
-					vb.setEulerAngles(sa->m_jointKeyframes[j][stopRot]->m_parameter);
-
-					double tm = (tempTime-sa->m_jointKeyframes[j][rot]->m_time)/diff;
-
-					// Negate if necessary to get shortest rotation path for
-					// interpolation
-					if(va.dot4(vb)<-0.00001)
-					{
-						vb[0] = -vb[0]; vb[1] = -vb[1]; vb[2] = -vb[2]; vb[3] = -vb[3];
-					}
-
-					va = va *(1.0-tm)+(vb *tm);
-					va = va *(1.0/va.mag());
-				}
-				else
-				{
-					temp[0] = sa->m_jointKeyframes[j][rot]->m_parameter[0];
-					temp[1] = sa->m_jointKeyframes[j][rot]->m_parameter[1];
-					temp[2] = sa->m_jointKeyframes[j][rot]->m_parameter[2];
-				}
-
-				transform.setRotationQuaternion(va);
-			}
-
-			if(tran>=0)
-			{
-				double temp[3];
-				double diff = sa->m_jointKeyframes[j][stopTran]->m_time-sa->m_jointKeyframes[j][tran]->m_time;
-
-				double tempTime = frameTime;
-
-				if(tempTime<sa->m_jointKeyframes[j][tran]->m_time)
-				{
-					tempTime += (sa->m_spf *sa->m_frameCount);
-				}
-
-				if(diff<0.0)
-				{
-					diff += (sa->m_spf *sa->m_frameCount);
-				}
-
-				Vector va(sa->m_jointKeyframes[j][tran]->m_parameter);
-				if(diff>0)
-				{
-					Vector vb(sa->m_jointKeyframes[j][stopTran]->m_parameter);
-					double tm = (tempTime-sa->m_jointKeyframes[j][tran]->m_time)/diff;
-					va = va+(vb-va)*tm;
-				}
-				else
-				{
-					temp[0] = sa->m_jointKeyframes[j][tran]->m_parameter[0];
-					temp[1] = sa->m_jointKeyframes[j][tran]->m_parameter[1];
-					temp[2] = sa->m_jointKeyframes[j][tran]->m_parameter[2];
-				}
-
-				transform.setTranslation(va.getVector());
-			}
-		}
-
-		return true;
+		if(loop) frameTime-=totalTime;
+		else return false;
 	}
-	else
-	{
-		log_error("anim keyframe out of range: anim %d,joint %d\n",anim,j);
-		return false;
-	}
+	unsigned f = getAnimFrame(ANIMMODE_SKELETAL,anim,frameTime);
+	return interpKeyframe(anim,f,frameTime,j,transform); 
+}*/
+
+int Model::interpKeyframe(unsigned anim, unsigned frame,
+	unsigned pos, double trans[3])const
+{
+	auto ab = _anim(ANIMMODE_FRAME,anim);
+	return interpKeyframe(anim,frame,ab?ab->_frame_time(frame):0,pos,trans); 
 }
+int Model::interpKeyframe(unsigned anim, unsigned frame,
+	Position pos, Matrix &relativeFinal)const
+{
+	auto ab = _anim(pos.type==PT_Joint?ANIMMODE_SKELETAL:ANIMMODE_FRAME,anim);
+	return interpKeyframe(anim,frame,ab?ab->_frame_time(frame):0,pos,relativeFinal); 
+}
+int Model::interpKeyframe(unsigned anim, unsigned frame,
+	Position pos, double trans[3], double rot[3], double scale[3])const
+{
+	auto ab = _anim(pos.type==PT_Joint?ANIMMODE_SKELETAL:ANIMMODE_FRAME,anim);
+	return interpKeyframe(anim,frame,ab?ab->_frame_time(frame):0,pos,trans,rot,scale); 
+}
+int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
+		Position pos, Matrix &transform)const
+{
+	transform.loadIdentity();
+	double trans[3], rot[3], scale[3];
+	if(int ch=interpKeyframe(anim,frame,time,pos,trans,rot,scale))
+	{		
+		if(ch&KeyRotate)
+		transform.setRotation(rot); 
+		if(ch&KeyScale)
+		transform.scale(scale);
+		if(ch&KeyTranslate)
+		transform.setTranslation(trans); 
+		return ch;
+	}
+	return 0;
+}
+int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
+		Position pos, double trans[3], double rot[3], double scale[3])const
+{
+	int mask = 0;
+	if(trans) mask|=KeyTranslate;
+	if(rot) mask|=KeyRotate; 
+	if(scale) mask|=KeyScale;
+	mask = ~mask;
+	
+	int ret = 0; if(pos.type==PT_Vertex) 
+	{
+		ret = interpKeyframe(anim,frame,pos,trans);
+	}
+	else if(AnimBase2020*ab=_anim(anim,frame,pos))
+	{
+		auto &jk = ab->m_keyframes[pos]; 
+		auto &tt = ab->m_timetable2020;
+	   
+		//TODO: Binary search? //FIX ME
+		unsigned first[3] = {};
+		unsigned key[3] = {}, stop[3] = {};
+		unsigned last[3] = {};
+		for(unsigned k=0;k<jk.size();)
+		{
+			auto cmp = jk[k++];
 
+			if(mask&cmp->m_isRotation) continue;
+
+			int i = cmp->m_isRotation>>1;
+
+			//if(cmp->m_time<=time)
+			if(cmp->m_frame<=frame)
+			{
+				if(!first[i]) first[i] = k; 
+
+				// Less than current time
+				// get latest keyframe for rotation and translation
+				key[i] = k;
+			}
+			else
+			{
+				// Greater than current time
+				// get earliest keyframe for rotation and translation
+				if(!stop[i])
+				{
+					stop[i] = k;
+
+					if(!key[i]) key[i] = k;
+				}
+
+				last[i] = k;
+			}
+		}
+
+		bool wrap = ab->m_wrap;
+	
+		for(int i=0;i<3;i++) if(auto k=key[i])
+		{
+			ret|=1<<i;
+
+			if(!stop[i]) stop[i] = (wrap?first:key)[i]; 
+	
+			auto p = jk[k-1];
+			auto d = jk[stop[i]-1];
+			double t = 0, cmp = tt[p->m_frame];
+			const double *dp,*pp = p->m_parameter;
+			//RATIONALE: The mode comes from the later keyframe because
+			//there are not modes associated with the base model's data.
+			//If this is unconventional importers should add end frames.
+			auto e = d->m_interp2020;
+
+			bool lerp = e==InterpolateLerp;
+
+			//TODO: setKeyframe might fill these out instead of looking
+			//this up here. Unlike vertex-data there's no memory saving.
+			if(InterpolateCopy==p->m_interp2020)
+			{
+				auto tf = p->m_isRotation;
+				while(k-->0)
+				{			
+					if(tf==jk[k]->m_isRotation)			
+					if(jk[k]->m_interp2020>InterpolateCopy)
+					{
+						pp = jk[k]->m_parameter; break;
+					}
+				}
+				if(k==-1) if(wrap) 
+				{
+					for(k=last[i];k-->0;)				
+					if(tf==jk[k]->m_isRotation)
+					if(jk[k]->m_interp2020>InterpolateCopy)
+					{
+						pp = jk[k]->m_parameter; break;
+					}
+				}
+				else pp = jk[first[i]-1]->m_parameter;
+
+				if(!lerp) d = p;
+			}		
+			else if(InterpolateCopy==e)
+			{
+				d = p;
+			}
+
+			if(time!=cmp) if(time>cmp||wrap)
+			{			
+				if(lerp&&p!=d)
+				{
+					dp = d->m_parameter;
+					double diff = tt[d->m_frame]-cmp;
+					if(diff<0) diff+=ab->_time_frame();
+					t = (time-cmp)/diff;
+				}
+			}
+			else //Clamping?
+			{
+				//Note: There is no extrapolation after the final frame
+				//since older MM3D files used step mode and fixed count.
+
+				static double identity[3]; //And points? rotateSelected?
+				dp = pp;
+				if(pos.type!=PT_Joint)
+				pp = getPositionObject(pos)->getParamsUnanimated((Interpolant2020E)i);
+				else
+				pp = identity;
+				t = lerp?time/cmp:0;
+			}
+
+			if(i!=InterpolantRotation)
+			{
+				double *x = i?scale:trans;			
+				if(t)
+				{
+					Vector va(pp);
+					//if(t) //interpolate?
+					va+=(Vector(dp)-va)*t;
+					va.getVector3(x);
+				}
+				else memcpy(x,pp,sizeof(*x)*3);
+			}
+			else if(t) //InterpolantRotation
+			{
+				Quaternion va; va.setEulerAngles(pp);
+				Quaternion vb; vb.setEulerAngles(dp);
+
+				#ifdef NDEBUG
+				#error Should use slerp algorithm!
+				https://github.com/zturtleman/mm3d/issues/125
+				#endif				
+
+				// Negate if necessary to get shortest rotation path for
+				// interpolation
+				if(va.dot4(vb)<-0.00001) 
+				{
+					//NOTE: It's odd to negate all four since that's the
+					//same rotation but represented by different figures.
+					//I couldn't find examples so I checked it to see it
+					//works for the below math.
+					for(int i=0;i<4;i++) vb[i] = -vb[i];
+				}								
+				va = va*(1-t)+vb*t; va.normalize();
+
+				va.getEulerAngles(rot);
+			}
+			else memcpy(rot,pp,sizeof(*rot)*3);
+		}
+	}	
+	mask|=ret;
+
+	for(int i=1;i<=4;i<<=1) if(~mask&i)
+	if(auto pt=pos.type!=PT_Joint?getPositionObject(pos):nullptr)
+	{
+		switch(i)
+		{
+		case 1: memcpy(trans,pt->m_abs,sizeof(*trans)*3); break;
+		case 2: memcpy(rot,pt->m_rot,sizeof(*rot)*3); break;
+		case 4: memcpy(scale,pt->m_xyz,sizeof(*scale)*3); break;
+		}		
+	}
+	else switch(i)
+	{
+	case 1: memset(trans,0x00,sizeof(*trans)*3); break;
+	case 2: memset(rot,0x00,sizeof(*rot)*3); break;
+	case 4: for(int i=3;i-->0;) scale[i] = 1; break;
+	}	
+
+	return ret;	
+}
+int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
+		unsigned pos, double trans[3])const
+{
+	//REMINDER: I've quickly rewritten the regular keyframe interpolation
+	//routine to apply the same logic to vertices to make sure they match
+	//and provide a standalone version for user code to take advantage of.
+
+	FrameAnim *ab = nullptr;
+	if(anim<m_frameAnims.size()&&pos<m_vertices.size()&&trans)
+	ab = m_frameAnims[anim];
+
+	int ret = 0; if(ab&&frame<ab->_frame_count())
+	{
+		auto *jk = &m_vertices[pos]->m_frames[ab->m_frame0];	
+		auto &tt = ab->m_timetable2020;
+
+		//TODO: Binary search? //FIX ME
+		unsigned first[1] = {};
+		unsigned key[1] = {}, stop[1] = {};
+		unsigned last[1] = {};
+		unsigned frames = ab->_frame_count();
+		for(unsigned kk,k=0;k<frames;)
+		{
+			auto cmp = jk[kk=k++];
+
+			if(!cmp->m_interp2020) continue;
+
+			const int i = 0; if(kk<=frame)
+			{
+				if(!first[i]) first[i] = k; 
+
+				// Less than current time
+				// get latest keyframe for rotation and translation
+				key[i] = k;
+			}
+			else
+			{
+				// Greater than current time
+				// get earliest keyframe for rotation and translation
+				if(!stop[i])
+				{
+					stop[i] = k;
+
+					if(!key[i]) key[i] = k;
+				}
+
+				last[i] = k;
+			}
+		}
+
+		bool wrap = ab->m_wrap;
+	
+		for(int i=0;i<1;i++) if(auto k=key[i])
+		{	
+			ret|=1<<i;
+
+			if(!stop[i]) stop[i] = (wrap?first:key)[i]; 
+	
+			unsigned frame2;
+			auto p = jk[frame=k-1];
+			auto d = jk[frame2=stop[i]-1];
+			double t = 0, cmp = tt[frame];
+			const double *dp,*pp = p->m_coord;
+			//RATIONALE: The mode comes from the later keyframe because
+			//there are not modes associated with the base model's data.
+			//If this is unconventional importers should add end frames.
+			auto e = d->m_interp2020;
+			
+			bool lerp = e==InterpolateLerp;
+
+			//TODO: setKeyframe might fill these out instead of looking
+			//this up here. Unlike vertex-data there's no memory saving.
+			if(InterpolateCopy==p->m_interp2020)
+			{
+				while(k-->0)
+				{	
+					if(jk[k]->m_interp2020>InterpolateCopy)
+					{
+						pp = jk[k]->m_coord; break;
+					}
+				}
+				if(k==-1) if(wrap) 
+				{
+					for(k=last[i];k-->0;)
+					if(jk[k]->m_interp2020>InterpolateCopy)
+					{
+						pp = jk[k]->m_coord; break;
+					}
+				}
+				else pp = jk[first[i]-1]->m_coord;
+
+				if(!lerp) d = p;
+			}		
+			else if(InterpolateCopy==e)
+			{
+				d = p;
+			}
+
+			if(time!=cmp) if(time>cmp||wrap) 
+			{			
+				if(lerp&&p!=d)
+				{
+					dp = d->m_coord;
+					double diff = tt[frame2]-cmp;
+					if(diff<0) diff+=ab->_time_frame();
+					t = (time-cmp)/diff;
+				}
+			}
+			else //Clamping?
+			{
+				//Note: There is no extrapolation after the final frame
+				//since older MM3D files used step mode and fixed count.
+
+				dp = pp;				
+				pp = m_vertices[pos]->m_coord;				
+				t = lerp?time/cmp:0;
+			}
+		
+			if(t)
+			{
+				Vector va(pp);
+				//if(t) //interpolate?
+				va+=(Vector(dp)-va)*t;
+				va.getVector3(trans);
+			}
+			else memcpy(trans,pp,sizeof(*trans)*3);
+		}
+	}
+
+	if(!ret&&trans) if(pos<m_vertices.size())
+	{
+		memcpy(trans,m_vertices[pos]->m_coord,sizeof(*trans)*3);
+	}
+	else memset(trans,0x00,sizeof(*trans)*3);
+
+	return ret;	
+}

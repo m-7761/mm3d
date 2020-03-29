@@ -39,7 +39,7 @@ enum ScaleProportionE
 
 enum ScalePointE
 {
-	ST_ScalePointCenter=0,
+	ST_ScalePointCoords=0,
 	ST_ScalePointFar,
 };
 
@@ -47,7 +47,8 @@ struct ScaleTool : Tool
 {
 	ScaleTool():Tool(TT_Other)
 	{
-		m_proportion = m_point = 0; //config details
+		m_proportion = m_point = 0; //config details		
+		m_translate = m_scale = true; 
 	}
 
 	virtual const char *getName(int)
@@ -78,40 +79,46 @@ struct ScaleTool : Tool
 		TRANSLATE("Tool","Far Corner","Scale from far corner"),
 		};
 		parent->addEnum(true,&m_point,TRANSLATE("Tool","Point"),f);
+
+		parent->addBool(true,&m_translate,TRANSLATE("Tool","Move"));
+		parent->addBool(true,&m_scale,TRANSLATE("Tool","Scale"));
 	}
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Scale complete"));
 	}
-		int m_proportion;
-		int m_point;		
+		int m_proportion,m_point;		
+		bool m_translate,m_scale;
 
 		double m_x,m_y;
-		bool m_allowX,m_allowY;
+		bool m_allowX,m_allowY;		
 
 		double m_pointX;
 		double m_pointY;
 		double m_pointZ;
 
+		double m_startLength;
 		double m_startLengthX;
 		double m_startLengthY;
 
 		//double m_projScale;
-		//int_list m_projList;
-		std::vector<std::pair<int,double>> m_projList;
+		//int_list m_objList;
+		//std::vector<std::pair<int,double>> m_objList;
+		struct scale:Model::Position{ double xyz[3]; };
+		std::vector<scale> m_objList;
 
 		ToolCoordList m_positionCoords;
 };
 
 extern Tool *scaletool(){ return new ScaleTool; }
 
-void ScaleTool::mouseButtonDown(int buttonState, int x, int y)
+void ScaleTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
@@ -125,23 +132,36 @@ void ScaleTool::mouseButtonDown(int buttonState, int x, int y)
 	double min[3] = {+DBL_MAX,+DBL_MAX,+DBL_MAX}; 
 	double max[3] = {-DBL_MAX,-DBL_MAX,-DBL_MAX};
 
-	m_projList.clear(); for(auto&ea:m_positionCoords)
+	m_objList.clear(); for(auto&ea:m_positionCoords)
 	{
 		for(int i=0;i<3;i++)
 		{
 			min[i] = std::min(min[i],ea.coords[i]);
 			max[i] = std::max(max[i],ea.coords[i]);
 		}
-
-		if(ea.pos.type==Model::PT_Projection)
+	}
+	if(m_scale) for(auto&ea:m_positionCoords)
+	{
+		//if(ea.pos.type==Model::PT_Projection)
+		if(ea.pos.type!=Model::PT_Vertex)
 		{
+			if(ea.pos.type==Model::PT_Joint
+			&&model->parentJointSelected(ea.pos))
+			{
+				continue;
+			}
+
 			//log_debug("found projection %d\n",ea.pos.index);
-			m_projList.push_back(std::make_pair(ea.pos.index,model->getProjectionScale(ea)));
+			//m_objList.push_back(std::make_pair(ea.pos.index,model->getProjectionScale(ea)));
+			scale s; //s = ea.pos;
+			static_cast<Model::Position&>(s) = ea.pos; //???
+			model->getPositionScale(ea.pos,s.xyz);
+			m_objList.push_back(s);
 		}
 	}
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 	m_x = pos[0];
 	m_y = pos[1];
 	if(m_point==ST_ScalePointFar)
@@ -198,31 +218,31 @@ void ScaleTool::mouseButtonDown(int buttonState, int x, int y)
 			}
 			else goto same; // maxmin>minmax
 		}
-
-		m_startLengthX = fabs(m_pointX-pos[0]);
-		m_startLengthY = fabs(m_pointY-pos[1]);
 	}
 	else
 	{
 		m_pointX = (max[0]-min[0])/2+min[0];
 		m_pointY = (max[1]-min[1])/2+min[1];
 		m_pointZ = (max[2]-min[2])/2+min[2];
-
-		m_startLengthX = fabs(m_pointX-pos[0]);
-		m_startLengthY = fabs(m_pointY-pos[1]);
 	}
+
+	m_startLengthX = fabs(m_pointX-pos[0]);
+	m_startLengthY = fabs(m_pointY-pos[1]);
+	m_startLength = magnitude(m_startLengthX,m_startLengthY);
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Scaling selected primitives"));
 }
 
-void ScaleTool::mouseButtonMove(int buttonState, int x, int y)
+void ScaleTool::mouseButtonMove()
 {
+	Model *model = parent->getModel();
+
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	//Should tools be responsible for this?
-	if(buttonState&BS_Shift&&m_allowX&&m_allowY)
+	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
 	{
 		double ax = fabs(pos[0]-m_x);
 		double ay = fabs(pos[1]-m_y);
@@ -234,49 +254,94 @@ void ScaleTool::mouseButtonMove(int buttonState, int x, int y)
 	if(!m_allowX) pos[0] = m_x;
 	if(!m_allowY) pos[1] = m_y;
 
-	double spX = m_pointX;
-	double spY = m_pointY;
-	double spZ = m_pointZ;
+	const double &spX = m_pointX;
+	const double &spY = m_pointY;
+	const double &spZ = m_pointZ;
 
-	double lengthX = fabs(spX-pos[0]);
-	double lengthY = fabs(spY-pos[1]);
+	const double lengthX = fabs(spX-pos[0]);
+	const double lengthY = fabs(spY-pos[1]);
+	const double length = magnitude(lengthX,lengthY);
+	
+	bool free = m_proportion==ST_ScaleFree;
+	bool sp3d = m_proportion==ST_ScaleProportion3D;
 
+	static const double min = 0.00006;
+	static const double cmp = magnitude(min,min);
+
+	double uniform,xper,yper; 
+	uniform = m_startLength<=cmp?1:length/m_startLength;
+	if(free)
+	{
+		xper = m_startLengthX<=min?1:lengthX/m_startLengthX; //???
+		yper = m_startLengthY<=min?1:lengthY/m_startLengthY; //???
+	}
+	else xper = yper = uniform;
+
+	if(m_translate)
 	for(auto&ea:m_positionCoords)
 	{
 		double x = ea.coords[0]-spX;
 		double y = ea.coords[1]-spY;
 		double z = ea.coords[2]-spZ;
 
-		double xper = m_startLengthX<=0.00006?1:lengthX/m_startLengthX;
-		double yper = m_startLengthY<=0.00006?1:lengthY/m_startLengthY;
+		x*=xper; y*=yper; if(sp3d) z*=xper;
 
-		if(m_proportion==ST_ScaleFree)
+		//2020: Don't generate keyframe/undo data?
+		if(magnitude(x,y,z)>cmp)
 		{
-			x*=xper; y*=yper;
+			movePosition(ea.pos,x+spX,y+spY,z+spZ);
 		}
-		else
-		{
-			double max = std::max(xper,yper);
-			x*=max;
-			y*=max;
-			if(m_proportion==ST_ScaleProportion3D)			
-			z*=max;
-		}
-
-		movePosition(ea.pos,x+spX,y+spY,z+spZ);
 	}
 
-	if(!m_projList.empty())
+	if(!m_objList.empty())
 	{
-		//log_debug("setting scale\n");
-		double startLen = distance(m_startLengthX,m_startLengthY,0.0,0.0);
-		double len = distance(lengthX,lengthY,0.0,0.0);
-		double diff = len/startLen;
-		//log_debug("new scale = %f\n",diff*m_projScale);
+		double s[3];
+		if(!free) for(auto&ea:m_objList)
+		{			
+			for(int i=3;i-->0;)
+			s[i] = ea.xyz[i]*uniform;
+			model->setPositionScale(ea,s);
+		}
+		else if(xper!=1||yper!=1) //nonuniform
+		{
+			Matrix m;
+			double v[3] = {xper,yper,sp3d?xper:1}; 
+			parent->getParentViewInverseMatrix().apply3(v);
+			for(auto&ea:v) 
+			ea = fabs(ea); //apply3 can be negative.
+			for(auto&ea:m_objList)
+			if(ea.type!=Model::PT_Projection)
+			{
+				//NOTE: This isn't very user-friendly but it's how the 
+				//scale tool works.
+				for(int i=3;i-->0;)
+				s[i] = v[i];
+				double r[3];				
+				if(ea.type==Model::PT_Joint)
+				{
+					//NOTE: Rotation shouldn't change while dragging so
+					//this should be safe WRT validateSkel/validateAnim.
 
-		//NEW: Why not all???
-		for(auto&ea:m_projList)
-		parent->getModel()->setProjectionScale(ea.first,ea.second*diff);
+					//Won't work since scaling is included :(
+					//model->m_joints[ea]->m_final.inverseRotateVector(s);
+					model->getBoneJointFinalMatrix(ea,m);
+					m.getScale(r);
+					for(int i=3;i-->0;) r[i] = 1/r[i];
+					m.scale(r);
+					m.getRotation(r);
+				}
+				else 
+				{
+					model->getPositionRotation(ea,r);
+					m.setRotation(r);
+				}
+				m.inverseRotateVector(s);
+				for(int i=3;i-->0;)
+				s[i] = fabs(s[i])*ea.xyz[i];
+				model->setPositionScale(ea,s);
+			}
+			else model->setProjectionScale(ea,ea.xyz[0]*uniform);
+		}			
 	}
 
 	parent->updateAllViews();

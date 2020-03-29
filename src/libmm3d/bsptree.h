@@ -67,7 +67,7 @@ class BspTree
 				virtual ~Poly(){ s_allocated--; };
 
 				static int s_nextId;
-				static std::vector<Poly *> s_recycle;
+				static std::vector<Poly*> s_recycle;
 
 				static int s_allocated;
 
@@ -102,7 +102,7 @@ class BspTree
 				Node(): self(nullptr),left(nullptr),right(nullptr){ s_allocated++;};
 				virtual ~Node(){ s_allocated--; };
 
-				static std::vector<Node *> s_recycle;
+				static std::vector<Node*> s_recycle;
 
 				static int s_allocated;
 

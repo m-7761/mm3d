@@ -59,27 +59,101 @@ viewwin_tool_menu=0,viewwin_modl_menu=0,
 viewwin_geom_menu=0,viewwin_mats_menu=0,
 viewwin_infl_menu=0,viewwin_help_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
-viewwin_toolbar = 0;
+viewwin_framelock=1,viewwin_toolbar = 0;
 
 std::vector<MainWin*> viewwin_list(0); //extern
 
 static utf8 viewwin_title = "Untitled"; //"Maverick Model 3D"
 
+extern MainWin* &viewwin(int id=glutGetWindow())
+{
+	MainWin **o = nullptr;
+	for(auto&ea:viewwin_list) if(ea->glut_window_id==id)
+	o = &ea; //return ea;
+	if(!o) //HACK: Assume id is a subwindow?
+	{
+		//Reminder: viewwin_menu_state_func is global.
+		int c = glutGet(glutext::GLUT_WINDOW_CREATOR);
+		if(c>0) glutSetWindow(c);
+		if(c>0) return viewwin(c);
+	}
+	assert(o); return *o;
+}
+
+static int viewwin_status_active = 0;
+extern void viewwin_status_func(int st=0)
+{
+	if(viewwin_list.empty()) return; //Quit?
+
+	MainWin *w = viewwin();
+
+	if(st==glutext::GLUT_ACTIVE)
+	{
+		viewwin_status_active = w->glut_window_id;
+	}	
+	else if(st) return; //Inactive?
+
+	if(viewwin_status_active!=w->glut_window_id)
+	{
+		return; //Mouse wheel event?
+	}
+
+	glutSetMenu(viewwin_geom_menu);
+	
+	int cb = w->clipboard_mode;
+	if(!cb&&!w->model->getAnimationMode()) cb = true;
+	void *l = cb?glutext::GLUT_MENU_ENABLE:0;
+	glutext::glutMenuEnable(0,l); //Copy
+	glutext::glutMenuEnable(1,l); //Paste
+	glutext::glutMenuEnable(viewwin_deletecmd,l); //Delete
+}
+
 void MainWin::modelChanged(int changeBits) // Model::Observer method
 {
 	if(_window_title_asterisk==model->getSaved())
 	_rewrite_window_title();
-				
+	
 	//REMOVE ME
 	//This is to replace DecalManager functionality
 	//until it can be demonstrated Model::m_changeBits
 	//is set by every change.
 	//https://github.com/zturtleman/mm3d/issues/90
 	if(!changeBits)
+	{	
+		if(_texturecoord_win) //What's this for again?
+		{
+			//NOTE: Texture coords aren't animated ATM.
+			//model->validateAnim();
+
+			_texturecoord_win->modelChanged(0); //???
+		}
+
+		//_deferredModelChanged makes this unnecessary.
+		//return;
+	}
+		
+	//TODO: May want to implement this in Model somehow.
+	//This is to keep the Properties panel from updating
+	//mid playback. I'm not sure how or if Maverick Model
+	//3D avoids that.
+	if(playing) changeBits&=~Model::AnimationFrame;
+
+	//Don't want to do this faster than the viewports are displayed.
+	//Plus the animation coordinates should be validated to be safe.
+	_deferredModelChanged|=changeBits;
+
+	//Do on redraw so animation data isn't calculated unnecessarily.
+	views.modelUpdatedEvent();
+}
+void MainWin::modelChanged()
+{
+	int changeBits = _deferredModelChanged;
+	_deferredModelChanged = 0;
+	model->validateAnim();
+		
+	if(changeBits&Model::SelectionChange)
 	{
-		views.modelUpdatedEvent();
-		if(_texturecoord_win) _texturecoord_win->modelChanged(0);
-		return;
+		model->getSelectedPositions(selection);
 	}
 
 	views.modelUpdatedEvent(); 
@@ -88,14 +162,6 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 	if(_projection_win) _projection_win->modelChanged(changeBits);
 	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
 	//if(_transform_win) = _transform_win->modelChanged(changeBits);
-}
-
-extern MainWin* &viewwin(int id=glutGetWindow())
-{
-	MainWin **o = nullptr;
-	for(auto&ea:viewwin_list) if(ea->glut_window_id==id)
-	o = &ea; //return ea;
-	assert(o); return *o;
 }
  
 static void viewwin_mru(int id, char *add=nullptr)
@@ -158,11 +224,20 @@ static void viewwin_close_func()
 	if(!viewwin_close_func_quit)
 	if(!w->save_work_prompt()) return;
 
+	//Not automatic currently. The menus are linked to this.
+	glutDetachMenu(glutext::GLUT_NON_BUTTON);
+
 	//REMOVE ME
 	//viewpanel_display_func is sometimes entered on closing
 	//after removal from viewwin_list.
 	//glutHideWindow();
 	Widgets95::glut::set_glutDisplayFunc(nullptr);
+	//viewpanel_motion_func, etc?
+	Widgets95::glut::set_glutKeyboardFunc(nullptr);
+	Widgets95::glut::set_glutSpecialFunc(nullptr);
+	Widgets95::glut::set_glutMouseFunc(nullptr);
+	Widgets95::glut::set_glutMotionFunc(nullptr);
+	Widgets95::glut::set_glutPassiveMotionFunc(nullptr);
 
 	//viewwin_list.remove(w); //C++
 	std::swap(viewwin(w->glut_window_id),viewwin_list.back());
@@ -290,17 +365,15 @@ void MainWin::_init_menu_toolbar() //2019
 
 		viewwin_file_menu = glutCreateMenu(viewwin_menubarfunc);
 
-	glutAddMenuEntry(E(file_new,"&New...","File|New","Ctrl+N"));
-	glutAddMenuEntry(E(file_open,"&Open...","File|Open","Ctrl+O"));	
-	//UNFINISHED
+	glutAddMenuEntry(E(file_new,"&New...","File|New","Ctrl+Alt+N"));
+	glutAddMenuEntry(E(file_open,"&Open...","File|Open","Ctrl+Alt+O"));	
 	glutAddSubMenu(::tr("&Recent Models","File|Recent Models"),viewwin_mruf_menu);
-	//SLOT(close()),g_keyConfig.getKey("viewwin_file_close"));
-	glutAddMenuEntry(E(file_close,"Close","File|Close"));
+	glutAddMenuEntry(E(file_close,"&Close","File|Close","Ctrl+Alt+C"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(file_save,"&Save","File|Save","Ctrl+S"));
-	glutAddMenuEntry(E(file_save_as,"Save &As...","File|Save As"));
-	glutAddMenuEntry(E(file_export,"&Export...","File|Export"));
-	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected"));	
+	glutAddMenuEntry(E(file_save,"&Save","File|Save","Ctrl+Alt+S"));
+	glutAddMenuEntry(E(file_save_as,"Save &As...","File|Save As","Shift+Ctrl+Alt+S"));
+	glutAddMenuEntry(E(file_export,"&Export...","File|Export","Ctrl+Alt+E"));
+	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected","Shift+Ctrl+Alt+E"));	
 	glutAddMenuEntry();		
 	#ifdef HAVE_LUALIB //UNUSED
 	glutAddMenuEntry(E(file_run_script,"Run &Script...","File|Run Script"));
@@ -312,7 +385,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutext::glutMenuEnable(id_file_prefs,0); //UNIMPLEMENTED
 	glutAddMenuEntry();		
 	//TODO: Ctrl+Q, Alt+F4
-	utf8 quit = "Ctrl+Q";
+	utf8 quit = "Ctrl+Alt+Q";
 	#ifdef WIN32
 	quit = "Alt+F4";
 	#endif
@@ -327,12 +400,14 @@ void MainWin::_init_menu_toolbar() //2019
 		viewwin_view_menu = glutCreateMenu(viewwin_menubarfunc);	
 
 		//glutAddMenuEntry(E(frame_all,"Frame All","View|Frame","Home"));
-		glutAddMenuEntry(X(true,frame_lock,"Interlock","","Ctrl+Shift+E"));
+		glutAddMenuEntry(X(true,frame_lock,"Interlock","","Shift+Ctrl+E"));
 		glutAddMenuEntry(E(frame_all,"Enhance","View|Frame","Shift+E"));
 		glutAddMenuEntry(E(frame_selection,"Enhance Selection","View|Frame","E"));
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(view_swap,"Change Sides","View|Viewports","Shift+Tab"));
 		glutAddMenuEntry(E(view_flip,"Bottom on Top","View|Viewports","Shift+Q"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(view_init,"Restore to Normal","","Shift+Esc"));
 	}
 		bool r,s,t,u,v;
 				
@@ -429,7 +504,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(O(s,view_1x2,"2 Views (Wide)","View|Viewports","Shift+3"));
 	glutAddMenuEntry(O(t,view_2x1,"2 Views (Tall)","View|Viewports","Shift+4"));
 	glutAddMenuEntry(O(u,view_2x2,"2x2 Views","View|Viewports","Q"));	
-	glutAddMenuEntry(O(v,view_3x2,"3x2 Views","View|Viewports","Ctrl+Shift+3"));		
+	glutAddMenuEntry(O(v,view_3x2,"3x2 Views","View|Viewports","Shift+Ctrl+3"));		
 			
 	//REMOVE ME
 	//NOTE: The selected tool holds a state, but the 
@@ -537,7 +612,7 @@ void MainWin::_init_menu_toolbar() //2019
 	//SEEMS UNNCESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Ctrl+Shift+Back"));
+	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Shift+Ctrl+Back"));
 	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge"));
 	glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations"));
 
@@ -628,30 +703,36 @@ void MainWin::_init_menu_toolbar() //2019
 	//glutAddMenuEntry(::tr("Stop Animation Mode","Animation|Stop Animation Mode"),id_anim_close);	
 	//glutAddMenuEntry();
 	//SLOT(animSetWindowEvent()),g_keyConfig.getKey("viewwin_anim_animation_sets"));
-	glutAddMenuEntry(E(animate_settings,"Animation Sets...","Animation|Animation Sets"));		
+	glutAddMenuEntry(E(animate_settings,"Animation Sets...","Animation|Animation Sets","Shift+A"));		
+	//Fix me: Need to use wxTRANSLATE somehow to translate Scroll_lock?
+	//https://forums.wxwidgets.org/viewtopic.php?f=1&t=46722
+	glutAddMenuEntry(X(true,animate_snap,"Scroll Lock","","Scroll_lock")); //wxMSW (accelcmn.cpp)
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(animate_copy,"Copy Animation Frame","Animation|Copy Animation Frame"));
+	glutAddMenuEntry(X(false,animate_insert,"Clipboard Mode","","Insert"));
+	//glutAddMenuEntry(E(animate_copy_all,"Copy Animation Frame","Animation|Copy Animation Frame"));
+	glutAddMenuEntry(E(animate_copy_all,"Copy Frame","","Shift+Ctrl+C"));
 	//glutAddMenuEntry(E(animate_paste,"Paste Animation Frame","Animation|Paste Animation Frame"));	
 	//I think maybe this belongs below?
 	//https://github.com/zturtleman/mm3d/issues/65#issuecomment-522878969
 	//glutAddMenuEntry(E(animate_clear,"Clear Animation Frame","Animation|Clear Animation Frame"));
 	//glutAddMenuEntry();
-	glutAddMenuEntry(E(animate_copy_selection,"Copy Selected Keyframes","Animation|Copy Animation Frame"));
+	glutAddMenuEntry(E(animate_copy,"Copy Keyframes","","Ctrl+C"));
 	//glutAddMenuEntry(E(animate_paste_selection,"Paste Selected Keyframes","Animation|Paste Animation Frame"));
-	glutAddMenuEntry(E(animate_paste,"Paste Animation Frame(s)","Animation|Paste Animation Frame(s)"));
+	glutAddMenuEntry(E(animate_paste,"Paste","","Ctrl+V"));
+	glutAddMenuEntry(E(animate_paste_v,"Paste Intermediate Values","","Shift+Ctrl+V"));
+	//glutAddMenuEntry(E(animate_clear,"Clear Animation Frame","Animation|Clear Animation Frame"));
+	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Shift+Ctrl+D"));
 	//Look like no-op to me. See viewwin.h notes?
 	//https://github.com/zturtleman/mm3d/issues/65#issuecomment-522878969
-	glutAddMenuEntry();
-	glutAddMenuEntry(E(animate_rotate,"Set Rotation Keyframe","Animation|Set Rotation Keyframe"));
-	glutAddMenuEntry(E(animate_translate,"Set Translation Keyframe","Animation|Set Translation Keyframe"));	
-	glutAddMenuEntry(E(animate_clear,"Clear Animation Frame","Animation|Clear Animation Frame"));
-	glutAddMenuEntry();
-	glutAddMenuEntry(E(animate_play,"Play Animation","","K"));
+	glutAddMenuEntry();	
+	glutAddMenuEntry(X(false,animate_play,"Play Animation","","Pause"));
+	//REMINDER: wxWidgets doesn't support Ctrl+Pause. Windows generates a Cancel code in response.
+	glutAddMenuEntry(X(false,animate_loop,"Play Repeatedly","","Shift+Pause"));
 	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images"));	
 	glutAddMenuEntry(E(animate_window,"Animator Window...","Animation|Animation Window","A"));
 
-		extern void animwin_enable_menu(int=0);
-		animwin_enable_menu(); //2019
+		extern void animwin_enable_menu(int,int);
+		animwin_enable_menu(0,0); //2019
 
 	if(!viewwin_help_menu) //static menu
 	{
@@ -687,7 +768,11 @@ void MainWin::_init_menu_toolbar() //2019
 
 static void viewwin_reshape_func(int x, int y)
 {
-	if(!viewwin_list.empty()) //Exit?
+	//reshape is still called after viewwin_close_func
+	//and there's no automation for naked GLUT windows.
+	//if(!viewwin_list.empty()) //Exit?
+	int id = glutGetWindow();
+	for(auto&ea:viewwin_list) if(ea->glut_window_id==id)
 	viewwin()->reshape(x,y);
 }
 bool MainWin::reshape(int x, int y)
@@ -783,9 +868,10 @@ static int viewwin_init()
 MainWin::MainWin(Model *model):
 model(/*model*/),		
 glut_window_id(viewwin_init()),
+clipboard_mode(),
 //NOTE: Compilers (MSVC) may not like "this".
 //Makes parent/child relationships headaches.
-views(*this),sidebar(*this),
+views(*this),sidebar(*this),playing(),
 _animation_win(),
 _transform_win(),
 _projection_win(),
@@ -814,23 +900,23 @@ _prev_view(),_curr_view()
 		_init_menu_toolbar(); //LONG SUBROUTINE		
 
 
-	model->setUndoEnabled(true);
 	model->clearUndo(); //???
 
 	glutSetWindow(glut_window_id);
 	glutext::glutCloseFunc(viewwin_close_func); 
 	Widgets95::glut::set_glutReshapeFunc(viewwin_reshape_func);
+	glutWindowStatusFunc(viewwin_status_func);
 	glutPopWindow(); //Make spacebar operational.
 		
 	viewwin_toolboxfunc(id_tool_none);	
 
-	#ifdef WIN32
+	//#ifdef WIN32
 	//The toolbar is 1px too close for comfort.
 	//Making room for shadow rules.
-	//views.bar1.main->space<3>()++;
+	views.bar1.main->space<3>(2);
 	views.timeline.space<3>(1);
-	sidebar.main->space<3>()++;
-	#endif
+	sidebar.main->space<3>(3);
+	//#endif
 
 	views.timeline.drop(views.bar1.exterior_row.lock
 	(false,sidebar.anim_panel.media_nav.drop()+1).drop()+1);
@@ -884,6 +970,8 @@ MainWin::~MainWin()
 
 Model *MainWin::_swap_models(Model *swap)
 {
+	selection.clear(); //best?
+
 	if(swap==model) //NEW
 	{
 		assert(model!=swap); return nullptr; 
@@ -898,6 +986,17 @@ Model *MainWin::_swap_models(Model *swap)
 	std::swap(swap,const_cast<Model*&>(model));		
 	views.setModel();
 	if(!model) return swap; //Closing?
+
+	//Close doesn't enable this.
+	model->setUndoEnabled(true);
+		
+	//FIX ME
+	//NEW: Since "ContextT" is not in play the textures 
+	//aren't loaded automatically by model.
+	glutSetWindow(glut_window_id);
+	//REMINDER: _projection_win/_texturecoord_win needs
+	//loadTextures for setModel.
+	model->loadTextures();
 
 	sidebar.setModel();
 	//sidebar updates animation.
@@ -932,6 +1031,7 @@ Model *MainWin::_swap_models(Model *swap)
 		vu.grid = config.get("ui_grid_mode",0);
 		vu.inc3d = config.get("ui_3dgrid_inc",4.0);
 		vu.lines3d = config.get("ui_3dgrid_count",6);
+		vu.xyz3d = 0; //NEW
 		if(config.get("ui_3dgrid_xy",false)) vu.xyz3d|=4;
 		if(config.get("ui_3dgrid_xz",true)) vu.xyz3d|=2;
 		if(config.get("ui_3dgrid_yz",false)) vu.xyz3d|=1;
@@ -949,8 +1049,7 @@ Model *MainWin::_swap_models(Model *swap)
 		model->setCanvasDrawMode(swap->getCanvasDrawMode());
 		model->setPerspectiveDrawMode(swap->getPerspectiveDrawMode());
 	}
-
-	_window_title_asterisk = model->getSaved();
+		
 	_rewrite_window_title();
 
 		frame(); //NEW
@@ -1084,7 +1183,7 @@ void MainWin::merge(Model *model, bool animations_only_non_interactive)
 	if(!file.empty())
 	{
 		Model::ModelErrorE err;
-		Model *merge = new Model();
+		Model *merge = new Model;
 		if((err=FilterManager::getInstance()->readFile(merge,file.c_str()))==Model::ERROR_NONE)
 		{
 			model_show_alloc_stats();
@@ -1165,7 +1264,16 @@ void MainWin::frame(int scope)
 	}
 	else //NEW: If nothing is selected, frame model. 
 	{	
-		if(os==Model::OS_Selected) frame(Model::OS_Global);
+		if(os==Model::OS_Selected)
+		{
+			frame(Model::OS_Global);
+		}
+		else //NEW: Center grid axis?
+		{
+			auto &va = model->getViewportUnits();
+			double x = va.lines3d*va.inc3d;
+			views.frameArea(viewwin_interlock,-x,-x,-x,x,x,x);
+		}
 	}
 }
 
@@ -1217,8 +1325,6 @@ void MainWin::open_animation_system()
 		extern bool viewwin_menu_origin; //YUCK
 		viewwin_menu_origin = true;
 
-		//NOTE: On GTK/XWin this briefly flickers the
-		//titlebar. I tried to fix it without success.
 		_animation_win = new AnimWin(*this,_anim_menu);
 		_animation_win->hide();
 	}
@@ -1339,7 +1445,7 @@ bool MainWin::open(const char *file2, MainWin *window)
 
 	log_debug(" file: %s\n",file); //???
 
-	Model *model = new Model();
+	Model *model = new Model;
 	auto err = Model::ERROR_NONE;
 	if(*file)
 	err = FilterManager::getInstance()->readFile(model,file);
@@ -1357,12 +1463,6 @@ bool MainWin::open(const char *file2, MainWin *window)
 			delete window->_swap_models(model);
 		}
 		else window = new MainWin(model);
-		
-		//FIX ME
-		//NEW: Since "ContextT" is not in play the textures 
-		//aren't loaded automatically by model.
-		glutSetWindow(window->glut_window_id);
-		model->loadTextures();
 	
 		if(*file)
 		viewwin_mru(viewwin_mruf_menu,(char*)file);
@@ -1444,6 +1544,10 @@ void MainWin::perform_menu_action(int id)
 
 		//REMOVE ME
 		//Note: The default key combo is Ctrl+Shift+D.
+		if(!clipboard_mode&&model->getAnimationMode())
+		{
+			id = id_animate_delete; goto delete2; 
+		}
 		return viewwin_geomenufunc(viewwin_deletecmd);
 
 		/*File menu*/
@@ -1617,6 +1721,19 @@ void MainWin::perform_menu_action(int id)
 		viewwin_interlock = glutGet(glutext::GLUT_MENU_CHECKED);
 		return;
 
+	case id_animate_snap:
+		
+		viewwin_framelock = glutGet(glutext::GLUT_MENU_CHECKED);
+		return;
+
+	case id_animate_insert:
+
+		const_cast<int&>(clipboard_mode) = glutGet(glutext::GLUT_MENU_CHECKED);
+		extern void animwin_enable_menu(int,int);
+		animwin_enable_menu(model->getAnimationMode()?_anim_menu:-_anim_menu,clipboard_mode);
+		viewwin_status_func();
+		return;
+
 	//case id_view_props: //REMOVING
 	//	
 	//	w->sidebar.prop_panel.nav.open(); return;
@@ -1664,6 +1781,8 @@ void MainWin::perform_menu_action(int id)
 		
 		extern void viewportsettings(Model*); 
 		viewportsettings(model); break;
+
+	case id_view_init: views.reset(); break;
 
 	/*View->Snap To menu*/
 	case id_snap_grid: //*
@@ -1731,7 +1850,7 @@ void MainWin::perform_menu_action(int id)
 		for(auto ea:viewwin_list)
 		{
 			Model *model = ea->model;
-			model->invalidateTextures();
+			model->invalidateTextures(); //OVERKILL
 			views.modelUpdatedEvent();
 		}
 		return;
@@ -1752,8 +1871,8 @@ void MainWin::perform_menu_action(int id)
 	/*Influences menu*/
 	case id_joint_settings: 
 		
-		extern void jointwin(Model*);
-		jointwin(m); return;
+		extern void jointwin(MainWin&);
+		jointwin(*w); return;
 		
 	case id_joint_attach_verts:
 	case id_joint_weight_verts:
@@ -1766,8 +1885,8 @@ void MainWin::perform_menu_action(int id)
 	case id_joint_unnassigned_verts:
 	case id_joint_unnassigned_points:
 
-		extern void viewwin_influences(Model*,int);
-		viewwin_influences(m,id); return;
+		extern void viewwin_influences(MainWin&,int);
+		viewwin_influences(*w,id); return;
 
 	case id_animate_settings: 
 		
@@ -1784,28 +1903,18 @@ void MainWin::perform_menu_action(int id)
 		open_animation_window(); return;
 
 	case id_animate_copy: 
-	case id_animate_copy_selection:
+	case id_animate_copy_all:
 	case id_animate_paste:
-	//case id_animate_paste_selection:
-	case id_animate_clear:	
+	case id_animate_paste_v:
+	case id_animate_delete: delete2:	
 
-	case id_animate_play: case id_animate_pause:
+	case id_animate_play: 
+	case id_animate_loop:
 		
 		if(!_animation_win)
 		open_animation_system();
 		_animation_win->submit(id);
 		return;
-	
-	case id_animate_rotate: 
-	case id_animate_translate: 
-	{
-		//I believe this bogus code has the side-effect of making a position
-		//uninterpolated. I believe id_animate_clear has the opposite effect.
-		bool r = id==id_animate_rotate; Matrix i; double point[3] = {};		
-		if(r) m->rotateSelected(i,point); else m->translateSelected(i);
-		m->operationComplete(::tr(r?"Set rotation keframe":"Set translation keframe"));
-		return;
-	}
 	
 	/*Help menu*/
 	case id_help: 
@@ -1891,7 +2000,8 @@ void viewwin_toolboxfunc(int id) //extern
 		w->_curr_tool = iid;
 	}
 
-	if(viewwin_toolbar!=glutGetMenu()) //Window menu?
+	//texturecoord.cc?
+	//if(viewwin_toolbar!=glutGetMenu()) //Window menu?
 	{
 		//NOTE: wxWidets doesn't do this. I can't figure out
 		//a sane way to do it without assuming that the menu
@@ -1974,3 +2084,70 @@ static void viewwin_mrumenufunc(int id)
 	}
 	else MainWin::open(buf.c_str(),w);
 }
+
+extern int viewwin_tick(Win::si *c, int i, double &t, int e)
+{
+	int cm = glutGetModifiers();
+	bool shift = false;
+	
+	if(e) //Not drawing?
+	{
+		//HACK: Constrain to integer time?
+		shift = (cm&GLUT_ACTIVE_SHIFT)!=0;
+		if(!shift)
+		{
+			bool lock = viewwin_framelock!=0;
+			if((cm&GLUT_ACTIVE_CTRL)!=0) 
+			lock = !lock;
+			if(!lock) return -1;
+		}
+	}
+
+	Model *m; switch(c->id())
+	{
+	case id_bar:
+	
+		if(c->ui()->subpos())
+		m = ((ViewBar*)c->ui())->model; 
+		else
+		m = ((AnimWin*)c->ui())->model; 
+		break;
+
+	case id_subitem:
+
+		m = ((SideBar*)c->ui())->anim_panel.model; 
+		break;
+	}
+
+	auto am = m->getAnimationMode();
+	if(!am) return -1;
+	int a = m->getCurrentAnimation();
+
+	if(shift)
+	{
+		if(i<0)
+		{
+			i = (int)t;
+		}
+		if(i<(int)m->getAnimTimeFrame(am,a))
+		{
+			t = i;
+		}
+		else return -1; 
+	}
+	else
+	{
+		if(i<0)
+		{
+			i = m->getAnimFrame(am,a,t);
+		}
+		if(i<(int)m->getAnimFrameCount(am,a))
+		{
+			t = m->getAnimFrameTime(am,a,i);
+		}
+		else return -1; 
+	}
+	
+	return i;
+}
+

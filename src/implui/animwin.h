@@ -62,7 +62,6 @@ struct AnimWin : Win
 	enum /*Animation controls*/
 	{		
 		id_anim_fps=1000,
-		id_anim_loop,
 		id_anim_frames,
 	};
 	struct shelf1_group
@@ -73,7 +72,7 @@ struct AnimWin : Win
 		animation(nav,"Animation",id_item), //"Animations"
 		del(nav,"Delete",id_delete), //"X"
 		fps(nav,"FPS",id_anim_fps),
-		loop(nav,"Loop",id_anim_loop),		
+		loop(nav,"Wrap",id_check), //"Loop"
 		frames(nav,"Frame&s",id_anim_frames) //Not Frame!
 		{
 			nav.expand();
@@ -97,8 +96,8 @@ struct AnimWin : Win
 			:
 		nav(main),
 		media_nav(nav),
-		play(media_nav,"Play",id_animate_play),
-		stop(media_nav,"Stop",id_animate_pause),		
+		play(media_nav,"",id_animate_play),
+		loop(media_nav,"",id_animate_loop),		
 		timeline(nav,"Frame: 000",id_bar) 
 		{	
 			nav.expand();
@@ -107,7 +106,7 @@ struct AnimWin : Win
 
 		row nav;
 		row media_nav;
-		button play,stop;
+		button play,loop;
 		bar timeline;
 	};
 	shelf1_group shelf1;

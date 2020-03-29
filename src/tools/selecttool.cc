@@ -117,13 +117,13 @@ public:
 		TRANSLATE_NOOP("Param","Include Back-facing"));
 	}
 		
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y)
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove()
 	{	
-		parent->getRawParentXYValue(x,y,m_x2,m_y2);
+		parent->getRawParentXYValue(m_x2,m_y2);
 		parent->updateView();
 	}
-	virtual void mouseButtonUp(int buttonState, int x, int y);
+	virtual void mouseButtonUp();
 	
 		int m_op;
 
@@ -146,7 +146,7 @@ public:
 
 extern Tool *selecttool(){ return new SelectTool; }
 
-void SelectTool::mouseButtonDown(int buttonState, int x, int y)
+void SelectTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
@@ -170,15 +170,16 @@ void SelectTool::mouseButtonDown(int buttonState, int x, int y)
 	}
 	model->setSelectionMode(sm); //Undo system?
 
-	m_unselect = (buttonState&BS_Right)!=0;
+	m_unselect = (parent->getButtons()&BS_Right)!=0;
 
-	m_startX = x; m_startY = y;
+	m_startX = parent->getButtonX(); 
+	m_startY = parent->getButtonY();
 
-	parent->getRawParentXYValue(x,y,m_x1,m_y1);
+	parent->getRawParentXYValue(m_x1,m_y1);
 	m_x2 = m_x1;
 	m_y2 = m_y1;
 	
-	if(!m_unselect&&~buttonState&BS_Shift)
+	if(!m_unselect&&~parent->getButtons()&BS_Shift)
 	{
 		model->unselectAll();
 	}
@@ -188,7 +189,7 @@ void SelectTool::mouseButtonDown(int buttonState, int x, int y)
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Starting selection"));
 }
-void SelectTool::mouseButtonUp(int buttonState, int x, int y)
+void SelectTool::mouseButtonUp()
 {
 	//FIX ME (BROKEN)
 	//https://github.com/zturtleman/mm3d/issues/62#issuecomment-521525933
@@ -196,12 +197,12 @@ void SelectTool::mouseButtonUp(int buttonState, int x, int y)
 	if(m_unselect) //???
 	{
 		// We're waiting for the right button
-		if(buttonState&BS_Left) return;
+		if(parent->getButtons()&BS_Left) return;
 	}
 	else
 	{
 		// We're waiting for the left button
-		if(buttonState&BS_Right) return;
+		if(parent->getButtons()&BS_Right) return;
 	}*/
 		
 	Model *model = parent->getModel();
@@ -213,7 +214,7 @@ void SelectTool::mouseButtonUp(int buttonState, int x, int y)
 		{
 			auto tri = (Model::Triangle*)element;
 			double dp = 0;
-			for(int i=0;i<3;i++) dp+=plane[i]*tri->m_flatNormals[i];
+			for(int i=0;i<3;i++) dp+=plane[i]*tri->m_flatSource[i];
 			return dp>0;
 		}
 
@@ -231,7 +232,7 @@ void SelectTool::mouseButtonUp(int buttonState, int x, int y)
 	auto mf = m_unselect? //FIX ME
 	&Model::unselectInVolumeMatrix:&Model::selectInVolumeMatrix;
 	
-	parent->getRawParentXYValue(x,y,m_x2,m_y2);
+	parent->getRawParentXYValue(m_x2,m_y2);
 	(model->*mf)(parent->getParentViewMatrix(),m_x1,m_y1,m_x2,m_y2,test);
 
 	m_startX = no_draw;

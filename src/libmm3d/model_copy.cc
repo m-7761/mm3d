@@ -65,26 +65,26 @@ Model *Model::copySelected()const
 			const char *name = getProjectionName(*lit);
 			int type = getProjectionType(*lit);
 
-			double pos[3] = { 0,0,0 };
-			double up[3] = { 0,0,0 };
-			double seam[3] = { 0,0,0 };
-			double range[2][2] = { { 0,0 },{ 0,0 } };
+			double pos[3];
+			double rot[3];
+			double scale;
+			double range[2][2];
 
 			getProjectionCoords(*lit,pos);
-			getProjectionUp(*lit,up);
-			getProjectionSeam(*lit,seam);
-			getProjectionRange(*lit,
-					range[0][0],range[0][1],range[1][0],range[1][1]);
+			getProjectionRotation(*lit,rot);
+			scale = getProjectionScale(*lit);
+			getProjectionRange(*lit,range[0][0],range[0][1],range[1][0],range[1][1]);
 
 			int np = m->addProjection(name,type,pos[0],pos[1],pos[2]);
-			m->setProjectionUp(np,up);
-			m->setProjectionSeam(np,seam);
-			m->setProjectionRange(np,
-					range[0][0],range[0][1],range[1][0],range[1][1]);
+			m->setProjectionRotation(np,rot);
+			m->setProjectionScale(np,scale);
+			m->setProjectionRange(np,range[0][0],range[0][1],range[1][0],range[1][1]);
 
 			m->selectProjection(np);
 
 //			projMap[*lit] = np; //UNUSED???
+
+			//FIX ME: Assign copied faces?!
 		}
 	}
 
@@ -217,12 +217,12 @@ Model *Model::copySelected()const
 		{
 			double coord[3];
 			double rot[3] = { 0,0,0 };
-			getPointCoords(*lit,coord);
-			getPointRotation(*lit,rot);
+			getPointCoordsUnanimated(*lit,coord);
+			getPointRotationUnanimated(*lit,rot);
 
 			// TODO point type (if it is ever used)
 			int np = m->addPoint(getPointName(*lit),
-					coord[0],coord[1],coord[2],rot[0],rot[1],rot[2],-1);
+					coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]);
 			pointMap[*lit] = np;
 
 			m->selectPoint(np);
@@ -251,13 +251,18 @@ Model *Model::copySelected()const
 					parent = -1;
 			}
 
+			//TODO: Why not just copy the matrix by value?
 			double coord[3];
 			double rot[3] = { 0,0,0 };
-			getBoneJointCoords(*lit,coord);
+			getBoneJointCoordsUnanimated(*lit,coord);
+			getBoneJointRotationUnanimated(*lit,rot); //2020
+			//double scale[3] = {};
+			//getBoneJointScaleUnanimated(*lit,scale); //UNFINISHED
 
 			int nj = m->addBoneJoint(getBoneJointName(*lit),
-					coord[0],coord[1],coord[2],rot[0],rot[1],rot[2],parent);
+			coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
 			jointMap[*lit] = nj;
+			m_joints[nj]->m_absolute.setRotation(rot); //It's just numbers.
 
 			m->selectBoneJoint(nj);
 		}
@@ -299,9 +304,7 @@ Model *Model::copySelected()const
 
 	// TODO what about animations?
 
-	m->invalidateNormals();
-	m->calculateNormals();
-	m->setupJoints();
+	m->calculateSkel(); m->calculateNormals();
 
 	return m;
 }

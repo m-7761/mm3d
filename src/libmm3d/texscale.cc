@@ -28,7 +28,7 @@
 
 static unsigned MAX_SCALE_SIZE = 2048;
 
-static bool _is_power_of_two(unsigned a)
+static bool texscale_is_power_of_two(unsigned a)
 {
 	while(a>0)
 	{
@@ -48,13 +48,13 @@ static bool _is_power_of_two(unsigned a)
 	return true;
 }
 
-static int _get_best_scale_size(unsigned a)
+static int texscale_get_best_scale_size(unsigned a)
 {
 	unsigned newa = a;
 	int best = 2;
 	int diff = abs((int)best-(int)a);
 
-	bool scale = _is_power_of_two(a)? false : true;
+	bool scale = texscale_is_power_of_two(a)? false : true;
 
 	if(scale)
 	{
@@ -80,7 +80,7 @@ static int _get_best_scale_size(unsigned a)
 
 bool texture_scale_need_scale(unsigned x, unsigned y)
 {
-	if(!_is_power_of_two(x)||!_is_power_of_two(y))
+	if(!texscale_is_power_of_two(x)||!texscale_is_power_of_two(y))
 	{
 		return true;
 	}
@@ -92,8 +92,8 @@ bool texture_scale_need_scale(unsigned x, unsigned y)
 
 uint8_t *texture_scale_auto(uint8_t *data,Texture::FormatE format, int &oldx, int &oldy)
 {
-	int newx = _get_best_scale_size(oldx);
-	int newy = _get_best_scale_size(oldy);
+	int newx = texscale_get_best_scale_size(oldx);
+	int newy = texscale_get_best_scale_size(oldy);
 
 	uint8_t *d = texture_scale_size(data,format,oldx,oldy,newx,newy);
 

@@ -39,7 +39,7 @@ struct FaceOutCommand : Command
 		return TRANSLATE_NOOP("Command","Normals Face Out");
 	}
 
-	virtual const char *getKeymap(int){ return "Ctrl+Shift+N"; }
+	virtual const char *getKeymap(int){ return "Shift+Ctrl+N"; }
 
 	virtual bool activated(int,Model*);
 };

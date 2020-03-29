@@ -44,7 +44,7 @@ struct SideBar : Win
 		model(model),
 		media_nav(bar.main),
 		play(media_nav,"",id_animate_play),
-		stop(media_nav,"",id_animate_pause),
+		loop(media_nav,"",id_animate_loop),
 		nav(bar.main,"Animation"),
 		animation(nav,"",id_item),
 		frame_nav(nav),
@@ -56,7 +56,7 @@ struct SideBar : Win
 
 			media_nav.proportion().space(1,2,1,0,-1);
 			play.expand().picture(pics[pic_play]);
-			stop.expand().picture(pics[pic_stop]);
+			loop.expand().picture(pics[pic_stop]);
 
 			animation.expand();
 			frame_nav.expand().space(1);
@@ -70,7 +70,7 @@ struct SideBar : Win
 		MainWin &model;
 
 		row media_nav;
-		button play,stop;
+		button play,loop;
 
 		rollout nav;
 		dropdown animation;
@@ -133,6 +133,8 @@ struct SideBar : Win
 	{
 		void submit(control*);
 
+		void stop();
+
 		void modelChanged(); //RENAME ME
 		void modelChanged(int changeBits);
 
@@ -142,22 +144,25 @@ struct SideBar : Win
 		nav(bar.main,"Properties"),
 		//NOTE: Compilers squeal if "this" is passed
 		//in the initializer's list.
-		name(bar.prop_panel),
 		pos(bar.prop_panel),
 		rot(bar.prop_panel),
+		scale(bar.prop_panel),
+		interp(bar.prop_panel),		
 		group(bar.prop_panel),
 		proj(bar.prop_panel),
+		name(bar.prop_panel),
 		infl(bar.prop_panel)
 		{
 			submit(bar.main); //id_init
 		}
 		
 		MainWin &model;
-		
+
 		struct props_base
 		{	
 			props_base(PropPanel &p)
-			:model(p.model),nav(p.nav)
+			:model(p.model)
+			,nav(p.nav)
 			{
 				nav.expand();
 			}
@@ -193,7 +198,7 @@ struct SideBar : Win
 				:
 			props_base(p),name(nav,"",id_name)
 			{
-				nav.expand().name("Name");
+				nav.name("Name");
 				name.expand();
 			}
 			textbox name;
@@ -207,11 +212,14 @@ struct SideBar : Win
 			props_base(p),
 			x(nav,"X",'X'),y(nav,"Y",'Y'),z(nav,"Z",'Z')
 			{
-				nav.name("Rotation").expand();
+				nav.name("Rotation");
 
 				//NOTE: THESE SUPPORT THE SIDEBAR WIDTH.
-				for(int i=0;i<3;i++) 
-				(&x+i)->edit(0.0).compact(60*2).ralign();
+				for(int i=0;i<3;i++) support(&x+i);
+			}
+			static void support(spinbox *x)
+			{
+				x->edit(0.0).compact(60*2).ralign();
 			}
 
 			spinbox x,y,z;
@@ -223,7 +231,7 @@ struct SideBar : Win
 			pos_props(PropPanel &p)
 				:
 			rot_props(p),
-			dimensions(nav,"Dimensions")
+			dimensions(nav,"Dimension") //Dimensions
 			{
 				nav.name("Position");
 				dimensions.place(bottom).expand();
@@ -232,7 +240,31 @@ struct SideBar : Win
 			textbox dimensions;
 
 			double centerpoint[3];
-		};		
+		};
+		struct scale_props : rot_props
+		{
+			void change(int=0,control*c=0);
+
+			scale_props(PropPanel &p)
+				:
+			rot_props(p)
+			{
+				nav.name("Scale");
+			}
+		};
+		struct interp_props : props_base
+		{
+			void change(int=0,control*c=0);
+
+			interp_props(PropPanel &p)
+				:
+			props_base(p)
+			{
+				nav.name("Motion");
+			}
+
+			dropdown menu[3];			
+		};
 		struct group_props : props_base
 		{
 			void change(int);
@@ -247,21 +279,25 @@ struct SideBar : Win
 			material(nav,"Material",id_material_settings),
 				//"Texture Projection:"
 			projection(nav,"Projection",id_projection_settings)
-			{
-				nav.expand();
-			}
+			{}
 
 			nav_group group, material, projection; 
 		};
-		struct proj_props : props_base, nav_group
+		struct proj_props : props_base
 		{
 			void change(int=0);
 
 			proj_props(PropPanel &p)
 				:
-			props_base(p),
-			nav_group(props_base::nav,"Projection Type",id_projection_settings)
-			{}
+			props_base(p), 
+			scale(nav,"X",'X'),
+			type(nav,"Type",id_projection_settings)			
+			{
+				nav.name("Scale");
+				rot_props::support(&scale);
+			}
+
+			spinbox scale; nav_group type;
 		};
 		struct infl_props : props_base
 		{	
@@ -314,11 +350,13 @@ struct SideBar : Win
 		};
 
 		rollout nav;
-		name_props name;
 		pos_props pos;
 		rot_props rot;
-		group_props group;		
+		scale_props scale;
+		interp_props interp;
+		group_props group;
 		proj_props proj;
+		name_props name;
 		infl_props infl;
 	};
 

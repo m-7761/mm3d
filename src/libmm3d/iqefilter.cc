@@ -112,10 +112,10 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 	//
 	// Write Joints
 	//
-	int boneCount = model->getBoneJointCount();
+	unsigned boneCount = model->getBoneJointCount();
 	if(m_options->m_saveSkeleton&&boneCount>0)
 	{
-		for(int bone = 0; bone<boneCount; bone++)
+		for(unsigned bone = 0; bone<boneCount; bone++)
 		{
 			int parent = model->getBoneJointParent(bone);
 
@@ -226,7 +226,7 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 			// See mesh.h for details.
 			mesh_create_list(meshes,model);
 
-			std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
+			std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
 
 			MeshList::iterator mlit;
 
@@ -350,7 +350,7 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 			const char *animName = model->getAnimName(Model::ANIMMODE_SKELETAL,anim);
 			float fps = model->getAnimFPS(Model::ANIMMODE_SKELETAL,anim);
 			unsigned frameCount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,anim);
-			bool loop = model->getAnimLooping(Model::ANIMMODE_SKELETAL,anim);
+			bool loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,anim);
 
 			if(frameCount==0)
 			{
@@ -367,16 +367,17 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 
 			for(unsigned frame = 0; frame<frameCount; frame++)
 			{
-				double frameTime = frame/(double)fps;
+			//	double frameTime = frame/(double)fps;
 
 				writeLine(dst,"frame");
 
-				for(int bone = 0; bone<boneCount; bone++)
+				for(unsigned bone = 0; bone<boneCount; bone++)
 				{
 					int parent = model->getBoneJointParent(bone);
 
 					Matrix transform;
-					model->interpSkelAnimKeyframeTime(anim,frameTime,loop,bone,transform);
+				//	model->interpKeyframeTime(anim,frameTime,loop,bone,transform);
+					model->interpKeyframe(anim,frame,{Model::PT_Joint,bone},transform);
 
 					Matrix rm;
 					model->getBoneJointRelativeMatrix(bone,rm);

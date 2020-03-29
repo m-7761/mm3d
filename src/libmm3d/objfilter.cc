@@ -146,7 +146,7 @@ bool ObjFilter::writeLine(const char *line,...)
 	return true;
 }
 
-enum _OFWS_State_e
+enum objfilter_OFWS_StateE
 {
 	OFWS_Whitespace,
 	OFWS_Token,
@@ -154,7 +154,6 @@ enum _OFWS_State_e
 	OFWS_Decimal,
 	OFWS_AfterDecimal
 };
-typedef enum _OFWS_State_e OFWS_StateE;
 
 bool ObjFilter::writeStripped(const char *fmt,...)
 {
@@ -167,7 +166,7 @@ bool ObjFilter::writeStripped(const char *fmt,...)
 	replace(line,',','.');
 	va_end(ap);
 
-	OFWS_StateE state = OFWS_Whitespace;
+	objfilter_OFWS_StateE state = OFWS_Whitespace;
 
 	size_t s = 0;
 	size_t d = 0;
@@ -460,7 +459,7 @@ bool ObjFilter::writeGroups()
 
 		for(t = 0; t<tcount; t++)
 		{
-			float norm[3];
+			double norm[3];
 
 			m_model->getNormal(t,0,norm);
 			writeStripped(normfmt,norm[0],norm[1],norm[2]);

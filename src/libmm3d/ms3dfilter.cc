@@ -117,12 +117,11 @@ const size_t FILE_KEYFRAME_SIZE = 16;
 //	 2 = hidden
 //
 
-struct _JointNameListRec_t
+struct ms3dfilter_JointNameListRecT
 {
-	int m_jointIndex;
+	int m_objectIndex;
 	std::string m_name;
 };
-typedef struct _JointNameListRec_t JointNameListRecT;
 
 Ms3dFilter::Ms3dOptions::Ms3dOptions()
 	: m_subVersion(0),
@@ -193,11 +192,11 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	model->setFilename(modelFullName.c_str());
 
-	std::vector<Model::Vertex *>	&modelVertices  = getVertexList(model);
-	std::vector<Model::Triangle *> &modelTriangles = getTriangleList(model);
-	std::vector<Model::Group *>	 &modelGroups	 = getGroupList(model);
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
-	std::vector<Model::Joint *>	 &modelJoints	 = getJointList(model);
+	auto &modelVertices = model->getVertexList();
+	auto &modelTriangles = model->getTriangleList();
+	auto &modelGroups = model->getGroupList();
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	std::vector<Model::Joint*>	 &modelJoints	 = getJointList(model);
 
 	unsigned fileLength = m_src->getFileSize();
 
@@ -243,21 +242,10 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		m_src->read(vertex.m_vertex[2]);
 		m_src->read(vertex.m_boneId);
 		m_src->read(vertex.m_refCount);
+				
+		model->addVertex(vertex.m_vertex[0],vertex.m_vertex[1],vertex.m_vertex[2]);
 
-		Model::Vertex *vert = Model::Vertex::get();
-		for(int v = 0; v<3; v++)
-		{
-			vert->m_coord[v] = vertex.m_vertex[v];
-		}
-		modelVertices.push_back(vert);
-		if(vertex.m_boneId==0xFF)
-		{
-			vertexJoints.push_back(-1);
-		}
-		else
-		{
-			vertexJoints.push_back(vertex.m_boneId);
-		}
+		vertexJoints.push_back(vertex.m_boneId==0xFF?-1:vertex.m_boneId);
 	}
 
 	uint16_t numTriangles = 0;
@@ -270,7 +258,6 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	for(t = 0; t<numTriangles; t++)
 	{
-		Model::Triangle *curTriangle = Model::Triangle::get();
 		MS3DTriangle triangle;
 		m_src->read(triangle.m_flags);
 		m_src->read(triangle.m_vertexIndices[0]);
@@ -294,37 +281,21 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		m_src->read(triangle.m_smoothingGroup);
 		m_src->read(triangle.m_groupIndex);
 
-		curTriangle->m_vertexIndices[0] = triangle.m_vertexIndices[0];
-		curTriangle->m_vertexIndices[1] = triangle.m_vertexIndices[1];
-		curTriangle->m_vertexIndices[2] = triangle.m_vertexIndices[2];
-
-		for(int i = 0; i<3; i++)
+		for(int i=0;i<3;i++)		
+		if(triangle.m_vertexIndices[i]>=numVertices)
 		{
-			if(curTriangle->m_vertexIndices[i]>=numVertices)
-			{
-				log_error("vertex out of range: %d/%d\n",curTriangle->m_vertexIndices[i],
-						modelVertices.size());
-				return Model::ERROR_BAD_DATA;
-			}
-		}
+			log_error("vertex out of range: %d/%d\n",triangle.m_vertexIndices[i],modelVertices.size());
 
-		for(int i = 0; i<3; i++)
+			return Model::ERROR_BAD_DATA;
+		}		
+
+		model->addTriangle(triangle.m_vertexIndices[0],triangle.m_vertexIndices[1],triangle.m_vertexIndices[2]);
+		for(int i=0;i<3;i++)
 		{
-			// Need to invert the T coord,since milkshape seems to store it
+			// Need to invert the T coord, since milkshape seems to store it
 			// upside-down.
-			curTriangle->m_s[i] = triangle.m_s[i];
-			curTriangle->m_t[i] = 1.0-triangle.m_t[i];
+			model->setTextureCoords(t,i,triangle.m_s[i],1-triangle.m_t[i]);
 		}
-
-		for(int y = 0; y<3; y++)
-		{
-			for(int x = 0; x<3; x++)
-			{
-				curTriangle->m_vertexNormals[y][x] = triangle.m_vertexNormals[y][x];
-			}
-		}
-
-		modelTriangles.push_back(curTriangle);
 	}
 
 	uint16_t numGroups = 0;
@@ -332,24 +303,25 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	log_debug("model says %d groups\n");
 
+	std::vector<unsigned> groupMats; //2020: chicken/egg
 	for(t = 0; t<numGroups; t++)
-	{
-		Model::Group *group = Model::Group::get();
-		modelGroups.push_back(group);
-
+	{	
 		uint8_t flags = 0;
 		m_src->read(flags);
 
 		char tempstr[32];
 		readString(tempstr,sizeof(tempstr));
-		group->m_name = tempstr;
+		model->addGroup(tempstr);
 
 		log_debug("group name: %s\n",modelGroups[t]->m_name.c_str());
 
 		uint16_t numTriangles = 0;
 		m_src->read(numTriangles);
 
-		uint16_t triIndex = 0;
+		//FIX ME
+		//Are these sorted?
+		//auto &ti = group->m_triangleIndices;
+		uint16_t triIndex = 0, cmp = 0;
 		for(uint16_t n = 0; n<numTriangles; n++)
 		{
 			m_src->read(triIndex);
@@ -359,21 +331,26 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 						triIndex,modelTriangles.size());
 				return Model::ERROR_BAD_DATA;
 			}
-			group->m_triangleIndices.insert(triIndex);
+			//https://github.com/zturtleman/mm3d/issues/92
+			////ti.insert(triIndex);
+			//ti.push_back(triIndex);
+			model->addTriangleToGroup(t,triIndex);
 		}
+		//std::sort(ti.begin(),ti.end()); //ASSUME SORTED???
 
 		uint8_t material = 0;
 		m_src->read(material);
-		if(material==0xFF)
-		{
-			group->m_materialIndex = -1;
-		}
-		else
-		{
-			group->m_materialIndex = material;
-		}
 
-		// Already added group to m_groups
+		if(material!=0xFF)
+		{
+			//https://github.com/zturtleman/mm3d/issues/130
+			//TODO: Can save/set after material section is read in?
+			//HACK: Not bypassing API poses a problem for the order
+			//of MS3D file data.
+			//model->setGroupTextureId(t,material);
+			if(t<modelGroups.size())
+			const_cast<int&>(modelGroups.back()->m_materialIndex) = material;
+		}
 	}
 
 	uint16_t numMaterials = 0;
@@ -491,10 +468,10 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 	m_src->read(numJoints);
 
 	off_t tmpOffset = m_src->offset();
-	JointNameListRecT *nameList = new JointNameListRecT[numJoints];
+	ms3dfilter_JointNameListRecT *nameList = new ms3dfilter_JointNameListRecT[numJoints];
 	//NONCE Removing local_array.h (one/only instance.)
-	//local_array<JointNameListRecT> freeList(nameList);
-	std::unique_ptr<JointNameListRecT[]> RAII(nameList);
+	//local_array<ms3dfilter_JointNameListRecT> freeList(nameList);
+	std::unique_ptr<ms3dfilter_JointNameListRecT[]> RAII(nameList);
 
 	for(t = 0; t<numJoints; t++)
 	{
@@ -514,7 +491,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 		m_src->seek(m_src->offset()+(FILE_KEYFRAME_SIZE *(joint.m_numRotationKeyframes+joint.m_numTranslationKeyframes)));
 
-		nameList[t].m_jointIndex = t;
+		nameList[t].m_objectIndex = t;
 		nameList[t].m_name = joint.m_name;
 	}
 
@@ -544,7 +521,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 			{
 				if(PORT_strcasecmp(nameList[j].m_name.c_str(),joint.m_parentName)==0)
 				{
-					parentIndex = nameList[j].m_jointIndex;
+					parentIndex = nameList[j].m_objectIndex;
 					break;
 				}
 			}
@@ -560,8 +537,8 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 		for(int i = 0; i<3; i++)
 		{
-			modelJoints[t]->m_localRotation[i]	 = joint.m_rotation[i];
-			modelJoints[t]->m_localTranslation[i] = joint.m_translation[i];
+			modelJoints[t]->m_rot[i] = joint.m_rotation[i];
+			modelJoints[t]->m_rel[i] = joint.m_translation[i];
 		}
 		modelJoints[t]->m_parent = parentIndex;
 		modelJoints[t]->m_name	= joint.m_name;
@@ -575,7 +552,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		uint16_t j; // MS Visual C++ is lame
 		for(j = 0; j<numRotationKeyframes; j++)
 		{
-			Model::Keyframe *mkeyframe = Model::Keyframe::get();
+			//Model::Keyframe *mkeyframe = Model::Keyframe::get(); //???
 			MS3DKeyframe keyframe;
 
 			m_src->read(keyframe.m_time);
@@ -583,24 +560,24 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 			m_src->read(keyframe.m_parameter[1]);
 			m_src->read(keyframe.m_parameter[2]);
 
-			mkeyframe->m_jointIndex = t;
+			/*mkeyframe->m_objectIndex = t;
 			mkeyframe->m_time = keyframe.m_time;
-
 			for(int i = 0; i<3; i++)
-			{
-				mkeyframe->m_parameter[i] = keyframe.m_parameter[i];
-			}
+			mkeyframe->m_parameter[i] = keyframe.m_parameter[i];
+			*/
 
+			//FIX ME
 			unsigned frame = (unsigned)lround(keyframe.m_time/(1.0/fps))-1;
 
-			model->setSkelAnimKeyframe(0,frame,t,true,
-					mkeyframe->m_parameter[0],mkeyframe->m_parameter[1],mkeyframe->m_parameter[2]);
+			model->setKeyframe(0,frame,{Model::PT_Joint,t},Model::KeyRotate,
+			//mkeyframe->m_parameter[0],mkeyframe->m_parameter[1],mkeyframe->m_parameter[2]);
+			keyframe.m_parameter[0],keyframe.m_parameter[1],keyframe.m_parameter[2]);
 
-			mkeyframe->release();
+			//mkeyframe->release();
 		}
 		for(j = 0; j<numTranslationKeyframes; j++)
 		{
-			Model::Keyframe *mkeyframe = Model::Keyframe::get();
+			//Model::Keyframe *mkeyframe = Model::Keyframe::get(); //???
 			MS3DKeyframe keyframe;
 
 			m_src->read(keyframe.m_time);
@@ -608,25 +585,31 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 			m_src->read(keyframe.m_parameter[1]);
 			m_src->read(keyframe.m_parameter[2]);
 
-			mkeyframe->m_jointIndex = t;
+			/*
+			mkeyframe->m_objectIndex = t;
 			mkeyframe->m_time = keyframe.m_time;
-
 			for(int i = 0; i<3; i++)
-			{
-				mkeyframe->m_parameter[i] = keyframe.m_parameter[i];
-			}
+			mkeyframe->m_parameter[i] = keyframe.m_parameter[i];
+			*/
 
+			//FIX ME
 			unsigned frame = (unsigned)lround(keyframe.m_time/(1.0/fps))-1;
 
-			model->setSkelAnimKeyframe(0,frame,t,false,
-					mkeyframe->m_parameter[0],mkeyframe->m_parameter[1],mkeyframe->m_parameter[2]);
+			model->setKeyframe(0,frame,{Model::PT_Joint,t},Model::KeyTranslate,
+			//mkeyframe->m_parameter[0],mkeyframe->m_parameter[1],mkeyframe->m_parameter[2]);
+			keyframe.m_parameter[0],keyframe.m_parameter[1],keyframe.m_parameter[2]);
 
-			mkeyframe->release();
+			//mkeyframe->release();
 		}
 	}
 
+	//REMOVE ME?
+	//Does MS3D not support weighting?
 	for(int i = 0; i<numVertices; i++)
 	{
+		//LOOKS HIGHLY PROBLEMATIC
+		//LOOKS HIGHLY PROBLEMATIC
+		//LOOKS HIGHLY PROBLEMATIC
 		model->setVertexBoneJoint(i,vertexJoints[i]);
 	}
 
@@ -641,8 +624,6 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 	}
 
 	// TODO: May want to read joint extra data eventually
-
-	model->setupJoints();
 
 	log_debug("model loaded\n");
 	log_debug("  vertices:  %d\n",numVertices);
@@ -737,11 +718,11 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	if(err!=Model::ERROR_NONE)
 		return err;
 
-	std::vector<Model::Vertex *>	&modelVertices  = getVertexList(model);
-	std::vector<Model::Triangle *> &modelTriangles = getTriangleList(model);
-	std::vector<Model::Group *>	 &modelGroups	 = getGroupList(model);
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
-	std::vector<Model::Joint *>	 &modelJoints	 = getJointList(model);
+	auto &modelVertices = model->getVertexList();
+	auto &modelTriangles = model->getTriangleList();
+	auto &&modelGroups = model->getGroupList();
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	std::vector<Model::Joint*>	 &modelJoints	 = getJointList(model);
 
 	m_dst->writeBytes(MAGIC_NUMBER,strlen(MAGIC_NUMBER));
 	int32_t version = 4;
@@ -761,7 +742,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		for(t = 0; t<it->vertices.size(); t++)
 		{
 			int modelVert = it->vertices[t].v;
-			Model::Vertex *mvert = modelVertices[modelVert];
+			auto *mvert = modelVertices[modelVert];
 			MS3DVertex vert;
 			uint8_t refcount = 0;
 
@@ -807,7 +788,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		for(t = 0; t<it->faces.size(); t++)
 		{
 			int modelTri = it->faces[t].modelTri;
-			Model::Triangle *mtri = modelTriangles[modelTri];
+			auto *mtri = modelTriangles[modelTri];
 			MS3DTriangle tri;
 
 			tri.m_flags = 1;
@@ -819,7 +800,11 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 
 				for(int n = 0; n<3; n++)
 				{
-					tri.m_vertexNormals[v][n] = mtri->m_vertexNormals[v][n];
+					//Can this source from m_finalNormals instead?
+					//NOTE: m_vertexNormals did not factor in smoothing... it can be
+					//disabled by calculateNormals if necessary.
+					//tri.m_vertexNormals[v][n] = mtri->m_vertexNormals[v][n];
+					tri.m_vertexNormals[v][n] = mtri->m_finalNormals[v][n];
 				}
 			}
 
@@ -860,7 +845,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	int triBase = 0;
 	for(it = ml.begin(); it!=ml.end(); it++)
 	{
-		Model::Group *grp = nullptr;
+		const Model::Group *grp = nullptr;
 		if(it->group>=0)
 		{
 			grp = modelGroups[it->group];
@@ -984,7 +969,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	uint16_t numJoints = modelJoints.size();
 	m_dst->write(numJoints);
 
-	for(t = 0; t<numJoints; t++)
+	for(Model::Position t{Model::PT_Joint,0};t<numJoints;t++)
 	{
 		Model::Joint *mjoint = modelJoints[t];
 		MS3DJoint joint;
@@ -1006,8 +991,8 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 
 		for(int i = 0; i<3; i++)
 		{
-			joint.m_rotation[i] = mjoint->m_localRotation[i];
-			joint.m_translation[i] = mjoint->m_localTranslation[i];
+			joint.m_rotation[i] = mjoint->m_rot[i];
+			joint.m_translation[i] = mjoint->m_rel[i];
 		}
 
 		unsigned animcount = model->getAnimCount(Model::ANIMMODE_SKELETAL);
@@ -1032,12 +1017,12 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 			for(f = 0; f<framecount; f++)
 			{
 				// force keyframes at beginning and end of animation
-				if(model->getSkelAnimKeyframe(a,f,t,true,x,y,z)
+				if(model->hasKeyframe(a,f,t,Model::KeyRotate)
 				  ||(f==0||f==framecount-1))
 				{
 					rotcount++;
 				}
-				if(model->getSkelAnimKeyframe(a,f,t,false,x,y,z)
+				if(model->hasKeyframe(a,f,t,Model::KeyTranslate)
 				  ||(f==0||f==framecount-1))
 				{
 					transcount++;
@@ -1068,28 +1053,35 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		for(a = 0; a<animcount; a++)
 		{
 			framecount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,a);
-			loop = model->getAnimLooping(Model::ANIMMODE_SKELETAL,a);
+			loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,a);
 
-			for(f = 0; f<framecount; f++)
+			// force keyframes at beginning and end of animation
+			for(f=0;f<framecount;f++)				
+			if(!model->getKeyframe(a,f,t,Model::KeyRotate,x,y,z))
 			{
-				// force keyframes at beginning and end of animation
-				if(model->getSkelAnimKeyframe(a,f,t,true,x,y,z)
-				  ||((f==0||f==framecount-1)&&model->interpSkelAnimKeyframe(a,f,loop,t,true,x,y,z)))
+				if(f==0||f==framecount-1)
 				{
-					MS3DKeyframe keyframe;
-					keyframe.m_time = ((double)(prevcount+f+1))*spf;
-					log_debug("keyframe time: %f\n",keyframe.m_time);
+					double rot[3];
+					model->interpKeyframe(a,f,t,nullptr,rot,nullptr);
+					x = rot[0]; y = rot[1]; z = rot[2]; 
+					goto loop1;
+				}					
+			}
+			else loop1:
+			{
+				MS3DKeyframe keyframe;
+				keyframe.m_time = ((double)(prevcount+f+1))*spf;
+				log_debug("keyframe time: %f\n",keyframe.m_time);
 
-					keyframe.m_time = keyframe.m_time;
-					keyframe.m_parameter[0] = x;
-					keyframe.m_parameter[1] = y;
-					keyframe.m_parameter[2] = z;
+				keyframe.m_time = keyframe.m_time;
+				keyframe.m_parameter[0] = x;
+				keyframe.m_parameter[1] = y;
+				keyframe.m_parameter[2] = z;
 
-					m_dst->write(keyframe.m_time);
-					m_dst->write(keyframe.m_parameter[0]);
-					m_dst->write(keyframe.m_parameter[1]);
-					m_dst->write(keyframe.m_parameter[2]);
-				}
+				m_dst->write(keyframe.m_time);
+				m_dst->write(keyframe.m_parameter[0]);
+				m_dst->write(keyframe.m_parameter[1]);
+				m_dst->write(keyframe.m_parameter[2]);
 			}
 
 			prevcount += framecount;
@@ -1100,28 +1092,35 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		for(a = 0; a<animcount; a++)
 		{
 			framecount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,a);
-			loop = model->getAnimLooping(Model::ANIMMODE_SKELETAL,a);
+			loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,a);
 
-			for(f = 0; f<framecount; f++)
+			// force keyframes at beginning and end of animation
+			for(f=0;f<framecount;f++)
+			if(!model->getKeyframe(a,f,t,Model::KeyTranslate,x,y,z))
 			{
-				// force keyframes at beginning and end of animation
-				if(model->getSkelAnimKeyframe(a,f,t,false,x,y,z)
-				  ||((f==0||f==framecount-1)&&model->interpSkelAnimKeyframe(a,f,loop,t,false,x,y,z)))
+				if(f==0||f==framecount-1)
 				{
-					MS3DKeyframe keyframe;
-					keyframe.m_time = ((double)(prevcount+f+1))*spf;
-					log_debug("keyframe time: %f\n",keyframe.m_time);
+					double trans[3];
+					model->interpKeyframe(a,f,t,trans,nullptr,nullptr);
+					x = trans[0]; y = trans[1]; z = trans[2];
+					goto loop2;
+				}					
+			}
+			else loop2:
+			{
+				MS3DKeyframe keyframe;
+				keyframe.m_time = ((double)(prevcount+f+1))*spf;
+				log_debug("keyframe time: %f\n",keyframe.m_time);
 
-					keyframe.m_time = keyframe.m_time;
-					keyframe.m_parameter[0] = x;
-					keyframe.m_parameter[1] = y;
-					keyframe.m_parameter[2] = z;
+				keyframe.m_time = keyframe.m_time;
+				keyframe.m_parameter[0] = x;
+				keyframe.m_parameter[1] = y;
+				keyframe.m_parameter[2] = z;
 
-					m_dst->write(keyframe.m_time);
-					m_dst->write(keyframe.m_parameter[0]);
-					m_dst->write(keyframe.m_parameter[1]);
-					m_dst->write(keyframe.m_parameter[2]);
-				}
+				m_dst->write(keyframe.m_time);
+				m_dst->write(keyframe.m_parameter[0]);
+				m_dst->write(keyframe.m_parameter[1]);
+				m_dst->write(keyframe.m_parameter[2]);
 			}
 
 			prevcount += framecount;
@@ -1425,7 +1424,7 @@ bool Ms3dFilter::readVertexWeight(int subVersion,
 		return false;
 	}
 
-	boneIds[0] = m_model->getVertexBoneJoint(vertex);
+	boneIds[0] = m_model->getPrimaryVertexInfluence(vertex);
 
 	int i = 0;
 	for(i = 0; i<3; i++)

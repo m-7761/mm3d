@@ -43,8 +43,8 @@ public:
 
 	const char **getPixmap(int){ return nullptr; }
 
-	void mouseButtonDown(int buttonState, int x, int y){}
-	void mouseButtonMove(int buttonState, int x, int y){}
+	virtual void mouseButtonDown(){}
+	virtual void mouseButtonMove(){}
 
 	virtual void release(){} //NEW
 
@@ -74,8 +74,8 @@ static struct NullTool : Tool
 		return (const char**)nulltool_xpm; 
 	}
 	
-	virtual void mouseButtonDown(int buttonState, int x, int y){}
-	virtual void mouseButtonMove(int buttonState, int x, int y){}
+	virtual void mouseButtonDown(){}
+	virtual void mouseButtonMove(){}
 
 	virtual void release(){} //NEW
 

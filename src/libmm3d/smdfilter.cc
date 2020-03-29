@@ -132,8 +132,8 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 	saveMatrix.setRotationInDegrees(-90,0,0);
 	saveMatrix = saveMatrix.getInverse();
 
-	int boneCount = model->getBoneJointCount();
-	int pointCount = model->getPointCount();
+	unsigned boneCount = model->getBoneJointCount();
+	unsigned pointCount = model->getPointCount();
 	bool defaultBoneJoint = false;
 
 	if(boneCount==0&&m_options->m_saveMeshes&&model->getTriangleCount()>0)
@@ -167,7 +167,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 
 	if(m_options->m_savePointsJoint)
 	{
-		for(int point = 0; point<pointCount; point++)
+		for(unsigned point = 0; point<pointCount; point++)
 		{
 			int parent = model->getPrimaryPointInfluence(point);
 
@@ -283,7 +283,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 			//const char *animName = model->getAnimName(Model::ANIMMODE_SKELETAL,anim);
 			float fps = model->getAnimFPS(Model::ANIMMODE_SKELETAL,anim);
 			unsigned frameCount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,anim);
-			bool loop = model->getAnimLooping(Model::ANIMMODE_SKELETAL,anim);
+			//bool loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,anim);
 
 			if(frameCount==0)
 			{
@@ -293,9 +293,10 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 			//writeLine(dst,"// animation: %s,framerate %.6f%s",animName,fps,loop ? ",looping" : "");
 			writeLine(dst,"skeleton");
 
+			//FIX ME (Needs sparse frames logic)
 			for(unsigned frame = 0; frame<frameCount; frame++)
 			{
-				double frameTime = frame/(double)fps;
+			//	double frameTime = frame/(double)fps;
 
 				// "time N" must be written even if there are no keyframes for this frame.
 				writeLine(dst,"time %d",frame);
@@ -307,12 +308,13 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 				}
 				else
 				{
-					for(int bone = 0; bone<boneCount; bone++)
+					for(unsigned bone = 0; bone<boneCount; bone++)
 					{
 						int parent = model->getBoneJointParent(bone);
 
 						Matrix transform;
-						model->interpSkelAnimKeyframeTime(anim,frameTime,loop,bone,transform);
+				//		model->interpKeyframeTime(anim,frameTime,loop,bone,transform);
+						model->interpKeyframe(anim,frame,{Model::PT_Joint,bone},transform);
 
 						Matrix rm;
 						model->getBoneJointRelativeMatrix(bone,rm);
@@ -404,7 +406,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 	{
 		writeLine(dst,"triangles");
 
-		std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
+		std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
 
 		int groupCount = model->getGroupCount();
 		for(int g = 0; g<groupCount+1; g++)
@@ -445,18 +447,18 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 				{
 					int vert = model->getTriangleVertex(*fit,vindex);
 					double meshVec[4] = { 0,0,0,1 };
-					float meshNor[4] = { 0,0,0,1 };
+					double meshNor[4] = { 0,0,0,1 };
 					float uv[4] = { 0,0 };
 
 					model->getVertexCoordsUnanimated(vert,meshVec);
-					model->getNormal(*fit,vindex,meshNor);
+					model->getNormalUnanimated(*fit,vindex,meshNor);
 					model->getTextureCoords(*fit,vindex,uv[0],uv[1]);
 
 					saveMatrix.apply(meshVec);
 					saveMatrix.apply(meshNor);
 
 					// TODO: Move to Model::getVertexInfluencesNormalizedNonZero(vertex,list,epsilon)or something.
-					//		 model->getVertexBoneJoint(vert)returns a bone even if the weight is zero or would be zero in printf.
+					//		 model->getPrimaryVertexInfluence(vert) returns a bone even if the weight is zero or would be zero in printf.
 					infl_list influences;
 					infl_list::iterator it;
 					model->getVertexInfluences(vert,influences);

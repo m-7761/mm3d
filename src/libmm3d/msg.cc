@@ -24,38 +24,38 @@
 
 #include "msg.h"
 
-static msg_func _user_info;
-static msg_func _user_warn;
-static msg_func _user_err;
+static msg_func msg_user_info;
+static msg_func msg_user_warn;
+static msg_func msg_user_err;
 
-static msg_prompt_func _user_info_prompt;
-static msg_prompt_func _user_warn_prompt;
-static msg_prompt_func _user_err_prompt;
+static msg_prompt_func msg_user_info_prompt;
+static msg_prompt_func msg_user_warn_prompt;
+static msg_prompt_func msg_user_err_prompt;
 
 extern "C" void msg_register
 (msg_func infomsg, msg_func warnmsg, msg_func errmsg)
 {
-	_user_info = infomsg; _user_warn = warnmsg; _user_err = errmsg;
+	msg_user_info = infomsg; msg_user_warn = warnmsg; msg_user_err = errmsg;
 }
 
 extern "C" void msg_register_prompt
 (msg_prompt_func infomsg, msg_prompt_func warnmsg, msg_prompt_func errmsg)
 {
-	_user_info_prompt = infomsg;
-	_user_warn_prompt = warnmsg; _user_err_prompt = errmsg;
+	msg_user_info_prompt = infomsg;
+	msg_user_warn_prompt = warnmsg; msg_user_err_prompt = errmsg;
 }
 
 extern "C" void msg_info(const char *str)
 {
-	_user_info?_user_info(str):(void)printf("info: %s\n",str);
+	msg_user_info?msg_user_info(str):(void)printf("info: %s\n",str);
 }
 extern "C" void msg_warning(const char *str)
 {
-	_user_warn?_user_warn(str):(void)printf("warning: %s\n",str);
+	msg_user_warn?msg_user_warn(str):(void)printf("warning: %s\n",str);
 }
 extern "C" void msg_error(const char *str)
 {
-	_user_err?_user_err(str):(void)printf("error: %s\n",str);
+	msg_user_err?msg_user_err(str):(void)printf("error: %s\n",str);
 }
 
 static char return_caps(const char *opts)
@@ -76,26 +76,26 @@ static char return_caps(const char *opts)
 //FIX ME (swap arguments order)
 extern "C" char msg_info_prompt(const char *str, const char *opts)
 {
-	if(!_user_info_prompt)
+	if(!msg_user_info_prompt)
 	{
 		printf("%s\n",str); return return_caps(opts);		
 	}
-	else return _user_info_prompt(str,opts);
+	else return msg_user_info_prompt(str,opts);
 }
 extern "C" char msg_warning_prompt(const char *str, const char *opts)
 {
-	if(!_user_warn_prompt)
+	if(!msg_user_warn_prompt)
 	{
 		printf("%s\n",str); return return_caps(opts);		
 	}
-	else return _user_warn_prompt(str,opts);
+	else return msg_user_warn_prompt(str,opts);
 }
 extern "C" char msg_error_prompt(const char *str, const char *opts)
 {
-	if(!_user_err_prompt)
+	if(!msg_user_err_prompt)
 	{
 		printf("%s\n",str); return return_caps(opts);
 	}
-	else return _user_err_prompt(str,opts);
+	else return msg_user_err_prompt(str,opts);
 }
 

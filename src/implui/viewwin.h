@@ -33,9 +33,11 @@ class MainWin : Model::Observer
 public:
 
 	// Model::Observer method
+	int _deferredModelChanged;
 	virtual void modelChanged(int changeBits);
+	virtual void modelChanged();
 		
-	MainWin(Model *model=nullptr); ~MainWin();
+	MainWin(Model *model=nullptr), ~MainWin();
 
 	static bool quit();
 
@@ -61,6 +63,14 @@ public:
 		for(auto ea:viewwin_list) f(*ea);
 	}
 
+	static MainWin &cast(Model *m)
+	{
+		auto *o = m->m_observers[0];
+		//MSVC2015 fails this check!
+		//assert(dynamic_cast<MainWin*>(o));
+		return *(MainWin*)o;
+	}
+
 public: //FINISH US
 
 	void run_script(const char *filename);
@@ -82,9 +92,14 @@ public:
 	Model *const model;
 		
 	const int glut_window_id;
+	const int clipboard_mode;
 	
 	Toolbox toolbox;	
 	ViewPanel views; SideBar sidebar; //IN Z-ORDER
+			
+	pos_list selection; //NEW
+
+	bool playing;
 
 	void open_texture_window();	
 	void open_animation_system();

@@ -137,7 +137,7 @@ static float s_quakeNormals[MAX_QUAKE_NORMALS][3] = {
 #include "md2filter-anorms.h"
 };
 
-static void _invertModelNormals(Model *model)
+static void md2filter_invertModelNormals(Model *model)
 {
 	size_t tcount = model->getTriangleCount();
 	for(size_t t = 0; t<tcount; t++)
@@ -146,16 +146,10 @@ static void _invertModelNormals(Model *model)
 	}
 }
 
-static unsigned bestNormal(double *n)
+static unsigned bestNormal(float *norm)
 {
-	float bestDistance = 10000.0f;
+	float bestDistance = 10000; //3 should do it?
 	unsigned bestIndex = 0;
-
-	float norm[3];
-
-	norm[0] = n[0];
-	norm[1] = n[2];
-	norm[2] = n[1];
 
 	for(unsigned t = 0; t<MAX_QUAKE_NORMALS; t++)
 	{
@@ -163,7 +157,8 @@ static unsigned bestNormal(double *n)
 		float y = norm[1]-s_quakeNormals[t][1];
 		float z = norm[2]-s_quakeNormals[t][2];
 
-		float distance = sqrt(x*x+y*y+z*z);
+		//float distance = sqrt(x*x+y*y+z*z);
+		float distance = x*x+y*y+z*z;
 
 		if(distance<bestDistance)
 		{
@@ -175,11 +170,7 @@ static unsigned bestNormal(double *n)
 	return bestIndex;
 }
 
-typedef struct _TexCoord_t
-{
-	float s;
-	float t;
-} TexCoordT;
+struct md2filter_TexCoordT{ float s,t; };
 
 Md2Filter::Md2Filter()
 	: m_lastAnimFrame(""),
@@ -358,16 +349,18 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 				vec[2] = coord[2] *scale[2]+translate[2];
 				loadMatrix.apply3(vec);
 
-				model->setFrameAnimVertexCoords(animIndex,m_animFrame,i,
+				//2020: Use Model::InterpolateStep mode.
+				//model->setFrameAnimVertexCoords(animIndex,m_animFrame,i,
+				model->setQuickFrameAnimVertexCoords(animIndex,m_animFrame,i,
 						vec[0],
 						vec[1],
-						vec[2]);
+						vec[2]); //Lerp?
 			}
 		}
 	}
 
 	// Read texture coords so that we have them for our triangles
-	TexCoordT *texCoordsList = new TexCoordT[numTexCoords];
+	auto texCoordsList = new md2filter_TexCoordT[numTexCoords];
 	src->seek(offsetTexCoords);
 
 	for(i = 0; i<numTexCoords; i++)
@@ -394,8 +387,8 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 		for(t = 0; t<3; t++)
 			src->read(vertexIndices[t]);
 
-		unsigned tri = model->addTriangle(vertexIndices[0],vertexIndices[1],vertexIndices[2]);
-		model->addTriangleToGroup(0,tri);
+		model->addTriangle(vertexIndices[0],vertexIndices[1],vertexIndices[2]);
+		model->addTriangleToGroup(0,i);
 
 		for(t = 0; t<3; t++)
 		{
@@ -412,7 +405,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 	TextureManager *texmgr = TextureManager::getInstance();
 	bool haveSkin = false;
 
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
 
 	log_debug("Skin data:\n");
 	for(i = 0; i<numSkins; i++)
@@ -613,7 +606,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 	delete[] texCoordsList;
 
-	_invertModelNormals(model);
+	md2filter_invertModelNormals(model);
 
 	return Model::ERROR_NONE;
 }
@@ -650,7 +643,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 		}
 	}
 
-	_invertModelNormals(model);
+	md2filter_invertModelNormals(model);
 
 	Model::ModelErrorE err = Model::ERROR_NONE;
 	DataDest *dst = openOutput(filename,err);
@@ -665,9 +658,9 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 
 	normalizePath(filename,modelFullName,modelPath,modelBaseName);
 		
-	std::vector<Model::Vertex *>	&modelVertices  = getVertexList(model);
-	std::vector<Model::Triangle *> &modelTriangles = getTriangleList(model);
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(model);
+	auto &modelVertices = model->getVertexList();
+	auto &modelTriangles = model->getTriangleList();
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
 
 	unsigned numStrips = 0;
 	unsigned numFans	= 0;
@@ -749,6 +742,10 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	{
 		numFrames = 1;
 		noAnim = true;
+	}
+	if(animCount==0)
+	{
+		animCount = 1;
 	}
 
 	if(!modelMaterials.empty()&&modelMaterials[0]->m_textureData)
@@ -853,12 +850,14 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	// Write Frames
 	offsetFrames = dst->offset();
 
-	for(unsigned anim = 0; 
-			(noAnim&&anim==0)||anim<model->getAnimCount(Model::ANIMMODE_FRAME);
-			anim++)
+	https://github.com/zturtleman/mm3d/issues/109
+	std::vector<float> vecNormals(3*numVertices);
+	float *avgNormals = vecNormals.data();
+
+	for(unsigned anim=0;anim<animCount;anim++)
 	{
 		// Heh... oops
-		model->calculateFrameNormals(anim);
+		//model->calculateFrameNormals(anim);
 
 		std::string animname = noAnim ? "Frame" : model->getAnimName(Model::ANIMMODE_FRAME,anim);
 
@@ -872,54 +871,62 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 			animname += '_';
 		}
 
-		for(unsigned i = 0; 
-				(noAnim&&i==0)||i<model->getAnimFrameCount(Model::ANIMMODE_FRAME,anim); 
-				i++)
+		if(!noAnim) //2020: Generate normals.
 		{
-			double x0 = 0,x1 = 0;
-			double y0 = 0,y1 = 0;
-			double z0 = 0,z1 = 0;
+			model->setCurrentAnimation(Model::ANIMMODE_FRAME,anim);
+		}
+		
+		unsigned aFrameCount = model->getAnimFrameCount(Model::ANIMMODE_FRAME,anim);
+		if(noAnim||0==aFrameCount)
+		{
+			aFrameCount = 1;
+		}
 
-			model->getFrameAnimVertexCoords(anim,i,0,x0,y0,z0);
-
-			x1 = x0;
-			y1 = y0;
-			z1 = z0;
-
-			unsigned v;
-
-			for(v = 0; v<(unsigned)numVertices; v++)
+		for(unsigned i=0;i<aFrameCount;i++)
+		{
+			if(!noAnim) //2020: Generate normals.
 			{
-				double x = 0;
-				double y = 0;
-				double z = 0;
+				model->setCurrentAnimationFrame(i);
+			}
+			
+			memset(avgNormals,0x00,sizeof(float)*3*numVertices);
+			for(unsigned i=model->getTriangleCount();i-->0;)
+			{
+				for(unsigned j=0;j<3;j++)
+				{
+					double n[3];
+					model->getNormal(i,j,n);
+					int avg = 3*model->getTriangleVertex(i,j);
 
-				model->getFrameAnimVertexCoords(anim,i,v,x,y,z);
+					for(int k=0;k<3;k++)
+					avgNormals[avg+k]+=n[k];
+				}
+			}			
 
-				if(x<x0)
-					x0 = x;
-				if(y<y0)
-					y0 = y;
-				if(z<z0)
-					z0 = z;
-				if(x>x1)
-					x1 = x;
-				if(y>y1)
-					y1 = y;
-				if(z>z1)
-					z1 = z;
+			double min[3] = {+DBL_MAX,+DBL_MAX,+DBL_MAX};
+			double max[3] = {-DBL_MAX,-DBL_MAX,-DBL_MAX};
+			
+			for(int32_t v=0;v<numVertices;v++)
+			{
+				double coord[3]; //double x,y,z;
+				//model->getFrameAnimVertexCoords(anim,i,v,x,y,z);
+				model->getVertexCoords(v,coord);
+
+				for(int i=3;i-->0;)
+				{
+					min[i] = std::min(min[i],coord[i]);
+					max[i] = std::max(max[i],coord[i]);
+				}
 			}
 
-			float scale[3];
-			float translate[3];
-
-			scale[0] = (x1-x0)/255.0;
-			scale[1] = (y1-y0)/255.0;
-			scale[2] = (z1-z0)/255.0;
-
-			translate[0] = (float)(0-(-x0));
-			translate[1] = (float)(0-(-y0));
-			translate[2] = (float)(0-(-z0));
+			float scale[3] = {};
+			float translate[3] = {};
+			if(numVertices) for(int i=3;i-->0;)
+			{
+				scale[i] = (float)((max[i]-min[i])/255);
+				//translate[i] = (float)(0-(-min[i])); //???
+				translate[i] = (float)min[i];
+			}
 
 			saveMatrix.apply3(scale);
 			saveMatrix.apply3(translate);
@@ -937,19 +944,22 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 			namestr[15] = '\0';
 			dst->writeBytes(namestr,sizeof(namestr));
 
-			double vertNormal[3] = {0,0,0};
-			for(v = 0; v<(unsigned)numVertices; v++)
+			//double vertNormal[3] = {0,0,0};
+			for(int32_t v=0;v<numVertices;v++)
 			{
 				double vec[3] = {0,0,0};
-				model->getFrameAnimVertexCoords(anim,i,v,vec[0],vec[1],vec[2]);
+				//model->getFrameAnimVertexCoords(anim,i,v,vec[0],vec[1],vec[2]);
+				model->getVertexCoords(v,vec);
 				saveMatrix.apply3(vec);
 				uint8_t xi = (uint8_t)((vec[0]-translate[0])/scale[0]+0.5);
 				uint8_t yi = (uint8_t)((vec[1]-translate[1])/scale[1]+0.5);
 				uint8_t zi = (uint8_t)((vec[2]-translate[2])/scale[2]+0.5);
 				uint8_t normal = 0;
 
-				model->getFrameAnimVertexNormal(anim,i,v,
-						vertNormal[0],vertNormal[1],vertNormal[2]);
+				//https://github.com/zturtleman/mm3d/issues/109
+				//model->getFrameAnimVertexNormal(anim,i,v,vertNormal[0],vertNormal[1],vertNormal[2]);
+				float *vertNormal = avgNormals+v*3; normalize3(vertNormal);
+
 				saveMatrix.apply3(vertNormal);
 
 				// Have to invert normal
@@ -1039,7 +1049,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	dst->write(offsetGlCommands);
 	dst->write(offsetEnd);
 
-	_invertModelNormals(model);
+	md2filter_invertModelNormals(model);
 	model->operationComplete("Invert normals for save");
 
 	return Model::ERROR_NONE;

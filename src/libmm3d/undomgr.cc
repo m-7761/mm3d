@@ -121,7 +121,7 @@ void UndoManager::operationComplete(const char *opname)
 	if(m_currentUndo)
 	{
 		//Ensure this for Model::appendUndo.
-		if(!*opname||!*opname)
+		if(!opname||!*opname)
 		{
 			//For some reason operationComplete() is 
 			//called by undo() and redo(). I think if

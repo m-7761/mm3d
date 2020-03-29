@@ -71,7 +71,7 @@ struct AnimWin::Impl
 	sep_animation(sidebar.sep_animation),
 	model(win.model),
 	mode(),anim(),frame(),
-	playing(),autoplay()
+	playing(win.model.playing),autoplay()
 	{
 		//See AnimPanel::refresh_list.
 		//It's easier to let the animation window manage this since
@@ -95,7 +95,7 @@ struct AnimWin::Impl
 	Model::AnimationModeE mode;
 	unsigned anim;
 	unsigned frame;	
-	bool playing,autoplay;
+	bool &playing,autoplay;
 	int step_t0;
 	int step_ms;
 	
@@ -106,17 +106,18 @@ struct AnimWin::Impl
 	void close();
 
 	void play(int=0);
-	void pause(){ play(id_animate_pause); }
+	void stop(){ play(id_animate_stop); }
+	void loop();
 	bool step();
 
 	void anim_selected(int, bool local=false);
 	void anim_deleted(int);
 
-	void frames_edited(int);	
-	void set_frame(int);
+	void frames_edited(double);	
+	void set_frame(double);
  
 	bool copy(bool selected);
-	void paste();
+	void paste(bool values);
 
 
 		//UTILITIES//
@@ -143,26 +144,30 @@ struct AnimWin::Impl
 
 		//COPY/PASTE//
 
+	struct KeyframeData
+	{
+		Model::Interpolate2020E e;
+		//Model::KeyType2020E isRotation; //???
+		double x,y,z;
+	};
 
 	struct KeyframeCopy
 	{
-		unsigned joint; 
+		unsigned object; 
 		
-		bool isRotation; //???
-
-		double x,y,z;
+		KeyframeData data[3];
 	};
-	struct FrameCopy
+	struct VertexFrameCopy : KeyframeData
 	{
-		unsigned vertex; double x,y,z;
+		unsigned vertex;
 	};
-	struct FramePointCopy
+	/*struct FramePointCopy
 	{
 		unsigned point; double x,y,z,rx,ry,rz;
-	};	
+	};*/	
 	std::vector<KeyframeCopy> copy1;
-	std::vector<FrameCopy> copy2;
-	std::vector<FramePointCopy> copy3;
+	std::vector<VertexFrameCopy> copy2;
+	std::vector<KeyframeCopy> copy3; //FramePointCopy
 };
 
 /*UNIMPLEMENTED
@@ -176,8 +181,11 @@ static int animwin_tick_interval(int val)
 	if(val>=25) return 5;       return 1;
 }*/
 
-extern void animwin_enable_menu(int menu)
+extern void animwin_enable_menu(int menu, int clipboard)
 {
+	extern void viewwin_status_func(int=0);
+	viewwin_status_func();
+
 	void *off,*on = 0; 
 	if(menu<=0) menu = -menu;
 	else on = glutext::GLUT_MENU_ENABLE;
@@ -185,22 +193,18 @@ extern void animwin_enable_menu(int menu)
 		
 	if(menu) glutSetMenu(menu);
 
-	//NEW: No good reason to ever turn these two off.
-	//glutext::glutMenuEnable(id_animate_settings,off);
-	//glutext::glutMenuEnable(id_animate_render,off);
-	glutext::glutMenuEnable(id_animate_copy,on); 
-	glutext::glutMenuEnable(id_animate_paste,0); // Disabled until copy occurs
-	glutext::glutMenuEnable(id_animate_copy_selection,on); 
-	//glutext::glutMenuEnable(id_animate_paste_selection,0); // Disabled until copy occurs
-	glutext::glutMenuEnable(id_animate_rotate,on);
-	glutext::glutMenuEnable(id_animate_translate,on);
-	glutext::glutMenuEnable(id_animate_clear,on); 
 	glutext::glutMenuEnable(id_animate_play,on);
+	if(clipboard) on = 0;
+	glutext::glutMenuEnable(id_animate_copy,on); 
+	glutext::glutMenuEnable(id_animate_copy_all,on); 
+	glutext::glutMenuEnable(id_animate_paste,0); // Disabled until copy occurs
+	glutext::glutMenuEnable(id_animate_paste_v,0); // Disabled until copy occurs
+	glutext::glutMenuEnable(id_animate_delete,on); 
 }
 
 void AnimWin::open(bool undo)
 {	
-	//animwin_enable_menu(menu);
+	//animwin_enable_menu(menu,win.model.clipboard_mode);
 
 	impl->open2(undo);
 
@@ -246,19 +250,27 @@ void AnimWin::Impl::open2(bool undo)
 		frame = 0;
 
 		model->setCurrentAnimation(mode,anim);
-		model->setCurrentAnimationFrame(frame);
+
+		//The first frame isn't necessarily the start of the animation.
+		//model->setCurrentAnimationFrame(frame,Model::AT_invalidateNormals);
+		if(undo) //autoplay?
+		model->setCurrentAnimationFrameTime(0,Model::AT_invalidateNormals);
 	}
 
-	if(mode) animwin_enable_menu(win.menu);
+	//Not disabling on model swapping???
+	//if(mode) animwin_enable_menu(win.menu);
+	animwin_enable_menu(mode?win.menu:-win.menu,win.model.clipboard_mode);
 
 	shelf1.animation.select_id(anim_item());
 	sidebar.animation.select_id(anim_item());
-	refresh_item();
-
+	
 	if(!undo&&mode) 
 	model->operationComplete(::tr("Start animation mode","operation complete"));
 
 	if(!undo){ autoplay = true; play(); } //NEW
+
+	//Reminder: set_frame checks if playing.
+	refresh_item();
 }
 
 void AnimWin::Impl::anim_deleted(int item)
@@ -268,7 +280,7 @@ void AnimWin::Impl::anim_deleted(int item)
 	 ::tr("Are you sure you want to delete this animation?"),id_ok|id_cancel))
 	return;
 
-	if(playing) pause(); //NEW
+	if(playing) stop(); //NEW
 		
 	//FIX ME
 	//NOTE: removeSkelAnim/deleteAnimation select the
@@ -299,9 +311,9 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	{
 		if(!local)
 		{
-			int cmp = sidebar.frame;
-			if(cmp-1!=shelf2.timeline.int_val()) 
-			set_frame(cmp-1);
+			double cmp = sidebar.frame;
+			if(cmp!=shelf2.timeline.float_val()) 
+			set_frame(cmp);
 			return;
 		}		
 	}
@@ -323,7 +335,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	}
 	else if(was<0&&item>=0)
 	{
-		animwin_enable_menu(win.menu);
+		animwin_enable_menu(win.menu,win.model.clipboard_mode);
 	}
 
 	if(item>=new_animation)
@@ -333,7 +345,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 		if(!event.wheel_event
 		&&id_ok==NewAnim(&name,&type).return_on_close())
 		{
-			pause();
+			stop();
 
 			config.set("ui_new_anim_type",type);
 
@@ -365,7 +377,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 		//if(!undo) 
 		model->operationComplete(::tr("Set current animation","operation complete"));
 	
-		frame = 0; refresh_item();
+		frame = 0;
 
 		if(0) //Play the animation one time.
 		{
@@ -378,52 +390,96 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 
 			play(); //2019
 		}
+
+		//Reminder: set_frame checks if playing.
+		refresh_item(); 
 	}	
 }
 
-void AnimWin::Impl::frames_edited(int n)
+void AnimWin::Impl::frames_edited(double n)
 {	
-	assert(n==shelf1.frames.int_val());
+	bool op = model->setAnimTimeFrame(mode,anim,n);
+	if(!op) n = model->getAnimTimeFrame(mode,anim);
+	if(!op) shelf1.frames.set_float_val(n);
 
-	int nn = std::max(0,n-1);
-	shelf2.timeline.set_range(0,nn);
-	win.model.views.timeline.set_range(0,nn);
-	sidebar.frame.limit(n?1:0,n);
+	//assert(n==shelf1.frames.int_val());
 
-	bool op = model->setAnimFrameCount(mode,anim,n);
-
-	set_frame(model->getCurrentAnimationFrame());
+	//int nn = std::max(0,n-1);
+	shelf2.timeline.set_range(0,n); //nn
+	win.model.views.timeline.set_range(0,n); //nn
+	//sidebar.frame.limit(n?1:0,n);
+	sidebar.frame.limit(0,n);
+	
+	//HACK: Truncate?
+	if(sidebar.frame.float_val()>n) set_frame(n);
 
 	if(op) model->operationComplete(::tr("Change Frame Count","operation complete"));
 
 	//https://github.com/zturtleman/mm3d/issues/90
 	//DecalManager::getInstance()->modelAnimate(model); //???
-	win.model.views.update3dView();
+	//win.model.views.update3dView();
+	win.model.views.updateAllViews();
 }
 
-void AnimWin::Impl::set_frame(int i)
-{	
-	if(!model->setCurrentAnimationFrame(i))
+void AnimWin::Impl::set_frame(double i)
+{
+	bool ok = true; if(playing) 
 	{
-		i = 0; shelf2.timeline.name(::tr("Frame: \tn/a"));
+		if(&win==event.active_control_ui) //HACK
+		{
+			//YUCK: Put AnimWin back at the begginging so the 
+			//slider is not out of reach.
+			i = 0;
+		}
+		else
+		{
+			//New: Playing ends at the end now, which is useful
+			//to show the length of the animation and puts the
+			//slider closer to the Animation panel.
+			i = model->getAnimTimeFrame(mode,anim);
+		}
 	}
-	else shelf2.timeline.name().format("%s\t%03d",::tr("Frame: "),i+1);
+	else
+	{
+		//REMINDER: These are coming faster than the views
+		//refresh rate. Guessing it's just the mouse speed.
 
-	sidebar.frame.set_int_val(i+1);
-	win.model.views.timeline.set_int_val(i);
+		//if(model->setCurrentAnimationFrame(i,Model::Model::AT_invalidateAnim))
+		if(ok=model->setCurrentAnimationFrameTime(i,Model::Model::AT_invalidateAnim))
+		{
+			//HACK: The slider can be manually dragged faster than the
+			//animation can be displayed right now.
+			model->invalidateAnimNormals();
+		}
+		else i = 0; 
+
+		//https://github.com/zturtleman/mm3d/issues/90
+		//DecalManager::getInstance()->modelUpdated(model); //???
+		model->updateObservers();
+	}
+	if(ok)
+	{
+		if((int)i==i)
+		shelf2.timeline.name().format("%s\t%d",::tr("Frame: "),(int)i);
+		else shelf2.timeline.name().format("\t%g",i);
+	}
+	else shelf2.timeline.name(::tr("Frame: \tn/a"));
+
+	sidebar.frame.set_float_val(i);
+	win.model.views.timeline.set_float_val(i);
 	
 	//shelf2.timeline.name().push_back('\t');
 
-	frame = i; shelf2.timeline.set_int_val(i); //NEW!
-
-	//https://github.com/zturtleman/mm3d/issues/90
-	//DecalManager::getInstance()->modelUpdated(model); //???
-	model->updateObservers();
+	//frame = i; 
+	frame = model->getCurrentAnimationFrame(); 
+	shelf2.timeline.set_float_val(i); //NEW!
 }
 
 bool AnimWin::Impl::copy(bool selected)
 {
 	copy1.clear(); copy2.clear(); copy3.clear();
+
+	double t = model->getCurrentAnimationFrameTime();
 
 	if(mode==Model::ANIMMODE_SKELETAL)
 	{	
@@ -432,51 +488,79 @@ bool AnimWin::Impl::copy(bool selected)
 		size_t numJoints = model->getBoneJointCount();
 		copy1.reserve(numJoints);
 
-		for(int pass=0;pass<=1;pass++) 
+		for(Model::Position jt{Model::PT_Joint,0};jt<numJoints;jt++)
+		if(!selected||model->isBoneJointSelected(jt))			
 		{
-			//??? What's with this filter?
-			bool rot = pass&1; 
-
-			for(size_t j=0;j<numJoints;j++)
-			if(!selected||model->isBoneJointSelected(j))			
-			if(model->getSkelAnimKeyframe(anim,frame,j,rot,cp.x,cp.y,cp.z))
+			//https://github.com/zturtleman/mm3d/issues/127
+			//if(cp.e=model->getKeyframe(anim,frame,jt,rot,cp.x,cp.y,cp.z)) //???
 			{
-				cp.joint = j;
-				cp.isRotation = rot; copy1.push_back(cp);
-			}			
+				auto &cd = cp.data; for(int i=3;i-->0;)
+				{
+					auto kt = Model::KeyType2020E(i<<1);
+					//cd.e = model->getKeyframe(anim,frame,jt,kt,cd.x,cd.y,cd.z);
+					cd[i].e = model->hasKeyframe(anim,frame,jt,kt);
+				}
+				model->interpKeyframe(anim,frame,t,jt,&cd[0].x,&cd[1].x,&cd[2].x);
+
+				cp.object = jt; copy1.push_back(cp);
+			}
 		}
 	}
 	else if(mode==Model::ANIMMODE_FRAME)
 	{
-		FrameCopy cp;
+		VertexFrameCopy cp;
 
 		size_t numVertices = model->getVertexCount();
 		copy2.reserve(numVertices);
 
 		for(size_t v=0;v<numVertices;v++)		
-		if(!selected||model->isVertexSelected(v))		
-		if(model->getFrameAnimVertexCoords(anim,frame,v,cp.x,cp.y,cp.z))
+		if(!selected||model->isVertexSelected(v))
 		{
-			cp.vertex = v; copy2.push_back(cp);
-		}		
+			//https://github.com/zturtleman/mm3d/issues/127
+			//if(model->getFrameAnimVertexCoords(anim,frame,v,cp.x,cp.y,cp.z))
+			{
+				//cp.e = model->getFrameAnimVertexCoords(anim,frame,v,cp.x,cp.y,cp.z);
+				cp.e = model->hasFrameAnimVertexCoords(anim,frame,v);
+				model->getVertexCoords(v,&cp.x);
 
-		FramePointCopy cpt;
+				cp.vertex = v; copy2.push_back(cp);
+			}		
+		}
+
+		//FramePointCopy cpt;
+		KeyframeCopy cpt; 
 
 		size_t numPoints = model->getPointCount();
 		copy3.reserve(numPoints);
 
-		for(size_t v=0;v<numPoints;v++)
-		if(!selected||model->isPointSelected(v))		
-		if(model->getFrameAnimPointCoords(anim,frame,v,cpt.x,cpt.y,cpt.z)
-		 &&model->getFrameAnimPointRotation(anim,frame,v,cpt.rx,cpt.ry,cpt.rz))
+		for(Model::Position pt{Model::PT_Point,0};pt<numPoints;pt++)
+		if(!selected||model->isPointSelected(pt))
 		{
-			cpt.point = v; copy3.push_back(cpt);
+			/*
+			if(model->getFrameAnimPointCoords(anim,frame,pt,cpt.x,cpt.y,cpt.z)
+			 &&model->getFrameAnimPointRotation(anim,frame,pt,cpt.rx,cpt.ry,cpt.rz))
+			{
+				cpt.point = pt; copy3.push_back(cpt);
+			}*/
+			//https://github.com/zturtleman/mm3d/issues/127
+			//if(cp.e=model->getKeyframe(anim,frame,pt,rot,cp.x,cp.y,cp.z)) //???
+			{
+				auto &cd = cpt.data; for(int i=3;i-->0;)
+				{
+					auto kt = Model::KeyType2020E(i<<1);
+					//cd.e = model->getKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z);
+					cd[i].e = model->hasKeyframe(anim,frame,pt,kt);
+				}			
+				model->interpKeyframe(anim,frame,t,pt,&cd[0].x,&cd[1].x,&cd[2].x);
+
+				cpt.object = pt; copy3.push_back(cpt);
+			}
 		}
 	}
 
 	return !copy1.empty()||!copy2.empty()||!copy3.empty();
 }
-void AnimWin::Impl::paste()
+void AnimWin::Impl::paste(bool values)
 {
 	if(mode==Model::ANIMMODE_FRAME)
 	{
@@ -485,15 +569,25 @@ void AnimWin::Impl::paste()
 			return msg_error(::tr("No frame animation data to paste"));			
 		}
 
-		for(FrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
+		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
 		{
-			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z);
+			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,p->e);
 		}
 
-		for(FramePointCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
+		/*for(FramePointCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
 		{
 			model->setFrameAnimPointCoords(anim,frame,p->point,p->x,p->y,p->z);
 			model->setFrameAnimPointRotation(anim,frame,p->point,p->rx,p->ry,p->rz);
+		}*/
+		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
+		{
+			Model::Position pt{Model::PT_Point,p->object};
+			for(int i=0;i<3;i++)
+			{
+				auto &cd = p->data[i];
+				auto kt = Model::KeyType2020E(i<<1);
+				model->setKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z,values?Model::InterpolateLerp:cd.e);
+			}
 		}
 
 		model->operationComplete(::tr("Paste frame","paste frame animation position,operation complete"));	
@@ -507,7 +601,13 @@ void AnimWin::Impl::paste()
 
 		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
 		{
-			model->setSkelAnimKeyframe(anim,frame,p->joint,p->isRotation,p->x,p->y,p->z);
+			Model::Position jt{Model::PT_Joint,p->object};
+			for(int i=0;i<3;i++)
+			{
+				auto &cd = p->data[i];
+				auto kt = Model::KeyType2020E(i<<1);
+				model->setKeyframe(anim,frame,jt,kt,cd.x,cd.y,cd.z,values?Model::InterpolateLerp:cd.e);
+			}
 		}
 		model->operationComplete(::tr("Paste keyframe","Paste keyframe animation data complete"));
 	}
@@ -515,7 +615,7 @@ void AnimWin::Impl::paste()
 		
 	//REMOVE ME
 	// Force refresh of joints
-	model->setCurrentAnimationFrame(frame);
+	model->setCurrentAnimationFrame(frame,Model::AT_invalidateAnim);
 	//https://github.com/zturtleman/mm3d/issues/90
 	//DecalManager::getInstance()->modelUpdated(model); //???
 	model->updateObservers();
@@ -529,19 +629,26 @@ static void animwin_step(int id) //TEMPORARY
 }
 void AnimWin::Impl::play(int id)
 {
-	//TODO: Beep?
-	//Leaving buttons clickable.
-	if(!mode) return;
+	bool stopping = id==id_animate_stop;
 
-	bool stop = id==id_animate_pause;
+	if(playing&&id) stopping = true;
+
+	if(!mode&&id==id_animate_play) 
+	return model_status(model,StatusError,STATUSTIME_LONG,
+	sidebar.new_animation?"Animation unset":"Animation absent");
 
 	//shelf2.play.enable(stop); 
 	//shelf2.stop.enable(!stop);
-	shelf1.frames.enable(stop);
-	shelf2.timeline.enable(stop);
+	shelf1.frames.enable(stopping);
+	shelf2.timeline.enable(stopping);
 
-	if(playing=!stop)
+	//MainWin::modelChanged uses playing to 
+	//filter AnimationFrame.
+	//if(playing=!stop)
+	if(!stopping)
 	{
+		playing = true;
+
 		//TODO? Add 1/2 speed, etc. buttons.
 		double step;
 		step = 1/model->getAnimFPS(mode,anim);
@@ -560,17 +667,45 @@ void AnimWin::Impl::play(int id)
 
 		log_debug("starting %s animation,update every %.03f seconds\n",
 		(mode==Model::ANIMMODE_SKELETAL?"skeletal":"frame"),step);
+
+		//HACK: Woops! Draw the first frame?
+		Impl::step();
 	}
 	else
 	{
 		autoplay = false;
 
-		model->setCurrentAnimationFrame((int)shelf2.timeline);
+		model->setCurrentAnimationFrameTime(shelf2.timeline,Model::AT_invalidateAnim);
 
 		//https://github.com/zturtleman/mm3d/issues/90
 		//DecalManager::getInstance()->modelUpdated(model); //???
 		model->updateObservers();
+
+		playing = false;
 	}
+
+	//TODO: How to differentiate the pausing from stopping?
+	int pic = pics[playing?pic_pause:pic_play];
+	if(pic!=sidebar.play.picture())
+	{
+		sidebar.play.picture(pic).redraw();
+		shelf2.play.picture(pic).redraw();
+	}
+
+	glutSetMenu(win.menu);
+	void *x = playing?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK;
+	glutext::glutMenuEnable(id_animate_play,x);
+}
+void AnimWin::Impl::loop()
+{
+	int pic = sidebar.loop.picture();
+	pic = pic==pics[pic_stop]?pic_loop:pic_stop;
+	sidebar.loop.picture(pics[pic]).redraw();
+	shelf2.loop.picture(pics[pic]).redraw();
+	glutSetMenu(win.menu);
+	//REMINDER: Inverting these to work like play/pause just isn't as intuitive.
+	void *x = pic==pic_loop?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK;
+	glutext::glutMenuEnable(id_animate_loop,x);
 }
 bool AnimWin::Impl::step()
 {
@@ -578,14 +713,18 @@ bool AnimWin::Impl::step()
 
 	int t = glutGet(GLUT_ELAPSED_TIME)-step_t0;
 
-	if(!model->setCurrentAnimationTime(t/1000.0,autoplay?0:-1))
+	//REMINDER: Inverting these to work like play/pause just isn't as intuitive.
+	int loop = autoplay?0:sidebar.loop.picture()==pics[pic_loop];
+
+	if(!model->setCurrentAnimationTime(t/1000.0,loop,Model::AT_invalidateAnim))
 	{		
-		pause();
+		stop();
 	}
 
 	//https://github.com/zturtleman/mm3d/issues/90
 	//DecalManager::getInstance()->modelAnimate(model); //???
-	win.model.views.update3dView();
+	//win.model.views.update3dView();
+	win.model.views.updateAllViews();
 
 	return playing;
 }
@@ -596,7 +735,7 @@ void AnimWin::Impl::refresh_item()
 
 	bool loop = false;
 	double fps = 0;
-	int frames = 0;
+	double frames = 0;
 
 	if(!new_animation
 	||-1==shelf1.animation.int_val()) //NEW
@@ -606,7 +745,7 @@ void AnimWin::Impl::refresh_item()
 
 		//Leave pressable.
 		shelf2.play.enable();
-		shelf2.stop.enable();
+		shelf2.loop.enable();
 
 		assert(!frame);
 		frame = 0;
@@ -617,7 +756,7 @@ void AnimWin::Impl::refresh_item()
 	else
 	{
 		shelf1.fps.limit(1,120); //???
-		shelf1.frames.limit(1,INT_MAX);
+		shelf1.frames.limit(0,INT_MAX);
 
 		shelf1.del.enable();
 		shelf1.fps.enable();
@@ -628,21 +767,21 @@ void AnimWin::Impl::refresh_item()
 		shelf2.timeline.enable(!playing);
 
 		fps = model->getAnimFPS(mode,anim);
-		loop = model->getAnimLooping(mode,anim);
-		frames = model->getAnimFrameCount(mode,anim);
+		loop = model->getAnimWrap(mode,anim);
+		frames = model->getAnimTimeFrame(mode,anim);
 	}
 
 	shelf1.fps.set_float_val(fps);
 	shelf1.loop.set(loop);
-	shelf1.frames.set_int_val(frames);	
-	int nn = std::max(0,frames-1);
-	shelf2.timeline.set_range(0,nn);
-	sidebar.frame.limit(frames?1:0,frames);
-	win.model.views.timeline.set_range(0,nn);
+	shelf1.frames.set_float_val(frames);	
+	shelf2.timeline.set_range(0,frames);
+	sidebar.frame.limit(0,frames);
+	win.model.views.timeline.set_range(0,frames);
 	//IMPLEMENT ME? (QSlider API)
 	//shelf2.timeline.setTickInterval(animwin_tick_interval(frames));
 
-	set_frame(frame);
+	//set_frame(frame);
+	set_frame(model->getCurrentAnimationFrameTime());
 }
 
 void AnimWin::Impl::refresh_undo()
@@ -664,9 +803,11 @@ void AnimWin::Impl::refresh_undo()
 	shelf1.animation.select_id(anim_item());
 	sidebar.animation.select_id(anim_item());
 
+	//FIX ME
+	/*OVERKILL (Seeing if doing without has any effect.)
 	//UNDOCUMENTED ISN'T THIS REDUNDANT???
 	model->setCurrentAnimation(mode,anim);
-	model->setCurrentAnimationFrame(frame);
+	model->setCurrentAnimationFrame(frame,Model::AT_invalidateNormals); //???*/
 
 	refresh_item();
 }
@@ -699,7 +840,7 @@ void AnimWin::Impl::close()
 
 		//editEnableEvent(); //UNUSED?
 
-		animwin_enable_menu(-win.menu);	
+		animwin_enable_menu(-win.menu,win.model.clipboard_mode);	
 	}
 }
 
@@ -718,20 +859,29 @@ void AnimWin::submit(int id)
 		log_debug("AnimWidget constructor\n"); //???
 		
 		shelf1.fps.edit(0.0);
-		shelf1.frames.edit(0);
-		//TODO: CONFIRM LARGE VALUES
+		shelf1.frames.edit(0.0);
 		shelf1.frames.limit(0,INT_MAX).compact();
 		shelf2.play.span(60).picture(pics[pic_play]);
-		shelf2.stop.span(60).picture(pics[pic_stop]);
+		shelf2.loop.span(60).picture(pics[pic_stop]);		
+		shelf2.timeline.spin(0.0); //NEW (2020)
 		//IMPLEMENT ME? (QSlider API)
-		shelf2.timeline.style(bar::sunken|bar::tickmark|behind);			
+		//Tickmarks can't currently be drawn on a regular slider.
+		//shelf2.timeline.style(bar::sunken|bar::tickmark|behind);
+		shelf2.timeline.style(bar::shadow);
+		extern int viewwin_tick(Win::si*,int,double&,int);
+		shelf2.timeline.set_tick_callback(viewwin_tick);
 		
 		//Line up Delete button with scrollbar.
 		shelf2.nav.pack();
 		shelf1.animation.lock(shelf2.timeline.active_area<0>()-12,false);
 
 		//Make space equal to that above media buttons.
-		shelf2.timeline.space<top>(3).drop()+=2;		
+		//shelf2.timeline.space<top>(3).drop()+=2;
+		//shelf2.timeline.drop(shelf2.play.drop());
+		shelf2.timeline.space<top>(3).drop()+=7;
+		shelf1.fps.space<top>(4);
+		shelf1.loop.space<top>(5);
+		shelf1.frames.space<top>(4);
 
 		assert(!impl);
 		impl = new Impl(*this);
@@ -740,27 +890,30 @@ void AnimWin::submit(int id)
 		break;
 
 	case id_animate_copy:
-	case id_animate_copy_selection: 
+	case id_animate_copy_all: 
 
 		glutSetMenu(menu);
 		{
 			void *l = 0; 
-			if(impl->copy(id==id_animate_copy_selection))		
+			if(impl->copy(id==id_animate_copy))		
 			l = glutext::GLUT_MENU_ENABLE;
 			glutext::glutMenuEnable(id_animate_paste,l);
-			//glutext::glutMenuEnable(id_animate_paste_selection,0);
+			glutext::glutMenuEnable(id_animate_paste_v,l);
 		}
 		break;
 
 	case id_animate_paste:
-	//case id_animate_paste_selection: // Same logic for both (???)
 
-		impl->paste();
+		impl->paste(id==id_animate_paste_v);
 		break;
 
-	case id_animate_clear: //clearFrame
+	case id_animate_delete: //clearFrame
 		
-		model->clearAnimFrame(impl->mode,impl->anim,impl->frame);
+		if(model->getCurrentAnimationFrameTime()
+		==model->getAnimFrameTime(impl->mode,impl->anim,impl->frame))
+		model->deleteAnimFrame(impl->mode,impl->anim,impl->frame);
+		else 
+		return model_status(model,StatusError,STATUSTIME_LONG,"The current time isn't an animation frame.");
 		model->operationComplete(::tr("Clear frame","Remove animation data from frame,operation complete"));
 		break;	
 
@@ -793,19 +946,24 @@ void AnimWin::submit(int id)
 		model->operationComplete(::tr("Set FPS","Frames per second,operation complete"));
 		break;
 
-	case id_anim_loop:
+	case id_check: //id_anim_loop
 
-		log_debug("toggling loop\n"); //???
-		model->setAnimLooping(impl->mode,impl->anim,shelf1.loop);
-		model->operationComplete(::tr("Set Looping","Change whether animation loops operation complete"));
+		//log_debug("toggling loop\n"); //???
+		model->setAnimWrap(impl->mode,impl->anim,shelf1.loop);
+		model->operationComplete(::tr("Set Wrap","Change whether animation wraps operation complete"));
 		//WHAT'S THIS DOING HERE??? (DISABLING)
-		//model->setCurrentAnimationFrame((int)shelf2.timeline);		
+		//model->setCurrentAnimationFrame((int)shelf2.timeline,Model::AT_invalidateNormals);		
 		break;
 	
-	case id_animate_play: case id_animate_pause:
+	case id_animate_play: 
+	case id_animate_stop: //This is now pseudo.
 
 		impl->play(id);
 		break;		
+
+	case id_animate_loop:
+	
+		impl->loop(); break;
 
 	case id_anim_frames:
 

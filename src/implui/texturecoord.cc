@@ -275,7 +275,7 @@ void TextureCoordWin::submit(control *c)
 
 	default:
 
-		if(c>=ccw&&c<=uflip)
+		if(c>=ccw&&c<=vflip)
 		{
 			if(c==ccw) texture.rotateCoordinatesCcw();
 			if(c==cw) texture.rotateCoordinatesCw();
@@ -386,7 +386,7 @@ void TextureCoordWin::mapReset()
 
 	int direction;
 	{
-		float normal[3],total[3] = {};
+		double normal[3],total[3] = {};
 		for(int ea:trilist)
 		for(int i=0;i<3;i++)
 		{

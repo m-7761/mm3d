@@ -4,7 +4,7 @@
 
 //Copyright symbol (C) in Windows codepage 1252 is \xA9
 //#define MM3D_COPYRIGHT "Copyright \xA9 2004-2008 Kevin Worcester,Copyright \xA9 2009-2019 Zack Middleton."
-#define MM3D_COPYRIGHT "\xA9 2004-2008 Kevin Worcester, \xA9 2009-2019 Zack Middleton, github.com/mick-p1982/mm3d."
+#define MM3D_COPYRIGHT "(c) 2004-2008 Kevin Worcester, (c) 2009-2019 Zack Middleton, github.com/mick-p1982/mm3d."
 
 /*  MM3D Misfit/Maverick Model 3D
  *

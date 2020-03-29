@@ -39,31 +39,31 @@
 #include "texmgr.h"
 
 bool cmdline_runcommand = false;
-bool cmdline_runui		= true;
+bool cmdline_runui = true;
 
-static bool		  _doConvert = false;
-static std::string _convertFormat = "";
+static bool cmdline_doConvert = false;
+static std::string cmdline_convertFormat = "";
 
-static bool _doBatch = false;
+static bool cmdline_doBatch = false;
 
-static bool _doScripts = false;
-static bool _doTextureTest = false;
+static bool cmdline_doScripts = false;
+static bool cmdline_doTextureTest = false;
 
 typedef std::list<std::string> StringList;
-static StringList _scripts;
-static StringList _argList;
+static StringList cmdline_scripts;
+static StringList cmdline_argList;
 
-typedef std::vector<Model *> ModelList;
-static ModelList _models;
+typedef std::vector<Model*> cmdline_ModelList;
+static cmdline_ModelList cmdline_models;
 
-static void _print_version(const char *progname)
+static void cmdline_print_version(const char *progname)
 {
 	printf("\nMaverick Model 3D,version %s\n\n",VERSION_STRING);
 }
 
-static void _print_help(const char *progname)
+static void cmdline_print_help(const char *progname)
 {
-	_print_version(progname);
+	cmdline_print_version(progname);
 
 	printf("Usage:\n  %s [options] [model_file] ...\n\n",progname);
 
@@ -93,7 +93,7 @@ static void _print_help(const char *progname)
 	exit(0);
 }
 
-static void _print_sysinfo()
+static void cmdline_print_sysinfo()
 {
 	printf("\nMaverick Model 3D,version %s\n\n",VERSION_STRING);
 
@@ -139,7 +139,7 @@ static void _print_sysinfo()
 	exit(0);
 }
 
-enum Mm3dOptionsE 
+enum cmdline_Mm3dOptionsE 
 {
 	OptHelp,
 	OptVersion,
@@ -214,17 +214,17 @@ int init_cmdline(int &argc,char *argv[])
 	}
 
 	if(clm.isSpecified(OptHelp))
-		_print_help(argv[0]);
+		cmdline_print_help(argv[0]);
 
 	if(clm.isSpecified(OptVersion))
 	{
-		_print_version(argv[0]);
+		cmdline_print_version(argv[0]);
 		exit(0);
 	}
 
 	if(clm.isSpecified(OptBatch))
 	{
-		_doBatch = true;
+		cmdline_doBatch = true;
 		cmdline_runcommand = true;
 	}
 
@@ -234,9 +234,9 @@ int init_cmdline(int &argc,char *argv[])
 		PluginManager::getInstance()->disable(clm.stringValue(OptNoPlugin));
 	if(clm.isSpecified(OptConvert))
 	{
-		_convertFormat = clm.stringValue(OptConvert);
+		cmdline_convertFormat = clm.stringValue(OptConvert);
 
-		_doConvert = true;
+		cmdline_doConvert = true;
 
 		cmdline_runcommand = true;
 		cmdline_runui = false;
@@ -246,16 +246,16 @@ int init_cmdline(int &argc,char *argv[])
 
 	if(clm.isSpecified(OptScript))
 	{
-		_scripts.push_back(clm.stringValue(OptScript));
+		cmdline_scripts.push_back(clm.stringValue(OptScript));
 
-		_doScripts = true;
+		cmdline_doScripts = true;
 
 		cmdline_runcommand = true;
 		cmdline_runui = true;
 	}
 
 	if(clm.isSpecified(OptSysinfo))
-		_print_sysinfo();
+		cmdline_print_sysinfo();
 
 	if(clm.isSpecified(OptDebug))
 		log_enable_debug(true);
@@ -272,7 +272,7 @@ int init_cmdline(int &argc,char *argv[])
 
 	if(clm.isSpecified(OptTestTextureCompare))
 	{
-		_doTextureTest = true;
+		cmdline_doTextureTest = true;
 
 		cmdline_runcommand = true;
 		cmdline_runui = false;
@@ -283,7 +283,7 @@ int init_cmdline(int &argc,char *argv[])
 
 	for(int n = opts_done; n<argc; n++)
 	{
-		_argList.push_back(argv[n]);
+		cmdline_argList.push_back(argv[n]);
 		argv[offset] = argv[n];
 		++offset;
 	}
@@ -302,13 +302,13 @@ int cmdline_command()
 {
 	unsigned errors = 0;
 
-	if(_doTextureTest)
+	if(cmdline_doTextureTest)
 	{
-		std::string master = _argList.front();
+		std::string master = cmdline_argList.front();
 
-		StringList::iterator it = _argList.begin();
+		StringList::iterator it = cmdline_argList.begin();
 		it++;
-		for(; it!=_argList.end(); it++)
+		for(; it!=cmdline_argList.end(); it++)
 		{
 			texture_test_compare(master.c_str(),it->c_str(),10);
 		}
@@ -317,15 +317,15 @@ int cmdline_command()
 
 	FilterManager *mgr = FilterManager::getInstance();
 
-	StringList::iterator it = _argList.begin();
-	for(; it!=_argList.end(); it++)
+	StringList::iterator it = cmdline_argList.begin();
+	for(; it!=cmdline_argList.end(); it++)
 	{
 		Model::ModelErrorE err = Model::ERROR_NONE;
 		Model *m = new Model;
 		if((err = mgr->readFile(m,it->c_str()))==Model::ERROR_NONE)
 		{
 			m->loadTextures(0); //??? FIX ME (Doesn't belong here.)
-			_models.push_back(m);
+			cmdline_models.push_back(m);
 		}
 		else
 		{
@@ -337,23 +337,23 @@ int cmdline_command()
 		}
 	}
 	
-	if(_argList.empty()&&_doScripts)
+	if(cmdline_argList.empty()&&cmdline_doScripts)
 	{
 		Model *m = new Model();
-		_models.push_back(m);
+		cmdline_models.push_back(m);
 	}
 
-	for(unsigned n = 0; n<_models.size(); n++)
+	for(unsigned n = 0; n<cmdline_models.size(); n++)
 	{
-		Model *m = _models[n];
-		if(_doScripts)
+		Model *m = cmdline_models[n];
+		if(cmdline_doScripts)
 		{
 #ifdef HAVE_LUALIB
 			LuaScript lua;
 			LuaContext lc(m);
 			luaif_registerfunctions(&lua,&lc);
 			StringList::iterator it;
-			for(it = _scripts.begin(); it!=_scripts.end(); it++)
+			for(it = cmdline_scripts.begin(); it!=cmdline_scripts.end(); it++)
 			{
 				if(lua.runFile((*it).c_str())!=0)
 				{
@@ -366,10 +366,10 @@ int cmdline_command()
 
 		}
 
-		if(_doConvert)
+		if(cmdline_doConvert)
 		{
 			const char *infile = m->getFilename();
-			std::string outfile = replaceExtension(infile,_convertFormat.c_str());
+			std::string outfile = replaceExtension(infile,cmdline_convertFormat.c_str());
 			Model::ModelErrorE err = Model::ERROR_NONE;
 			if((err = mgr->writeFile(m,outfile.c_str(),true,FilterManager::WO_ModelNoPrompt))!=Model::ERROR_NONE)
 			{
@@ -378,7 +378,7 @@ int cmdline_command()
 			}
 		}
 
-		if(_doBatch)
+		if(cmdline_doBatch)
 		{
 			cmdline_runui = false;
 			std::string filename = m->getFilename();
@@ -401,28 +401,28 @@ int cmdline_command()
 
 extern int cmdline_getOpenModelCount()
 {
-	return _models.size();
+	return cmdline_models.size();
 }
 
 extern Model *cmdline_getOpenModel(int n)
 {
-	return _models[n];
+	return cmdline_models[n];
 }
 
 extern void cmdline_clearOpenModelList()
 {
-	_models.clear();
+	cmdline_models.clear();
 }
 
 extern void cmdline_deleteOpenModels()
 {
 	unsigned t = 0;
-	unsigned count = _models.size();
+	unsigned count = cmdline_models.size();
 	for(t = 0; t<count; t++)
 	{
-		delete _models[t];
+		delete cmdline_models[t];
 	}
-	_models.clear();
+	cmdline_models.clear();
 }
 
 //TRANSPLANTED FROM (libmm3d) mlocal.h/cc

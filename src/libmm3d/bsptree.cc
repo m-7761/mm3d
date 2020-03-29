@@ -28,8 +28,8 @@
 #include "log.h"
 #include "model.h" // Yes,it's hackish
 
-std::vector<BspTree::Poly *> BspTree::Poly::s_recycle;
-std::vector<BspTree::Node *> BspTree::Node::s_recycle;
+std::vector<BspTree::Poly*> BspTree::Poly::s_recycle;
+std::vector<BspTree::Node*> BspTree::Node::s_recycle;
 
 int BspTree::Poly::s_allocated = 0;
 int BspTree::Node::s_allocated = 0;
@@ -70,7 +70,7 @@ bool float_equiv(float rhs, float lhs)
 	}
 }
 
-static void _setMaterial(DrawingContext *context, int texture,Model::Material *material)
+static void bsptree_setMaterial(DrawingContext *context, int texture,Model::Material *material)
 {
 	glMaterialfv(GL_FRONT,GL_AMBIENT,
 			material->m_ambient);
@@ -193,12 +193,12 @@ void BspTree::Poly::render(DrawingContext *context)
 	{
 		glEnd();
 
-		_setMaterial(context,texture,static_cast<Model::Material *>(material));
+		bsptree_setMaterial(context,texture,static_cast<Model::Material*>(material));
 
 		glBegin(GL_TRIANGLES);
 	}
 
-	Model::Triangle *tri = static_cast<Model::Triangle *>(triangle);
+	Model::Triangle *tri = static_cast<Model::Triangle*>(triangle);
 	if(tri->m_visible)
 	{
 		for(int i = 0; i<3; i++)
@@ -238,7 +238,7 @@ void BspTree::render(float *point, DrawingContext *context)
 {
 	if(m_root)
 	{
-		_setMaterial(context,m_root->self->texture,static_cast<Model::Material *>(m_root->self->material));
+		bsptree_setMaterial(context,m_root->self->texture,static_cast<Model::Material*>(m_root->self->material));
 		glEnable(GL_TEXTURE_2D); //???
 		{
 			glBegin(GL_TRIANGLES);
@@ -747,7 +747,7 @@ void BspTree::Node::stats()
 int BspTree::Poly::flush()
 {
 	int c = 0;
-	std::vector<Poly *>::iterator it = s_recycle.begin();
+	std::vector<Poly*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;
@@ -761,7 +761,7 @@ int BspTree::Poly::flush()
 int BspTree::Node::flush()
 {
 	int c = 0;
-	std::vector<Node *>::iterator it = s_recycle.begin();
+	std::vector<Node*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
 		delete *it;

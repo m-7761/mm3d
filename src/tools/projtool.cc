@@ -30,6 +30,7 @@
 #include "msg.h"
 #include "log.h"
 #include "modelstatus.h"
+#include "rotatepoint.h"
 
 #include "pixmap/projtool.xpm"
 
@@ -60,8 +61,8 @@ struct ProjTool : Tool
 		parent->addEnum(true,&m_type,TRANSLATE_NOOP("Param","Poly Type"),e);
 	}
 	
-	void mouseButtonDown(int buttonState, int x, int y);	
-	void mouseButtonMove(int buttonState, int x, int y);
+	void mouseButtonDown();	
+	void mouseButtonMove();
 	
 		int	 m_type;
 
@@ -74,10 +75,10 @@ struct ProjTool : Tool
 
 extern Tool *projtool(){ return new ProjTool; }
 
-void ProjTool::mouseButtonDown(int buttonState, int x, int y)
+void ProjTool::mouseButtonDown()
 {
-	m_x = x; m_allowX = true;
-	m_y = y; m_allowY = true;
+	m_x = parent->getButtonX(); m_allowX = true;
+	m_y = parent->getButtonY(); m_allowY = true;
 
 	Model *model = parent->getModel();
 
@@ -85,7 +86,7 @@ void ProjTool::mouseButtonDown(int buttonState, int x, int y)
 
 	// use parent view matrix to translate 2D coords into 3D coords
 	double pos[4];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 	pos[2] = 0;
 	pos[3] = 1;
 	const Matrix &m = parent->getParentViewInverseMatrix();
@@ -109,13 +110,19 @@ void ProjTool::mouseButtonDown(int buttonState, int x, int y)
 	m_proj.pos.type = Model::PT_Projection;
 	m_proj.pos.index = model->addProjection
 	(name,(Model::TextureProjectionTypeE)m_type,pos[0],pos[1],pos[2]);
+	/*2020: This wasn't editor friendly.
+	//https://github.com/zturtleman/mm3d/issues/114
 	double upVec[3]	= { 0,1,0 };
 	m.apply3(upVec);
 	double seamVec[3] = { 0,0,-1/3.0 };
 	m.apply3(seamVec);
 	model->setProjectionUp(m_proj,upVec);
 	model->setProjectionSeam(m_proj,seamVec);
-	model->setProjectionScale(m_proj,1);
+	model->setProjectionScale(m_proj,1); //???
+	*/
+	double rot[3];
+	parent->getParentViewInverseMatrix().getRotation(rot);
+	model->setProjectionRotation(m_proj,rot); 
 
 	// Assign selected faces to projection
 	iN = model->getTriangleCount();
@@ -132,26 +139,32 @@ void ProjTool::mouseButtonDown(int buttonState, int x, int y)
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Tool","Projection created"));
 }
-void ProjTool::mouseButtonMove(int buttonState, int x, int y)
+void ProjTool::mouseButtonMove()
 {
 	if(m_proj.pos.type!=Model::PT_Projection) return;
 
+	Model *model = parent->getModel();
+
+	/*2020: No, rotation semantics make most sense given 
+	//how this works!
 	//Should tools be responsible for this?
-	if(buttonState&BS_Shift&&m_allowX&&m_allowY)
+	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
 	{
-		double ax = fabs(x-m_x);
-		double ay = fabs(y-m_y);
+		double ax = fabs(parent->getButtonX()-m_x);
+		double ay = fabs(parent->getButtonY()-m_y);
 
 		if(ax>ay) m_allowY = false;
 		if(ay>ax) m_allowX = false;
 	}
 
-	if(!m_allowX) x = m_x;
-	if(!m_allowY) y = m_y;
+	//REMOVE ME
+	if(!m_allowX) parent->getButtonX() = m_x;
+	if(!m_allowY) parent->getButtonY() = m_y;
+	*/
 
 	// Convert 2D coords to 3D in parent's view space
 	double pos[4];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 	pos[2] = 0;
 	pos[3] = 1;
 	parent->getParentViewInverseMatrix().apply(pos);
@@ -160,10 +173,26 @@ void ProjTool::mouseButtonMove(int buttonState, int x, int y)
 	pos[2]-=m_orig[2];
 	pos[3] = 1;
 
-	// Set the up vector to whereever the mouse is
-	Model *model = parent->getModel();
+	/*2020: This wasn't editor friendly.
+	//https://github.com/zturtleman/mm3d/issues/114
+	//WORKS BECAUSE "seam" IS ORTHOGONAL
+	// Set the up vector to wherever the mouse is	
 	model->setProjectionUp(m_proj,pos);
-	//model->applyProjection(m_proj);
-
+	*/	
+	int xDiff = parent->getButtonX()-m_x;
+	int yDiff = parent->getButtonY()-m_y;
+	double angle = rotatepoint_diff_to_angle(xDiff,yDiff);
+	if(parent->getButtons()&BS_Shift) 
+	angle = rotatepoint_adjust_to_nearest(angle,15); //NEW
+	//NOTE: I'm not sure what convention makes since here, but this 
+	//one matches the original convention of dragging the mouse down
+	//making the (front/identity) projection upside down.
+	Matrix m; m.setRotation({0,0,-PI/2+angle});	
+	//HACK: Don't call applyProjection twice?
+	(m*parent->getParentViewInverseMatrix()).getRotation
+	(model->getPositionObject({Model::PT_Projection,m_proj})->m_rot);
+	//REMINDER: Does applyProjection indirectly.
+	model->setProjectionScale(m_proj,mag3(pos));
+	
 	parent->updateAllViews();
 }

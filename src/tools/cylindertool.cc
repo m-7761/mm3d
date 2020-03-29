@@ -57,8 +57,8 @@ struct CylinderTool : Tool
 		parent->addDouble(true,&m_scale,TRANSLATE_NOOP("Param","Scale"),0,100);
 	}
 	
-	virtual void mouseButtonDown(int buttonState, int x, int y);	
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();	
+	virtual void mouseButtonMove();
 		
 		int m_segments, m_sides;
 		double m_width, m_scale;
@@ -73,7 +73,7 @@ struct CylinderTool : Tool
 
 extern Tool *cylindertool(){ return new CylinderTool; }
 
-void CylinderTool::mouseButtonDown(int buttonState, int x, int y)
+void CylinderTool::mouseButtonDown()
 {	
 	m_vertices.clear(); m_inverted = false;
 
@@ -189,7 +189,7 @@ void CylinderTool::mouseButtonDown(int buttonState, int x, int y)
 	model->selectTriangle(i);
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);	
+	parent->getParentXYValue(pos[0],pos[1],true);	
 	m_startX = pos[0];
 	m_startY = pos[1];
 	updateVertexCoords(pos[0],pos[1],0,0,0,0);
@@ -198,12 +198,12 @@ void CylinderTool::mouseButtonDown(int buttonState, int x, int y)
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Tool","Cylinder created"));
 }
-void CylinderTool::mouseButtonMove(int buttonState, int x, int y)
+void CylinderTool::mouseButtonMove()
 {
 	Model *model = parent->getModel();
 
 	double rad[3],pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);	
+	parent->getParentXYValue(pos[0],pos[1]);	
 	rad[0] = pos[0]-m_startX;
 	rad[1] = //???
 	rad[2] = fabs(m_startY-pos[1])/2;

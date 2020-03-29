@@ -71,8 +71,8 @@ extern void init_std_filters()
 	
 	//Won't build.
 	//https://github.com/zturtleman/mm3d/issues/74
-	//filter = new Md3Filter();
-	//mgr->registerFilter(filter);
+	filter = new Md3Filter();
+	mgr->registerFilter(filter);
 	
 	//filter = new Cal3dFilter();
 	//filter->setOptionsPrompt(cal3dprompt_show);

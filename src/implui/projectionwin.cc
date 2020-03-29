@@ -247,7 +247,7 @@ void ProjectionWin::addProjectionTriangles()
 
 	float s,t;
 	int iN = model->getTriangleCount();
-	for(int i=0,v=0;i<iN;i++,v+=3)	
+	for(int i=0,v=0;i<iN;i++)	
 	if(p==model->getTriangleProjection(i))
 	{
 		for(int j=0;j<3;j++)
@@ -255,7 +255,7 @@ void ProjectionWin::addProjectionTriangles()
 			model->getTextureCoords(i,j,s,t);
 			texture.addVertex(s,t);
 		}
-		texture.addTriangle(v,v+1,v+2);
+		texture.addTriangle(v,v+1,v+2); v+=3;
 	}
 	texture.updateWidget();
 
@@ -274,20 +274,15 @@ void ProjectionWin::rangeChanged()
 void ProjectionWin::seamChanged(double xDiff, double yDiff)
 {
 	if(xDiff==0) return; //Zero-divide?
-		
-	int p = projection;
 
-	double up[4] = { 0,0,0,1 };
-	double seam[4] = { 0,0,0,1 };
-
-	model->getProjectionUp(p,up);
-	model->getProjectionSeam(p,seam);
-
-	Matrix m;
-	m.setRotationOnAxis(up,xDiff);
-	m.apply3(seam);
-
-	model->setProjectionSeam(p,seam);
+	double rot[3],up[3] = { 0,1,0 };
+	model->getProjectionRotation((int)projection,rot);
+	Matrix a,b;
+	a.setRotation(rot);
+	a.apply3(up);
+	b.setRotationOnAxis(up,xDiff); (void)yDiff; //???
+	(a*b).getRotation(rot);
+	model->setProjectionRotation((int)projection,rot);
 
 	addProjectionTriangles();
 }

@@ -124,6 +124,7 @@ void AnimExportWin::submit(int id)
 	//TODO: Try animated GIF path.
 	static const utf8 formats[] =
 	{
+		"GIF", //2020
 		"anim_0001.png","anim_1.png",
 		"anim_0001.jpg","anim_1.jpg",
 	};
@@ -209,13 +210,17 @@ void AnimExportWin::submit(int id)
 	}
 	case id_ok:
 	{	
-		if(!is_directory(output.directory))
+		int format = output.format;
+		int gif = !format;
+
+		if(!gif&&!is_directory(output.directory))
 		{
 			return msg_warning(::tr("Output directory does not exist."));
 		}
 
 		auto swap = model->getAnimationMode();
 		int swap2 = model->getCurrentAnimation();
+		double swap3 = model->getCurrentAnimationTime();
 
 		//https://gcc.gnu.org/bugzilla/show_bug.cgi?id=92338
 		ModelViewport &mvp = vp->ports[(int)source.viewport];
@@ -241,7 +246,7 @@ void AnimExportWin::submit(int id)
 		else //???
 		{
 			dur = duration.iterations;		
-			dur*=spf*model->getAnimFrameCount(mode,a);
+			dur*=spf*model->getAnimTimeFrame(mode,a);
 		}
 
 		FileBox file;
@@ -266,56 +271,78 @@ void AnimExportWin::submit(int id)
 		bool enable = 
 		model->setUndoEnabled(false);
 		model->setCurrentAnimation(mode,a);
-				
+		
+		const char *saveFormat = "gif";
 		file = output.directory.text();
-		size_t saveFile = file.size();
-		//https://gcc.gnu.org/bugzilla/show_bug.cgi?id=92338
-		const char *saveFormat = strchr(formats[(int)output.format],'.');
-
+		if(gif)
+		{
+			if(!file.locate("Save GIF",::tr("Export GIF animation"),true).empty())
+			file.push_back('\0');
+			else return;
+		}
+		else saveFormat = strchr(formats[format],'.')+1;
+		size_t saveFile = file.size();		
+		
 		int x,y,w,h; mvp.getGeometry(x,y,w,h); 
-		int il = glutext::glutCreateImageList();
+		int i = (int)(dur/interval+0.5);
+		int il = glutext::glutCreateImageList(nullptr,i-1);
 		int*pb =*glutext::glutLoadImageList(il,w,h,false);
 
 		//Select main window's OpenGL context.
 		glutSetWindow(vp->model.glut_window_id);
 		glPixelStorei(GL_PACK_ALIGNMENT,1); //glReadPixels
 
-		int gif = !file.render_gif; //IMPLEMENT ME
-		
-		int frameNum = 0; for(tm=0;tm<=dur;tm+=interval)
+		int frameNum = 0; for(tm=0;i-->0;tm+=interval)
 		{
 			frameNum++;
 			
 			model->setCurrentAnimationTime(tm);			
 
-			//TODO: Try animated GIF (single file) path.
-			file.erase(saveFile);
-			file.append("/anim_");
-			char num[33];
-			sprintf(num,saveFormat[-2]=='0'?"%04d":"%d",frameNum);
-			file.append(num);
-			file.append(saveFormat);
-			file.push_back('\0');
-			size_t buf = file.size();
+			if(!gif)
+			{
+				//TODO: Try animated GIF (single file) path.
+				file.erase(saveFile);
+				file.append("/anim_");
+				char num[33];
+				sprintf(num,saveFormat[-3]=='0'?"%04d":"%d",frameNum);
+				file.append(num);
+				file.push_back('.');
+				file.append(saveFormat);
+				file.push_back('\0');
+			}
 			
 			mvp.render();
 			if(!pb) assert(pb);
 			else glReadPixels(x,y,pb[0],pb[1],pb[2],pb[3],(void*&)pb[4]);
 
-			if(!file.render(il,saveFormat+1,gif)
+			if(gif) //TODO? Render sheet of images to single PNG image.
+			{
+				pb = *glutext::glutLoadImageList(il+frameNum,w,h,false);
+				continue; single_sheet:;
+			}
+
+			size_t buf = file.size();
+			if(!file.render(il,saveFormat,gif)
 			||!FileDataDest(file.c_str()).writeBytes(&file[buf],file.size()-buf))
 			{
 				msg_error("%s\n%s",::tr("Could not write file: "),file.c_str());
+				if(gif) i = 0; //HACK
 				break;
 			}
 		}		
+		if(gif==1)
+		{
+			gif = file.render_gif|(int)outfps; goto single_sheet; 
+		}
 
 		glutext::glutDestroyImageList(il);
 
 		model->setCurrentAnimation(swap,swap2); //model->setNoAnimation();
+		model->setCurrentAnimationTime(swap3);
+	
 		model->setUndoEnabled(enable);
 
-		if(tm<=dur) return; break;
+		if(i>=0) return; break;
 	}}
 
 	basic_submit(id);

@@ -49,7 +49,7 @@
 #define PLUGINS_ENABLED
 #endif // WIN32
 
-static LibHandle _openLibrary(const char *filename)
+static LibHandle pluginmgr_openLibrary(const char *filename)
 {
 	LibHandle h = nullptr;
 #ifdef WIN32
@@ -62,7 +62,7 @@ static LibHandle _openLibrary(const char *filename)
 	return h;
 }
 
-static void *_getFunction(LibHandle h, const char *funcName)
+static void *pluginmgr_getFunction(LibHandle h, const char *funcName)
 {
 	void *ptr;
 #ifdef WIN32
@@ -75,7 +75,7 @@ static void *_getFunction(LibHandle h, const char *funcName)
 	return ptr;
 }
 
-static void _closeLibrary(LibHandle h)
+static void pluginmgr_closeLibrary(LibHandle h)
 {
 #ifdef WIN32
 	FreeLibrary((HMODULE)h);
@@ -86,7 +86,7 @@ static void _closeLibrary(LibHandle h)
 #endif // WIN32
 }
 
-static const char *_getError()
+static const char *pluginmgr_getError()
 {
 #ifdef WIN32
 	return "windows error";
@@ -149,39 +149,39 @@ bool PluginManager::loadPlugin(const char *pluginFile)
 	log_debug("loading plugin file: %s\n",pluginFile);
 	name = fileToName(pluginFile);
 
-	if((handle = _openLibrary(pluginFile))==nullptr)
+	if((handle = pluginmgr_openLibrary(pluginFile))==nullptr)
 	{
-		log_warning("openLibrary: %s\n",_getError());
+		log_warning("openLibrary: %s\n",pluginmgr_getError());
 		return false;
 	}
 
-	if((init_function = (bool(*)())_getFunction(handle,"plugin_init"))==nullptr)
+	if((init_function = (bool(*)())pluginmgr_getFunction(handle,"plugin_init"))==nullptr)
 	{
 		log_warning("%s: no plugin_init symbol\n",pluginFile);
 		enabled = false;
 		status = PluginNotPlugin;
 	}
 
-	if((uninit_function = (bool(*)())_getFunction(handle,"plugin_uninit"))==nullptr)
+	if((uninit_function = (bool(*)())pluginmgr_getFunction(handle,"plugin_uninit"))==nullptr)
 	{
 		log_warning("%s: no plugin_uninit symbol\n",pluginFile);
 		status = PluginNotPlugin;
 		enabled = false;
 	}
 
-	if((version_function = (const char *(*)())_getFunction(handle,"plugin_version"))==nullptr)
+	if((version_function = (const char *(*)())pluginmgr_getFunction(handle,"plugin_version"))==nullptr)
 	{
 		// This is just a warning,don't fail over it
 		log_warning("%s: no plugin_version symbol\n",pluginFile);
 	}
 
-	if((mm3d_version_function = (const char *(*)())_getFunction(handle,"plugin_mm3d_version"))==nullptr)
+	if((mm3d_version_function = (const char *(*)())pluginmgr_getFunction(handle,"plugin_mm3d_version"))==nullptr)
 	{
 		// This is just a warning,don't fail over it
 		log_warning("%s: no plugin_mm3d_version symbol\n",pluginFile);
 	}
 
-	if((desc_function = (const char *(*)())_getFunction(handle,"plugin_desc"))==nullptr)
+	if((desc_function = (const char *(*)())pluginmgr_getFunction(handle,"plugin_desc"))==nullptr)
 	{
 		// This is just a warning,don't fail over it
 		log_warning("%s: no plugin_desc symbol\n",pluginFile);
@@ -248,7 +248,7 @@ bool PluginManager::loadPlugin(const char *pluginFile)
 						status = PluginError;
 						enabled = false;
 						log_error("initialization failed for %s\n",pluginFile);
-						_closeLibrary( handle);
+						pluginmgr_closeLibrary( handle);
 						handle = nullptr;
 					}
 				}
@@ -434,7 +434,7 @@ bool PluginManager::unloadPlugins()
 			{
 				(*it)->m_uninitFunction();
 			}
-			_closeLibrary((*it)->m_fileHandle);
+			pluginmgr_closeLibrary((*it)->m_fileHandle);
 		}
 		delete *it;
 		it++;

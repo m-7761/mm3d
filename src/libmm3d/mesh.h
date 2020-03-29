@@ -41,7 +41,7 @@ public:
 	// are ignored; a single mesh containing all vertices and faces will
 	// be constructed. Including any option below will cause multiple
 	// meshes to be created and vertices to be duplicated as necessary.
-	enum _Option_e
+	enum OptionE
 	{
 		MO_UV		 = 0x0001, // Mesh vertices must have only one UV coord
 		MO_Normal	= 0x0002, // Mesh vertices must have only one normal
@@ -49,8 +49,7 @@ public:
 		MO_Material = 0x0200, // Mesh faces must have the same material
 		MO_All		= 0xffff, // All of the above
 		MO_MAX
-	};
-	typedef enum _Option_e OptionE;
+	};	
 
 	// There is an entry in a VertexList for each vertex that is
 	// used by the mesh. The index is the vertex number in the mesh,
@@ -64,7 +63,7 @@ public:
 		float norm[3]; // normal
 		float uv[2];	// texture coords
 	};
-	typedef std::vector<Vertex>VertexList;
+	typedef std::vector<Vertex> VertexList;
 
 	class Face
 	{
@@ -76,7 +75,7 @@ public:
 		float vnorm[3][3]; // vertex normals
 		float uv[3][2];	 // texture coords (per triangle vertex)
 	};
-	typedef std::vector<Face>FaceList;
+	typedef std::vector<Face> FaceList;
 
 	int options;			  // options this mesh was created with
 	int group;				 // group that this mesh was built from (or -1 if none)
@@ -87,7 +86,7 @@ public:
 	void addTriangle(Model *m, int triangle);
 	int  addVertex(Model *model, int triangle, int vertexIndex);
 };
-typedef std::vector<Mesh>MeshList;
+typedef std::vector<Mesh> MeshList;
 
 void mesh_create_list(MeshList &meshes,Model *model, int options = Mesh::MO_All);
 int mesh_list_vertex_count(const MeshList &meshes);

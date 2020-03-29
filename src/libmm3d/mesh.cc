@@ -62,12 +62,9 @@ void mesh_create_list(MeshList &meshes,Model *model, int opt)
 			m.options = opt;
 			m.group = g;
 
-			int_list triList = model->getGroupTriangles(g);
-			int_list::iterator it;
-
-			for(it = triList.begin(); it!=triList.end(); it++)
+			for(int tri:model->getGroupTriangles(g))
 			{
-				m.addTriangle(model,*it);
+				m.addTriangle(model,tri);
 			}
 		}
 
@@ -128,12 +125,19 @@ void Mesh::addTriangle(Model *model, int triangle)
 	Face f;
 
 	f.modelTri = triangle;
-	model->getFlatNormal(triangle,f.norm);
 
-	for(int i = 0; i<3; i++)
+	//TODO: Maybe don't use float for Mesh?
+	//model->getFlatNormalUnanimated(triangle,f.norm);
+	double temp[3];
+	model->getFlatNormalUnanimated(triangle,temp);
+	for(int i=0;i<3;i++)
+	f.norm[i] = (float)temp[i];
+
+	for(int i=0;i<3;i++)
 	{
 		f.v[i] = addVertex(model,triangle,i);
-		model->getNormal(triangle,i,f.vnorm[i]);
+		model->getNormalUnanimated(triangle,i,temp);
+		for(int j=0;j<3;j++) f.vnorm[i][j] = (float)temp[j];
 		model->getTextureCoords(triangle,i,f.uv[i][0],f.uv[i][1]);
 	}
 
@@ -147,7 +151,9 @@ int Mesh::addVertex(Model *model, int triangle, int vertexIndex)
 	Vertex vert;
 
 	vert.v = model->getTriangleVertex(triangle,vertexIndex);
-	model->getNormal(triangle,vertexIndex, vert.norm);
+	double temp[3];
+	model->getNormalUnanimated(triangle,vertexIndex,temp);
+	for(int j=0;j<3;j++) vert.norm[j] = (float)temp[j];
 	model->getTextureCoords(triangle,vertexIndex,vert.uv[0],vert.uv[1]);
 
 	unsigned int vcount = vertices.size();

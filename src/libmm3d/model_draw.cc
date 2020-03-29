@@ -26,7 +26,7 @@
 #include "log.h"
 #include "texture.h"
 
-static void _defaultMaterial()
+static void model_draw_defaultMaterial()
 {
 	float fval[4] = { 0.2f,0.2f,0.2f,1.0f };
 	glMaterialfv(GL_FRONT,GL_AMBIENT,
@@ -39,7 +39,7 @@ static void _defaultMaterial()
 	glMaterialf(GL_FRONT,GL_SHININESS,0.0f);
 }
 
-static void _drawPointOrientation(bool selected, float scale,
+static void model_draw_drawPointOrientation(bool selected, float scale,
 		  const Matrix &m)
 {
 	 float color = (selected)? 0.9f : 0.7f;
@@ -106,20 +106,10 @@ static void _drawPointOrientation(bool selected, float scale,
 	 glEnd(); // GL_LINES
 }
 
-static void _drawPointOrientation(bool selected, float scale,
-		  const double *trans, const double *rot)
-{
-	 Matrix m;
-	 m.setTranslation(trans);
-	 m.setRotation(rot);
-
-	 _drawPointOrientation(selected,scale,m);
-}
-
 static const int CYL_VERT_COUNT = 8;
-static const int CYL_SEAM_VERT  = 2;
+static const int CYL_SEAM_VERT  = 6; //2; //2020 sense
 
-static double _cylinderVertices[CYL_VERT_COUNT][3] =
+static double model_draw_cylinderVertices[CYL_VERT_COUNT][3] =
 {
 	{  0.30, 1.00, 0.00 },
 	{  0.21, 1.00, 0.21 },
@@ -131,70 +121,28 @@ static double _cylinderVertices[CYL_VERT_COUNT][3] =
 	{  0.21, 1.00,-0.21 },
 };
 
-static void _drawProjectionCylinder(bool selected, float scale,
-		  const Vector &pos, const Vector &up, const Vector &seam)
-{
-	 float color = (selected)? 0.75f : 0.55f;
-
+static void model_draw_drawProjectionCylinder(const Matrix &m)
+{	 
 	 double topVerts[CYL_VERT_COUNT][3];
 	 double botVerts[CYL_VERT_COUNT][3];
 
-	 int i;
-	 int v;
-
-	 double left[3] = {0,0,0};
-	 double orig[3] = {0,0,0};
-	 calculate_normal(left,orig,(double *)up.getVector(),(double *)seam.getVector());
-
-	 double len = mag3(up.getVector());
-
-	 Vector seamVec = seam;
-	 seamVec.normalize3();
-	 seamVec.scale(len);
-
-	 for(i = 0; i<3; i++)
+	 for(int v = 0; v<CYL_VERT_COUNT; v++)
 	 {
-		 left[i] *= len;
+		 topVerts[v][0] =  model_draw_cylinderVertices[v][0];
+		 topVerts[v][1] =  model_draw_cylinderVertices[v][1];
+		 topVerts[v][2] =  model_draw_cylinderVertices[v][2];
+
+		 botVerts[v][0] =  model_draw_cylinderVertices[v][0];
+		 botVerts[v][1] = -model_draw_cylinderVertices[v][1];
+		 botVerts[v][2] =  model_draw_cylinderVertices[v][2];
+
+		 m.apply3x(topVerts[v]);
+		 m.apply3x(botVerts[v]);
 	 }
-
-	 Matrix m;
-	 for(i = 0; i<3; i++)
-	 {
-		 m.set(0,i,left[i]);
-		 m.set(1,i,up.get(i));
-		 m.set(2,i,seamVec.get(i));
-	 }
-
-	 for(v = 0; v<CYL_VERT_COUNT; v++)
-	 {
-		 topVerts[v][0] =  _cylinderVertices[v][0];
-		 topVerts[v][1] =  _cylinderVertices[v][1];
-		 topVerts[v][2] =  _cylinderVertices[v][2];
-
-		 botVerts[v][0] =  _cylinderVertices[v][0];
-		 botVerts[v][1] = -_cylinderVertices[v][1];
-		 botVerts[v][2] =  _cylinderVertices[v][2];
-
-		 m.apply(topVerts[v]);
-		 m.apply(botVerts[v]);
-
-		 topVerts[v][0] += pos[0];
-		 topVerts[v][1] += pos[1];
-		 topVerts[v][2] += pos[2];
-
-		 botVerts[v][0] += pos[0];
-		 botVerts[v][1] += pos[1];
-		 botVerts[v][2] += pos[2];
-	 }
-
-	 glLineStipple(1,0xf1f1);
-
-	 glEnable(GL_LINE_STIPPLE);
+	 	 
 	 glBegin(GL_LINES);
 
-	 glColor3f(0.0f,color,0.0f);
-
-	 for(v = 0; v<CYL_VERT_COUNT; v++)
+	 for(int v = 0; v<CYL_VERT_COUNT; v++)
 	 {
 		 int v2 = (v+1)%CYL_VERT_COUNT;
 
@@ -207,7 +155,7 @@ static void _drawProjectionCylinder(bool selected, float scale,
 		 if(v==CYL_SEAM_VERT)
 		 {
 			 glEnd();
-			 glLineWidth(3.0);
+			 glLineWidth(3);
 			 glBegin(GL_LINES);
 		 }
 		 glVertex3dv(topVerts[v]);
@@ -215,14 +163,13 @@ static void _drawProjectionCylinder(bool selected, float scale,
 		 if(v==CYL_SEAM_VERT)
 		 {
 			 glEnd();
-			 glLineWidth(1.0);
+			 glLineWidth(1);
 			 glBegin(GL_LINES);
 		 }
 	 }
 
-	 glEnd(); // GL_LINES
-	 glDisable(GL_LINE_STIPPLE);
-	 glLineWidth(1.0);
+	 glEnd(); // GL_LINES	 
+	 glLineWidth(1);
 
 	 glBegin(GL_POINTS);
 	 glVertex3dv(topVerts[CYL_SEAM_VERT]);
@@ -231,10 +178,10 @@ static void _drawProjectionCylinder(bool selected, float scale,
 }
 
 static const int SPH_VERT_COUNT = 8;
-static const int SPH_SEAM_VERT_TOP = 0;
+static const int SPH_SEAM_VERT_TOP = 0; //2020 sense.
 static const int SPH_SEAM_VERT_BOT = 4;
 
-static double _sphereXVertices[SPH_VERT_COUNT][3] =
+static double model_draw_sphereXVertices[SPH_VERT_COUNT][3] =
 {
 	{  0.00, 1.00, 0.00 },
 	{  0.00, 0.71, 0.71 },
@@ -246,7 +193,7 @@ static double _sphereXVertices[SPH_VERT_COUNT][3] =
 	{  0.00, 0.71,-0.71 },
 };
 
-static double _sphereYVertices[SPH_VERT_COUNT][3] =
+static double model_draw_sphereYVertices[SPH_VERT_COUNT][3] =
 {
 	{  1.00, 0.00, 0.00 },
 	{  0.71, 0.00, 0.71 },
@@ -258,7 +205,7 @@ static double _sphereYVertices[SPH_VERT_COUNT][3] =
 	{  0.71, 0.00,-0.71 },
 };
 
-static double _sphereZVertices[SPH_VERT_COUNT][3] =
+static double model_draw_sphereZVertices[SPH_VERT_COUNT][3] =
 {
 	{  1.00, 0.00, 0.00 },
 	{  0.71, 0.71, 0.00 },
@@ -270,91 +217,45 @@ static double _sphereZVertices[SPH_VERT_COUNT][3] =
 	{  0.71,-0.71, 0.00 },
 };
 
-static void _drawProjectionSphere(bool selected, float scale,
-		  const Vector &pos, const Vector &up, const Vector &seam)
-{
-	 float color = (selected)? 0.75f : 0.55f;
-
+static void model_draw_drawProjectionSphere(const Matrix &m)
+{	 
 	 double xVerts[SPH_VERT_COUNT][3];
 	 double yVerts[SPH_VERT_COUNT][3];
 	 double zVerts[SPH_VERT_COUNT][3];
 
-	 int i;
-	 int v;
-
-	 double left[3] = {0,0,0};
-	 double orig[3] = {0,0,0};
-	 calculate_normal(left,orig,(double *)up.getVector(),(double *)seam.getVector());
-
-	 Vector seamVec = seam;
-
-	 seamVec.normalize3();
-
-	 double len = mag3((double *)up.getVector());
-	 seamVec.scale(len);
-
-	 for(i = 0; i<3; i++)
+	 for(int v = 0; v<SPH_VERT_COUNT; v++)
 	 {
-		 left[i] *= len;
+		 xVerts[v][0] =  model_draw_sphereXVertices[v][0];
+		 xVerts[v][1] =  model_draw_sphereXVertices[v][1];
+		 xVerts[v][2] =  model_draw_sphereXVertices[v][2];
+
+		 yVerts[v][0] =  model_draw_sphereYVertices[v][0];
+		 yVerts[v][1] =  model_draw_sphereYVertices[v][1];
+		 yVerts[v][2] =  model_draw_sphereYVertices[v][2];
+
+		 zVerts[v][0] =  model_draw_sphereZVertices[v][0];
+		 zVerts[v][1] =  model_draw_sphereZVertices[v][1];
+		 zVerts[v][2] =  model_draw_sphereZVertices[v][2];
+
+		 m.apply3x(xVerts[v]);
+		 m.apply3x(yVerts[v]);
+		 m.apply3x(zVerts[v]);
 	 }
-
-	 Matrix m;
-
-	 for(i = 0; i<3; i++)
-	 {
-		 m.set(0,i,left[i]);
-		 m.set(1,i,up.get(i));
-		 m.set(2,i,seamVec.get(i));
-	 }
-
-	 for(v = 0; v<SPH_VERT_COUNT; v++)
-	 {
-		 xVerts[v][0] =  _sphereXVertices[v][0];
-		 xVerts[v][1] =  _sphereXVertices[v][1];
-		 xVerts[v][2] =  _sphereXVertices[v][2];
-
-		 yVerts[v][0] =  _sphereYVertices[v][0];
-		 yVerts[v][1] =  _sphereYVertices[v][1];
-		 yVerts[v][2] =  _sphereYVertices[v][2];
-
-		 zVerts[v][0] =  _sphereZVertices[v][0];
-		 zVerts[v][1] =  _sphereZVertices[v][1];
-		 zVerts[v][2] =  _sphereZVertices[v][2];
-
-		 m.apply(xVerts[v]);
-		 m.apply(yVerts[v]);
-		 m.apply(zVerts[v]);
-
-		 xVerts[v][0] += pos[0];
-		 xVerts[v][1] += pos[1];
-		 xVerts[v][2] += pos[2];
-
-		 yVerts[v][0] += pos[0];
-		 yVerts[v][1] += pos[1];
-		 yVerts[v][2] += pos[2];
-
-		 zVerts[v][0] += pos[0];
-		 zVerts[v][1] += pos[1];
-		 zVerts[v][2] += pos[2];
-	 }
-
-	 glLineStipple(1,0xf1f1);
-
-	 glEnable(GL_LINE_STIPPLE);
+		
 	 glBegin(GL_LINES);
-
-	 glColor3f(0.0f,color,0.0f);
 
 	 bool thick = false;
 
-	 for(v = 0; v<SPH_VERT_COUNT; v++)
+	 for(int v = 0; v<SPH_VERT_COUNT; v++)
 	 {
 		 int v2 = (v+1)%SPH_VERT_COUNT;
 
-		 if(v>=SPH_SEAM_VERT_TOP&&v<SPH_SEAM_VERT_BOT)
+		 //2020 sense
+		 //if(v>=SPH_SEAM_VERT_TOP&&v<SPH_SEAM_VERT_BOT)
+		 if(!(v>=SPH_SEAM_VERT_TOP&&v<SPH_SEAM_VERT_BOT))
 		 {
 			 glEnd();
-			 glLineWidth(3.0);
+			 glLineWidth(3);
 			 glBegin(GL_LINES);
 			 thick = true;
 		 }
@@ -363,7 +264,7 @@ static void _drawProjectionSphere(bool selected, float scale,
 		 if(thick)
 		 {
 			 glEnd();
-			 glLineWidth(1.0);
+			 glLineWidth(1);
 			 glBegin(GL_LINES);
 			 thick = false;
 		 }
@@ -375,8 +276,7 @@ static void _drawProjectionSphere(bool selected, float scale,
 		 glVertex3dv(zVerts[v2]);
 	 }
 
-	 glEnd(); // GL_LINES
-	 glDisable(GL_LINE_STIPPLE);
+	 glEnd(); // GL_LINES	 
 
 	 glBegin(GL_POINTS);
 	 glVertex3dv(xVerts[SPH_SEAM_VERT_TOP]);
@@ -386,7 +286,7 @@ static void _drawProjectionSphere(bool selected, float scale,
 
 static const int PLN_VERT_COUNT = 4;
 
-static double _planeVertices[PLN_VERT_COUNT][3] =
+static double model_draw_planeVertices[PLN_VERT_COUNT][3] =
 {
 	{ -1.00,-1.00, 0.00 },
 	{  1.00,-1.00, 0.00 },
@@ -394,81 +294,34 @@ static double _planeVertices[PLN_VERT_COUNT][3] =
 	{ -1.00, 1.00, 0.00 },
 };
 
-static void _drawProjectionPlane(bool selected, float scale,
-		  const Vector &pos, const Vector &up, const Vector &seam)
-{
-	 float color = (selected)? 0.75f : 0.55f;
-
+static void model_draw_drawProjectionPlane(const Matrix &m)
+{	 
 	 double verts[PLN_VERT_COUNT][3];
-
-	 int i;
-	 int v;
-
-	 double left[3] = {0,0,0};
-	 double orig[3] = {0,0,0};
-	 calculate_normal(left,orig,(double *)up.getVector(),(double *)seam.getVector());
-
-	 Vector seamVec = seam;
-
-	 seamVec.normalize3();
-
-	 double len = mag3((double *)up.getVector());
-	 seamVec.scale(len);
-
-	 for(i = 0; i<3; i++)
+   
+	 for(int v = 0; v<PLN_VERT_COUNT; v++)
 	 {
-		 left[i] *= len;
+		 verts[v][0] =  model_draw_planeVertices[v][0];
+		 verts[v][1] =  model_draw_planeVertices[v][1];
+		 verts[v][2] =  model_draw_planeVertices[v][2];
+
+		 m.apply3x(verts[v]);
 	 }
 
-	 Matrix m;
-
-	 for(i = 0; i<3; i++)
-	 {
-		 m.set(0,i,left[i]);
-		 m.set(1,i,up.get(i));
-		 m.set(2,i,seamVec.get(i));
-	 }
-
-	 for(v = 0; v<PLN_VERT_COUNT; v++)
-	 {
-		 verts[v][0] =  _planeVertices[v][0];
-		 verts[v][1] =  _planeVertices[v][1];
-		 verts[v][2] =  _planeVertices[v][2];
-
-		 m.apply(verts[v]);
-
-		 verts[v][0] += pos[0];
-		 verts[v][1] += pos[1];
-		 verts[v][2] += pos[2];
-	 }
-
-	 glLineStipple(1,0xf1f1);
-
-	 glLineWidth(3.0);
-
-	 glEnable(GL_LINE_STIPPLE);
+	 glLineWidth(3);
 	 glBegin(GL_LINES);
-
-	 glColor3f(0.0f,color,0.0f);
-
-	 for(v = 0; v<PLN_VERT_COUNT; v++)
+	 for(int v = 0; v<PLN_VERT_COUNT; v++)
 	 {
 		 int v2 = (v+1)%PLN_VERT_COUNT;
 
 		 glVertex3dv(verts[v]);
 		 glVertex3dv(verts[v2]);
 	 }
-
-	 glEnd(); // GL_LINES
-	 glDisable(GL_LINE_STIPPLE);
-
-	 glLineWidth(1.0);
+	 glEnd();
+	 glLineWidth(1);
 }
 
 void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 {
-	if(!m_initialized) return;
-
 	//https://github.com/zturtleman/mm3d/issues/56
 	drawOptions|=m_drawOptions;
 
@@ -494,10 +347,7 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 #endif
 	}
 
-	if(!m_validNormals)
-	{
-		calculateNormals();
-	}
+	validateNormals();
 
 	//FIX ME
 	//If not using ContextT textures aren't loaded
@@ -514,6 +364,11 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 			log_debug("loaded textures for %p\n",context);
 		}
 	}
+	else if(!m_validContext) //2020
+	{
+		loadTextures();
+	}
+
 
 	if(drawOptions &DO_ALPHA)
 	{
@@ -531,519 +386,158 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 	glDisable(GL_BLEND);
 	glEnable(GL_LIGHT0);
 	glDisable(GL_LIGHT1);
-	_defaultMaterial();
+	model_draw_defaultMaterial();
 	glColor3f(0.9f,0.9f,0.9f);
 
 	//https://github.com/zturtleman/mm3d/issues/98
 	//bool colorSelected = false;
 	int colorSelected;
-	if(m_animationMode)
+	for(unsigned m = 0; m<m_groups.size(); m++)
 	{
-		if(m_animationMode==ANIMMODE_SKELETAL&&m_currentAnim<m_skelAnims.size())
+		Group *grp = m_groups[m];
+
+		if(drawOptions &DO_TEXTURE)
 		{
-			for(unsigned m = 0; m<m_groups.size(); m++)
+			glColor3f(1.0,1.0,1.0);
+			if(grp->m_materialIndex>=0)
 			{
-				Group *grp = m_groups[m];
+				int index = grp->m_materialIndex;
 
-				if(drawOptions &DO_TEXTURE)
+				if((drawOptions &DO_ALPHA)
+						&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
+						&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
 				{
-					glColor3f(1.0f,1.0f,1.0f);
-					if(grp->m_materialIndex>=0)
+					// Alpha blended groups are drawn by bspTree later
+					for(unsigned triIndex:grp->m_triangleIndices)
 					{
-						int index = grp->m_materialIndex;
+						Triangle *triangle = m_triangles[triIndex];
+						triangle->m_marked = true;
+					}
+					continue;
+				}
 
-						if((drawOptions &DO_ALPHA)
-								&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-								&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
-						{
-							// Alpha blended groups are drawn by bspTree later
-							for(auto it = grp->m_triangleIndices.cbegin();
-									it!=grp->m_triangleIndices.cend();
-									++it)
-							{
-								unsigned triIndex = *it;
-								Triangle *triangle = m_triangles[triIndex];
-								triangle->m_marked = true;
-							}
-							continue;
-						}
+				glMaterialfv(GL_FRONT,GL_AMBIENT,
+						m_materials[index]->m_ambient);
+				glMaterialfv(GL_FRONT,GL_DIFFUSE,
+						m_materials[index]->m_diffuse);
+				glMaterialfv(GL_FRONT,GL_SPECULAR,
+						m_materials[index]->m_specular);
+				glMaterialfv(GL_FRONT,GL_EMISSION,
+						m_materials[index]->m_emissive);
+				glMaterialf(GL_FRONT,GL_SHININESS,
+						m_materials[index]->m_shininess);
 
-						glMaterialfv(GL_FRONT,GL_AMBIENT,
-								m_materials[index]->m_ambient);
-						glMaterialfv(GL_FRONT,GL_DIFFUSE,
-								m_materials[index]->m_diffuse);
-						glMaterialfv(GL_FRONT,GL_SPECULAR,
-								m_materials[index]->m_specular);
-						glMaterialfv(GL_FRONT,GL_EMISSION,
-								m_materials[index]->m_emissive);
-						glMaterialf(GL_FRONT,GL_SHININESS,
-								m_materials[index]->m_shininess);
-
-						if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-								&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions &DO_BADTEX)))
-						{
-							if(drawContext)
-							{
-								glBindTexture(GL_TEXTURE_2D,
-										drawContext->m_matTextures[grp->m_materialIndex]);
-							}
-							else
-							{
-								glBindTexture(GL_TEXTURE_2D,
-										m_materials[grp->m_materialIndex]->m_texture);
-							}
-
-							glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
-									(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
-							glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
-									(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
-
-							glEnable(GL_TEXTURE_2D);
-						}
-						else
-						{
-							glDisable(GL_TEXTURE_2D);
-						}
+				if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
+						&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions &DO_BADTEX)))
+				{
+					if(drawContext)
+					{
+						glBindTexture(GL_TEXTURE_2D,
+								drawContext->m_matTextures[grp->m_materialIndex]);
 					}
 					else
 					{
-						_defaultMaterial();
-						glDisable(GL_TEXTURE_2D);
+						glBindTexture(GL_TEXTURE_2D,
+								m_materials[grp->m_materialIndex]->m_texture);
+					}
+
+					glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
+							(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
+					glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
+							(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
+
+					glEnable(GL_TEXTURE_2D);
+				}
+				else
+				{
+					glDisable(GL_TEXTURE_2D);
+				}
+			}
+			else goto defmat;
+		}
+		else defmat:
+		{
+			model_draw_defaultMaterial();
+			glDisable(GL_TEXTURE_2D);
+			glColor3f(0.9f,0.9f,0.9f);
+		}
+
+		//colorSelected = false;
+		colorSelected = -1;
+
+		glBegin(GL_TRIANGLES);
+		for(int i:grp->m_triangleIndices)
+		{
+			Triangle *triangle = m_triangles[i];
+			triangle->m_marked = true;
+
+			if(triangle->m_visible)
+			{
+				if(triangle->m_selected)
+				{
+					//if(colorSelected==false)
+					if(colorSelected!=(int)true)
+					{
+						if(!(drawOptions &DO_TEXTURE))
+						{
+							glColor3f(1,0,0);
+						}
+						glEnd();
+						glDisable(GL_LIGHT0);
+						glEnable(GL_LIGHT1);
+						glBegin(GL_TRIANGLES);
+						colorSelected = true;
 					}
 				}
 				else
 				{
-					_defaultMaterial();
-					glDisable(GL_TEXTURE_2D);
-					glColor3f(0.9f,0.9f,0.9f);
+					//if(colorSelected==true)
+					if(colorSelected!=(int)false)
+					{
+						if(!(drawOptions &DO_TEXTURE))
+						{
+							glColor3f(0.9f,0.9f,0.9f);
+						}
+						glEnd();
+						glDisable(GL_LIGHT1);
+						glEnable(GL_LIGHT0);
+						glBegin(GL_TRIANGLES);
+						colorSelected = false;
+					}						
 				}
 
-				//colorSelected = false;
-				colorSelected = -1;
-
-				glBegin(GL_TRIANGLES);
-				for(auto it = grp->m_triangleIndices.cbegin();
-						it!=grp->m_triangleIndices.cend();
-						++it)
+				for(int v = 0; v<3; v++)
 				{
-					unsigned triIndex = *it;
-					Triangle *triangle = m_triangles[triIndex];
-					triangle->m_marked = true;
+					Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
 
-					if(triangle->m_visible)
+					glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
+					if((drawOptions &DO_SMOOTHING))
 					{
-						if(triangle->m_selected)
-						{
-							//if(colorSelected==false)
-							if(colorSelected!=true)
-							{
-								if(!(drawOptions &DO_TEXTURE))
-								{
-									glColor3f(1,0,0);
-								}
-								colorSelected = true;
-							}							
-						}
-						else
-						{
-							//if(colorSelected==true)
-							if(colorSelected!=false)
-							{
-								if(!(drawOptions &DO_TEXTURE))
-								{
-									glColor3f(0.9f,0.9f,0.9f);
-								}
-								colorSelected = false;
-							}
-						}
-
-						for(int v = 0; v<3; v++)
-						{
-							Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
-
-							glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
-
-							if(drawOptions &DO_SMOOTHING)
-							{
-								glNormal3dv(triangle->m_normalSource[v]);
-							}
-							else
-							{
-								glNormal3dv(triangle->m_flatSource);
-							}
-
-							glVertex3dv(vertex->m_drawSource);
-						}
-					}
-				}
-				glEnd();
-			}
-
-			colorSelected = -1;
-
-			// draw ungrouped
-			{
-				_defaultMaterial();
-				glDisable(GL_TEXTURE_2D);
-				glBegin(GL_TRIANGLES);
-				for(unsigned t = 0; t<m_triangles.size(); t++)
-				{
-					if(m_triangles[t]->m_marked==false )
-					{
-						Triangle *triangle = m_triangles[t];
-						triangle->m_marked = true;
-
-						if(triangle->m_visible)
-						{
-							if(triangle->m_selected)
-							{
-								//if(colorSelected==false)
-								if(colorSelected!=true)
-								{
-									glColor3f(1,0,0);
-									colorSelected = true;
-								}
-							}
-							else
-							{
-								//if(colorSelected==true)
-								if(colorSelected!=false)
-								{
-									glColor3f(0.9f,0.9f,0.9f);
-									colorSelected = false;
-								}
-							}
-
-							for(int v = 0; v<3; v++)
-							{
-								Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
-
-								glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
-
-								if(drawOptions &DO_SMOOTHING)
-								{
-									glNormal3dv(triangle->m_normalSource[v]);
-								}
-								else
-								{
-									glNormal3dv(triangle->m_flatSource);
-								}
-
-								glVertex3dv(vertex->m_drawSource);
-							}
-						}
-					}
-				}
-				glEnd();
-			}
-
-			// Draw depth-sorted alpha blended polys last
-			if((drawOptions &DO_ALPHA)&&viewPoint)
-			{
-				glEnable(GL_BLEND);
-				m_bspTree.render(viewPoint,drawContext);
-				glDisable(GL_BLEND);
-			}
-		}
-		else if(m_animationMode==ANIMMODE_FRAME&&m_currentAnim<m_frameAnims.size())
-		{
-			//log_debug("drawing animation '%s' frame %d\n",m_frameAnims[m_currentAnim]->m_name.c_str(),m_currentFrame);
-
-			if(m_currentFrame<m_frameAnims[m_currentAnim]->m_frameData.size()&&m_frameAnims[m_currentAnim]->m_frameData[m_currentFrame]->m_frameVertices->size()>0)
-			{
-				for(unsigned m = 0; m<m_groups.size(); m++)
-				{
-					Group *grp = m_groups[m];
-
-					if(drawOptions &DO_TEXTURE)
-					{
-						glColor3f(1.0,1.0,1.0);
-
-						if(grp->m_materialIndex>=0)
-						{
-							int index = grp->m_materialIndex;
-
-							if((drawOptions &DO_ALPHA)
-									&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-									&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
-							{
-								// Alpha blended groups are drawn by bspTree later
-								for(auto it = grp->m_triangleIndices.cbegin();
-										it!=grp->m_triangleIndices.cend();
-										++it)
-								{
-										unsigned triIndex = *it;
-										Triangle *triangle = m_triangles[triIndex];
-										triangle->m_marked = true;
-								}
-								continue;
-							}
-
-							glMaterialfv(GL_FRONT,GL_AMBIENT,
-									m_materials[index]->m_ambient);
-							glMaterialfv(GL_FRONT,GL_DIFFUSE,
-									m_materials[index]->m_diffuse);
-							glMaterialfv(GL_FRONT,GL_SPECULAR,
-									m_materials[index]->m_specular);
-							glMaterialfv(GL_FRONT,GL_EMISSION,
-									m_materials[index]->m_emissive);
-							glMaterialf(GL_FRONT,GL_SHININESS,
-									m_materials[index]->m_shininess);
-
-							if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-									&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions &DO_BADTEX)))
-							{
-								if(drawContext)
-								{
-									glBindTexture(GL_TEXTURE_2D,
-											drawContext->m_matTextures[grp->m_materialIndex]);
-								}
-								else
-								{
-									glBindTexture(GL_TEXTURE_2D,
-											m_materials[grp->m_materialIndex]->m_texture);
-								}
-
-								glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
-										(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
-								glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
-										(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
-
-								glEnable(GL_TEXTURE_2D);
-							}
-							else
-							{
-								glDisable(GL_TEXTURE_2D);
-							}
-						}
-						else
-						{
-							_defaultMaterial();
-							glDisable(GL_TEXTURE_2D);
-						}
+						glNormal3dv(triangle->m_normalSource[v]);
 					}
 					else
 					{
-						_defaultMaterial();
-						glColor3f(0.9f,0.9f,0.9f);
-						glDisable(GL_TEXTURE_2D);
+						glNormal3dv(triangle->m_flatSource);
 					}
-
-					//colorSelected = false;
-					colorSelected = -1;
-
-					glBegin(GL_TRIANGLES);
-					for(auto it = grp->m_triangleIndices.cbegin();
-							it!=grp->m_triangleIndices.cend();
-							++it)
-					{
-						Triangle *triangle = m_triangles[*it];
-						triangle->m_marked = true;
-
-						if(triangle->m_visible)
-						{
-							if(triangle->m_selected)
-							{
-								//if(colorSelected==false)
-								if(colorSelected!=true)
-								{
-									if(!(drawOptions &DO_TEXTURE))
-									{
-										glColor3f(1,0,0);
-									}
-									colorSelected = true;
-								}
-							}
-							else
-							{
-								//if(colorSelected==true)
-								if(colorSelected!=false)
-								{
-									if(!(drawOptions &DO_TEXTURE))
-									{
-										glColor3f(0.9f,0.9f,0.9f);
-									}
-									colorSelected = false;
-								}
-							}
-
-							for(int v = 0; v<3; v++)
-							{
-								FrameAnimVertex *vertex = ((*m_frameAnims[m_currentAnim]->m_frameData[m_currentFrame]->m_frameVertices)[triangle->m_vertexIndices[v]]);
-
-								glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
-								glNormal3f(
-										vertex->m_normal[0],
-										vertex->m_normal[1],
-										vertex->m_normal[2]);
-								glVertex3f(
-										vertex->m_coord[0],
-										vertex->m_coord[1],
-										vertex->m_coord[2]
-										);
-							}
-						}
-					}
-					glEnd();
+					glVertex3dv(vertex->m_absSource);
 				}
-
-				// draw ungrouped
-				{
-					colorSelected = -1; //NEW
-
-					_defaultMaterial();
-					glDisable(GL_TEXTURE_2D);
-					glBegin(GL_TRIANGLES);
-					for(unsigned t = 0; t<m_triangles.size(); t++)
-					{
-						if(m_triangles[t]->m_marked==false )
-						{
-							Triangle *triangle = m_triangles[t];
-							triangle->m_marked = true;
-
-							if(triangle->m_visible)
-							{
-								if(triangle->m_selected)
-								{
-									//if(colorSelected==false)
-									if(colorSelected!=true)
-									{
-										glColor3f(1,0,0);
-										colorSelected = true;
-									}
-								}
-								else
-								{
-									//if(colorSelected==true)
-									if(colorSelected!=false)
-									{
-										glColor3f(0.9f,0.9f,0.9f);
-										colorSelected = false;
-									}
-								}
-
-								for(int v = 0; v<3; v++)
-								{
-									FrameAnimVertex *vertex = ((*m_frameAnims[m_currentAnim]->m_frameData[m_currentFrame]->m_frameVertices)[triangle->m_vertexIndices[v]]);
-
-									glNormal3f(
-											vertex->m_normal[0],
-											vertex->m_normal[1],
-											vertex->m_normal[2]);
-									glVertex3f(
-											vertex->m_coord[0],
-											vertex->m_coord[1],
-											vertex->m_coord[2]
-											);
-								}
-							}
-						}
-					}
-					glEnd();
-				}
-
-				// Draw depth-sorted alpha blended polys last
-				if((drawOptions &DO_ALPHA)&&viewPoint)
-				{
-					glEnable(GL_BLEND);
-					m_bspTree.render(viewPoint,drawContext);
-					glDisable(GL_BLEND);
-				}
-			}
-			else
-			{
-				log_error("No frame,(or no vertices)for this animation frame.\n");
 			}
 		}
+		glEnd();
 	}
-	else
+
+	// Draw ungrouped triangles
 	{
-		for(unsigned m = 0; m<m_groups.size(); m++)
+		colorSelected = -1; //NEW
+
+		model_draw_defaultMaterial();
+		glDisable(GL_TEXTURE_2D);
+		glBegin(GL_TRIANGLES);
+		for(unsigned t = 0; t<m_triangles.size(); t++)
 		{
-			Group *grp = m_groups[m];
-
-			if(drawOptions &DO_TEXTURE)
+			if(m_triangles[t]->m_marked==false )
 			{
-				glColor3f(1.0,1.0,1.0);
-				if(grp->m_materialIndex>=0)
-				{
-					int index = grp->m_materialIndex;
-
-					if((drawOptions &DO_ALPHA)
-							&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-							&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
-					{
-						// Alpha blended groups are drawn by bspTree later
-						for(auto it = grp->m_triangleIndices.cbegin();
-								it!=grp->m_triangleIndices.cend();
-								++it)
-						{
-							unsigned triIndex = *it;
-							Triangle *triangle = m_triangles[triIndex];
-							triangle->m_marked = true;
-						}
-						continue;
-					}
-
-					glMaterialfv(GL_FRONT,GL_AMBIENT,
-							m_materials[index]->m_ambient);
-					glMaterialfv(GL_FRONT,GL_DIFFUSE,
-							m_materials[index]->m_diffuse);
-					glMaterialfv(GL_FRONT,GL_SPECULAR,
-							m_materials[index]->m_specular);
-					glMaterialfv(GL_FRONT,GL_EMISSION,
-							m_materials[index]->m_emissive);
-					glMaterialf(GL_FRONT,GL_SHININESS,
-							m_materials[index]->m_shininess);
-
-					if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-							&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions &DO_BADTEX)))
-					{
-						if(drawContext)
-						{
-							glBindTexture(GL_TEXTURE_2D,
-									drawContext->m_matTextures[grp->m_materialIndex]);
-						}
-						else
-						{
-							glBindTexture(GL_TEXTURE_2D,
-									m_materials[grp->m_materialIndex]->m_texture);
-						}
-
-						glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
-								(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
-						glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
-								(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
-
-						glEnable(GL_TEXTURE_2D);
-					}
-					else
-					{
-						glDisable(GL_TEXTURE_2D);
-					}
-				}
-				else
-				{
-					_defaultMaterial();
-
-					glDisable(GL_TEXTURE_2D);
-					glColor3f(0.9f,0.9f,0.9f);
-				}
-			}
-			else
-			{
-				_defaultMaterial();
-			}
-
-			//colorSelected = false;
-			colorSelected = -1;
-
-			glBegin(GL_TRIANGLES);
-			for(auto it = grp->m_triangleIndices.cbegin();
-					it!=grp->m_triangleIndices.cend();
-					++it)
-			{
-				Triangle *triangle = m_triangles[*it];
+				Triangle *triangle = m_triangles[t];
 				triangle->m_marked = true;
 
 				if(triangle->m_visible)
@@ -1051,12 +545,9 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 					if(triangle->m_selected)
 					{
 						//if(colorSelected==false)
-						if(colorSelected!=true)
+						if(colorSelected!=(int)true)
 						{
-							if(!(drawOptions &DO_TEXTURE))
-							{
-								glColor3f(1,0,0);
-							}
+							glColor3f(1,0,0);
 							glEnd();
 							glDisable(GL_LIGHT0);
 							glEnable(GL_LIGHT1);
@@ -1067,129 +558,52 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 					else
 					{
 						//if(colorSelected==true)
-						if(colorSelected!=false)
+						if(colorSelected!=(int)false)
 						{
-							if(!(drawOptions &DO_TEXTURE))
-							{
-								glColor3f(0.9f,0.9f,0.9f);
-							}
+							glColor3f(0.9f,0.9f,0.9f);
 							glEnd();
 							glDisable(GL_LIGHT1);
 							glEnable(GL_LIGHT0);
 							glBegin(GL_TRIANGLES);
 							colorSelected = false;
-						}						
+						}							
 					}
 
 					for(int v = 0; v<3; v++)
 					{
 						Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
 
-						glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
-						if((drawOptions &DO_SMOOTHING))
+						if(drawOptions &DO_SMOOTHING)
 						{
-							glNormal3dv(triangle->m_finalNormals[v]);
+							glNormal3dv(triangle->m_normalSource[v]);
 						}
 						else
 						{
-							glNormal3dv(triangle->m_flatNormals);
+							glNormal3dv(triangle->m_flatSource);
 						}
-						glVertex3dv(vertex->m_coord);
+							
+						glVertex3dv(vertex->m_absSource);
 					}
 				}
 			}
-			glEnd();
 		}
-
-		// Draw ungrouped triangles
-		{
-			colorSelected = -1; //NEW
-
-			_defaultMaterial();
-			glDisable(GL_TEXTURE_2D);
-			glBegin(GL_TRIANGLES);
-			for(unsigned t = 0; t<m_triangles.size(); t++)
-			{
-				if(m_triangles[t]->m_marked==false )
-				{
-					Triangle *triangle = m_triangles[t];
-					triangle->m_marked = true;
-
-					if(triangle->m_visible)
-					{
-						if(triangle->m_selected)
-						{
-							//if(colorSelected==false)
-							if(colorSelected!=true)
-							{
-								glColor3f(1,0,0);
-								glEnd();
-								glDisable(GL_LIGHT0);
-								glEnable(GL_LIGHT1);
-								glBegin(GL_TRIANGLES);
-								colorSelected = true;
-							}
-						}
-						else
-						{
-							//if(colorSelected==true)
-							if(colorSelected!=false)
-							{
-								glColor3f(0.9f,0.9f,0.9f);
-								glEnd();
-								glDisable(GL_LIGHT1);
-								glEnable(GL_LIGHT0);
-								glBegin(GL_TRIANGLES);
-								colorSelected = false;
-							}							
-						}
-
-						for(int v = 0; v<3; v++)
-						{
-							Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
-
-							if(drawOptions &DO_SMOOTHING)
-							{
-								glNormal3f(
-										triangle->m_vertexNormals[v][0],
-										triangle->m_vertexNormals[v][1],
-										triangle->m_vertexNormals[v][2]);
-							}
-							else
-							{
-								glNormal3f(
-										triangle->m_flatNormals[0],
-										triangle->m_flatNormals[1],
-										triangle->m_flatNormals[2]);
-							}
-							glVertex3f(
-									vertex->m_coord[0],
-									vertex->m_coord[1],
-									vertex->m_coord[2]
-									);
-						}
-					}
-				}
-			}
-			glEnd();
-		}
-
-		// Draw depth-sorted alpha blended polys last
-		if((drawOptions &DO_ALPHA)&&viewPoint)
-		{
-			glEnable(GL_BLEND);
-			m_bspTree.render(viewPoint,drawContext);
-			glDisable(GL_BLEND);
-		}
+		glEnd();
 	}
+
+	// Draw depth-sorted alpha blended polys last
+	if((drawOptions &DO_ALPHA)&&viewPoint)
+	{
+		glEnable(GL_BLEND);
+		m_bspTree.render(viewPoint,drawContext);
+		glDisable(GL_BLEND);
+	}
+	
 
 	glDisable(GL_TEXTURE_2D);
 }
 
 void Model::drawLines(float a)
 {
-	if(!m_initialized) return; //???
-		
 	//TESTING
 	//CAUTION: I don't know what the blend mode is
 	//at this point?
@@ -1206,10 +620,14 @@ void Model::drawLines(float a)
 	//The 2-pass system prevents touching 
 	//triangles from double-drawing their
 	//alpha blended edges. It's a problem
-	//if lone polygons are too dim to see.	
-
+	//if lone polygons are too dim to see.
 	
+		//REMINDER: I TRIED DIFFERENT WAYS OF 
+		//DRAWING BACK-FACES DIFFERENTLY. AND
+		//FELT THE EXPERIMENTS WERE NO BETTER.
+
 		glColor4f(1,1,1,a); //white
+		if(a) //Hide?
 		_drawPolygons(0);
 
 	glDisable(GL_BLEND);
@@ -1220,6 +638,10 @@ void Model::drawLines(float a)
 	//glDepthFunc(GL_LEQUAL);
 	glDisable(GL_DEPTH_TEST);
 
+		//REMINDER: I TRIED DIFFERENT WAYS OF 
+		//DRAWING BACK-FACES DIFFERENTLY. AND
+		//FELT THE EXPERIMENTS WERE NO BETTER.
+
 		glColor4f(1,0,0,1); //red
 		_drawPolygons(1);
 
@@ -1228,20 +650,35 @@ void Model::drawLines(float a)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 }
-void Model::drawVertices()
+void Model::drawVertices(float a)
 {
-	if(!m_initialized) return; //??? 
+	//REMINDER: The reason for a (alpha) is
+	//primarily to hide unselected vertices.
 
-	if(m_animationMode) //REMOVE ME?
+	if(!a) //Hide unselected?
 	{
-		// Note,in animation mode,we don't draw vertices for
-		// skeletal animation,only for frame animations
-		if(m_animationMode!=ANIMMODE_FRAME
-		 ||m_currentAnim<m_frameAnims.empty())
+		//HACK: This should match the below
+		//behavior. It's easier to break it
+		//out.
+		glPointSize(5);
+		//glDepthFunc(GL_LEQUAL);
+		glDisable(GL_DEPTH_TEST);
+		glColor3ub(255,0,0);
+		glBegin(GL_POINTS);
+		Vertex **v = m_vertices.data();
+		for(size_t i=m_vertices.size();i-->0;)	
+		if(v[i]->m_selected&&v[i]->m_visible)
+		{
+			glVertex3dv(v[i]->m_absSource);
+		}
+		glEnd();
+		glDepthFunc(GL_LEQUAL);
+		glEnable(GL_DEPTH_TEST);
 		return;
 	}
 
-	FrameAnimVertex **d;
+	if(1!=a) glEnable(GL_BLEND);
+
 	Vertex **v = m_vertices.data();
 	for(size_t i=m_vertices.size();i-->0;)
 	{
@@ -1253,10 +690,12 @@ void Model::drawVertices()
 	//https://github.com/zturtleman/mm3d/issues/96
 	glPolygonMode(GL_FRONT_AND_BACK,GL_POINT); 
 	glPointSize(3); 
-	glColor3ub(255,255,255); //white
+	glColor4f(1,1,1,a); //white
 
-		_drawPolygons(0,&d);
+		_drawPolygons(0,true);
 	
+	glDisable(GL_BLEND);
+
 	//CAUTION: These need a way to come out on top.
 	//glPoloygonOffset is unreliable, so the only
 	//other technique is to do everything in 2D.
@@ -1264,7 +703,7 @@ void Model::drawVertices()
 	glPointSize(5); //4	
 	glColor3ub(255,0,0); //red
 
-		_drawPolygons(1,&d);
+		_drawPolygons(1,true);
 
 	glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); 
 
@@ -1309,34 +748,18 @@ void Model::drawVertices()
 				glBegin(GL_POINTS);
 				colorSelected = false;
 			}
-		}
-		glVertex3dv(d?d[i]->m_coord:v[i]->m_drawSource);
+		}		
+		glVertex3dv(v[i]->m_absSource);
 	}
 	glEnd();
 	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_DEPTH_TEST);
 }
-void Model::_drawPolygons(int pass, FrameAnimVertex ***mark)
+void Model::_drawPolygons(int pass, bool mark)
 {	
-	FrameAnimVertex **d = nullptr;
-	if(m_animationMode==ANIMMODE_FRAME&&m_currentAnim<m_frameAnims.size())
-	{
-		//log_debug("drawing animation '%s' frame %d\n",
-		//m_frameAnims[m_currentAnim]->m_name.c_str(),m_currentFrame);
+	validateAnim();
 
-		auto &v = m_frameAnims[m_currentAnim]->m_frameData;
-		if(m_currentFrame<v.size())
-		{
-			if(!v[m_currentFrame]->m_frameVertices->empty())
-			d = v[m_currentFrame]->m_frameVertices->data();
-			else assert(d);
-		}
-		//if(!d) log_error("No frame,(or no vertices)for this animation frame.\n"); //???
-		//if(!d) return; //???
-	}
-	if(mark) *mark = d;
-	
-	bool cull = 0!=(m_drawOptions&DO_BACKFACECULL);
+	int cull = m_drawOptions&DO_BACKFACECULL;
 	
 	//YUCK: Degenerate triangles (in screen space)
 	//don't draw vertices.
@@ -1384,15 +807,9 @@ void Model::_drawPolygons(int pass, FrameAnimVertex ***mark)
 
 		double *vertices[3];
 
-		if(d) for(int i=0;i<3;i++)
-		{
-			vertices[i] = d[vi[i]]->m_coord;
-		}
-		else for(int i=0;i<3;i++)
-		{
-			//I think it's safe to draw from m_drawSource.
-			//vertices[i] = v[vi[i]]->m_coord;
-			vertices[i] = v[vi[i]]->m_drawSource;
+		for(int i=0;i<3;i++)
+		{		
+			vertices[i] = v[vi[i]]->m_absSource;
 		}
 
 		if(triangle->m_visible)
@@ -1407,75 +824,138 @@ void Model::_drawPolygons(int pass, FrameAnimVertex ***mark)
 
 #ifdef MM3D_EDIT
 
-void Model::drawJoints()
+void Model::drawJoints(float a)
 {
-	if(!m_drawJoints||!m_initialized //???
-	||m_animationMode!=ANIMMODE_NONE&&m_animationMode!=ANIMMODE_SKELETAL)
-	return;
-			
-	glPointSize(3.0);
+	const Vector face(0,1,0),up(0,0,1);
 
-	glBegin(GL_LINES);
-	for(unsigned j = 0; j<m_joints.size(); j++)	
+	if(!m_drawJoints
+	||m_animationMode!=ANIMMODE_NONE
+	&&m_animationMode!=ANIMMODE_SKELETAL)
+	return;
+	
+	validateAnimSkel();
+
+	bool alpha = a!=1;
+			
+	//EXPERIMENTAL
+	//NOTE: If this DepthRange technique isn't used
+	//then the GL_POINTS primitives will need to be
+	//drawn after GL_LINES as opposed to vice versa.
+	//Make room for Tool::draw?
+	//if(alpha) glDepthRange(0,0);
+	if(alpha) glDepthRange(0.00002f,0.00002f);
+	if(alpha) glDepthFunc(GL_LESS);	
+	
+	//Black seems to be best. Blue/purple is legacy
+	//color.
+	//https://github.com/zturtleman/mm3d/issues/118
+	float l = alpha?0:1;
+
+	bool skel = m_animationMode==ANIMMODE_SKELETAL;
+	bool skel2 = false;
+
+	glPointSize(5); //3
+	glBegin(GL_POINTS);
+	for(Position j{PT_Joint,0};j<m_joints.size();j++)	
+	if(m_joints[j]->m_visible)
+	{
+		if(m_joints[j]->m_selected)
+		{
+			skel2 = true;
+
+			glColor3f(1,0,1); 
+		}
+		else if(skel&&hasKeyframe(m_currentAnim,m_currentFrame,j))
+		{
+			glColor3f(0,1,0);
+		}
+		else glColor3f(0,0,l);
+		
+		Joint *joint = m_joints[j];
+
+		glVertex3dv(joint->m_absSource);
+	}	
+	glEnd();
+	
+	if(alpha) glEnable(GL_BLEND);
+	float aa = skel2&&skel?a/2:a;	
+
+	glLineStipple(1,0xCCCC); //2020	
+	//Needs to go in reverse to prioritize
+	//the child joints in the depth buffer.
+	//for(unsigned j=0 j<m_joints.size();j++)
+	for(unsigned j=m_joints.size();j-->0;)
 	if(m_joints[j]->m_visible
 	 &&m_joints[j]->m_parent>=0
 	 &&m_joints[m_joints[j]->m_parent]->m_visible)
 	{
-		if(m_animationMode&&parentJointSelected(j))
-		{
-			glColor3f(1,0,1);
-		}
-		else
-		{
-			glColor3f(0,0,1);
-		}
+		skel2 = skel&&parentJointSelected(j);
+		
 		Joint *joint  = m_joints[j];
 		Joint *parent = m_joints[joint->m_parent];
 
-		Vector pvec;
-		pvec.set(0,parent->m_final.get(3,0));
-		pvec.set(1,parent->m_final.get(3,1));
-		pvec.set(2,parent->m_final.get(3,2));
+		Vector pvec(parent->m_absSource);
+		Vector jvec(joint->m_absSource);
 
-		Vector jvec;
-		jvec.set(0,joint->m_final.get(3,0));
-		jvec.set(1,joint->m_final.get(3,1));
-		jvec.set(2,joint->m_final.get(3,2));
+		if(skel2)
+		{	
+			glColor4f(l,0,l,a);
+		}
+		else glColor4f(0,0,l,aa);
 
+		glEnable(GL_LINE_STIPPLE);
+		glBegin(GL_LINES);
 		glVertex3dv(pvec.getVector());
 		glVertex3dv(jvec.getVector());
+		glEnd();
+		glDisable(GL_LINE_STIPPLE);
 
-		Vector face(0,1,0);
+		if(skel) if(skel2)
+		{
+			glColor4f(l,0,l,a);
+		}
+		else glColor4f(0,0,l,aa);
+		
+		//Vector face(0,1,0);
 		Vector point = jvec-pvec;
 
 		double length = distance(pvec,jvec);
 
-		Quaternion qrot;
-		qrot.setRotationToPoint(face,point);
-
-		Vector v1( 0.07, 0.10, 0.07);
-		Vector v2(-0.07, 0.10, 0.07);
-		Vector v3(-0.07, 0.10,-0.07);
-		Vector v4( 0.07, 0.10,-0.07);
-
-		v1 = v1 *length;
-		v2 = v2 *length;
-		v3 = v3 *length;
-		v4 = v4 *length;
-
-		Matrix m;
-		m.setRotationQuaternion(qrot);
-		v1 = v1 *m;
-		v2 = v2 *m;
-		v3 = v3 *m;
-		v4 = v4 *m;
+		/*FIX ME
+		//This rolls around in the Top view.
+		//https://github.com/zturtleman/mm3d/issues/118
+		Quaternion rot;
+		rot.setRotationToPoint(face,point);	
+		//Matrix m;
+		//m.setRotationQuaternion(rot);
+		*/
+		//2020: I wasted some time trying to pass "up" to setRotationToPoint
+		//but it wasn't working out as I expected. I got it to work with a 
+		//different approach but knew all along that a Matrix is a better
+		//fit here. setRotationToPoint should be avoided/removed. 
+		Matrix rot;
+		memcpy(rot.getVector(1),&point,sizeof(point));
+		normalize3(rot.getVector(1));
+		cross_product(rot.getVector(2),up.getVector(),rot.getVector(1));		
+		normalize3(rot.getVector(2));
+		cross_product(rot.getVector(0),rot.getVector(1),rot.getVector(2));
+		normalize3(rot.getVector(0));
+		Vector v[4] = 
+		{{ 0.07, 0.10, 0.07},
+		{ -0.07, 0.10, 0.07},
+		{ -0.07, 0.10,-0.07},
+		{  0.07, 0.10,-0.07}};
+		for(int i=0;i<4;i++)
+		{
+			//v[i] = v[i]*length*m+pvec;
+			v[i] = v[i]*length*rot+pvec;
+		}
 
 		//https://github.com/zturtleman/mm3d/issues/56
 		//if(m_drawJoints==JOINTMODE_BONES)
 		if(m_drawOptions&DO_BONES)
-		{
-			//2019: I rewrote this to be less insane/not narrowing.
-			Vector v[4]; for(int i=0;i<4;i++) v[i] = pvec+(&v1)[i];			
+		{	
+			glBegin(GL_LINES);
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[0].getVector());
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[1].getVector());
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[2].getVector());
@@ -1488,195 +968,94 @@ void Model::drawJoints()
 			glVertex3dv(jvec.getVector()); glVertex3dv(v[1].getVector());
 			glVertex3dv(jvec.getVector()); glVertex3dv(v[2].getVector());
 			glVertex3dv(jvec.getVector()); glVertex3dv(v[3].getVector());
+			glEnd();
 		}
 	}
-	
-	glEnd();
 
-	glBegin(GL_POINTS);
-	for(unsigned j = 0; j<m_joints.size(); j++)	
-	if(m_joints[j]->m_visible)
-	{
-		if(m_joints[j]->m_selected)
-		{
-			glColor3f(1,0,1);
-		}
-		else if((m_animationMode&&hasSkelAnimKeyframe(m_currentAnim,m_currentFrame,j,true))
-				||(m_animationMode&&hasSkelAnimKeyframe(m_currentAnim,m_currentFrame,j,false)))
-		{
-			glColor3f(0,1,0);
-		}
-		else
-		{
-			glColor3f(0,0,1);
-		}
-		Joint *joint = m_joints[j];
-
-		glVertex3f(joint->m_final.get(3,0),joint->m_final.get(3,1),joint->m_final.get(3,2));
-	}
-	
-	glEnd();
+	//EXPERIMENTAL
+	glDisable(GL_BLEND); 	
+	glDepthRange(0,1); //glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);	
 }
 
 void Model::drawPoints()
 {
-	float scale = 2.0f;
-	if(m_initialized)
+	validateAnim();
+
+	float scale = 2; //???
+	
+	glPointSize(3);
+	for(unsigned p = 0; p<m_points.size(); p++)
 	{
-		switch (m_animationMode)
+		if(m_points[p]->m_visible)
 		{
-			case ANIMMODE_NONE:
-				for(unsigned p = 0; p<m_points.size(); p++)
-				{
-					if(m_points[p]->m_visible)
-					{
-						Point *point = (m_points[p]);
+			Point *point = (m_points[p]);
 
-						_drawPointOrientation(point->m_selected,scale,
-								point->m_trans,point->m_rot);
+			model_draw_drawPointOrientation(point->m_selected,scale,point->getMatrix());
 
-						if(point->m_selected)
-						{
-							glColor3f(0.7f,1,0);
-						}
-						else
-						{
-							glColor3f(0,0.5f,0);
-						}
+			if(point->m_selected)
+			{
+				glColor3f(0.7f,1,0);
+			}
+			else
+			{
+				glColor3f(0,0.5f,0);
+			}
 
-						glBegin(GL_POINTS);
-						glVertex3dv(point->m_trans);
-						glEnd();
-					}
-				}
-				break;
-
-			case ANIMMODE_SKELETAL:
-				for(unsigned p = 0; p<m_points.size(); p++)
-				{
-					if(m_points[p]->m_visible)
-					{
-						/*
-						Matrix mat;
-						Point *point = (m_points[p]);
-
-						mat.setTranslation(point->m_localTranslation);
-						mat.setRotation(point->m_localRotation);
-
-						int j = point->m_boneId;
-						if(j>=0)
-						{
-							mat = mat *m_joints[j]->m_final;
-						}
-						*/
-
-						Matrix mat;
-						Point *point = (m_points[p]);
-
-						mat.setTranslation(point->m_kfTrans);
-						mat.setRotation(point->m_kfRot);
-
-						_drawPointOrientation(false,scale,mat);
-
-						glColor3f(0,0.5f,0);
-						glBegin(GL_POINTS);
-						glVertex3d(mat.get(3,0),mat.get(3,1),mat.get(3,2));
-						glEnd();
-					}
-				}
-				break;
-
-			case ANIMMODE_FRAME:
-				if(m_currentAnim<m_frameAnims.size()&&m_currentFrame<m_frameAnims[m_currentAnim]->m_frameData.size())
-				{
-					for(unsigned p = 0; p<m_points.size(); p++)
-					{
-						if(m_points[p]->m_visible)
-						{
-							if(p<m_frameAnims[m_currentAnim]->m_frameData[m_currentFrame]->m_framePoints->size())
-							{
-								FrameAnimPoint *point = 
-									((*m_frameAnims[m_currentAnim]->m_frameData[m_currentFrame]->m_framePoints)[p]);
-
-								_drawPointOrientation(m_points[p]->m_selected,1.0f,
-										point->m_trans,point->m_rot);
-
-								if(m_points[p]->m_selected)
-								{
-									glColor3f(0.7f,1,0);
-								}
-								else
-								{
-									glColor3f(0,0.5f,0);
-								}
-
-								glBegin(GL_POINTS);
-								glVertex3dv(point->m_trans);
-								glEnd();
-							}
-						}
-					}
-				}
-				break;
-
-			default:
-				log_error("unknown draw mode in drawPoints()\n");
-				break;
+			glBegin(GL_POINTS);
+			glVertex3dv(point->m_absSource);
+			glEnd();
 		}
-	}
+	}	
 }
 
 void Model::drawProjections()
 {
-	if(m_drawProjections)
+	if(!m_drawProjections) return; //m_animationMode
+
+	glPointSize(3);	
+	glLineStipple(1,0xf1f1);
+	glEnable(GL_LINE_STIPPLE);
+	for(unsigned p=0;p<m_projections.size();p++)
 	{
-		if(m_initialized)
+		TextureProjection *proj = m_projections[p];
+	
+		//Historically projections are hidden 
+		//in animation mode.
+		if(m_animationMode&&!proj->m_selected)
 		{
-			if(m_animationMode==ANIMMODE_NONE)
-			{
-				for(unsigned p = 0; p<m_projections.size(); p++)
-				{
-					TextureProjection *proj = (m_projections[p]);
-
-					float scale = mag3(proj->m_upVec);
-
-					Matrix m;
-					m.set(0,0,proj->m_upVec[0]);
-					m.set(1,1,proj->m_upVec[1]);
-					m.set(2,2,proj->m_upVec[2]);
-					m.setTranslation(proj->m_pos[0],proj->m_pos[1],proj->m_pos[2]);
-
-					switch (proj->m_type)
-					{
-						case Model::TPT_Sphere:
-							_drawProjectionSphere(proj->m_selected,scale,Vector(proj->m_pos),Vector(proj->m_upVec),Vector(proj->m_seamVec));
-							break;
-						case Model::TPT_Cylinder:
-							_drawProjectionCylinder(proj->m_selected,scale,Vector(proj->m_pos),Vector(proj->m_upVec),Vector(proj->m_seamVec));
-							break;
-						case Model::TPT_Plane:
-						default:
-							_drawProjectionPlane(proj->m_selected,scale,Vector(proj->m_pos),Vector(proj->m_upVec),Vector(proj->m_seamVec));
-							break;
-					}
-
-					if(proj->m_selected)
-					{
-						glColor3f(0.7f,1,0);
-					}
-					else
-					{
-						glColor3f(0,0.5f,0);
-					}
-
-					glBegin(GL_POINTS);
-					glVertex3dv(proj->m_pos);
-					glEnd();
-				}
-
-			}
+			continue; //Best practice?
 		}
+
+		Matrix m = proj->getMatrixUnanimated();
+
+		glColor3f(0,proj->m_selected?0.75f:0.55f,0);
+
+		switch (proj->m_type)
+		{
+		case Model::TPT_Sphere:
+			model_draw_drawProjectionSphere(m);
+			break;
+		case Model::TPT_Cylinder:
+			model_draw_drawProjectionCylinder(m);
+			break;		
+		case Model::TPT_Plane: 
+			//default:
+			model_draw_drawProjectionPlane(m);
+			break;
+		default: continue; //2020
+		}
+
+		if(proj->m_selected)
+		glColor3f(0.7f,1,0);
+		else
+		glColor3f(0,0.5f,0);
+
+		glBegin(GL_POINTS);
+		glVertex3dv(proj->m_abs);
+		glEnd();
 	}
+	glDisable(GL_LINE_STIPPLE);
 }
 
 #endif // MM3D_EDIT

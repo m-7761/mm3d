@@ -45,8 +45,6 @@
 class Md3Filter : public ModelFilter
 {
 public:
-	Md3Filter();
-	virtual ~Md3Filter();
 
 	Model::ModelErrorE readFile(Model *model, const char *const filename);
 	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
@@ -56,17 +54,17 @@ public:
 
 protected:
 
-	typedef enum _MeshSection_e
+	enum MeshSectionE
 	{
 		MS_None = -1,
 		MS_Lower = 0,
 		MS_Upper,
 		MS_Head,
 		MS_MAX
-	} MeshSectionE;
+	};
 
 	// the order is important,used for writing continue frames by type
-	typedef enum _MeshAnimationType_e
+	enum MeshAnimationTypeE
 	{
 		MA_All,
 		MA_Both,
@@ -75,25 +73,25 @@ protected:
 		// NOTE: Team Arena has extra torso animations after legs
 		MA_Head,
 		MA_MAX
-	} MeshAnimationTypeE;
+	};
 
-	typedef struct _MeshVectorInfo_t
+	struct MeshVectorInfoT
 	{
 		int32_t id;
 		int8_t lat;
 		int8_t lng;
 		float s;
 		float t;
-	} MeshVectorInfoT;
+	};
 
-	typedef struct _VertexTexCheck_t
+	struct VertexTexCheckT
 	{
 		unsigned id;
 		float s;
 		float t;
-	} VertexTexCheckT;
+	};
 
-	typedef struct _Md3FileData_t
+	struct Md3FileDataT
 	{
 		MeshSectionE section;
 		std::string modelBaseName;
@@ -107,15 +105,15 @@ protected:
 		int32_t numTags;
 		int32_t numFrames;
 		MeshVectorInfoT ** meshVecInfos;
-	} Md3FileDataT;
-	typedef std::list<Md3FileDataT>Md3FileDataList;
+	};
+	typedef std::list<Md3FileDataT> Md3FileDataList;
 
-	typedef struct _Md3Path_t
+	struct Md3PathT
 	{
 		MeshSectionE section;
 		int material;
 		std::string path;
-	} Md3PathT;
+	};
 	typedef std::vector<Md3PathT>Md3PathList;
 
 	unsigned readString(char *dest, size_t len);
@@ -166,7 +164,8 @@ protected:
 
 	//writes util
 	bool	  animSyncWarning(std::string name);
-	bool	  getVertexNormal(Model *model, int groupId, int vertexId, float *normal);
+	//bool	  getVertexNormal(Model *model, int groupId, int vertexId, float *normal);
+	void resetVertexNormals(Model *model, Mesh &mesh);
 	double	greater(double a, double b);
 	double	smaller(double a, double b);
 	Matrix	getMatrixFromPoint(int anim, int frame, int point);

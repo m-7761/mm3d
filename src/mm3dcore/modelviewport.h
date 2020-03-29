@@ -91,9 +91,7 @@ public:
 		MO_None,
 		MO_Tool,
 		MO_Pan,
-		MO_PanButton,
 		MO_Rotate,
-		MO_RotateButton,
 	};
 
 	struct ViewStateT
@@ -114,10 +112,10 @@ public:
 	void frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2);
 		
 	// Tool::Parent methods		
-	void getParentXYValue(int x, int y, double &xval, double &yval,bool selected);
+	void getParentXYValue(int bs, int x, int y, double &xval, double &yval, bool selected);
 	void getRawParentXYValue(int x, int y, double &xval, double &yval)
 	{
-		xval =  x/(double)m_viewportWidth*m_width-m_width/2;
+		xval = x/(double)m_viewportWidth*m_width-m_width/2;
 		yval = y/(double)m_viewportHeight*m_height-m_height/2;
 	}
 
@@ -143,7 +141,6 @@ protected:
 	bool updateBackground();
 	
 	void drawGridLines();
-	void drawOrigin();
 	void drawBackground();
 	void freeBackground() //UNUSED
 	{
@@ -256,13 +253,14 @@ public: //slots:
 	{
 		return ports[m_focus].m_view; 
 	}
-	virtual void getParentXYValue(int x, int y, double &xval, double &yval, bool selected)
+	virtual void getParentXYValue(double &xval, double &yval, bool selected)
 	{
-		ports[m_focus].getParentXYValue(x,y,xval,yval,selected);
+		//TODO: Cache result?
+		ports[m_focus].getParentXYValue(_bs,_bx,_by,xval,yval,selected);
 	}
-	virtual void getRawParentXYValue(int x, int y, double &xval, double &yval)
+	virtual void getRawParentXYValue(double &xval, double &yval)
 	{
-		ports[m_focus].getRawParentXYValue(x,y,xval,yval);
+		ports[m_focus].getRawParentXYValue(_bx,_by,xval,yval);
 	}
 	virtual const Matrix &getParentViewMatrix()const
 	{
@@ -280,7 +278,7 @@ public: //slots:
 	{
 		return ports[m_focus].m_zoom;
 	} 
-	virtual void getXYZ(int x, int y, double*,double*,double*);
+	virtual void getXYZ(double*,double*,double*);
 };
 
 #endif // __MVIEWPORT_H

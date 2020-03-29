@@ -51,11 +51,11 @@ struct MoveTool : Tool
 		TRANSLATE("Tool","Tip: Hold shift to restrict movement to one dimension"));
 	}
 	
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Move complete"));
@@ -68,21 +68,21 @@ struct MoveTool : Tool
 
 extern Tool *movetool(){ return new MoveTool; }
 
-void MoveTool::mouseButtonDown(int buttonState, int x, int y)
+void MoveTool::mouseButtonDown()
 {
-	parent->getParentXYValue(x,y,m_x,m_y,true);
+	parent->getParentXYValue(m_x,m_y,true);
 
 	m_allowX = m_allowY = true;
 	
 	model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Moving selected primitives"));
 }
-void MoveTool::mouseButtonMove(int buttonState, int x, int y)
+void MoveTool::mouseButtonMove()
 {	
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
-	if(buttonState&BS_Shift&&m_allowX&&m_allowY)
+	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
 	{
 		double ax = fabs(pos[0]-m_x);
 		double ay = fabs(pos[1]-m_y);
@@ -94,19 +94,20 @@ void MoveTool::mouseButtonMove(int buttonState, int x, int y)
 	if(!m_allowX) pos[0] = m_x;
 	if(!m_allowY) pos[1] = m_y;
 
-	double v[4] = { pos[0]-m_x,pos[1]-m_y,0,1 };
+	double v[3] = { pos[0]-m_x,pos[1]-m_y,0 };
 
 	m_x = pos[0]; m_y = pos[1];
 
 	parent->getParentViewInverseMatrix().apply3(v);
 
-	Matrix m; //???
+	/*Matrix m; //???
 	m.set(3,0,v[0]);
 	m.set(3,1,v[1]);
-	m.set(3,2,v[2]);
+	m.set(3,2,v[2]);*/
 
 	//FIX ME: Translate via vector.
-	parent->getModel()->translateSelected(m);
+	//parent->getModel()->translateSelected(m);
+	parent->getModel()->translateSelected(v);
 	parent->updateAllViews();
 }
 

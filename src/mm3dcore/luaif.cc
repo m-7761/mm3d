@@ -61,7 +61,7 @@ LuaContext::~LuaContext()
 // Script functions
 //-----------------------------------------------------------------------------
 
-void _luaif_error(lua_State *L, const char *str)
+void luaif_error(lua_State *L, const char *str)
 {
 	lua_pushstring(L,str);
 	lua_error(L);
@@ -75,7 +75,7 @@ extern "C" int luaif_die(lua_State *L)
 	{
 		errstr = lua_tostring(L,1);
 	}
-	_luaif_error(L,errstr.c_str());
+	luaif_error(L,errstr.c_str());
 
 	return 0;
 }
@@ -122,7 +122,7 @@ extern "C" int luaif_modelSaveAs(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelSaveAs(file_string)");
+		luaif_error(L,"usage: modelSaveAs(file_string)");
 	}
 
 	lua_pushboolean(L,success);
@@ -189,7 +189,7 @@ extern "C" int luaif_modelCreateMeshRectangle(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelCreateMeshRectangle(x1,y1,z1,... x4,y4,z4)");
+		luaif_error(L,"usage: modelCreateMeshRectangle(x1,y1,z1,... x4,y4,z4)");
 	}
 
 	lua_pushnumber(L,index);
@@ -232,6 +232,8 @@ extern "C" int luaif_modelCreateBoneJoint(lua_State *L)
 		double		 z		= lua_tonumber(L,4);
 		int			 parent = (int)lua_tonumber(L,5);
 
+		/*Though not ideal it should be safe to ignore this in the event that
+		//this system is put to some use.
 		double xrot = 0.0;
 		double yrot = 0.0;
 		double zrot = 0.0;
@@ -241,14 +243,14 @@ extern "C" int luaif_modelCreateBoneJoint(lua_State *L)
 			xrot	= lua_tonumber(L,6);
 			yrot	= lua_tonumber(L,7);
 			zrot	= lua_tonumber(L,8);
-		}
+		}*/
 
 		index = scriptif_modelCreateBoneJoint(model,
-				name,x,y,z,xrot,yrot,zrot,parent);
+				name,x,y,z/*,xrot,yrot,zrot*/,parent);
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelCreateBoneJoint(name_string,x,y,z,parent [,xrot,yrot,zrot])");
+		luaif_error(L,"usage: modelCreateBoneJoint(name_string,x,y,z,parent [,xrot,yrot,zrot])");
 	}
 
 	lua_pushnumber(L,index);
@@ -275,7 +277,7 @@ extern "C" int luaif_vertexSetCoords(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: vertexSetCoords(vertex_num,x,y,z)");
+		luaif_error(L,"usage: vertexSetCoords(vertex_num,x,y,z)");
 	}
 
 	return 0;
@@ -296,7 +298,7 @@ extern "C" int luaif_modelAddTexture(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelAddTexture(name_string)");
+		luaif_error(L,"usage: modelAddTexture(name_string)");
 	}
 
 	lua_pushnumber(L,index);
@@ -317,7 +319,7 @@ extern "C" int luaif_groupSetTexture(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: groupSetTexture(group_num,texture_num)");
+		luaif_error(L,"usage: groupSetTexture(group_num,texture_num)");
 	}
 
 	return 0;
@@ -340,7 +342,7 @@ extern "C" int luaif_faceSetTextureCoords(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: faceSetTextureCoords(group_num,texture_num,s_coord,t_coord)");
+		luaif_error(L,"usage: faceSetTextureCoords(group_num,texture_num,s_coord,t_coord)");
 	}
 
 	return 0;
@@ -361,7 +363,7 @@ extern "C" int luaif_selectedRotate(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: selectedRotate(x,y,z)");
+		luaif_error(L,"usage: selectedRotate(x,y,z)");
 	}
 
 	return 0;
@@ -382,7 +384,7 @@ extern "C" int luaif_selectedTranslate(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: selectedTranslate(x,y,z)");
+		luaif_error(L,"usage: selectedTranslate(x,y,z)");
 	}
 
 	return 0;
@@ -403,7 +405,7 @@ extern "C" int luaif_selectedScale(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: selectedScale(x,y,z)");
+		luaif_error(L,"usage: selectedScale(x,y,z)");
 	}
 
 	return 0;
@@ -456,7 +458,7 @@ extern "C" int luaif_selectedApplyMatrix(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: selectedApplyMatrix(m0 .. m15)");
+		luaif_error(L,"usage: selectedApplyMatrix(m0 .. m15)");
 	}
 
 	return 0;
@@ -498,7 +500,7 @@ extern "C" int luaif_selectedGroupFaces(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: selectedGroupFaces(name_string)");
+		luaif_error(L,"usage: selectedGroupFaces(name_string)");
 	}
 	
 	lua_pushnumber(L,id);
@@ -519,7 +521,7 @@ extern "C" int luaif_selectedAddToGroup(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: selectedAddToGroup(group_num)");
+		luaif_error(L,"usage: selectedAddToGroup(group_num)");
 	}
 
 	return 0;
@@ -606,7 +608,7 @@ extern "C" int luaif_modelGetGroupByName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelGetGroupByName(name_string)");
+		luaif_error(L,"usage: modelGetGroupByName(name_string)");
 	}
 
 	lua_pushnumber(L,id);
@@ -630,7 +632,7 @@ extern "C" int luaif_groupGetName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: groupGetName(group_num)");
+		luaif_error(L,"usage: groupGetName(group_num)");
 	}
 
 	lua_pushstring(L,name);
@@ -654,7 +656,7 @@ extern "C" int luaif_modelGetTextureByName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelGetTextureByName(name_string)");
+		luaif_error(L,"usage: modelGetTextureByName(name_string)");
 	}
 
 	lua_pushnumber(L,id);
@@ -678,7 +680,7 @@ extern "C" int luaif_textureGetName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: textureGetName(texture_num)");
+		luaif_error(L,"usage: textureGetName(texture_num)");
 	}
 
 	lua_pushstring(L,name);
@@ -700,7 +702,7 @@ extern "C" int luaif_textureGetFilename(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: textureGetFilename(texture_num)");
+		luaif_error(L,"usage: textureGetFilename(texture_num)");
 	}
 
 	lua_pushstring(L,filename);
@@ -746,7 +748,7 @@ extern "C" int luaif_setAnimByIndex(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: setAnimByIndex(type_string,anim_num)");
+		luaif_error(L,"usage: setAnimByIndex(type_string,anim_num)");
 	}
 
 	lua_pushboolean(L,success);
@@ -771,7 +773,7 @@ extern "C" int luaif_setAnimByName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: setAnimByName(type_string,name_string)");
+		luaif_error(L,"usage: setAnimByName(type_string,name_string)");
 	}
 
 	lua_pushboolean(L,success);
@@ -791,7 +793,7 @@ extern "C" int luaif_animSetFrame(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSetFrame(type_string,frame_num)");
+		luaif_error(L,"usage: animSetFrame(type_string,frame_num)");
 	}
 
 	return 0;
@@ -809,7 +811,7 @@ extern "C" int luaif_setAnimTime(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: setAnimTime(type_string,seconds)");
+		luaif_error(L,"usage: setAnimTime(type_string,seconds)");
 	}
 
 	return 0;
@@ -833,7 +835,7 @@ extern "C" int luaif_modelCreateAnimation(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelCreateAnimation(type_string,name_string,frame_count,frames_per_second)");
+		luaif_error(L,"usage: modelCreateAnimation(type_string,name_string,frame_count,frames_per_second)");
 	}
 
 	lua_pushnumber(L,index);
@@ -855,7 +857,7 @@ extern "C" int luaif_animGetCount(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animGetCount(type_string)");
+		luaif_error(L,"usage: animGetCount(type_string)");
 	}
 
 	lua_pushnumber(L,count);
@@ -878,7 +880,7 @@ extern "C" int luaif_animGetName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animGetName(type_string,anim_num)");
+		luaif_error(L,"usage: animGetName(type_string,anim_num)");
 	}
 
 	lua_pushstring(L,name);
@@ -901,7 +903,7 @@ extern "C" int luaif_animGetFrameCount(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animGetFrameCount(type_string,anim_num)");
+		luaif_error(L,"usage: animGetFrameCount(type_string,anim_num)");
 	}
 
 	lua_pushnumber(L,count);
@@ -923,7 +925,7 @@ extern "C" int luaif_animSetName(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSetName(type_string,anim_num,name_string)");
+		luaif_error(L,"usage: animSetName(type_string,anim_num,name_string)");
 	}
 
 	return 0;
@@ -945,7 +947,7 @@ extern "C" int luaif_animSetFrameCount(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSetFrame(type_string,anim_num,frame_count)");
+		luaif_error(L,"usage: animSetFrame(type_string,anim_num,frame_count)");
 	}
 
 	return 0;
@@ -967,7 +969,7 @@ extern "C" int luaif_animSetFPS(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSetFPS(type_string,anim_num,frames_per_second)");
+		luaif_error(L,"usage: animSetFPS(type_string,anim_num,frames_per_second)");
 	}
 
 	return 0;
@@ -990,7 +992,7 @@ extern "C" int luaif_animCopyFrame(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animCopyFrame(type_string,anim_num,source_frame,dest_frame)");
+		luaif_error(L,"usage: animCopyFrame(type_string,anim_num,source_frame,dest_frame)");
 	}
 
 	return 0;
@@ -1012,7 +1014,7 @@ extern "C" int luaif_animClearFrame(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animClearFrame(type_string,anim_num,frame_num)");
+		luaif_error(L,"usage: animClearFrame(type_string,anim_num,frame_num)");
 	}
 	return 0;
 }
@@ -1035,7 +1037,7 @@ extern "C" int luaif_animMove(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animMove(type_string,anim_old_index,anim_new_index)");
+		luaif_error(L,"usage: animMove(type_string,anim_old_index,anim_new_index)");
 	}
 	return 0;
 }
@@ -1058,7 +1060,7 @@ extern "C" int luaif_animCopy(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animCopy(type_string,anim_num,name_string)");
+		luaif_error(L,"usage: animCopy(type_string,anim_num,name_string)");
 	}
 
 	lua_pushnumber(L,rval);
@@ -1084,7 +1086,7 @@ extern "C" int luaif_animSplit(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSplit(type_string,anim_num,name_string,frame_num)");
+		luaif_error(L,"usage: animSplit(type_string,anim_num,name_string,frame_num)");
 	}
 
 	lua_pushnumber(L,rval);
@@ -1107,7 +1109,7 @@ extern "C" int luaif_animJoin(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSplit(type_string,anim_num1,anim_num2)");
+		luaif_error(L,"usage: animSplit(type_string,anim_num1,anim_num2)");
 	}
 
 	return 0;
@@ -1132,7 +1134,7 @@ extern "C" int luaif_animConvertToFrame(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: animSplit(type_string,anim_num,name_string,frame_count)");
+		luaif_error(L,"usage: animSplit(type_string,anim_num,name_string,frame_count)");
 	}
 
 	lua_pushnumber(L,rval);
@@ -1164,7 +1166,7 @@ extern "C" int luaif_skelAnimSetKeyframe(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: skelAnimSetKeyframe(anim_num,frame_num,joint_num,rotation_bool,x,y,z)");
+		luaif_error(L,"usage: skelAnimSetKeyframe(anim_num,frame_num,joint_num,rotation_bool,x,y,z)");
 	}
 
 	return 0;
@@ -1188,7 +1190,7 @@ extern "C" int luaif_skelAnimDeleteKeyframe(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: skelAnimDeleteKeyframe(anim_num,frame_num,joint_num,rotation_bool)");
+		luaif_error(L,"usage: skelAnimDeleteKeyframe(anim_num,frame_num,joint_num,rotation_bool)");
 	}
 
 	return 0;
@@ -1217,7 +1219,7 @@ extern "C" int luaif_frameAnimSetVertex(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: frameAnimSetVertex(anim_num,frame_num,vertex_num,x,y,z)");
+		luaif_error(L,"usage: frameAnimSetVertex(anim_num,frame_num,vertex_num,x,y,z)");
 	}
 
 	return 0;
@@ -1290,7 +1292,7 @@ extern "C" int luaif_modelSelectVertex(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelSelectVertex(vertex_num)");
+		luaif_error(L,"usage: modelSelectVertex(vertex_num)");
 	}
 	
 	return 0;
@@ -1309,7 +1311,7 @@ extern "C" int luaif_modelSelectFace(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelSelectFace(face_num)");
+		luaif_error(L,"usage: modelSelectFace(face_num)");
 	}
 	
 	return 0;
@@ -1328,7 +1330,7 @@ extern "C" int luaif_modelSelectGroup(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelSelectGroup(group_num)");
+		luaif_error(L,"usage: modelSelectGroup(group_num)");
 	}
 	
 	return 0;
@@ -1347,7 +1349,7 @@ extern "C" int luaif_modelSelectJoint(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelSelectJoint(joint_num)");
+		luaif_error(L,"usage: modelSelectJoint(joint_num)");
 	}
 	
 	return 0;
@@ -1373,7 +1375,7 @@ extern "C" int luaif_modelSelectMesh(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelSelectMesh(mesh_num)");
+		luaif_error(L,"usage: modelSelectMesh(mesh_num)");
 	}
 	
 	return 0;
@@ -1401,7 +1403,7 @@ extern "C" int luaif_logDebug(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: logDebug(string)");
+		luaif_error(L,"usage: logDebug(string)");
 	}
 	return 0;
 }
@@ -1414,7 +1416,7 @@ extern "C" int luaif_logWarning(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: logWarning(string)");
+		luaif_error(L,"usage: logWarning(string)");
 	}
 	return 0;
 }
@@ -1427,7 +1429,7 @@ extern "C" int luaif_logError(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: logError(string)");
+		luaif_error(L,"usage: logError(string)");
 	}
 	return 0;
 }
@@ -1510,7 +1512,7 @@ extern "C" int luaif_modelLoad(lua_State *L)
 		{
 			char str[64];
 			snprintf(str,sizeof(str),"Error loading file '%s'",filename);
-			_luaif_error(L,str);
+			luaif_error(L,str);
 			delete newModel;
 			newModel = nullptr;
 		}
@@ -1519,7 +1521,7 @@ extern "C" int luaif_modelLoad(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelLoad(file_string)");
+		luaif_error(L,"usage: modelLoad(file_string)");
 		lua_pushnil(L);
 	}
 	return 1;
@@ -1543,7 +1545,7 @@ extern "C" int luaif_modelCompareToCurrent(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelCompareToCurrent([compare_string] ... )");
+		luaif_error(L,"usage: modelCompareToCurrent([compare_string] ... )");
 	}
 
 
@@ -1561,7 +1563,7 @@ extern "C" int luaif_modelClose(lua_State *L)
 	{
 		Model *model = (Model *)lua_topointer(L,1);
 
-		vector<Model *>::iterator it = LC->m_list.begin();
+		vector<Model*>::iterator it = LC->m_list.begin();
 		while(it!=LC->m_list.end())
 		{
 			if((*it)==model)
@@ -1582,7 +1584,7 @@ extern "C" int luaif_modelClose(lua_State *L)
 	}
 	else
 	{
-		_luaif_error(L,"usage: modelClose(model)");
+		luaif_error(L,"usage: modelClose(model)");
 	}
 
 	lua_pushboolean(L,(int)found);

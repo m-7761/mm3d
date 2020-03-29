@@ -52,13 +52,12 @@
 class FilterManager
 {
 public:
-	enum _WriteOptions_e
+	enum WriteOptionsE
 	{
 		WO_FilterDefault,
 		WO_ModelDefault,
-		WO_ModelNoPrompt
+		WO_ModelNoPrompt,
 	};
-	typedef enum _WriteOptions_e WriteOptionsE;
 
 	static FilterManager *getInstance();
 	static void release();

@@ -53,7 +53,7 @@ struct RotateTextureCommand : Command
 		//I don't know how often UVs are legitimately off, if
 		//ever, aside from UV editing.
 		//NOTE: USING Ctrl+Shift+U SO THE MENUS ARE SAME SIZE.
-		return getPath()==GEOM_FACES_MENU?"U":"Ctrl+Shift+U"; 
+		return getPath()==GEOM_FACES_MENU?"U":"Shift+Ctrl+U"; 
 	}
 
 	virtual bool activated(int, Model *model);

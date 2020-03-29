@@ -44,20 +44,20 @@ struct VertexTool : Tool
 
 	virtual const char *getKeymap(int){ return "Shift+Z"; }
 	
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 		ToolCoordT m_vertex;
 };
 
 extern Tool *vertextool(){ return new VertexTool; }
 
-void VertexTool::mouseButtonDown(int buttonState, int x, int y)
+void VertexTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1],true);
 
 	m_vertex = addPosition(Model::PT_Vertex,pos[0],pos[1],0);
 	model->setVertexFree(m_vertex,true);
@@ -70,10 +70,10 @@ void VertexTool::mouseButtonDown(int buttonState, int x, int y)
 
 	parent->updateAllViews();
 }
-void VertexTool::mouseButtonMove(int buttonState, int x, int y)
+void VertexTool::mouseButtonMove()
 {
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	movePosition(m_vertex.pos,pos[0],pos[1],0);
 

@@ -37,53 +37,58 @@ parent(),m_type(tt),m_args(count),m_path(path)
 Tool::~Tool(){ s_allocated--; }
 
 Tool::ToolCoordT Tool::addPosition
-(Model::PositionTypeE type, double x, double y, double z)
-{
-	return addPosition(type,nullptr,x,y,z);
-}
-Tool::ToolCoordT Tool::addPosition
-(Model::PositionTypeE type, const char *name, 
-double x, double y, double z, 
-double xrot, double yrot, double zrot, int boneId)
-{
-	Model::Position pos;
-	pos.type  = type;
-	pos.index = ~0;
+(Model::PositionTypeE type, 
+double x, double y, double z, const char *name, int boneId)
+{	
+	Model *model = parent->getModel();
 
 	//Matrix m = parent->getParentViewInverseMatrix();
 	const Matrix &m = parent->getParentViewInverseMatrix();
-
-	double tranVec[4] = { x,y,z,1.0 };
-
+	double tranVec[4] = { x,y,z,1 };
 	m.apply(tranVec);
 
-	double rotVec[3] = { xrot,yrot,zrot };
-	Matrix rot;
-	rot.setRotation(rotVec);
-	rot = rot *m;
-	rot.getRotation(rotVec);
-
-	Model *model = parent->getModel();
-
-	switch (type)
+	Model::Position pos;
+	pos.type  = type;
+	pos.index = ~0U;
+	switch(type)
 	{
 	case Model::PT_Vertex:
 		pos.index = model->addVertex(tranVec[0],tranVec[1],tranVec[2]);
 		break;
 	case Model::PT_Joint:
-		pos.index = model->addBoneJoint(name,tranVec[0],tranVec[1],tranVec[2],
-					rotVec[0],rotVec[1],rotVec[2],boneId);
-		break;
+
+		//FIX ME
+		//Because rotateSelected works in the global frame assigning a
+		//random rotation just confuses things since it's canceled out.
+		//if(1)
+		{
+			pos.index = model->addBoneJoint(name,tranVec[0],tranVec[1],tranVec[2]/*,0,0,0*/,boneId);
+			break;
+		}
+		//break; //FALLING THROUGH?
+
 	case Model::PT_Point:
+	{		
+		double rotVec[3] = { /*xrot,yrot,zrot*/ };
+		Matrix rot;
+		rot.setRotation(rotVec);
+		rot = rot *m;
+		rot.getRotation(rotVec);
+		//I don't know if this is helpful for joints since their Z-axis is
+		//defined by their parent-child relationship.
+	//	if(Model::PT_Joint==type)
+	//	pos.index = model->addBoneJoint(name,tranVec[0],tranVec[1],tranVec[2],
+	//				rotVec[0],rotVec[1],rotVec[2],boneId);
+		if(Model::PT_Point==type)
 		pos.index = model->addPoint(name,tranVec[0],tranVec[1],tranVec[2],
-					rotVec[0],rotVec[1],rotVec[2],boneId);
+					rotVec[0],rotVec[1],rotVec[2]);
 		break;
+	}		
 	case Model::PT_Projection:
 		pos.index = model->addProjection(name,Model::TPT_Cylinder,tranVec[0],tranVec[1],tranVec[2]);
 		break;
 	default:
-		log_error("don't know how to add a point of type %d\n",
-					static_cast<int>(type));
+		log_error("don't know how to add a point of type %d\n",static_cast<int>(type));
 		break;
 	}
 
@@ -103,7 +108,7 @@ void Tool::movePosition
 	//Matrix m = parent->getParentViewInverseMatrix();
 	const Matrix &m = parent->getParentViewInverseMatrix();
 
-	double tranVec[4] = { x,y,z,1.0 };
+	double tranVec[3] = { x,y,z };
 
 	/*
 	log_debug("orig position is %f %f %f\n",

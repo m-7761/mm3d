@@ -31,8 +31,8 @@ class sorted_list : public std::vector<T>
 {
 public:
 
-	sorted_list(){} //???
-	virtual ~sorted_list(){} //???
+	//sorted_list(){} //???
+	//virtual ~sorted_list(){} //???
 
 	void insert_sorted(const T &val);
 	bool find_sorted(const T &val, unsigned &index)const;
@@ -99,8 +99,8 @@ class sorted_ptr_list : public std::vector<T>
 {
 public:
 
-	sorted_ptr_list(){} //???
-	virtual ~sorted_ptr_list(){} //???
+	//sorted_ptr_list(){} //???
+	//virtual ~sorted_ptr_list(){} //???
 
 	void insert_sorted(const T &val);
 	bool find_sorted(const T &val, unsigned &index)const;

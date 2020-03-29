@@ -21,9 +21,9 @@
  */
 
 #include "mm3dtypes.h" //PCH
-#include "win.h"
 
-#include "model.h"
+#include "viewwin.h"
+
 #include "glmath.h"
 
 #include "log.h"
@@ -32,7 +32,7 @@ struct SpherifyWin : Win
 {
 	void submit(int);
 
-	SpherifyWin(Model *model)
+	SpherifyWin(MainWin &model)
 		:
 	Win("Spherify"),model(model),
 	radius(params.radius_init(model)),
@@ -46,7 +46,7 @@ struct SpherifyWin : Win
 		submit(id_init);
 	}
 
-	Model *model;
+	MainWin &model;
 	
 	struct SpherifyPosition
 	{
@@ -54,7 +54,7 @@ struct SpherifyWin : Win
 	};
 	struct Parameters : std::vector<SpherifyPosition>
 	{
-		double centerpoint[3], radius_init(Model*);
+		double centerpoint[3], radius_init(MainWin&);
 	};
 
 	//HACK: Constructor needs these in this order.
@@ -64,29 +64,26 @@ struct SpherifyWin : Win
 	f1_ok_cancel_panel f1_ok_cancel;
 };
 
-extern void spherifywin(Model *model)
+extern void spherifywin(Model *model) //spherifycmd.cc
 {
-	SpherifyWin(model).return_on_close();
+	SpherifyWin(MainWin::cast(model)).return_on_close();
 }
 
-double SpherifyWin::Parameters::radius_init(Model *model)
+double SpherifyWin::Parameters::radius_init(MainWin &model)
 {
-	pos_list l; model->getSelectedPositions(l);
-
 	//WORRIED THIS IS IMPRECISE
-	double init = l.empty()?0.0:DBL_MAX;
+	double init = model.selection.empty()?0.0:DBL_MAX;
 	double cmin[3] = {init}, cmax[3] = {-init};
 	
-	pos_list::iterator itt,it;
-	for(it=l.begin(),itt=l.end();it<itt;it++)
+	for(auto&i:model.selection)
 	{
-		SpherifyPosition sv; sv.pos = *it;
-		model->getPositionCoords(*it,sv.coords);
+		SpherifyPosition sv; sv.pos = i;
+		model->getPositionCoords(i,sv.coords);
 		push_back(sv);
-		for(int i=0;i<3;i++)
-		cmin[i] = std::min(cmin[i],sv.coords[i]);
-		for(int i=0;i<3;i++)
-		cmax[i] = std::max(cmax[i],sv.coords[i]);
+		for(int j=0;j<3;j++)
+		cmin[j] = std::min(cmin[j],sv.coords[j]);
+		for(int j=0;j<3;j++)
+		cmax[j] = std::max(cmax[j],sv.coords[j]);
 	}
 	for(int i=0;i<3;i++)
 	{
@@ -95,12 +92,11 @@ double SpherifyWin::Parameters::radius_init(Model *model)
 
 	double radius = 0;
 	{
-		Parameters::iterator it,itt;
-		for(it=begin(),itt=end();it<itt;it++)
+		for(auto&ea:*this)
 		{
 			radius = std::max(radius,distance
 			(centerpoint[0],centerpoint[1],centerpoint[2],
-			it->coords[0],it->coords[1],it->coords[2]));
+			ea.coords[0],ea.coords[1],ea.coords[2]));
 		}
 	 
 		log_debug("center is %f,%f,%f\n",centerpoint[0],centerpoint[1],centerpoint[2]);

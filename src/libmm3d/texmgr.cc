@@ -35,11 +35,11 @@
 
 typedef const char *utf8; //REMOVE ME
 
-static bool _doWarning = false;
+static bool txmgr_doWarning = false;
 
 void texture_manager_do_warning(Model *model) 
 {
-	if(!_doWarning) return; _doWarning = false;
+	if(!txmgr_doWarning) return; txmgr_doWarning = false;
 
 	const char *msg =  
 	TRANSLATE("LowLevel",
@@ -157,7 +157,7 @@ Texture *TextureManager::getTexture(const char *name_and_format, DataSource &src
 		newTexture->m_origHeight = newTexture->m_height;	
 		if(texture_scale_need_scale(newTexture->m_width,newTexture->m_height))
 		{
-			if(warning) _doWarning = true;
+			if(warning) txmgr_doWarning = true;
 
 			/*2019: Disabling this NPOT (non-power-of-two) hack.
 			//I'm uncomfortable upscaling. End-users can adjust.

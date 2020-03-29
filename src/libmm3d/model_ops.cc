@@ -34,16 +34,6 @@
 #include "modelundo.h"
 #endif // MM3D_EDIT
 
-static void _calculateNormal(float *normal,
-		double *a, double *b, double *c)
-{
-	normal[0] = a[1] *(b[2]-c[2])+b[1] *(c[2]-a[2])+c[1] *(a[2]-b[2]);
-	normal[1] = a[2] *(b[0]-c[0])+b[2] *(c[0]-a[0])+c[2] *(a[0]-b[0]);
-	normal[2] = a[0] *(b[1]-c[1])+b[0] *(c[1]-a[1])+c[0] *(a[1]-b[1]);
-
-	normalize3(normal);
-}
-
 // FIXME centralize this
 const double EQ_TOLERANCE = 0.00001;
 
@@ -186,16 +176,20 @@ static bool influencesMatch(const infl_list &lhs,
 	return true;
 }
 
-struct _TriMatch_t
+struct model_ops_TriMatchT
 {
 	int rtri;
 	int indexOffset;
 };
-typedef struct _TriMatch_t TriMatchT;
-typedef std::unordered_map<int,TriMatchT> TriMatchMap;
+typedef std::unordered_map<int,model_ops_TriMatchT> model_ops_TriMatchMap;
 
 bool Model::equivalent(const Model *model, double tolerance)const
 {
+		//CORRECT???
+		//HACK? Need to update m_final matrix.
+		//(jointsMatch calls getBoneJointFinalMatrix.)
+		validateAnimSkel(); model->validateAnimSkel();
+
 	int lhsTCount	 = m_triangles.size();
 	int rhsTCount	 = model->m_triangles.size();
 	int lhsGCount	 = m_groups.size();
@@ -307,7 +301,7 @@ bool Model::equivalent(const Model *model, double tolerance)const
 		}
 	}
 
-	TriMatchMap triMap;
+	model_ops_TriMatchMap triMap;
 
 	BoolList triMatched;
 	triMatched.resize(rhsTCount,false);
@@ -448,7 +442,7 @@ bool Model::equivalent(const Model *model, double tolerance)const
 					{
 						triMatched[*rit] = true;
 
-						TriMatchT tm;
+						model_ops_TriMatchT tm;
 						tm.rtri = *rit;
 						tm.indexOffset = matchOffset;
 						triMap[*it] = tm;
@@ -483,16 +477,15 @@ bool Model::equivalent(const Model *model, double tolerance)const
 		{
 			if(!pointMatched[rp])
 			{
-				Matrix lMat;
-				Matrix rMat;
+				Matrix lMat,rMat;
 
-				getPointRotation(p,rot);
-				getPointTranslation(p,trans);
+				getPointRotationUnanimated(p,rot);
+				getPointCoordsUnanimated(p,trans);
 				lMat.setRotation(rot);
 				lMat.setTranslation(trans);
 
-				model->getPointRotation(rp,rot);
-				model->getPointTranslation(rp,trans);
+				model->getPointRotationUnanimated(rp,rot);
+				model->getPointCoordsUnanimated(rp,trans);
 				rMat.setRotation(rot);
 				rMat.setTranslation(trans);
 
@@ -559,39 +552,58 @@ bool Model::equivalent(const Model *model, double tolerance)const
 		if(fabs(getAnimFPS(mode,a)-model->getAnimFPS(mode,a))
 			 >tolerance)
 		{
-			log_warning("animation fps mismatch on %d,lhs = %d,rhs = %d\n",
+			//How to print?
+			//log_warning("animation fps mismatch on %d,lhs = %d,rhs = %d\n",
+			log_warning("animation fps mismatch on %d,lhs = %f,rhs = %f\n",
 					a,model->getAnimFPS(mode,a),model->getAnimFPS(mode,a));
 			return false;
 		}
 
 		int fcount = getAnimFrameCount(mode,a);
+		
+		//FIX ME //Why not propEqual?
+		auto sa = m_skelAnims[a], sb = model->m_skelAnims[a]; //2020
+		Matrix lhs_mat, rhs_mat;
 
 		for(int f = 0; f<fcount; ++f)
 		{
-			for(b = 0; b<lhsBCount; ++b)
+			auto time = sa->m_timetable2020[f];
+			if(fabs(time-sb->m_timetable2020[f])>tolerance)
 			{
-				int rb = jointMap[b];
+				log_warning("animation timestamp mismatch on %d,lhs = %f,rhs = %f\n",
+						a,time,sb->m_timetable2020[f]);
+				return false;
+			}
+			for(Position b{PT_Joint,0};b<lhsBCount;b++)
+			{
+				Position rb{PT_Joint,jointMap[b]};
+				
+				//NOTE: These omit model-> so would always fail.
+				//I want to retire interpSkelAnimKeyframe usage.
+				//https://github.com/zturtleman/mm3d/issues/123
+				/*REFERENCE (2020)
 
 				bool lhs_havekf;
 				bool rhs_havekf;
+
 				double lhs_param[3];
 				double rhs_param[3];
 
-				lhs_havekf = getSkelAnimKeyframe(a,f,b,true,
+				lhs_havekf = getKeyframe(a,f,b,KeyRotate,
 						lhs_param[0],lhs_param[1],lhs_param[2]);
-				rhs_havekf = getSkelAnimKeyframe(a,f,rb,true,
+				rhs_havekf = getKeyframe(a,f,rb,KeyRotate,
 						rhs_param[0],rhs_param[1],rhs_param[2]);
 
 				if(lhs_havekf!=rhs_havekf)
 				{
 					if(!lhs_havekf)
 					{
-						interpSkelAnimKeyframe(a,f,true,b,true,
+						interpSkelAnimKeyframe(a,f,true,b,KeyRotate,
 								lhs_param[0],lhs_param[1],lhs_param[2]);
 					}
 					if(!rhs_havekf)
 					{
-						interpSkelAnimKeyframe(a,f,true,rb,true,
+						interpSkelAnimKeyframe(a,f,true,rb,KeyRotate,
 								rhs_param[0],rhs_param[1],rhs_param[2]);
 					}
 				}
@@ -611,21 +623,21 @@ bool Model::equivalent(const Model *model, double tolerance)const
 					}
 				}
 
-				lhs_havekf = getSkelAnimKeyframe(a,f,b,false,
+				lhs_havekf = getKeyframe(a,f,b,KeyTranslate,
 						lhs_param[0],lhs_param[1],lhs_param[2]);
-				rhs_havekf = getSkelAnimKeyframe(a,f,rb,false,
+				rhs_havekf = getKeyframe(a,f,rb,KeyTranslate,
 						rhs_param[0],rhs_param[1],rhs_param[2]);
 
 				if(lhs_havekf!=rhs_havekf)
 				{
 					if(!lhs_havekf)
 					{
-						interpSkelAnimKeyframe(a,f,true,b,false,
+						interpSkelAnimKeyframe(a,f,true,b,KeyTranslate,
 								lhs_param[0],lhs_param[1],lhs_param[2]);
 					}
 					if(!rhs_havekf)
 					{
-						interpSkelAnimKeyframe(a,f,true,rb,false,
+						interpSkelAnimKeyframe(a,f,true,rb,KeyTranslate,
 								rhs_param[0],rhs_param[1],rhs_param[2]);
 					}
 				}
@@ -638,6 +650,15 @@ bool Model::equivalent(const Model *model, double tolerance)const
 								f,a,b);
 						return false;
 					}
+				}*/
+				//HACK: I hope this is good enough?
+				interpKeyframe(a,f,time,b,lhs_mat);
+				model->interpKeyframe(a,f,time,rb,rhs_mat);
+				if(!matrixEquiv(lhs_mat,rhs_mat/*,tolerance?*/))
+				{
+					log_warning("keyframe %d mismatch on anim %d for joint %d\n",
+							f,a,b);
+					return false;
 				}
 			}
 		}
@@ -681,7 +702,7 @@ bool Model::equivalent(const Model *model, double tolerance)const
 
 		for(int f = 0; f<fcount; ++f)
 		{
-			TriMatchMap::const_iterator it;
+			model_ops_TriMatchMap::const_iterator it;
 			for(it = triMap.begin(); it!=triMap.end(); ++it)
 			{
 				double coords[3];
@@ -691,12 +712,12 @@ bool Model::equivalent(const Model *model, double tolerance)const
 					int lv = getTriangleVertex(it->first,i);
 					int rv = model->getTriangleVertex(it->second.rtri,
 							(i+it->second.indexOffset)%3);
-					getFrameAnimVertexCoords(a,f,lv,
+					auto le = getFrameAnimVertexCoords(a,f,lv,
 							coords[0],coords[1],coords[2]);
-					model->getFrameAnimVertexCoords(a,f,rv,
+					auto re = model->getFrameAnimVertexCoords(a,f,rv,
 							rcoords[0],rcoords[1],rcoords[2]);
 
-					if(!floatCompareVector(coords,rcoords,3,tolerance))
+					if(le!=re||le&&!floatCompareVector(coords,rcoords,3,tolerance))
 					{
 						log_warning("anim frame triangle %d mismatch on anim %d for frame %d\n",
 								it->first,a,f);
@@ -711,9 +732,11 @@ bool Model::equivalent(const Model *model, double tolerance)const
 				double vec[3];
 				double rvec[3];
 
-				getFrameAnimPointCoords(a,f,pit->first,
+				//getFrameAnimPointCoords(a,f,pit->first,
+				getKeyframe(a,f,{PT_Point,(unsigned)pit->first},KeyTranslate,
 						vec[0],vec[1],vec[2]);
-				model->getFrameAnimPointCoords(a,f,pit->second,
+				//model->getFrameAnimPointCoords(a,f,pit->second,
+				model->getKeyframe(a,f,{PT_Point,(unsigned)pit->second},KeyTranslate,
 						rvec[0],rvec[1],rvec[2]);
 
 				if(!floatCompareVector(vec,rvec,3,tolerance))
@@ -723,9 +746,11 @@ bool Model::equivalent(const Model *model, double tolerance)const
 					return false;
 				}
 
-				getFrameAnimPointRotation(a,f,pit->first,
+				//getFrameAnimPointRotation(a,f,pit->first,
+				getKeyframe(a,f,{PT_Point,(unsigned)pit->first},KeyRotate,
 						vec[0],vec[1],vec[2]);
-				model->getFrameAnimPointRotation(a,f,pit->second,
+				//model->getFrameAnimPointRotation(a,f,pit->second,
+				model->getKeyframe(a,f,{PT_Point,(unsigned)pit->second},KeyRotate,
 						rvec[0],rvec[1],rvec[2]);
 
 				if(!floatCompareVector(vec,rvec,3,tolerance))
@@ -759,7 +784,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 
 	std::string dstr;
 
-	if(partBits &PartVertices)
+	if(partBits &(PartVertices|PartFrameAnims/*2020*/))
 	{
 		if(numVertices!=model->m_vertices.size())
 		{
@@ -1023,10 +1048,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 
 bool Model::mergeAnimations(Model *model)
 {
-	if(m_animationMode)
-	{
-		return false;
-	}
+	if(m_animationMode) return false; //REMOVE ME
 
 	unsigned count = model->getAnimCount(ANIMMODE_SKELETAL);
 	unsigned ac1 = getAnimCount(ANIMMODE_SKELETAL);
@@ -1051,8 +1073,8 @@ bool Model::mergeAnimations(Model *model)
 		goto mismatchwarn;
 	}
 
-	bool canAdd = canAddOrDelete();
-	forceAddOrDelete(true);
+//	bool canAdd = canAddOrDelete();
+//	forceAddOrDelete(true);
 
 	// Do skeletal add
 	{
@@ -1066,12 +1088,12 @@ bool Model::mergeAnimations(Model *model)
 
 			SkelAnim *sa = model->m_skelAnims[n];
 
-			for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)			
-			for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
+			for(unsigned j = 0; j<sa->m_keyframes.size(); j++)			
+			for(unsigned k = 0; k<sa->m_keyframes[j].size(); k++)
 			{
-				Keyframe *kf = sa->m_jointKeyframes[j][k];
+				Keyframe *kf = sa->m_keyframes[j][k];
 
-				setSkelAnimKeyframe(ac1+n,kf->m_frame,j,kf->m_isRotation,
+				setKeyframe(ac1+n,kf->m_frame,{Model::PT_Joint,j},kf->m_isRotation,
 						kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
 			}
 		}
@@ -1079,20 +1101,17 @@ bool Model::mergeAnimations(Model *model)
 
 	invalidateNormals();
 
-	forceAddOrDelete(canAdd&&m_frameAnims.empty());
+//	forceAddOrDelete(canAdd&&m_frameAnims.empty());
 
 	return true;
 }
 
 bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bool emptyGroups, double *trans, double *rot)
 {
-	if(m_animationMode)
-	{
-		return false;
-	}
+	if(m_animationMode) return false; //REMOVE ME
 
-	bool canAdd = canAddOrDelete();
-	forceAddOrDelete(true);
+//	bool canAdd = canAddOrDelete();
+//	forceAddOrDelete(true);
 
 	Matrix mat;
 
@@ -1139,7 +1158,7 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 		Vertex *vert = model->m_vertices[n];
 		Vector vec(vert->m_coord);
 		vec = vec *mat;
-		addVertex(vec.get(0),vec.get(1),vec.get(2));
+		addVertex(vec[0],vec[1],vec[2]);
 	}
 
 	count = model->m_triangles.size();
@@ -1171,7 +1190,7 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 	count = model->m_joints.size();
 	if(count>0)
 	{
-		model->setupJoints();
+		model->validateSkel();
 		for(n = 0; n<count; n++)
 		{
 			Joint *joint = model->m_joints[n];
@@ -1190,8 +1209,12 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 				parent += jointbase;
 			}
 
+			//NOTE: Passing those rotations to addBoneJoint was
+			//incorrect anyway since it modified them.
+			unsigned i =
 			addBoneJoint(joint->m_name.c_str(),tran[0],tran[1],tran[2],
-					rot[0],rot[1],rot[2],parent);
+					/*rot[0],rot[1],rot[2],*/parent);
+			m_joints[i]->m_absolute.setRotation(rot);
 		}
 	}
 
@@ -1209,7 +1232,7 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 			rot[1] = point->m_rot[1];
 			rot[2] = point->m_rot[2];
 
-			abs.setTranslation(point->m_trans[0],point->m_trans[1],point->m_trans[2]);
+			abs.setTranslation(point->m_abs[0],point->m_abs[1],point->m_abs[2]);
 			abs.setRotation(rot);
 
 			Matrix pabs = abs *mat;
@@ -1220,7 +1243,7 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 			pabs.getTranslation(tran);
 
 			int pnum = addPoint(point->m_name.c_str(),tran[0],tran[1],tran[2],
-					rot[0],rot[1],rot[2],-1);
+					rot[0],rot[1],rot[2]);
 
 			infl_list *ilist = &model->m_points[n]->m_influences;
 			infl_list::iterator it;
@@ -1306,22 +1329,20 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 			const char *name = model->getProjectionName(n);
 			int type = model->getProjectionType(n);
 
-			double pos[3] = { 0,0,0 };
-			double up[3] = { 0,0,0 };
-			double seam[3] = { 0,0,0 };
-			double range[2][2] = { { 0,0 },{ 0,0 } };
+			double pos[3];
+			double rot[3];
+			double scale;
+			double range[2][2];
 
 			model->getProjectionCoords(n,pos);
-			model->getProjectionUp(n,up);
-			model->getProjectionSeam(n,seam);
-			model->getProjectionRange(n,
-					range[0][0],range[0][1],range[1][0],range[1][1]);
+			model->getProjectionRotation(n,rot);
+			scale = model->getProjectionScale(n);
+			model->getProjectionRange(n,range[0][0],range[0][1],range[1][0],range[1][1]);
 
 			addProjection(name,type,pos[0],pos[1],pos[2]);
-			setProjectionUp(n+projbase,up);
-			setProjectionSeam(n+projbase,seam);
-			setProjectionRange(n+projbase,
-					range[0][0],range[0][1],range[1][0],range[1][1]);
+			setProjectionRotation(n+projbase,rot);
+			setProjectionScale(n+projbase,scale);
+			setProjectionRange(n+projbase,range[0][0],range[0][1],range[1][0],range[1][1]);
 		}
 
 		int tpcount = getProjectionCount();
@@ -1352,12 +1373,11 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 	}
 
 	bool frameAnimsNeeded = (getAnimCount(ANIMMODE_FRAME)>0);
-
-	if(frameAnimsNeeded)
+	/*if(frameAnimsNeeded)
 	{
 		setFrameAnimVertexCount(m_vertices.size());
-		setFrameAnimPointCount(m_vertices.size());
-	}
+		setFrameAnimPointCount(m_points.size());
+	}*/
 
 	unsigned oldcount = getAnimCount(ANIMMODE_FRAME);
 	if(animations!=AM_NONE)
@@ -1399,10 +1419,10 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 						for(unsigned v = 0; v<vertcount; v++)
 						{
 							double coord[3] = { 0,0,0 };
-							model->getFrameAnimVertexCoords(a,f,v,coord[0],coord[1],coord[2]);
+							auto e = model->getFrameAnimVertexCoords(a,f,v,coord[0],coord[1],coord[2]);
 							Vector vec(coord);
-							vec = vec *mat;
-							setFrameAnimVertexCoords(a,f,v+vertbase,vec.get(0),vec.get(1),vec.get(2));
+							if(e>InterpolateCopy) vec = vec * mat;
+							setFrameAnimVertexCoords(a,f,v+vertbase,vec[0],vec[1],vec[2],e);
 						}
 					}
 
@@ -1410,20 +1430,27 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 
 					for(f = 0; f<fc1; f++)
 					{
-						for(unsigned p = 0; p<pointcount; p++)
+						for(unsigned p=0;p<pointcount;p++)
 						{
 							double coord[3] = { 0,0,0 };
-							model->getFrameAnimPointCoords(a,f,p,coord[0],coord[1],coord[2]);
+							//model->getFrameAnimPointCoords(a,f,p,coord[0],coord[1],coord[2]);
+							auto e = model->getKeyframe(a,f,{PT_Point,p},KeyTranslate,coord[0],coord[1],coord[2]);
 							Vector vec(coord);
-							vec = vec *mat;
-							setFrameAnimPointCoords(a,f,p+pointbase,vec.get(0),vec.get(1),vec.get(2));
+							if(e>InterpolateCopy) vec = vec * mat;
+							//setFrameAnimPointCoords(a,f,p+pointbase,vec[0],vec[1],vec[2]);
+							setKeyframe(a,f,{PT_Point,p+pointbase},KeyTranslate,vec[0],vec[1],vec[2],e);
 
-							model->getFrameAnimPointRotation(a,f,p,coord[0],coord[1],coord[2]);
-							Matrix m;
-							m.setRotation(coord);
-							m = m *mat;
-							m.getRotation(coord);
-							setFrameAnimPointRotation(a,f,p+pointbase,coord[0],coord[1],coord[2]);
+							//model->getFrameAnimPointRotation(a,f,p,coord[0],coord[1],coord[2]);
+							e = model->getKeyframe(a,f,{PT_Point,p},KeyRotate,coord[0],coord[1],coord[2]);
+							if(e>InterpolateCopy)
+							{
+								Matrix m;
+								m.setRotation(coord);
+								m = m * mat;
+								m.getRotation(coord);
+							}
+							//setFrameAnimPointRotation(a,f,p+pointbase,coord[0],coord[1],coord[2]);
+							setKeyframe(a,f,{PT_Point,p+pointbase},KeyRotate,coord[0],coord[1],coord[2],e);
 						}
 					}
 				}
@@ -1452,10 +1479,11 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 					for(unsigned v = 0; v<vertcount; v++)
 					{
 						double coord[3] = { 0,0,0 };
-						model->getFrameAnimVertexCoords(n,f,v,coord[0],coord[1],coord[2]);
+						auto e = model->getFrameAnimVertexCoords(n,f,v,coord[0],coord[1],coord[2]);
 						Vector vec(coord);
-						vec = vec *mat;
-						setFrameAnimVertexCoords(index,f,v+vertbase,vec.get(0),vec.get(1),vec.get(2));
+						if(e>InterpolateCopy)
+						vec = vec * mat;
+						setFrameAnimVertexCoords(index,f,v+vertbase,vec[0],vec[1],vec[2],e);
 					}
 				}
 
@@ -1466,17 +1494,25 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 					for(unsigned p = 0; p<pointcount; p++)
 					{
 						double coord[3] = { 0,0,0 };
-						model->getFrameAnimPointCoords(n,f,p,coord[0],coord[1],coord[2]);
+						//model->getFrameAnimPointCoords(n,f,p,coord[0],coord[1],coord[2]);
+						auto e = model->getKeyframe(n,f,{PT_Point,p},KeyTranslate,coord[0],coord[1],coord[2]);
 						Vector vec(coord);
-						vec = vec *mat;
-						setFrameAnimPointCoords(index,f,p+pointbase,vec.get(0),vec.get(1),vec.get(2));
+						if(e>InterpolateCopy) 
+						vec = vec * mat;
+						//setFrameAnimPointCoords(index,f,p+pointbase,vec[0],vec[1],vec[2]);
+						setKeyframe(index,f,{PT_Point,p+pointbase},KeyTranslate,vec[0],vec[1],vec[2],e);
 
-						model->getFrameAnimPointRotation(n,f,p,coord[0],coord[1],coord[2]);
-						Matrix m;
-						m.setRotation(coord);
-						m = m *mat;
-						m.getRotation(coord);
-						setFrameAnimPointRotation(index,f,p+pointbase,coord[0],coord[1],coord[2]);
+						//model->getFrameAnimPointRotation(n,f,p,coord[0],coord[1],coord[2]);
+						e = model->getKeyframe(n,f,{PT_Point,p},KeyRotate,coord[0],coord[1],coord[2]);							
+						if(e>InterpolateCopy)
+						{
+							Matrix m;
+							m.setRotation(coord);
+							m = m *mat;
+							m.getRotation(coord);
+						}
+						//setFrameAnimPointRotation(index,f,p+pointbase,coord[0],coord[1],coord[2]);
+						setKeyframe(index,f,{PT_Point,p+pointbase},KeyRotate,coord[0],coord[1],coord[2],e);
 					}
 				}
 			}
@@ -1510,14 +1546,14 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 				{
 					SkelAnim *sa = model->m_skelAnims[a];
 
-					for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
+					for(unsigned j = 0; j<sa->m_keyframes.size(); j++)
 					{
-						for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
+						for(unsigned k = 0; k<sa->m_keyframes[j].size(); k++)
 						{
-							Keyframe *kf = sa->m_jointKeyframes[j][k];
+							Keyframe *kf = sa->m_keyframes[j][k];
 
-							setSkelAnimKeyframe(a,kf->m_frame,j+jointbase,kf->m_isRotation,
-									kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
+							setKeyframe(a,kf->m_frame,{Model::PT_Joint,j+jointbase},
+							kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
 						}
 					}
 				}
@@ -1538,20 +1574,21 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 
 				SkelAnim *sa = model->m_skelAnims[n];
 
-				for(unsigned j = 0; j<sa->m_jointKeyframes.size(); j++)
+				for(unsigned j = 0; j<sa->m_keyframes.size(); j++)
 				{
-					for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
+					for(unsigned k = 0; k<sa->m_keyframes[j].size(); k++)
 					{
-						Keyframe *kf = sa->m_jointKeyframes[j][k];
+						Keyframe *kf = sa->m_keyframes[j][k];
 
-						setSkelAnimKeyframe(ac1+n,kf->m_frame,j+jointbase,kf->m_isRotation,
-								kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
+						setKeyframe(ac1+n,kf->m_frame,{Model::PT_Joint,j+jointbase},
+						kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
 					}
 				}
 			}
 		}
 	}
 
+	/*REFERENCE
 	if(frameAnimsNeeded)
 	{
 		// We have frame anims that don't have our new vertices.  
@@ -1573,11 +1610,11 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 
 				for(unsigned f = 0; f<framecount; f++)
 				{
-					setFrameAnimVertexCoords(n,f,v+vertbase,vec.get(0),vec.get(1),vec.get(2));
+					setFrameAnimVertexCoords(n,f,v+vertbase,vec[0],vec[1],vec[2]);
 				}
 			}
 		}
-	}
+	}*/
 
 	count = getTriangleCount();
 	for(n = tribase; n<count; ++n)
@@ -1595,27 +1632,28 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 	for(n = projbase; n<count; ++n)
 		selectProjection(n);
 
-	invalidateNormals();
-	setupJoints();
+	calculateSkel(); calculateNormals();
 
-	forceAddOrDelete(canAdd&&m_frameAnims.empty());
+//	forceAddOrDelete(canAdd&&m_frameAnims.empty());
 
 	return true;
 }
 
 const int SE_POLY_MAX = 2;
-typedef struct _SimplifyEdge_t
+struct model_ops_SimplifyEdgeT
 {
 	unsigned int vFar;
 	
 	int polyCount;
 	int poly[SE_POLY_MAX];
-	float normal[SE_POLY_MAX][3];
-} SimplifyEdgeT;
-typedef std::list<SimplifyEdgeT>SimplifyEdgeList;
+	double normal[SE_POLY_MAX][3]; //float
+};
+typedef std::list<model_ops_SimplifyEdgeT> model_ops_SimplifyEdgeList;
 
 void Model::simplifySelectedMesh()
 {
+	validateNormals(); //2020
+
 	// for each vertex
 	//	find all edges
 	//	if Va to V is same vector as V to Vb
@@ -1640,10 +1678,10 @@ void Model::simplifySelectedMesh()
 		m_triangles[t]->m_marked = false;
 	}
 
-	SimplifyEdgeList edges;
-	SimplifyEdgeList::iterator it;
-	SimplifyEdgeList::iterator itA;
-	SimplifyEdgeList::iterator itB;
+	model_ops_SimplifyEdgeList edges;
+	model_ops_SimplifyEdgeList::iterator it;
+	model_ops_SimplifyEdgeList::iterator itA;
+	model_ops_SimplifyEdgeList::iterator itB;
 	unsigned int verts[3];
 	int idx[3];
 
@@ -1694,7 +1732,7 @@ void Model::simplifySelectedMesh()
 						idx[2] = 1;
 					}
 
-					// If triangle is using v as a vertex,add to edge list
+					// If triangle is using v as a vertex, add to edge list
 					if(idx[0]>=0)
 					{
 						log_debug("  triangle %d uses vertex %d\n",t,v);
@@ -1709,7 +1747,7 @@ void Model::simplifySelectedMesh()
 									if((*it).polyCount<SE_POLY_MAX)
 									{
 										(*it).poly[(*it).polyCount] = t;
-										getFlatNormal(t,(*it).normal[(*it).polyCount]);
+										getFlatNormalUnanimated(t,(*it).normal[(*it).polyCount]);
 
 										(*it).polyCount++;
 										newEdge = false;
@@ -1733,11 +1771,11 @@ void Model::simplifySelectedMesh()
 							{
 								log_debug("  adding new edge for polygon for %d\n",
 										idx[i]);
-								SimplifyEdgeT se;
+								model_ops_SimplifyEdgeT se;
 								se.vFar = verts[idx[i]];
 								se.polyCount = 1;
 								se.poly[0] = t;
-								getFlatNormal(t,se.normal[0]);
+								getFlatNormalUnanimated(t,se.normal[0]);
 
 								edges.push_back(se);
 							}
@@ -1818,8 +1856,8 @@ void Model::simplifySelectedMesh()
 												getVertexCoords(verts[1],tcoords[1]);
 												getVertexCoords(verts[2],tcoords[2]);
 
-												float norm[3];
-												_calculateNormal(norm,tcoords[0],tcoords[1],tcoords[2]);
+												double norm[3];
+												calculate_normal(norm,tcoords[0],tcoords[1],tcoords[2]);
 
 												log_debug("-- %f,%f,%f  %f,%f,%f\n",
 														norm[0],norm[1],norm[2],

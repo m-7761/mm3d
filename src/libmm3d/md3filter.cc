@@ -99,14 +99,6 @@ const char *s_animSyncWarning[] =
 	nullptr
 };
 
-Md3Filter::Md3Filter()
-{
-}
-
-Md3Filter::~Md3Filter()
-{
-}
-
 Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 {
 	if(model&&filename&&filename[0])
@@ -372,7 +364,7 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 					int animIndex = m_model->addAnimation(Model::ANIMMODE_FRAME,"AnimFrames");
 					m_model->setAnimFPS(Model::ANIMMODE_FRAME,animIndex,15.0);
 					m_model->setAnimFrameCount(Model::ANIMMODE_FRAME,0,fileList.front().numFrames);
-					m_model->setAnimLooping(Model::ANIMMODE_FRAME,animIndex,false);
+					m_model->setAnimWrap(Model::ANIMMODE_FRAME,animIndex,false);
 				}
 			}
 		}
@@ -785,7 +777,7 @@ bool Md3Filter::readAnimations(bool create)
 			for(int animIndex = 0; animIndex<animCount; ++animIndex)
 			{
 				bool loop = (eliteLoop)? (animLoop[animIndex]==0): (animLoop[animIndex]!=0);
-				m_model->setAnimLooping(Model::ANIMMODE_FRAME,animIndex,loop);
+				m_model->setAnimWrap(Model::ANIMMODE_FRAME,animIndex,loop);
 			}
 		}
 
@@ -857,7 +849,7 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 	if(parentTag>=0)
 	{
 		m_model->getPointCoords(parentTag,pos);
-		m_model->getPointOrientation(parentTag,rot);
+		m_model->getPointRotation(parentTag,rot);
 
 		loadMatrix.loadIdentity();
 		loadMatrix.setRotation(rot);
@@ -952,8 +944,9 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 					m_src->seek(meshPos+meshXYZOffset+fileFrame *frameSize);
 					if(parentTag>=0)
 					{
-						m_model->getFrameAnimPointCoords(animIndex,frame,parentTag,pos[0],pos[1],pos[2]);
-						m_model->getFrameAnimPointRotation(animIndex,frame,parentTag,rot[0],rot[1],rot[2]);
+						m_model->interpKeyframe(animIndex,frame,
+						{Model::PT_Point,(unsigned)parentTag},pos,rot,nullptr);
+
 						loadMatrix.loadIdentity();
 						loadMatrix.setRotation(rot);
 						loadMatrix.setTranslation(pos[0],pos[1],pos[2]);
@@ -964,7 +957,7 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 					if(parentTag>=0)
 					{
 						m_model->getPointCoords(parentTag,pos);
-						m_model->getPointOrientation(parentTag,rot);
+						m_model->getPointRotation(parentTag,rot);
 
 						invMatrix.setRotation(rot);
 						invMatrix.setTranslation(pos[0],pos[1],pos[2]);
@@ -1204,7 +1197,7 @@ std::string Md3Filter::findTexture(std::string baseName, std::string shaderFullN
 //If a material with filename already exists reutrn id,otherwise -1
 int32_t Md3Filter::materialsCheck(std::string textureFullName)
 {
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(m_model);
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
 	for(unsigned i = 0; i<modelMaterials.size(); i++)
 	{
 		if(strcmp(modelMaterials[i]->m_filename.c_str(),textureFullName.c_str())==0)
@@ -1377,7 +1370,7 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 	if(parentTag>=0)
 	{
 		m_model->getPointCoords(parentTag,pos);
-		m_model->getPointOrientation(parentTag,rot);
+		m_model->getPointRotation(parentTag,rot);
 
 		loadMatrix.loadIdentity();
 		loadMatrix.setRotation(rot);
@@ -1421,8 +1414,9 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 			m_src->seek(offsetTags+(fileFrame *frameSize));
 			if(animIndex>=0&&parentTag>=0)
 			{
-				m_model->getFrameAnimPointCoords(animIndex,f,parentTag,pos[0],pos[1],pos[2]);
-				m_model->getFrameAnimPointRotation(animIndex,f,parentTag,rot[0],rot[1],rot[2]);
+				m_model->interpKeyframe(animIndex,f,
+				{Model::PT_Point,(unsigned)parentTag},pos,rot,nullptr);
+
 				loadMatrix.loadIdentity();
 				loadMatrix.setRotation(rot);
 				loadMatrix.setTranslation(pos[0],pos[1],pos[2]);
@@ -1453,11 +1447,11 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 				curMatrix.getRotation(rotVector);
 				curMatrix.getTranslation(posVector);
 
+				Model::Position p{Model::PT_Point,0};
 				if(animIndex<0)
 				{
 					// Only add the point if we don't already have one of the same name
-					int p = m_model->getPointByName(tagName);
-					if(p<0)
+					if(m_model->getPointByName(tagName)<0)
 					{
 						m_model->addPoint(tagName,posVector[0],posVector[1],posVector[2],rotVector[0],rotVector[1],rotVector[2]);
 					}
@@ -1467,8 +1461,11 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 					int p = m_model->getPointByName(tagName);
 					if(p!=parentTag)
 					{
-						m_model->setFrameAnimPointCoords(animIndex,f,p,posVector[0],posVector[1],posVector[2]);
-						m_model->setFrameAnimPointRotation(animIndex,f,p,rotVector[0],rotVector[1],rotVector[2]);
+						Model::Position pt{Model::PT_Point,p};
+
+						//m_model->setQuickFrameAnimPoint(animIndex,f,p,posVector[0],posVector[1],posVector[2],rotVector[0],rotVector[1],rotVector[2]);
+						m_model->setKeyframe(animIndex,f,pt,Model::KeyTranslate,posVector[0],posVector[1],posVector[2]);
+						m_model->setKeyframe(animIndex,f,pt,Model::KeyRotate,rotVector[0],rotVector[1],rotVector[2]);
 					}
 				}
 			}
@@ -2068,22 +2065,19 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 					int i = (*mlit).group;
 					if(i>=0&&groupInSection(m_model->getGroupName(i),section))
 					{
-						int_list tris = m_model->getGroupTriangles(i);
-						int_list::iterator it;
-						for(it = tris.begin(); it!=tris.end(); it++)
+						for(int tri:m_model->getGroupTriangles(i))
 						{
 							for(int n = 0; n<3; n++)
 							{
-								int vertex = m_model->getTriangleVertex(*it,n);
+								int vertex = m_model->getTriangleVertex(tri,n);
 								double cords[3];
-								if(numAnims==0)
+								/*if(numAnims==0)
 								{
 									m_model->getVertexCoords(vertex,cords);
 								}
-								else
-								{
-									m_model->getFrameAnimVertexCoords(a,t,vertex,cords[0],cords[1],cords[2]);
-								}
+								else m_model->getFrameAnimVertexCoords(a,t,vertex,cords[0],cords[1],cords[2]);
+								*/
+								m_model->getVertexCoords(vertex,cords);
 								dmax[0] = greater(dmax[0],cords[0]);
 								dmax[1] = greater(dmax[1],cords[1]);
 								dmax[2] = greater(dmax[2],cords[2]);
@@ -2174,11 +2168,11 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 						double origin[4] = { 0,0,0,1 };
 						if(numAnims==0)
 						{
-							m_model->getPointTranslation(j,origin);
+							m_model->getPointCoordsUnanimated(j,origin);
 						}
 						else
 						{
-							m_model->getFrameAnimPointCoords(a,t,j,origin[0],origin[1],origin[2]);
+							m_model->interpKeyframe(a,t,{Model::PT_Point,j},origin,nullptr,nullptr);
 						}
 
 						saveMatrix.apply(origin);
@@ -2191,11 +2185,11 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 						double rotVector[3];
 						if(numAnims==0)
 						{
-							m_model->getPointRotation(j,rotVector);
+							m_model->getPointRotationUnanimated(j,rotVector);
 						}
 						else
 						{
-							m_model->getFrameAnimPointRotation(a,t,j,rotVector[0],rotVector[1],rotVector[2]);
+							m_model->interpKeyframe(a,t,{Model::PT_Point,j},nullptr,rotVector,nullptr);
 						}
 
 						// Seems whenver we have a nan its from a identity matrix
@@ -2223,7 +2217,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 		}
 	}
 
-	std::vector<Model::Material *> &modelMaterials = getMaterialList(m_model);
+	std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
 
 	// MESHES
 	log_debug("writing meshes at %d/%d\n",offsetMeshes,m_dst->offset());
@@ -2375,27 +2369,30 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 				m_dst->write((float)(1.0f-(*vit).uv[1]));
 			}
 
-			// VERTEX
-			m_model->calculateNormals();
+			// VERTEX			
 			for(unsigned a = 0; a<animCount; a++)
 			{
 				if(animInSection(getSafeName(a),section)
 					  ||(numAnims==0&&a==0))
 				{
-					// If there are no anims calculateFrameNormals will segfault
-					// (in earlier versions of MM3D)
-					if(m_model->getAnimCount(Model::ANIMMODE_FRAME)>0)
-					{
-						m_model->calculateFrameNormals(a);
-					}
 					unsigned aFrameCount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,a);
 					if((aFrameCount==0&&animCount==1)
 						  ||(numAnims==0))
 					{
 						aFrameCount = 1;
 					}
+
+					if(numAnims!=0) //2020: Generate normals.
+					m_model->setCurrentAnimation(Model::ANIMMODE_FRAME,a);
+					
 					for(unsigned t = 0; t<aFrameCount; t++)
-					{
+					{	
+						if(numAnims!=0) //2020: Generate normals.
+						{
+							m_model->setCurrentAnimationFrame(t);
+							resetVertexNormals(m_model,*mlit);
+						}
+
 						Matrix saveMatrix;
 
 						if(numAnims==0)
@@ -2412,6 +2409,9 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 							double meshVec[4] = {0,0,0,1};
 							double meshNor[4] = {0,0,0,1};
 
+							/*Removing getFrameAnimVertexNormal
+							//NOTE: Mesh would never produce ideal animations of the normals.
+							//https://github.com/zturtleman/mm3d/issues/109
 							if(numAnims==0)
 							{
 								// force unanimated coordinates for head
@@ -2429,7 +2429,13 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 							{
 								m_model->getFrameAnimVertexCoords(a,t,(*vit).v,meshVec[0],meshVec[1],meshVec[2]);
 								m_model->getFrameAnimVertexNormal(a,t,(*vit).v,meshNor[0],meshNor[1],meshNor[2]);
-							}
+							}*/
+							m_model->getVertexCoords((*vit).v,meshVec);
+
+							meshNor[0] = vit->norm[0];
+							meshNor[1] = vit->norm[1];
+							meshNor[2] = vit->norm[2];							
+
 							saveMatrix.apply(meshVec);
 							saveMatrix.apply3(meshNor); // only apply rotation
 							normalize3(meshNor);
@@ -2599,7 +2605,7 @@ bool Md3Filter::writeAnimations()
 			}
 
 			// disable looping on non-looping anims
-			if(!m_model->getAnimLooping(Model::ANIMMODE_FRAME,anim))
+			if(!m_model->getAnimWrap(Model::ANIMMODE_FRAME,anim))
 			{
 				loop = 0;
 			}
@@ -2654,16 +2660,16 @@ Matrix Md3Filter::getMatrixFromPoint(int anim, int frame, int point)
 
 	double rot[3];
 	double pos[3];
-
+	
 	if(anim>=0&&frame>=0)
 	{
-		m_model->getFrameAnimPointRotation(anim,frame,point,rot[0],rot[1],rot[2]);
-		m_model->getFrameAnimPointCoords(anim,frame,point,pos[0],pos[1],pos[2]);
+		m_model->interpKeyframe(anim,frame,
+		{Model::PT_Point,(unsigned)point},pos,rot,nullptr);
 	}
 	else
 	{
-		m_model->getPointRotation(point,rot);
-		m_model->getPointTranslation(point,pos);
+		m_model->getPointRotationUnanimated(point,rot);
+		m_model->getPointCoordsUnanimated(point,pos);
 	}
 
 	m.loadIdentity();
@@ -2862,22 +2868,39 @@ double Md3Filter::smaller(double a, double b)
 	return b;
 }
 
-bool Md3Filter::getVertexNormal(Model *model, int groupId, int vertexId, float *normal)
+//2020: Have to change how this works in a pinch.
+//bool Md3Filter::getVertexNormal(Model *model, int groupId, int vertexId, float *normal)
+void Md3Filter::resetVertexNormals(Model *model, Mesh &mesh)
 {
-	int_list tris = model->getGroupTriangles(groupId);
-	int_list::iterator tri;
-	for(tri = tris.begin(); tri!=tris.end(); tri++)
+	/*INSANITY
+	//int_list &tris = model->getGroupTriangles(groupId);
+	//for(auto tri=tris.begin();tri!=tris.end();tri++)
+	for(auto tri:m_model->getGroupTriangles(groupId))
 	{
 		for(int n = 0; n<3; n++)
 		{
-			int vert = model->getTriangleVertex(*tri,n);
+			int vert = model->getTriangleVertex(tri,n); //*tri
 			if(vert==vertexId)
 			{
-				model->getNormal(*tri,n,normal);
+				model->getNormal(*tri,n,normal);				
 				return true;
 			}
 		}
 	}
+	return false;*/
+	for(auto&ea:mesh.vertices)
+	{
+		for(int i=0;i<3;i++) ea.norm[i] = 0; //HACK: averaging to be a little better.
+	}
+	for(auto&ea:mesh.faces)
+	{
+		for(int i=0;i<3;i++)
+		{
+			double n[3];
+			model->getNormal(ea.modelTri,i,n);
 
-	return false;
+			auto &v = mesh.vertices[ea.v[i]];
+			for(int i=0;i<3;i++) v.norm[i]+=n[i]; //HACK: averaging to be a little better.
+		}
+	}
 }

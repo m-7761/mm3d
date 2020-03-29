@@ -231,10 +231,7 @@ static void viewpanel_motion_func(int x, int y)
 	ViewPanel &vp = viewwin()->views;
 
 	//Steal tab function/communicate input model.
-	if(Win::event.deactivate())
-	{
-		glutSetWindow(vp.model.glut_window_id);
-	}
+	Win::event.deactivate();
 
 	int cm = glutGetModifiers();
 	int bt = vp.ports[vp.m_focus].m_activeButton;
@@ -274,7 +271,11 @@ static void viewpanel_wheel_func(int wheel, int delta, int x, int y)
 }
 
 void ViewPanel::draw()
-{	
+{
+	//Sync with drawing.
+	if(model._deferredModelChanged)
+	model.modelChanged();
+
 	//REMINDER: I spent like a day fussing with this
 	//to layout the outlines between the views, only
 	//to learn that the views need to be exactly the
@@ -351,8 +352,10 @@ params(bar1),timeline(bar1.exterior_row),
 status(bar2)
 {
 	timeline.id(id_bar).expand();
-	timeline.style(Win::bi::shadow);
-	timeline.set_range();	
+	timeline.style(Win::bar::shadow);
+	timeline.spin(0.0).set_range();	
+	extern int viewwin_tick(Win::si*,int,double&,int);
+	timeline.set_tick_callback(viewwin_tick);
 
 	//TODO: Maybe make glut::set_ obsolete?
 	assert(glutGetWindow()==model.glut_window_id);
@@ -422,7 +425,7 @@ void ViewPanel::_makeViews(int n)
 	//REMINDER: _defaultViews uses m_focus but also it needs to be
 	//clipped to be less than viewsN. Assuming it will be assigned
 	//almost instantly.
-	_defaultViews(mem); m_focus = 0;
+	_defaultViews(mem,true); m_focus = 0;
 
 	//double x1,y1,z1,x2,y2,z2;
 	//if(model&&model->getBoundingRegion(&x1,&y1,&z1,&x2,&y2,&z2))
@@ -463,9 +466,9 @@ bool ViewPanel::_recall(int a, int b)
 	}
 	else return false; return true;
 }
-void ViewPanel::_defaultViews(int mem)
+void ViewPanel::_defaultViews(int mem, bool save)
 {
-	int a,b,c; switch(mem)
+	int a,b,c; switch(save?mem:0) //reset?
 	{
 	default: a = -1; break;
 	case 1: _save(a=0,b=0); break;
@@ -609,19 +612,6 @@ void ViewPanel::updateView()
 	//ports[m_focus].updateGL(); //FIX ME
 	updateAllViews();	
 }
-void ViewPanel::update3dView() //NOTE: This is limited to animation.
-{
-	//TODO: May need GLX_MESA_copy_sub_buffer here.
-	//https://www.khronos.org/registry/OpenGL/extensions/MESA/GLX_MESA_copy_sub_buffer.txt
-	//if(m_view<=Tool::ViewPerspective) updateView();
-
-	for(int i=0;i<viewsN;i++)
-	if(Tool::ViewPerspective>=ports[i].getView())
-	{
-		//ports[i].updateGL(); //FIX ME
-		updateAllViews(); return;
-	}
-}
 
 void ViewPanel::viewChangeEvent(ModelViewport &mvp)
 {
@@ -643,4 +633,9 @@ void ViewPanel::rearrange(int how)
 		ports[flip?j-viewsM:viewsN-1-i].getViewState(swap[j]);
 	}
 	for(int i=0;i<viewsN;i++) ports[i].setViewState(swap[i]);
+}
+
+void ViewPanel::reset()
+{
+	memset(memory,0x00,sizeof(memory)); _defaultViews(viewsN,false); 
 }

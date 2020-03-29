@@ -160,6 +160,24 @@ void CapCommand::addToList(int_list &l, int ignore, int val)
 	l.push_back(val);
 }
 
+
+//float Model::cosToPoint(unsigned t, double *point)const
+static float capcmd_cos2point(double *normal, double *vertex, double *compare)
+{
+	double vec[3];
+	for(int i=3;i-->0;) vec[i] = compare[i]-vertex[i];
+
+	// normalized vector from plane to point
+	normalize3(vec);
+
+	double f = dot3(normal,vec);
+	
+	//log_debug("  dot3(%f,%f,%f  %f,%f,%f)\n",normal[0],normal[1],normal[2],vec[0],vec[1],vec[2]); //???
+	//log_debug("  behind triangle dot check is %f\n",f); //???
+		
+	return (float)f; //truncate?
+}
+
 int CapCommand::createMissingTriangle(Model *model, unsigned int v,
 		int_list &conList,int_list &triList)
 {
@@ -190,19 +208,19 @@ int CapCommand::createMissingTriangle(Model *model, unsigned int v,
 		{
 			int newTri = model->addTriangle(v,*cit1,*cit2);
 
-			float norm1[3];
-			float norm2[3];
-			double coord[3];
+			double coord1[3],norm1[3];
+			double coord2[3],norm2[3];
 
 			model->getFlatNormal(tri,norm1);
 			model->getFlatNormal(newTri,norm2);
-			model->getVertexCoords(*cit1,coord);
+			model->getVertexCoords(*cit1,coord2);
+			model->getVertexCoords(tri1Vert,coord1);
 
 			// this is why we needed the third vertex above,
 			// so we can check to see if we need to invert
 			// the new triangle (are the triangles behind
 			// each other or in front of each other?)
-			float f = model->cosToPoint(tri,coord);
+			float f = capcmd_cos2point(norm1,coord1,coord2);
 			if(fabs(f)<0.0001f)
 			{
 				// Points are nearly co-planar,
@@ -214,21 +232,10 @@ int CapCommand::createMissingTriangle(Model *model, unsigned int v,
 			}
 			else
 			{
-				if(f<0.0f)
+				bool cmp = f>0;
+				if(cmp!=capcmd_cos2point(norm2,coord2,coord1)>0)
 				{
-					model->getVertexCoords(tri1Vert,coord);
-					if(model->cosToPoint(newTri,coord)>0.0f)
-					{
-						model->invertNormals(newTri);
-					}
-				}
-				else
-				{
-					model->getVertexCoords(tri1Vert,coord);
-					if(model->cosToPoint(newTri,coord)<0.0f)
-					{
-						model->invertNormals(newTri);
-					}
+					model->invertNormals(newTri);
 				}
 			}
 

@@ -44,8 +44,8 @@ struct RectangleTool : Tool
  
 	virtual const char *getKeymap(int){ return "F5"; }
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 		double m_x,m_y;
 
@@ -54,9 +54,9 @@ struct RectangleTool : Tool
 
 extern Tool *rectangletool(){ return new RectangleTool; }
 
-void RectangleTool::mouseButtonDown(int buttonState, int x, int y)
+void RectangleTool::mouseButtonDown()
 {
-	parent->getParentXYValue(x,y,m_x,m_y);
+	parent->getParentXYValue(m_x,m_y);
 
 	Model *model = parent->getModel();
 
@@ -79,10 +79,10 @@ void RectangleTool::mouseButtonDown(int buttonState, int x, int y)
 
 	parent->updateAllViews();
 }
-void RectangleTool::mouseButtonMove(int buttonState, int x, int y)
+void RectangleTool::mouseButtonMove()
 {
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
 	movePosition(m_v2.pos,m_x,pos[1],0);
 	movePosition(m_v3.pos,pos[0],m_y,0);

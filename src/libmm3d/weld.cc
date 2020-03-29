@@ -34,7 +34,7 @@
 typedef struct _NewVertices_t
 {
 	int index;
-	int v[3];
+	unsigned v[3];
 	bool selected[3];
 } NewVerticesT;
 
@@ -94,11 +94,11 @@ void weldSelectedVertices(Model *model, double tolerance, int &unweldnum, int &w
 	// Move triangles to welded vertices
 	for(int t = 0; t<model->getTriangleCount(); t++)
 	{
-		int v[3];
+		unsigned v[3];
 		bool changeVertices = false;
+		model->getTriangleVertices(t,v[0],v[1],v[2]);
 		for(int i = 0; i<3; i++)
 		{
-			v[i] = model->getTriangleVertex(t,i);
 			if(welded.find(v[i])!=welded.end())
 			{
 				v[i] = welded[v[i]];
@@ -153,48 +153,39 @@ void unweldSelectedVertices(Model *model, int &unweldnum, int &weldnum)
 
 		bool changeVertices = false;
 
-		for(int i = 0; i<3; i++)
+		model->getTriangleVertices(t,nv.v[0],nv.v[1],nv.v[2]);
+		for(int i = 0; i<3; i++)		
+		if(vertCount.find(nv.v[i])!=vertCount.end())
 		{
-			nv.v[i] = model->getTriangleVertex(t,i);
+			nv.selected[i] = true;
+			vertCount[nv.v[i]]++;
 
-			if(vertCount.find(nv.v[i])!=vertCount.end())
+			if(vertCount[nv.v[i]]>1)
 			{
-				nv.selected[i] = true;
-				vertCount[nv.v[i]]++;
+				changeVertices = true;
 
-				if(vertCount[nv.v[i]]>1)
+				double coords[3];
+
+				model->getVertexCoords(nv.v[i],coords);
+				int temp  = model->addVertex(coords[0],coords[1],coords[2]);
+
+				//infl_list inf;
+				//model->getVertexInfluences(nv.v[i],inf);
+				const infl_list &inf = model->getVertexInfluences(nv.v[i]);
+				for(infl_list::const_iterator it = inf.begin();
+						it!=inf.end(); ++it)
 				{
-					changeVertices = true;
-
-					double coords[3];
-
-					model->getVertexCoords(nv.v[i],coords);
-					int temp  = model->addVertex(coords[0],coords[1],coords[2]);
-
-					//infl_list inf;
-					//model->getVertexInfluences(nv.v[i],inf);
-					const infl_list &inf = model->getVertexInfluences(nv.v[i]);
-					for(infl_list::const_iterator it = inf.begin();
-							it!=inf.end(); ++it)
-					{
-						model->addVertexInfluence(temp,
-								it->m_boneId,it->m_type,it->m_weight);
-					}
-
-					nv.v[i] = temp;
-					added++;
-					unweldnum++;
+					model->addVertexInfluence(temp,
+							it->m_boneId,it->m_type,it->m_weight);
 				}
-				else
-				{
-					weldnum++;
-				}
+
+				nv.v[i] = temp;
+				added++;
+				unweldnum++;
 			}
-			else
-			{
-				nv.selected[i] = false;
-			}
+			else weldnum++;
 		}
+		else nv.selected[i] = false;		
 
 		nvl.push_back(nv);
 	}

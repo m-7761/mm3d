@@ -88,22 +88,23 @@ class Model
 		// about the model.
 		enum ChangeBits
 		{
-			SelectionChange	 =  0x00000001, // General selection change
-			SelectionVertices  =  0x00000002, // Vertices selection changed
-			SelectionFaces	  =  0x00000004, // Faces selection changed
-			SelectionGroups	 =  0x00000008, // Groups selection changed
-			SelectionJoints	 =  0x00000010, // Joints selection changed
-			SelectionPoints	 =  0x00000020, // Points selection changed
+			//SelectionChange      = 0x00000001, // General selection change
+			SelectionChange      = 0x000000FF, // General selection change
+			SelectionVertices    = 0x00000002, // Vertices selection changed
+			SelectionFaces       = 0x00000004, // Faces selection changed
+			SelectionGroups      = 0x00000008, // Groups selection changed
+			SelectionJoints	     = 0x00000010, // Joints selection changed
+			SelectionPoints      = 0x00000020, // Points selection changed
 			SelectionProjections = 0x00000040, //2019
-			AddGeometry		  =  0x00000100, // Added or removed objects
-			AddAnimation		 =  0x00000200, // Added or removed animations
-			AddOther			  =  0x00008000, // Added or removed something else
-			MoveGeometry		 =  0x00010000, // Model shape changed
-			MoveOther			 =  0x00080000, // Something non-geometric was moved
-			AnimationMode		=  0x00010000, // Changed animation mode
-			AnimationSet		 =  0x00020000, // Changes to animation sets
-			AnimationFrame	  =  0x00080000, // Changed current animation frame
-			ChangeAll			 =  0xFFFFFFFF	// All of the above
+			AddGeometry          = 0x00000100, // Added or removed objects
+			AddAnimation		 = 0x00000200, // Added or removed animations
+			AddOther			 = 0x00000400, // Added or removed something else
+			MoveGeometry		 = 0x00000800, // Model shape changed
+			MoveOther			 = 0x00001000, // Something non-geometric was moved
+			AnimationMode        = 0x00002000, // Changed animation mode
+			AnimationSet		 = 0x00004000, // Changes to animation sets
+			AnimationFrame       = 0x00008000, // Changed current animation frame
+			ChangeAll			 = 0xFFFFFFFF	// All of the above
 		};
 
 		// FIXME remove this when new equal routines are ready
@@ -172,37 +173,37 @@ class Model
 			PropDimensions  = 0x100000, // 
 			PropPixels		= 0x200000, // 
 			PropTime		  = 0x400000, // 
-			PropLoop		  = 0x800000, // 
+			PropWrap		  = 0x800000, // 
+			PropTimestamps	  = 0x1000000, //2020
 			PropAll			= 0xFFFFFF, // 
 
 			// These are combinations of parts above,for convenience
 			PropFlags		 = PropSelection | PropVisibility | PropFree,
 		};
 
-		enum 
+		enum //REMOVE ME 
 		{
 			MAX_INFLUENCES = 4
 		};
 
-		enum _PositionType_e
+		enum PositionTypeE
 		{
-			//NOTE: These are part of the file format.
-			//It would be nice to have bit-wise types.
 		  PT_Vertex,
 		  PT_Joint,
 		  PT_Point,
-		  PT_Projection
-		};
-		typedef enum _PositionType_e PositionTypeE;
+		  PT_Projection,
 
-		enum _OperationScope_e
+		  //For the undo system.
+		  _OT_Background_, 
+		};
+
+		enum OperationScopeE
 		{
 			OS_Selected,
 			OS_Global
 		};
-		typedef enum _OperationScope_e OperationScopeE;
 
-		enum _TextureProjectionType_e
+		enum TextureProjectionTypeE
 		{
 		  TPT_Custom		= -1, // No projection
 		  TPT_Cylinder	 = 0,
@@ -211,109 +212,124 @@ class Model
 		  //TPT_Icosahedron = 3,  // Not yet implemented //???
 		  TPT_MAX
 		};
-		typedef enum _TextureProjectionType_e TextureProjectionTypeE;
 
-		enum _InfluenceType_e
+		enum InfluenceTypeE
 		{
 			IT_Custom = 0,
 			IT_Auto,
 			IT_Remainder,
 			IT_MAX
 		};
-		typedef enum _InfluenceType_e InfluenceTypeE;
 
-		struct _Influence_t
+		struct InfluenceT
 		{
 			int m_boneId;
 			InfluenceTypeE m_type;
 			double m_weight;
 
-			bool operator==(const struct _Influence_t &rhs)const
+			bool operator==(const struct InfluenceT &rhs)const
 			{
 				return m_boneId==rhs.m_boneId
 				  &&m_type==rhs.m_type
 				  &&fabs(m_weight-rhs.m_weight)<0.00001;
 			}
 
-			bool operator!=(const struct _Influence_t &rhs)const
+			bool operator!=(const struct InfluenceT &rhs)const
 			{
 				return !(*this==rhs);
 			}
 
-			bool operator<(const struct _Influence_t &rhs)const
+			bool operator<(const struct InfluenceT &rhs)const
 			{
 				if(fabs(m_weight-rhs.m_weight)<0.00001)
 					return m_boneId<rhs.m_boneId;
 				return m_weight<rhs.m_weight;
 			}
 
-			bool operator>(const struct _Influence_t &rhs)const
+			bool operator>(const struct InfluenceT &rhs)const
 			{
 				if(fabs(m_weight-rhs.m_weight)<0.00001)
 					return m_boneId>rhs.m_boneId;
 				return m_weight>rhs.m_weight;
 			}
 		};
-		typedef struct _Influence_t InfluenceT;
 		//typedef std::list<InfluenceT> InfluenceList;
 		typedef std::vector<InfluenceT> infl_list;
 		
-
 		// A position is a common way to manipulate any object that has a
 		// single position value. See the PositionTypeE values.
 		// The index property is the index in the the list that corresponds
 		// to the type.
 		class Position
 		{
-			public:
-				PositionTypeE type;
-				unsigned		index;
+		public:
+
+			PositionTypeE type; unsigned index;
+
+			operator unsigned&(){ return index; } //2020
+			operator unsigned()const{ return index; } //2020
 		};
 		typedef std::vector<Position> pos_list;
 
-		// A vertex defines a polygon corner. The position is in m_coord.
-		// All triangles in all groups (meshes)references triangles from this
-		// one list.
-		class Vertex
+		enum AnimationModeE
+		{
+			ANIMMODE_NONE = 0,
+			ANIMMODE_SKELETAL,
+			ANIMMODE_FRAME,
+			//UNIMPLEMENTED
+			//ANIMMODE_FRAMERELATIVE, // Not implemented
+			ANIMMODE_MAX
+		};
+
+		//RENAME US
+		//https://github.com/zturtleman/mm3d/issues/106
+		enum Interpolate2020E
+		{
+			InterpolateKeep =-2, // HACK: Default argument
+			InterpolateVoid =-1, // HACK: Return value
+			InterpolateNone = 0, // Enable sparse animation
+			InterpolateCopy = 1, // Enable sparse animation
+			InterpolateStep = 2, // Old way before 2020 mod
+			InterpolateLerp = 3, // Linear interpolate			
+		};		
+		enum Interpolant2020E
+		{
+			InterpolantCoords = 0, //KeyTranslate>>1
+			InterpolantRotation = 1, //KeyRotate>>1
+			InterpolantScale = 2, //KeyScale>>1 
+		};
+				
+		// Describes the position and normal for a vertex in a frame animation.
+		class FrameAnimVertex
 		{
 			public:
 				static int flush();
 				static int allocated(){ return s_allocated; }
 				static int recycled(){ return s_recycle.size(); }
 				static void stats();
-				static Vertex *get();
+				static FrameAnimVertex *get();
 				void release();
 				void sprint(std::string &dest);
 
-				double m_coord[3];	  // Absolute vertex location
-				double m_kfCoord[3];	// Animated position
-				bool	m_selected;
-				bool	m_visible;
-				bool	m_marked;
-				bool	m_marked2;
+				double m_coord[3];
+			//	double m_normal[3]; //https://github.com/zturtleman/mm3d/issues/109
 
-				// If m_free is false,the vertex will be implicitly deleted when
-				// all faces using it are deleted
-				bool	m_free;
+				Interpolate2020E m_interp2020;
 
-				double *m_drawSource;  // Points to m_coord or m_kfCoord for drawing
-
-				// List of bone joints that move the vertex in skeletal animations.
-				infl_list m_influences;
-
-				bool propEqual(const Vertex &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const Vertex &rhs)const
+				bool propEqual(const FrameAnimVertex &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+				bool operator==(const FrameAnimVertex &rhs)const
 					{ return propEqual(rhs); }
 
 			protected:
-				Vertex();
-				virtual ~Vertex();
+				FrameAnimVertex(),~FrameAnimVertex();
 				void init();
 
-				static std::vector<Vertex *> s_recycle;
+				static std::vector<FrameAnimVertex*> s_recycle;
 				static int s_allocated;
 		};
 
+		typedef std::vector<FrameAnimVertex*> FrameAnimVertexList;
+		
 		// A triangle represents faces in the model. All faces are triangles.
 		// The vertices the triangle is attached to are in m_vertexIndices.
 		class Triangle
@@ -335,12 +351,16 @@ class Model
 				float m_t[3];  // Vertical,one for each vertex.
 
 				double m_finalNormals[3][3];	 // Final normals to draw
-				double m_vertexNormals[3][3];	// Normals blended for each face attached to the vertex
+			//	double m_vertexNormals[3][3];	// Normals blended for each face attached to the vertex
 				double m_flatNormals[3];		  // Normal for this triangle
-				double m_kfFlatNormals[3];		// Flat normal,rotated relative to the animating bone joints
-				double m_kfNormals[3][3];		 // Final normals,rotated relative to the animating bone joints
+				double m_vertAngles[3];			// Angle of vertices
+				double m_kfFlatNormals[3];		// Flat normal, rotated relative to the animating bone joints
+				double m_kfNormals[3][3];		 // Final normals, rotated relative to the animating bone joints
+				double m_kfVertAngles[3];
+				//Can these be one pointer?
 				double *m_flatSource;			 // Either m_flatNormals or m_kfFlatNormals
 				double *m_normalSource[3];	  // Either m_finalNormals or m_kfNormals
+				double *m_angleSource;			 // Either m_vertAngles or m_kfVertAngles
 				bool  m_selected;
 				bool  m_visible;
 				bool  m_marked;
@@ -352,12 +372,74 @@ class Model
 				bool operator==(const Triangle &rhs)const
 					{ return propEqual(rhs); }
 
+				void _source(AnimationModeE);
+
 			protected:
-				Triangle();
-				virtual ~Triangle();
+				Triangle(),~Triangle();
 				void init();
 
-				static std::vector<Triangle *> s_recycle;
+				static std::vector<Triangle*> s_recycle;
+				static int s_allocated;
+		};
+
+		// A vertex defines a polygon corner. The position is in m_coord.
+		// All triangles in all groups (meshes)references triangles from this
+		// one list.
+		class Vertex
+		{
+			public:
+				static int flush();
+				static int allocated(){ return s_allocated; }
+				static int recycled(){ return s_recycle.size(); }
+				static void stats();
+				static Vertex *get();
+				void release();
+				void releaseData(); //2020 ???
+				void sprint(std::string &dest);
+
+				double m_coord[3];	  // Absolute vertex location
+				double m_kfCoord[3];	// Animated position
+				double *m_absSource;  // Points to m_coord or m_kfCoord for drawing
+				bool	m_selected;
+				bool	m_visible;
+				bool	m_marked;
+				bool	m_marked2;
+
+				// If m_free is false,the vertex will be implicitly deleted when
+				// all faces using it are deleted
+				bool	m_free;
+				
+				// List of bone joints that move the vertex in skeletal animations.
+				infl_list m_influences;
+
+				void _calc_influences(Model&); //2020
+
+				//Each of these is a triangle and the index held by this vertex in
+				//that triangle is encoded in the two bits
+				//NOTE: Hoping "small string optimization" is in play for vertices
+				//that don't touch many triangles, but the terminator wastes space
+				//In that case 4 probably allocates memory
+				//https://github.com/zturtleman/mm3d/issues/109
+				//Can't be stored as indices.
+				//std::basic_string<unsigned> m_faces;
+				std::vector<std::pair<Triangle*,unsigned>> m_faces;
+				void _erase_face(Triangle*,unsigned);
+
+				//This change enables editing a model having vertex animation data
+				//https://github.com/zturtleman/mm3d/issues/87
+				FrameAnimVertexList m_frames;
+
+				bool propEqual(const Vertex &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+				bool operator==(const Vertex &rhs)const
+					{ return propEqual(rhs); }
+
+				void _source(AnimationModeE);
+
+			protected:
+				Vertex(),~Vertex();
+				void init();
+
+				static std::vector<Vertex*> s_recycle;
 				static int s_allocated;
 		};
 
@@ -382,7 +464,8 @@ class Model
 				//FIX ME (TEST ME)
 				//Draw code is order-independent. 
 				//std::set<int> m_triangleIndices;  // List of triangles in this group
-				std::unordered_set<int> m_triangleIndices;  // List of triangles in this group
+				//std::unordered_set<int> m_triangleIndices;  // List of triangles in this group
+				int_list m_triangleIndices;
 
 				// Percentage of blending between flat normals and smooth normals
 				// 0 = 0%,255 = 100%
@@ -394,7 +477,7 @@ class Model
 				uint8_t	  m_angle;
 
 				bool		  m_selected;
-				bool		  m_visible;
+			//	bool		  m_visible; //UNUSED
 				bool		  m_marked;
 
 				bool propEqual(const Group &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
@@ -402,11 +485,10 @@ class Model
 					{ return propEqual(rhs); }
 
 			protected:
-				Group();
-				virtual ~Group();
+				Group(),~Group();
 				void init();
 
-				static std::vector<Group *> s_recycle;
+				static std::vector<Group*> s_recycle;
 				static int s_allocated;
 		};
 
@@ -415,7 +497,7 @@ class Model
 		class Material
 		{
 			public:
-				enum _MaterialType_e
+				enum MaterialTypeE
 				{
 					MATTYPE_TEXTURE  =  0,  // Texture mapped material
 					MATTYPE_BLANK	 =  1,  // Blank texture,lighting only
@@ -423,7 +505,6 @@ class Model
 					MATTYPE_GRADIENT =  3,  // Unused
 					MATTYPE_MAX		=  4	 // For convenience
 				};
-				typedef enum _MaterialType_e MaterialTypeE;
 
 				static int flush();
 				static int allocated(){ return s_allocated; }
@@ -467,14 +548,20 @@ class Model
 					{ return propEqual(rhs); }
 
 			protected:
-				Material();
-				virtual ~Material();
+				Material(),~Material();
 				void init();
 
-				static std::vector<Material *> s_recycle;
+				static std::vector<Material*> s_recycle;
 				static int s_allocated;
 		};
-
+				
+		enum KeyType2020E
+		{
+			KeyAny = -1,
+			KeyTranslate = 1, //InterpolantCoords<<1
+			KeyRotate = 2, //InterpolantRotation<<1
+			KeyScale = 4, //InterpolantScale<<1
+		};
 		// A keyframe for a single joint in a single frame. Keyframes may be rotation or 
 		// translation (you can set one without setting the other).
 		class Keyframe
@@ -489,304 +576,344 @@ class Model
 				void release();
 				void sprint(std::string &dest);
 
-				int m_jointIndex;		 // Joint that this keyframe affects
-				unsigned m_frame;		 // Frame number for this keyframe
-				double m_time;			 // Time for this keyframe in seconds
-				double m_parameter[3];  // Translation or rotation (radians),see m_isRotation
-				bool	m_isRotation;	 // Indicates if m_parameter describes rotation (true)or translation (false)
+				int m_objectIndex;	 // Joint that this keyframe affects
+									//on a per frame basis and frame numbers are implicit.
+				unsigned m_frame;	 // Frame number for this keyframe
 
+		//		double m_time;	// Time for this keyframe in seconds
+
+				double m_parameter[3];  // Translation or rotation (radians),see m_isRotation
+
+				//bool m_isRotation;
+				KeyType2020E m_isRotation;	 // Indicates if m_parameter describes rotation (true)or translation (false)
+
+				Interpolate2020E m_interp2020;
+
+				//CAREFUL: This doesn't work with bitwise combinations of KeyType2020E.
 				bool operator<(const Keyframe &rhs)const
 				{
-					return (this->m_frame<rhs.m_frame||(this->m_frame==rhs.m_frame&&!this->m_isRotation&&rhs.m_isRotation));
-				};
+					return m_frame!=rhs.m_frame?m_frame<rhs.m_frame:m_isRotation<rhs.m_isRotation;
+				}
 				bool operator==(const Keyframe &rhs)const
 				{
-					return (this->m_frame==rhs.m_frame&&this->m_isRotation==rhs.m_isRotation);
-				};
+					return m_frame==rhs.m_frame&&m_isRotation&rhs.m_isRotation;
+				}
 				bool propEqual(const Keyframe &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
 
-			protected:
-				Keyframe();
-				virtual ~Keyframe();
-				void init();
+		//	protected:
 
-				static std::vector<Keyframe *> s_recycle;
+				Keyframe(),~Keyframe();
+
+			protected:
+
+				void init(); //UNUSED (NOP)
+
+				static std::vector<Keyframe*> s_recycle;
 				static int s_allocated;
 		};
+				
+		struct Object2020 //RENAME ME
+		{
+			//https://github.com/zturtleman/mm3d/issues/114
 
+			Object2020():m_abs(),
+			m_absSource(m_abs),m_rot(),
+			m_rotSource(m_rot),m_xyz{1,1,1}, //C++11
+			m_xyzSource(m_xyz)
+			{}
+
+			std::string m_name;
+
+			//NOTE: calculateAnim assumes stored back-to-back.
+			double m_abs[3]; //Absolute position
+			double m_rot[3]; //Relative rotation
+			double m_xyz[3]; //Nonunimform scale
+
+			double *m_absSource; //Absolute position
+			double *m_rotSource; //Relative rotation
+			double *m_xyzSource; //Nonunimform scale
+
+			Matrix getMatrix()const;
+			Matrix getMatrixUnanimated()const;
+
+			const double *getParams(Interpolant2020E)const;
+			const double *getParamsUnanimated(Interpolant2020E)const;
+			void getParams(double abs[3], double rot[3], double xyz[3])const;
+		};
 
 		// A bone joint in the skeletal structure,used for skeletal animations.
 		// When a vertex or point is assigned to one or more bone joints with a specified
 		// weight,the joint is referred to as an Influence.
-		class Joint
+		class Joint : public Object2020
 		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static int recycled(){ return s_recycle.size(); }
-				static void stats();
-				static Joint *get();
-				void release();
-				void sprint(std::string &dest);
+		public:
 
-				std::string m_name;
-				double m_localRotation[3];	  // Rotation relative to parent joint (or origin if no parent)
-				double m_localTranslation[3];  // Translation relative to parent joint (or origin if no parent)
+			static int flush();
+			static int allocated(){ return s_allocated; }
+			static int recycled(){ return s_recycle.size(); }
+			static void stats();
+			static Joint *get();
+			void release();
+			void sprint(std::string &dest);
+			
+			//2020: This is complicated because historically
+			//getPositionCoords, etc. works in absolute coordinates
+			//for translation but not rotation.
+			//double m_localRotation[3];     // Rotation relative to parent joint (or origin if no parent)
+			//double m_localTranslation[3];  // Translation relative to parent joint (or origin if no parent)
+			//TODO: Computable?
+			double m_rel[3];
+			double m_kfRel[3];
+			//m_rotSource COMPAT			
+			double m_kfRot[3];
+			double m_kfXyz[3];
+			//MEMORY OPTIMIZATION
+			double *m_kfAbs(){ return m_final.getVector(3); }
 
-				Matrix m_absolute;  // Absolute matrix for the joint's original position and orientation
-				Matrix m_relative;  // Matrix relative to parent joint
-				Matrix m_final;	  // Final animated absolute position for bone joint
+			Matrix m_absolute;  // Absolute matrix for the joint's original position and orientation
+			Matrix m_relative;  // Matrix relative to parent joint
+			Matrix m_final;	  // Final animated absolute position for bone joint
 
-				int m_currentRotationKeyframe;	  // Unused
-				int m_currentTranslationKeyframe;  // Unused
+			int m_parent;  // Parent joint index (-1 for no parent)
 
-				int m_parent;  // Parent joint index (-1 for no parent)
+			bool m_selected;
+			bool m_visible;
+			bool m_marked;
 
-				bool m_selected;
-				bool m_visible;
-				bool m_marked;
+			//TODO: If Euler angles are easily inverted it makes
+			//more sense to just calculate m_inv in validateSkel.
+			bool m_absolute_inverse;
+			Matrix m_inv;
+			Matrix &getAbsoluteInverse() //2020
+			{
+				if(!m_absolute_inverse)
+				{
+					m_absolute_inverse = true;
+					m_inv = m_absolute.getInverse();
+				}
+				return m_inv;
+			}
 
-				bool propEqual(const Joint &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const Joint &rhs)const
-					{ return propEqual(rhs); }
+			bool propEqual(const Joint &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+			bool operator==(const Joint &rhs)const
+				{ return propEqual(rhs); }
 
-			protected:
-				Joint();
-				virtual ~Joint();
-				void init();
+			void _source(AnimationModeE);
 
-				static std::vector<Joint *> s_recycle;
-				static int s_allocated;
+		protected:
+
+			Joint(),~Joint();
+			void init();
+
+			static std::vector<Joint*> s_recycle;
+			static int s_allocated;
 		};
 
-		class Point
+		class Point : public Object2020
 		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static int recycled(){ return s_recycle.size(); }
-				static void stats();
-				static Point *get();
-				void release();
-				void sprint(std::string &dest);
+		public:
 
-				std::string m_name;
-				int m_type;
-				double m_trans[3];	 // Position
-				double m_rot[3];		// Rotation
-				double m_kfTrans[3];  // Animated position
-				double m_kfRot[3];	 // Animated rotation
+			static int flush();
+			static int allocated(){ return s_allocated; }
+			static int recycled(){ return s_recycle.size(); }
+			static void stats();
+			static Point *get();
+			void release();
+			void sprint(std::string &dest);
+	
+			//UNUSED: Note old MM3D files have garbage written to this field
+			//since the MM3DFILE_PointT wasn't zero-initalized.
+			//int m_type;
 
-				// These pointers point to the unanimated or animated properties
-				// depending on whether or not the model is animated when it is drawn.
-				double *m_drawSource;  // m_trans or m_kfTrans
-				double *m_rotSource;	// m_rot or m_kfRot
+			//double m_trans[3];    // Position
+            //double m_rot[3];      // Rotation
 
-				bool	m_selected;
-				bool	m_visible;
-				bool	m_marked;
+			//NOTE: calculateAnim assumes stored back-to-back.
+			double m_kfAbs[3];  // Animated position
+			double m_kfRot[3];	 // Animated rotation
+			double m_kfXyz[3]; // Animated scale
 
-				// List of bone joints that move the point in skeletal animations.
-				infl_list m_influences;
+			// These pointers point to the unanimated or animated properties
+			// depending on whether or not the model is animated when it is drawn.
+			//double *m_absSource;  // m_abs or m_kfAbs
+			//double *m_rotSource;	// m_rot or m_kfRot
 
-				bool propEqual(const Point &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const Point &rhs)const
-					{ return propEqual(rhs); }
+			bool	m_selected;
+			bool	m_visible;
+			bool	m_marked;
 
-			protected:
-				Point();
-				virtual ~Point();
-				void init();
+			// List of bone joints that move the point in skeletal animations.
+			infl_list m_influences;
 
-				static std::vector<Point *> s_recycle;
-				static int s_allocated;
+			void _calc_influences(Model&); //2020
+
+			bool propEqual(const Point &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+			bool operator==(const Point &rhs)const
+				{ return propEqual(rhs); }
+
+			void _source(AnimationModeE);
+
+		protected:
+
+			Point(),~Point();
+			void init();
+
+			static std::vector<Point*> s_recycle;
+			static int s_allocated;
 		};
 
 		// A TextureProjection is used automatically map texture coordinates to a group
 		// of vertices. Common projection types are Sphere,Cylinder,and Plane.
-		class TextureProjection
+		class TextureProjection : public Object2020
 		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static void stats();
-				static TextureProjection *get();
-				void release();
-				void sprint(std::string &dest);
+		public:
 
-				std::string m_name;
-				int m_type;				// See TextureProjectionTypeE
-				double m_pos[3];
-				double m_upVec[3];	  // Vector that defines "up" for this projection
-				double m_seamVec[3];	// Vector that indicates where the texture wraps from 1.0 back to 0.0
-				double m_range[2][2];  // min/max,x/y
+			static int flush();
+			static int allocated(){ return s_allocated; }
+			static void stats();
+			static TextureProjection *get();
+			void release();
+			void sprint(std::string &dest);
 
-				bool	m_selected;
-				bool	m_marked;
+			int m_type;				// See TextureProjectionTypeE
+			
+			//double m_abs[3];
 
-				bool propEqual(const TextureProjection &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const TextureProjection &rhs)const
-					{ return propEqual(rhs); }
+			//Object2020 makes these fields editor friendly.
+			//https://github.com/zturtleman/mm3d/issues/114
+			//double m_upVec[3];	  // Vector that defines "up" for this projection
+			//double m_seamVec[3];	// Vector that indicates where the texture wraps from 1.0 back to 0.0
 
-			protected:
-				TextureProjection();
-				virtual ~TextureProjection();
-				void init();
+			double m_range[2][2];  // min/max,x/y
 
-				static int s_allocated;
+			bool	m_selected;
+			bool	m_marked;
+
+			bool propEqual(const TextureProjection &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+			bool operator==(const TextureProjection &rhs)const
+				{ return propEqual(rhs); }
+
+		protected:
+
+			TextureProjection(),~TextureProjection();
+			void init();
+
+			static int s_allocated;
 		};
 
 		// TODO: Probably should use a map for the KeyframeList
-		typedef sorted_ptr_list<Keyframe*> KeyframeList;
-		typedef std::vector<KeyframeList> JointKeyframeList;
+		typedef sorted_ptr_list<Keyframe*> KeyframeList;		
+		typedef std::vector<KeyframeList> ObjectKeyframeList;
+
+		class AnimBase2020 //RENAME ME
+		{
+		public:
+
+			std::string m_name;
+			ObjectKeyframeList m_keyframes;
+			double m_fps;  // Frames per second
+			bool m_wrap; // Whether or not the animation uses wraparound keyframe interpotion
+			//UNUSED
+			//unsigned m_frameCount;	 // Number of frames in the animation				
+			//bool	  m_validNormals;  // Whether or not the normals have been calculated for the current animation frame
+
+			//https://github.com/zturtleman/mm3d/issues/106
+			//If 0 m_timetable2020.size is used.
+			double m_frame2020;
+			std::vector<double> m_timetable2020;
+			
+			size_t _frame_count()const
+			{
+				return m_timetable2020.size(); 
+			}
+			double _time_frame()const
+			{
+				return m_frame2020?m_frame2020:_frame_count();
+			}
+			double _frame_time(unsigned frame)const
+			{
+				return frame<_frame_count()?m_timetable2020[frame]:0;
+			}			
+						
+			bool propEqual(const AnimBase2020 &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+			bool operator==(const AnimBase2020 &rhs)const
+				{ return propEqual(rhs); }
+
+			void init(),releaseData();
+		};
+		//TEMPORARY FIX
+		AnimBase2020 *_anim(AnimationModeE,unsigned)const;
+		AnimBase2020 *_anim(unsigned,unsigned,Position,bool=true)const;
 
 		// Describes a skeletal animation.
-		class SkelAnim
+		class SkelAnim : public AnimBase2020
 		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static int recycled(){ return s_recycle.size(); }
-				static void stats();
-				static SkelAnim *get();
-				void release();
-				void releaseData();
-				void sprint(std::string &dest);
+		public:
+			static int flush();
+			static int allocated(){ return s_allocated; }
+			static int recycled(){ return s_recycle.size(); }
+			static void stats();
+			static SkelAnim *get();
+			void release();
+			//void releaseData();
+			void sprint(std::string &dest);
 
-				std::string m_name;
-				JointKeyframeList m_jointKeyframes;
-				double	m_fps;  // Frames per second
-				double	m_spf;  // Seconds per frame (for convenience,1.0/m_fps)
-				bool	  m_loop; // Whether or not the animation loops
-				unsigned m_frameCount;	 // Number of frames in the animation
-				bool	  m_validNormals;  // Whether or not the normals have been calculated for the current animation frame
+		protected:
+			SkelAnim(),~SkelAnim();
+			//void init();
 
-				bool propEqual(const SkelAnim &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const SkelAnim &rhs)const
-					{ return propEqual(rhs); }
-
-			protected:
-				SkelAnim();
-				virtual ~SkelAnim();
-				void init();
-
-				static std::vector<SkelAnim *> s_recycle;
-				static int s_allocated;
+			static std::vector<SkelAnim*> s_recycle;
+			static int s_allocated;
 		};
-
-		// Describes the position and normal for a vertex in a frame animation.
-		class FrameAnimVertex
-		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static int recycled(){ return s_recycle.size(); }
-				static void stats();
-				static FrameAnimVertex *get();
-				void release();
-				void sprint(std::string &dest);
-
-				double m_coord[3];
-				double m_normal[3];
-
-				bool propEqual(const FrameAnimVertex &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const FrameAnimVertex &rhs)const
-					{ return propEqual(rhs); }
-
-			protected:
-				FrameAnimVertex();
-				virtual ~FrameAnimVertex();
-				void init();
-
-				static std::vector<FrameAnimVertex *> s_recycle;
-				static int s_allocated;
-		};
-
-		typedef std::vector<FrameAnimVertex *> FrameAnimVertexList;
-
-		// Describes the position and orientation for a point in a frame animation.
-		class FrameAnimPoint
-		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static int recycled(){ return s_recycle.size(); }
-				static void stats();
-				static FrameAnimPoint *get();
-				void release();
-				void sprint(std::string &dest);
-
-				double m_trans[3];
-				double m_rot[3];
-
-				bool propEqual(const FrameAnimPoint &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const FrameAnimPoint &rhs)const
-					{ return propEqual(rhs); }
-
-			protected:
-				FrameAnimPoint();
-				virtual ~FrameAnimPoint();
-				void init();
-
-				static std::vector<FrameAnimPoint *> s_recycle;
-				static int s_allocated;
-		};
-
-		typedef std::vector<FrameAnimPoint *> FrameAnimPointList;
-
+		
+		/*REFERENCE
 		// Contains the list of vertex positions and point positions for each vertex
 		// and point for one animation frame.
 		class FrameAnimData
 		{
-			 public:
-				  FrameAnimData(): m_frameVertices(nullptr),m_framePoints(nullptr){}
-				  FrameAnimVertexList *m_frameVertices;
-				  FrameAnimPointList  *m_framePoints;
+		public:
+			FrameAnimData():m_frameVertices(),m_framePoints()
+			{}
+			FrameAnimVertexList m_frameVertices;
+			FrameAnimPointList m_framePoints;
 
-				  void releaseData();
+			//https://github.com/zturtleman/mm3d/issues/106				  
+			double m_frame2020;
 
-				  bool propEqual(const FrameAnimData &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				  bool operator==(const FrameAnimData &rhs)const
-					{ return propEqual(rhs); }
+			void releaseData();
+
+			bool propEqual(const FrameAnimData &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
+			bool operator==(const FrameAnimData &rhs)const
+			{ return propEqual(rhs); }
 		};
-
-		typedef std::vector<FrameAnimData *> FrameAnimDataList;
+		typedef std::vector<FrameAnimData*> FrameAnimDataList;*/
 
 		// Describes a frame animation (also known as "Mesh Deformation Animation").
 		// This object contains a list of vertex positions for each vertex for every
 		// frame (and also every point for every frame).
-		class FrameAnim
+		class FrameAnim : public AnimBase2020
 		{
-			public:
-				static int flush();
-				static int allocated(){ return s_allocated; }
-				static int recycled(){ return s_recycle.size(); }
-				static void stats();
-				static FrameAnim *get();
-				void release();
-				void releaseData();
-				void sprint(std::string &dest);
+		public:
+			static int flush();
+			static int allocated(){ return s_allocated; }
+			static int recycled(){ return s_recycle.size(); }
+			static void stats();
+			static FrameAnim *get();
+			void release();
+			//void releaseData();
+			void sprint(std::string &dest);
 
-				std::string m_name;
-				// Each element in m_frameData is one frame. The frames hold lists of
-				// all vertex positions and point positions.
-				FrameAnimDataList m_frameData;
+			// Each element in m_frameData is one frame. The frames hold lists of
+			// all vertex positions and point positions.
+			//FrameAnimDataList m_frameData;
+			unsigned m_frame0;
 
-				double m_fps;  // Frames per second
-				bool	m_loop; // Whether or not the animation loops
-				bool	m_validNormals;  // Whether or not the normals have been calculated
+		protected:
+			FrameAnim(),~FrameAnim();
+			//void init();
 
-				bool propEqual(const FrameAnim &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
-				bool operator==(const FrameAnim &rhs)const
-					{ return propEqual(rhs); }
-
-			protected:
-				FrameAnim();
-				virtual ~FrameAnim();
-				void init();
-
-				static std::vector<FrameAnim *> s_recycle;
-				static int s_allocated;
+			static std::vector<FrameAnim*> s_recycle;
+			static int s_allocated;
 		};
 
 		// Working storage for an animated vertex.
@@ -806,17 +933,16 @@ class Model
 		};
 
 		// Reference background images for canvas viewports.
-		class BackgroundImage
+		class BackgroundImage : public Object2020
 		{
 			public:
-				BackgroundImage();
-				virtual ~BackgroundImage();
+				BackgroundImage(){ m_xyz[0] = 30; /*???*/ }
+
+				//std::string m_filename;
+				//float m_scale;      // 1.0 means 1 GL unit from the center to the edges of the image
+				//float m_center[3];  // Point in the viewport where the image is centered
 
 				void sprint(std::string &dest);
-
-				std::string m_filename;
-				float m_scale;		// 1.0 means 1 GL unit from the center to the edges of the image
-				float m_center[3];  // Point in the viewport where the image is centered
 
 				bool propEqual(const BackgroundImage &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
 				bool operator==(const BackgroundImage &rhs)const
@@ -880,10 +1006,10 @@ class Model
 				std::string key;
 				std::string value;
 		};
-		typedef std::vector<MetaData>MetaDataList;
+		typedef std::vector<MetaData> MetaDataList;
 
 		// See errorToString()
-		enum _ModelError_e
+		enum ModelErrorE
 		{
 			ERROR_NONE = 0,
 			ERROR_CANCEL,
@@ -902,9 +1028,8 @@ class Model
 			ERROR_EXPORT_ONLY,
 			ERROR_UNKNOWN
 		};
-		typedef enum _ModelError_e ModelErrorE;
 
-		enum _SelectionMode_e
+		enum SelectionModeE
 		{
 			SelectNone,
 			SelectVertices,
@@ -915,14 +1040,13 @@ class Model
 			SelectPoints,
 			SelectProjections,
 		};
-		typedef enum _SelectionMode_e SelectionModeE;
 
 		//REMOVE ME
 		/*2019: Removing this to remove dependency on ViewRight/Left.
 		//It is used only by implui/texturecoord.cc. It's not a big enough piece of Model to warrant
 		//existing. It is an argument to Model::getVertexCoords2d.
 		// Canvas drawing projections (not related to TextureProjections)
-		enum _ProjectionDirection_e
+		enum ProjectionDirectionE
 		{
 			View3d = 0,
 			ViewFront,
@@ -931,8 +1055,7 @@ class Model
 			ViewRight,
 			ViewTop,
 			ViewBottom
-		};
-		typedef enum _ProjectionDirection_e ProjectionDirectionE;*/
+		};*/
 
 		enum
 		{
@@ -955,17 +1078,6 @@ class Model
 			DO_BONES = 0x40, //2019 //Removing DrawJointModeE
 		};
 
-		enum _AnimationMode_e
-		{
-			ANIMMODE_NONE = 0,
-			ANIMMODE_SKELETAL,
-			ANIMMODE_FRAME,
-			//UNIMPLEMENTED
-			//ANIMMODE_FRAMERELATIVE, // Not implemented
-			ANIMMODE_MAX
-		};
-		typedef enum _AnimationMode_e AnimationModeE;
-
 		//REMOVE ME
 		/*https://github.com/zturtleman/mm3d/issues/56
 		enum DrawJointModeE
@@ -976,15 +1088,14 @@ class Model
 			JOINTMODE_MAX
 		};*/
 
-		enum _AnimationMerge_e
+		enum AnimationMergeE
 		{
 			AM_NONE = 0,
 			AM_ADD,
 			AM_MERGE
 		};
-		typedef enum _AnimationMerge_e AnimationMergeE;
 
-		enum _BooleanOp_e
+		enum BooleanOpE
 		{
 			BO_Union,
 			BO_UnionRemove,
@@ -992,7 +1103,6 @@ class Model
 			BO_Intersection,
 			BO_MAX
 		};
-		typedef enum _BooleanOp_e BooleanOpE;
 
 #ifdef MM3D_EDIT
 		// Register an observer if you have an object that must be notified when the
@@ -1004,15 +1114,14 @@ class Model
 				virtual ~Observer(){} //???
 				virtual void modelChanged(int changeBits)= 0;
 		};
-		typedef std::vector<Observer *> ObserverList;
+		typedef std::vector<Observer*> ObserverList;
 #endif // MM3D_EDIT
 
 		// ==================================================================
 		// Public methods
 		// ==================================================================
 
-		Model();
-		virtual ~Model();
+		Model(),~Model(); //virtual ~Model();
 
 		static const char *errorToString(Model::ModelErrorE,Model *model = nullptr);
 		static bool operationFailed(Model::ModelErrorE);
@@ -1083,13 +1192,13 @@ class Model
 		void removeLastMetaData();  // For undo only!
 
 		// Background image accessors. See the BackgroundImage class.
-		void setBackgroundImage(unsigned index, const char *str);
-		void setBackgroundScale(unsigned index, float scale);
-		void setBackgroundCenter(unsigned index, float x, float y, float z);
+		bool setBackgroundImage(unsigned index, const char *str);
+		bool setBackgroundScale(unsigned index, float scale);
+		bool setBackgroundCenter(unsigned index, float x, float y, float z);
 
 		const char *getBackgroundImage(unsigned index)const;
 		float getBackgroundScale(unsigned index)const;
-		void getBackgroundCenter(unsigned index, float &x, float &y, float &z)const;
+		bool getBackgroundCenter(unsigned index, float &x, float &y, float &z)const;
 
 		// These are used to store status messages when the model does not have a status
 		// bar. When a model is assigned to a viewport window,the messages will be
@@ -1111,12 +1220,12 @@ class Model
 
 		// Functions for rendering the model in a viewport
 		void draw(unsigned drawOptions = DO_TEXTURE,ContextT context = nullptr, float *viewPoint = nullptr);
-		void drawLines(float alpha=0.5f);
-		void drawVertices();
-		void _drawPolygons(int,FrameAnimVertex***mark=nullptr); //2019
+		void drawLines(float alpha=1);
+		void drawVertices(float alpha=1);
+		void _drawPolygons(int,bool mark=false); //2019
 		void drawPoints();
 		void drawProjections();
-		void drawJoints();
+		void drawJoints(float alpha=1);
 
 		//NOTE: m is ModelViewport::ViewOptionsE
 		void setCanvasDrawMode(int m){ m_canvasDrawMode = m; };
@@ -1149,17 +1258,42 @@ class Model
 
 		// Forces a reload and re-initialization of all textures in all
 		// viewports (contexts)
-		void invalidateTextures();
+		void invalidateTextures(); //OVERKILL
 
 		// Counter that indicates how many OpenGL textures are currently allocated.
 		static int	 s_glTextures;
 
 		// The local matrix is used by non-mm3d applications that use this
 		// library to render MM3D models. In MM3D it should always be set to the
-		// identity matrix.  Other apps use it to move an animated model to a new
-		// location in space,it only affects rendering of skeletal animations.
+		// identity matrix. Other apps use it to move an animated model to a new
+		// location in space, it only affects rendering of skeletal animations.
 		void setLocalMatrix(const Matrix &m){ m_localMatrix = m; };
 
+		// ------------------------------------------------------------------
+		// New "Position" functions (2020)
+		// ------------------------------------------------------------------
+
+		Object2020 *getPositionObject(const Position &pos);
+		const Object2020 *getPositionObject(const Position &pos)const
+		{
+			return ((Model*)this)->getPositionObject(pos);
+		}
+
+		bool setPositionCoords(const Position &pos, const double coords[3]);
+		bool setPositionRotation(const Position &pos, const double rot[3]);
+		bool setPositionScale(const Position &pos, const double scale[3]);
+		bool setPositionName(const Position &pos, const char *name);		
+
+		const char *getPositionName(const Position &pos)const;
+		bool getPositionCoords(const Position &pos, double coords[3])const;
+		bool getPositionCoordsUnanimated(const Position &pos, double coords[3])const;
+		bool getPositionRotation(const Position &pos, double rot[3])const;
+		bool getPositionRotationUnanimated(const Position &pos, double rot[3])const;
+		bool getPositionScale(const Position &pos, double scale[3])const;
+		bool getPositionScaleUnanimated(const Position &pos, double scale[3])const;		
+		bool getPositionParams(const Position &pos, Interpolant2020E, double params[3])const;
+		bool getPositionParamsUnanimated(const Position &pos, Interpolant2020E, double params[3])const;
+		
 		// ------------------------------------------------------------------
 		// Animation functions
 		// ------------------------------------------------------------------
@@ -1171,18 +1305,43 @@ class Model
 			return setCurrentAnimation(m,(unsigned)index);
 		}
 	
-		bool setCurrentAnimationFrame(unsigned frame);
-		bool setCurrentAnimationTime(double time, int loop=-1);
+		enum AnimationTimeE //OPTIMIZATION
+		{	
+			//NOTE: These are bitwise but precedence is enforced so that
+			//it doesn't make sense to mix them.
+			//TODO: Might want to offer a mode that keeps normals static.
+			//Problem is the BSP-tree feature needs face-normals, so the
+			//face-normals must have their own "m_valid" status to do so.
+
+			AT_calculateAnim=1, //Ignore normals calculation.
+			AT_calculateNormals=1|2, //Calculate all (default).
+			AT_invalidateNormals=1, //Ignore normals calculation.
+			AT_invalidateAnim=0, //Just set the time.
+		};
+
+		bool setCurrentAnimationFrame(unsigned frame, AnimationTimeE=AT_calculateNormals);
+		bool setCurrentAnimationFrameTime(double time, AnimationTimeE=AT_calculateNormals); 
+		bool setCurrentAnimationTime(double seconds, int loop=-1, AnimationTimeE=AT_calculateNormals);
+
+		//2020: Try to make a new frame at the current time.
+		//The returned value is the new current frame which
+		//may or may not be a different value since usually
+		//the value will be 1 more than the current but not
+		//always when inserting to the front.
+		unsigned makeCurrentAnimationFrame();
 
 		unsigned getCurrentAnimation()const;
 		unsigned getCurrentAnimationFrame()const;
-		double	getCurrentAnimationTime()const;
+		//2020: Internally the time is stored in frame units so it's possible to compare
+		//the value to the frames' timestamps.
+		double getCurrentAnimationFrameTime()const;
+		double getCurrentAnimationTime()const;
 
 		// Stop animation mode; Go back to standard pose editing.
 		void setNoAnimation();
 
-		AnimationModeE getAnimationMode()const { return m_animationMode; };
-		bool inSkeletalMode()const { return (m_animationMode==ANIMMODE_SKELETAL); };
+		AnimationModeE getAnimationMode()const{ return m_animationMode; };
+		bool inSkeletalMode()const{ return m_animationMode==ANIMMODE_SKELETAL; };
 
 		// Common animation properties
 		int addAnimation(AnimationModeE mode, const char *name);
@@ -1195,78 +1354,140 @@ class Model
 
 		double getAnimFPS(AnimationModeE mode, unsigned anim)const;
 		bool setAnimFPS(AnimationModeE mode, unsigned anim, double fps);
+		
+		bool getAnimWrap(AnimationModeE mode, unsigned anim)const;
+		bool setAnimWrap(AnimationModeE mode, unsigned anim, bool wrap);
 
-		bool getAnimLooping(AnimationModeE mode, unsigned anim)const;
-		bool setAnimLooping(AnimationModeE mode, unsigned anim,bool loop);
+		//https://github.com/zturtleman/mm3d/issues/106
+		//2020: Get m_frame2020 for sparse animation data. Units are in frames.
+		double getAnimTimeFrame(AnimationModeE mode, unsigned anim)const;
+		bool setAnimTimeFrame(AnimationModeE mode, unsigned anim, double time);
+		//NOTE: Units are frames. Caller is responsible for uniqueness/sorting.
+		double getAnimFrameTime(AnimationModeE mode, unsigned anim, unsigned frame)const;
+		bool setAnimFrameTime(AnimationModeE mode, unsigned anim, unsigned frame, double time);	
+
+		//2020: WHAT VERB IS NORMATIVE IN THIS CASE?
+		//Efficiently get frame/convenience function. Units are in frames.
+		unsigned getAnimFrame(AnimationModeE mode, unsigned anim, double time)const;
 
 		unsigned getAnimFrameCount(AnimationModeE mode, unsigned anim)const;
+		
+		typedef std::vector<FrameAnimVertex*> FrameAnimData;
 		bool setAnimFrameCount(AnimationModeE mode, unsigned anim, unsigned count);
+		bool setAnimFrameCount(AnimationModeE mode, unsigned anim, unsigned count, unsigned where, FrameAnimData*);
 
-		bool clearAnimFrame(AnimationModeE mode, unsigned anim, unsigned frame);
+		//2020: Formerly clearAnimFrame.
+		bool deleteAnimFrame(AnimationModeE mode, unsigned anim, unsigned frame);
 
 		// Frame animation geometry
-		void setFrameAnimVertexCount(unsigned vertexCount);
-		void setFrameAnimPointCount(unsigned pointCount);
+		//void setFrameAnimVertexCount(unsigned vertexCount);
+		//void setFrameAnimPointCount(unsigned pointCount);
 
+		//TODO: interpFrameAnimVertexCoords?
 		bool setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
-				double x, double y, double z);
-		bool getFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
+				double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+		//TODO: Remove ability to return InterpolateVoid.
+		//CAUTION: xyz HOLD JUNK IF RETURNED VALUE IS 0!!
+		Interpolate2020E getFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
 				double &x, double &y, double &z)const;
-		bool getFrameAnimVertexNormal(unsigned anim, unsigned frame, unsigned vertex,
-				double &x, double &y, double &z)const;
+		//2020: These won't return InterpolateVoid.
+		Interpolate2020E hasFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex)const;
+
+		//REMOVED		
+		//https://github.com/zturtleman/mm3d/issues/109
+		//Instead of this use getNormal with setCurrentAnimationFrame.
+		//bool getFrameAnimVertexNormal(unsigned anim, unsigned frame, unsigned vertex,
+		//		double &x, double &y, double &z)const;
 
 		// Not undo-able
+		//NOTE: Historically InterpolateStep is a more correct default but my sense is
+		//users would prefer importers to defaul to InterpolateLerp.
 		bool setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
-				double x, double y, double z);
+				double x, double y, double z, Interpolate2020E interp=InterpolateLerp);
+		/*2020 Not undo-able
+		bool setQuickFrameAnimPoint(unsigned anim, unsigned frame, unsigned point,
+				double x, double y, double z,
+				double rx, double ry, double rz, Interpolate2020E interp[2]=nullptr);*/
 
+		/*REFERENCE
 		bool setFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point,
-				double x, double y, double z);
-		bool getFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point,
+				double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+		//TODO: Remove ability to return InterpolateVoid.
+		Interpolate2020E getFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point,
 				double &x, double &y, double &z)const;
+		//2020: These won't return InterpolateVoid.
+		Interpolate2020E hasFrameAnimPointCoords(unsigned anim, unsigned frame, unsigned point)const;
 
 		bool setFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point,
-				double x, double y, double z);
-		bool getFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point,
+				double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+		//TODO: Remove ability to return InterpolateVoid.
+		Interpolate2020E getFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point,
 				double &x, double &y, double &z)const;
+		//2020: Won't return InterpolateVoid.
+		Interpolate2020E hasFrameAnimPointRotation(unsigned anim, unsigned frame, unsigned point)const;
 
-		// Skeletal animation keyframs
-		int  setSkelAnimKeyframe(unsigned anim, unsigned frame, unsigned joint,bool isRotation,
-				double x, double y, double z);
-		bool getSkelAnimKeyframe(unsigned anim, unsigned frame,
-				unsigned joint,bool isRotation,
+		bool setFrameAnimPointScale(unsigned anim, unsigned frame, unsigned point,
+				double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+		//TODO: Remove ability to return InterpolateVoid.
+		Interpolate2020E getFrameAnimPointScale(unsigned anim, unsigned frame, unsigned point,
 				double &x, double &y, double &z)const;
+		//2020: Won't return InterpolateVoid.
+		Interpolate2020E hasFrameAnimPointScale(unsigned anim, unsigned frame, unsigned point)const;
+		*/
 
-		bool hasSkelAnimKeyframe(unsigned anim, unsigned frame,
-				unsigned joint,bool isRotation)const;
+		//TEMPORARY API
+		//PT_Joint: Skeletal animation keyframes 
+		//PT_Point: Frame animation keyframes 
+		int setKeyframe(unsigned anim, unsigned frame, Position, KeyType2020E isRotation,
+				double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+		Interpolate2020E getKeyframe(unsigned anim, unsigned frame,
+				Position, KeyType2020E isRotation,
+				double &x, double &y, double &z)const;
+		//2020
+		//NOTE: Returns the highest value if type is left unspecified.
+		//For now these should be equal for a joint for a given frame.
+		Interpolate2020E hasKeyframe(unsigned anim, unsigned frame,
+				Position, KeyType2020E isRotation=KeyAny)const;
 
-		bool deleteSkelAnimKeyframe(unsigned anim, unsigned frame, unsigned joint,bool isRotation);
+		bool deleteKeyframe(unsigned anim, unsigned frame, Position joint, KeyType2020E isRotation=KeyAny);
 
+		/*REFERENCE
 		// Interpolate what a keyframe for this joint would be at the specified frame.
 		bool interpSkelAnimKeyframe(unsigned anim, unsigned frame,
-				bool loop, unsigned joint,bool isRotation,
+				bool loop, unsigned joint, KeyType2020E isRotation,
 				double &x, double &y, double &z)const;
 		// Interpolate what a keyframe for this joint would be at the specified time.
 		bool interpSkelAnimKeyframeTime(unsigned anim, double frameTime,
-				bool loop, unsigned joint,
-				Matrix &relativeFinal)const;
+				bool loop, unsigned joint, Matrix &relativeFinal)const;
+		*/
+		//2020: Avoids time/frame resolution.		
+		int interpKeyframe(unsigned anim, unsigned frame, Position, Matrix &relativeFinal)const;
+		int interpKeyframe(unsigned anim, unsigned frame, double frameTime, Position, Matrix &relativeFinal)const;
+		int interpKeyframe(unsigned anim, unsigned frame, Position, double trans[3], double rot[3], double scale[3])const;
+		int interpKeyframe(unsigned anim, unsigned frame, double frameTime, Position, double trans[3], double rot[3], double scale[3])const;
+		int interpKeyframe(unsigned anim, unsigned frame, unsigned vertex, double trans[3])const;
+		int interpKeyframe(unsigned anim, unsigned frame, double frameTime, unsigned vertex, double trans[3])const;
 
 		// Animation set operations
-		int  copyAnimation(AnimationModeE mode, unsigned anim, const char *newName);
-		int  splitAnimation(AnimationModeE mode, unsigned anim, const char *newName, unsigned frame);
+		int copyAnimation(AnimationModeE mode, unsigned anim, const char *newName);
+		int splitAnimation(AnimationModeE mode, unsigned anim, const char *newName, unsigned frame);
 		bool joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2);
 		bool mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2);
-		int  convertAnimToFrame(AnimationModeE mode, unsigned anim1, const char *newName, unsigned frameCount);
+		//2020: "how" is what interploation mode to use, "how2" is what to use for frames that retain
+		//the same value, i.e. InterpolateCopy. The default behavior is to use "how" for this purpose.
+		int convertAnimToFrame(AnimationModeE mode, unsigned anim1, const char *newName, unsigned frameCount, Interpolate2020E how, Interpolate2020E how2=InterpolateNone);
 
 		bool moveAnimation(AnimationModeE mode, unsigned oldIndex, unsigned newIndex);
 
 		// For undo,don't call these directly
-		bool insertSkelAnimKeyframe(unsigned anim,Keyframe *keyframe);
-		bool removeSkelAnimKeyframe(unsigned anim, unsigned frame, unsigned joint,bool isRotation,bool release = false);
+		bool insertKeyframe(unsigned anim, PositionTypeE, Keyframe *keyframe);
+		bool removeKeyframe(unsigned anim, unsigned frame, Position, KeyType2020E isRotation,bool release = false);
 
 		// Merge all animations from model into this model.
 		// For skeletal,skeletons must match
 		bool mergeAnimations(Model *model);
 
+		/*https://github.com/zturtleman/mm3d/issues/87
 		// When a model has frame animations,adding or removing primitives is disabled
 		// (because of the large amount of undo information that would have to be stored).
 		// Use this function to force an add or remove (you must make sure that you adjust
@@ -1277,24 +1498,53 @@ class Model
 		// you know what you're doing.
 		void forceAddOrDelete(bool o);
 
-		bool canAddOrDelete()const { return (m_frameAnims.size()==0||m_forceAddOrDelete); };
-
+		bool canAddOrDelete()const{ return m_frameAnims.empty()||m_forceAddOrDelete; };
+		
 		// Show an error because the user tried to add or remove primitives while
 		// the model has frame animations.
-		void displayFrameAnimPrimitiveError();
+		//bool displayFrameAnimPrimitiveError();
+		*/
 
 		// ------------------------------------------------------------------
 		// Normal functions
 		// ------------------------------------------------------------------
 
-		bool getNormal(unsigned triangleNum, unsigned vertexIndex, float *normal)const;
-		bool getFlatNormal(unsigned triangleNum, float *normal)const;
-		float cosToPoint(unsigned triangleNum, double *point)const;
+		//FIX US: Historically these behave very differently. Presently getNormal
+		//returns the current normal valid or invalid. getFlatNormal now returns
+		//a valid normal or else calculates one. It used to always calculate them.
+		//I think probably they should validate if required and not calcuate. The
+		//"Unanimated" forms are new. Previously the normals were never animated.
+		//
+		// https://github.com/zturtleman/mm3d/issues/116
+		//
+		bool getNormalUnanimated(unsigned triangleNum, unsigned vertexIndex, double *normal)const;
+		bool getNormal(unsigned triangleNum, unsigned vertexIndex, double *normal)const;
+		bool getFlatNormalUnanimated(unsigned triangleNum, double *normal)const;
+		bool getFlatNormal(unsigned triangleNum, double *normal)const;
 
+		//CAUTION: This now uses the "source" pointers to fill out 
+		//normals either for animations or the base model.
 		void calculateNormals();
-		void calculateSkelNormals();
-		void calculateFrameNormals(unsigned anim);
-		void invalidateNormals();
+
+		//NEW: Invalidates normals both for animations and base model.
+		//TODO: Replace these with spot fix repair system.
+		void invalidateNormals(),invalidateAnimNormals();
+
+		//NEW: Calls calculateNormals if current normals requier repairs.
+		bool validateNormals()const;
+
+		// Call this when a bone joint is moved, rotated, added, or deleted to
+		// recalculate the skeletal structure.
+		void validateSkel()const,calculateSkel(); //setupJoints
+		void invalidateSkel();
+		// This does the first half (joints) of validate/calculateAnim but not
+		// the second half (vertex/points coordinates)
+		void validateAnimSkel()const,calculateAnimSkel();
+
+		void invalidateAnim();
+		void invalidateAnim(AnimationModeE,unsigned,unsigned);
+		//NEW: Defer animation calculations same as normals calculations.
+		void validateAnim()const,calculateAnim();
 
 		void invertNormals(unsigned triangleNum);
 		bool triangleFacesIn(unsigned triangleNum);
@@ -1309,7 +1559,37 @@ class Model
 		inline int getPointCount()	 const { return m_points.size(); }
 		inline int getProjectionCount()const { return m_projections.size(); }
 
-		bool getPositionCoords(const Position &pos, double *coord)const;
+		//2020: This is to replace ModelFilter providing access to the data
+		//lists. The lists are now const so encapsulation isn't compromised.
+		typedef std::vector<Triangle*> _TriangleList;
+		typedef const std::vector<const Triangle*> TriangleList;
+		TriangleList &getTriangleList()const{ return *(TriangleList*)&m_triangles; };
+		typedef std::vector<Vertex*> _VertexList;
+		typedef const std::vector<const Vertex*> VertexList;
+		VertexList &getVertexList()const{ return *(VertexList*)&m_vertices; };
+		typedef std::vector<Group*> _GroupList;
+		typedef const std::vector<const Group*> GroupList;
+		GroupList &getGroupList(){ return *(GroupList*)&m_groups; };
+		typedef std::vector<Material*> _MaterialList;
+		typedef const std::vector<const Material*> MaterialList;
+		MaterialList &getMaterialList(){ return *(MaterialList*)&m_materials; };
+		typedef std::vector<Joint*> _JointList;
+		typedef const std::vector<const Joint*> JointList;
+		JointList &getJointList(){ return *(JointList*)&m_joints; };
+		typedef std::vector<Point*> _PointList;
+		typedef const std::vector<const Point*> PointList;
+		PointList &getPointList(){ return *(PointList*)&m_points; };
+		typedef std::vector<TextureProjection*> _ProjectionList;
+		typedef const std::vector<const TextureProjection*> ProjectionList;
+		ProjectionList &getProjectionList(){ return *(ProjectionList*)&m_projections; };
+		typedef std::vector<SkelAnim*> _SkelAnimList;
+		typedef const std::vector<const SkelAnim*> SkelAnimList;
+		SkelAnimList &getSkelList(){ return *(SkelAnimList*)&m_skelAnims; };
+		typedef std::vector<FrameAnim*> _FrameAnimList;
+		typedef const std::vector<const FrameAnim*> FrameAnimList;
+		FrameAnimList &getFrameList(){ return *(FrameAnimList*)&m_frameAnims; };
+
+		//bool getPositionCoords(const Position &pos, double *coord)const;
 
 		int addVertex(double x, double y, double z);
 		int addTriangle(unsigned vert1, unsigned vert2, unsigned vert3);
@@ -1334,7 +1614,8 @@ class Model
 		bool isTriangleMarked(unsigned t)const;
 
 		void subdivideSelectedTriangles();
-		void unsubdivideTriangles(unsigned t1, unsigned t2, unsigned t3, unsigned t4);
+		//void unsubdivideTriangles(CAN'T BE UNDONE... IT'S REALLY FOR MU_SubdivideSelected use.) 
+		void subdivideSelectedTriangles_undo(unsigned t1, unsigned t2, unsigned t3, unsigned t4);
 
 		// If co-planer triangles have edges with points that are co-linear they
 		// can be combined into a single triangle. The simplifySelectedMesh function
@@ -1370,8 +1651,8 @@ class Model
 		void calculateBspTree();
 		void invalidateBspTree();
 
-		// The model argument should be const,but it calls setupJoints.
-		// TODO: Calling setupJoints in here should not be necessary.
+		// The model argument should be const, but it calls validateSkel.
+		// TODO: Calling validateSkel in here should not be necessary.
 		bool mergeModels(Model *model,bool textures,AnimationMergeE mergeMode,bool emptyGroups,
 				double *trans = nullptr, double *rot = nullptr);
 
@@ -1441,16 +1722,16 @@ class Model
 		Texture *getTextureData(unsigned textureId);
 
 		// Lighting accessors
-		bool getTextureAmbient(  unsigned textureId,		float *ambient  )const;
-		bool getTextureDiffuse(  unsigned textureId,		float *diffuse  )const;
-		bool getTextureEmissive( unsigned textureId,		float *emissive )const;
-		bool getTextureSpecular( unsigned textureId,		float *specular )const;
-		bool getTextureShininess(unsigned textureId,		float &shininess)const;
+		bool getTextureAmbient(unsigned textureId, float *ambient)const;
+		bool getTextureDiffuse(unsigned textureId, float *diffuse)const;
+		bool getTextureEmissive(unsigned textureId, float *emissive)const;
+		bool getTextureSpecular(unsigned textureId, float *specular)const;
+		bool getTextureShininess(unsigned textureId, float &shininess)const;
 
-		bool setTextureAmbient(  unsigned textureId, const float *ambient  );
-		bool setTextureDiffuse(  unsigned textureId, const float *diffuse  );
-		bool setTextureEmissive( unsigned textureId, const float *emissive );
-		bool setTextureSpecular( unsigned textureId, const float *specular );
+		bool setTextureAmbient(unsigned textureId, const float *ambient);
+		bool setTextureDiffuse(unsigned textureId, const float *diffuse);
+		bool setTextureEmissive(unsigned textureId, const float *emissive);
+		bool setTextureSpecular(unsigned textureId, const float *specular);
 		bool setTextureShininess(unsigned textureId, float shininess);
 
 		// See the clamp property in the Material class.
@@ -1460,8 +1741,9 @@ class Model
 		bool setTextureTClamp(unsigned textureId,bool clamp);
 
 		int_list getUngroupedTriangles()const;
-		int_list getGroupTriangles(unsigned groupNumber)const;
-		int		 getGroupTextureId(unsigned groupNumber)const;
+		//int_list getGroupTriangles(unsigned groupNumber)const;
+		const int_list &getGroupTriangles(unsigned groupNumber)const; //2020
+		int getGroupTextureId(unsigned groupNumber)const;
 
 		int getTriangleGroup(unsigned triangleNumber)const;
 
@@ -1477,9 +1759,14 @@ class Model
 		// ------------------------------------------------------------------
 		// Skeletal structure and influence functions
 		// ------------------------------------------------------------------
-
+		
+		//NOTE: Internally translation is all that matters. Rotation is
+		//just a number. As such it's best to keep it at 0,0,0 unless a
+		//tool changes the value for book-keeping purposes.
 		int addBoneJoint(const char *name, double x, double y, double z,
-				double xrot, double yrot, double zrot,
+				//2020: I think this is unnecessary. The loaders (filters)
+				//aren't using addBoneJoint.
+				/*double xrot, double yrot, double zrot,*/
 				int parent = -1);
 
 		void deleteBoneJoint(unsigned joint);
@@ -1487,17 +1774,22 @@ class Model
 		const char *getBoneJointName(unsigned joint)const;
 		int getBoneJointParent(unsigned joint)const;
 		bool getBoneJointCoords(unsigned jointNumber, double *coord)const;
+		bool getBoneJointCoordsUnanimated(unsigned jointNumber, double *coord)const;
+		bool getBoneJointRotation(unsigned jointNumber, double *coord)const;
+		bool getBoneJointRotationUnanimated(unsigned jointNumber, double *coord)const;
 
 		bool getBoneJointFinalMatrix(unsigned jointNumber,Matrix &m)const;
 		bool getBoneJointAbsoluteMatrix(unsigned jointNumber,Matrix &m)const;
 		bool getBoneJointRelativeMatrix(unsigned jointNumber,Matrix &m)const;
 		bool getPointFinalMatrix(unsigned pointNumber,Matrix &m)const;
 		bool getPointAbsoluteMatrix(unsigned pointNumber,Matrix &m)const;
+		
+		//REMOVE ME
+		//Only dupcmd uses this in a way that looks bad. 
+		void getBoneJointVertices(int joint, int_list&)const;
 
-		int_list getBoneJointVertices(int joint)const;
-		int getVertexBoneJoint(unsigned vertexNumber)const;
-		int getPointBoneJoint(unsigned point)const;
-
+		//REMOVE US
+		//I think these date back to a time when primitives were stuck to one joint apiece.
 		bool setPositionBoneJoint(const Position &pos, int joint);
 		bool setVertexBoneJoint(unsigned vertex, int joint);
 		bool setPointBoneJoint(unsigned point, int joint);
@@ -1514,9 +1806,10 @@ class Model
 		bool removeAllVertexInfluences(unsigned vertex);
 		bool removeAllPointInfluences(unsigned point);
 
-		bool getPositionInfluences(const Position &pos,infl_list &l)const; //REMOVE ME		
-		bool getVertexInfluences(unsigned vertex,infl_list &l)const; //REMOVE ME
-		bool getPointInfluences(unsigned point,infl_list &l)const; //REMOVE ME
+		//REMOVE US
+		bool getPositionInfluences(const Position &pos,infl_list &l)const;
+		bool getVertexInfluences(unsigned vertex,infl_list &l)const;
+		bool getPointInfluences(unsigned point,infl_list &l)const;
 		
 		//2019: Trying to encourage better programming.
 		infl_list &getVertexInfluences(unsigned vertex) //NEW
@@ -1527,33 +1820,35 @@ class Model
 		{
 			return m_points[point]->m_influences;
 		}
-		infl_list &getPositionInfluences(const Position &pos) //NEW
+		infl_list *getPositionInfluences(const Position &pos) //NEW
 		{
 			switch(pos.type)
 			{
-			case PT_Vertex: return getVertexInfluences(pos.index);
-			default: assert(0); //FIX ME?
-			case PT_Point: return getPointInfluences(pos.index);
+			case PT_Vertex: return &getVertexInfluences(pos.index);			
+			case PT_Point: return &getPointInfluences(pos.index);
 			}
+			return nullptr;
 		}
-		const infl_list &getVertexInfluences(unsigned vertex)const 
+		const infl_list &getVertexInfluences(unsigned vertex)const //NEW 
 		{		
 			return m_vertices[vertex]->m_influences;
 		}
-		const infl_list &getPointInfluences(unsigned point)const 
+		const infl_list &getPointInfluences(unsigned point)const //NEW 
 		{
 			return m_points[point]->m_influences;
 		}
-		const infl_list &getPositionInfluences(const Position &pos)const
+		const infl_list *getPositionInfluences(const Position &pos)const //NEW
 		{
 			switch(pos.type)
 			{
-			case PT_Vertex: return getVertexInfluences(pos.index);
-			default: assert(0); //FIX ME?
-			case PT_Point: return getPointInfluences(pos.index);
+			case PT_Vertex: return &getVertexInfluences(pos.index);
+			case PT_Point: return &getPointInfluences(pos.index);
 			}
+			return nullptr;
 		}
 
+		//NOTE: These appear to replace getVertexBoneJoint/getPointBoneJoint
+		//so I'm removing those.
 		int getPrimaryPositionInfluence(const Position &pos)const;
 		int getPrimaryVertexInfluence(unsigned vertex)const;
 		int getPrimaryPointInfluence(unsigned point)const;
@@ -1574,31 +1869,30 @@ class Model
 		bool setBoneJointName(unsigned joint, const char *name);
 		bool setBoneJointParent(unsigned joint, int parent = -1);
 		bool setBoneJointRotation(unsigned j, const double *rot);
-		bool setBoneJointTranslation(unsigned j, const double *trans);
+		//UNUSED: Had taken relative coordinates. Don't want that.
+		//bool setBoneJointTranslation(unsigned j, const double *trans);
 
 		double calculatePositionInfluenceWeight(const Position &pos, unsigned joint)const;
 		double calculateVertexInfluenceWeight(unsigned vertex, unsigned joint)const;
 		double calculatePointInfluenceWeight(unsigned point, unsigned joint)const;
 		double calculateCoordInfluenceWeight(const double *coord, unsigned joint)const;
 
-		void calculateRemainderWeight(infl_list &list)const;
+		//RENAME/REMOVE ME
+		//2020: I'm hijacking this API in order to keep the geometry up-to-date.
+		static void calculateRemainderWeight(infl_list &list);
+		void calculateRemainderWeight(Vertex&);
+		void calculateRemainderWeight(Point&);
 
 		bool getBoneVector(unsigned joint, double *vec, const double *coord)const;
 
 		// No undo on this one
 		bool relocateBoneJoint(unsigned j, double x, double y, double z);
-
-		// Call this when a bone joint is moved,rotated,added,or deleted to
-		// recalculate the skeletal structure.
-		void setupJoints();
-
+				
 		// ------------------------------------------------------------------
 		// Point functions
 		// ------------------------------------------------------------------
 
-		int addPoint(const char *name, double x, double y, double z,
-				double xrot, double yrot, double zrot,
-				int boneId = -1);
+		int addPoint(const char *name, double x, double y, double z, double xrot, double yrot, double zrot);
 
 		void deletePoint(unsigned point);
 
@@ -1607,18 +1901,15 @@ class Model
 		const char *getPointName(unsigned point)const;
 		bool setPointName(unsigned point, const char *name);
 
-		int getPointType(unsigned point)const;
-		bool setPointType(unsigned point, int type);
-
-		// TODO: Orientation and Rotation are used for different purposes.
-		// If it's safe to remove one in favor of the other,that should be done.
 		bool getPointCoords(unsigned pointNumber, double *coord)const;
-		bool getPointOrientation(unsigned pointNumber, double *rot)const;
+		bool getPointCoordsUnanimated(unsigned point, double *trans)const;
 		bool getPointRotation(unsigned point, double *rot)const;
-		bool getPointTranslation(unsigned point, double *trans)const;
+		bool getPointRotationUnanimated(unsigned point, double *rot)const;
+		bool getPointScale(unsigned point, double *rot)const;
+		bool getPointScaleUnanimated(unsigned point, double *rot)const;
 
 		bool setPointRotation(unsigned point, const double *rot);
-		bool setPointTranslation(unsigned point, const double *trans);
+		bool setPointCoords(unsigned point, const double *trans);
 
 		// ------------------------------------------------------------------
 		// Texture projection functions
@@ -1627,30 +1918,37 @@ class Model
 		int addProjection(const char *name, int type, double x, double y, double z);
 		void deleteProjection(unsigned proj);
 
-		const char *getProjectionName(unsigned proj)const;
-
-		void	setProjectionScale(unsigned p, double scale);
-		double getProjectionScale(unsigned p)const;
-
+		const char *getProjectionName(unsigned proj)const;		
 		bool setProjectionName(unsigned proj, const char *name);
 		bool setProjectionType(unsigned proj, int type);
-		int  getProjectionType(unsigned proj)const;
-		bool setProjectionRotation(unsigned proj, int type);
-		int  getProjectionRotation(unsigned proj)const;
+		int  getProjectionType(unsigned proj)const;		
+		bool setProjectionCoords(unsigned projNumber, const double *coord);
 		bool getProjectionCoords(unsigned projNumber, double *coord)const;
-
+		/*2020: This wasn't editor friendly.
+		//NOTE: Needing to add Rotation to the Properties sidebar having
+		//the old up/seam representation can't store rotation accurately.
+		//TODO: It would be nice to be able to do what Create Projection
+		//does with an existing projection. It can be easier than Rotate.
+		//https://github.com/zturtleman/mm3d/issues/114
+		//I think to bring these back (if desired) they need to set both
+		//vectors at the same time and use the up vector as a hint so to
+		//produce an othornormal affine matrix to take the rotation from.
 		bool setProjectionUp(unsigned projNumber, const double *coord);
 		bool setProjectionSeam(unsigned projNumber, const double *coord);
-		bool setProjectionRange(unsigned projNumber,
-				double xmin, double ymin, double xmax, double ymax);
-
 		bool getProjectionUp(unsigned projNumber, double *coord)const;
 		bool getProjectionSeam(unsigned projNumber, double *coord)const;
+		*/
+		bool setProjectionRotation(unsigned projNumber, const double *rot);
+		bool getProjectionRotation(unsigned projNumber, double *rot)const;				
+		bool setProjectionScale(unsigned p, double scale);
+		double getProjectionScale(unsigned p)const;
+		bool setProjectionRange(unsigned projNumber,
+		double xmin, double ymin, double xmax, double ymax);
 		bool getProjectionRange(unsigned projNumber,
-				double &xmin, double &ymin, double &xmax, double &ymax)const;
+		double &xmin, double &ymin, double &xmax, double &ymax)const;
 
 		void setTriangleProjection(unsigned triangleNum, int proj);
-		int  getTriangleProjection(unsigned triangleNum)const;
+		int getTriangleProjection(unsigned triangleNum)const;
 
 		void applyProjection(unsigned int proj);
 
@@ -1712,17 +2010,17 @@ class Model
 		void insertTexture(unsigned index,Material *material);
 		void removeTexture(unsigned index);
 
-		//NOTE: addAnimation subroutine.
+		//INTERNAL: addAnimation subroutines
 		void insertFrameAnim(unsigned index,FrameAnim *anim);
 		void removeFrameAnim(unsigned index);
 
-		//NOTE: addAnimation subroutine.
+		//INTERNAL: addAnimation subroutines
 		void insertSkelAnim(unsigned anim,SkelAnim *fa);
 		void removeSkelAnim(unsigned anim);
 
-		void insertFrameAnimFrame(unsigned anim, unsigned frame,
-				FrameAnimData *data);
-		void removeFrameAnimFrame(unsigned anim, unsigned frame);
+		//INTERNAL: setFrameCount subroutines
+		void insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data);
+		void removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data);
 
 		// ------------------------------------------------------------------
 		// Selection functions
@@ -1737,13 +2035,36 @@ class Model
 		unsigned getSelectedPointCount()const;
 		unsigned getSelectedProjectionCount()const;
 
-		void getSelectedPositions(pos_list &l)const;
-		void getSelectedVertices(int_list &l)const;
 		void getSelectedTriangles(int_list &l)const;
 		void getSelectedGroups(int_list &l)const;
+
+		//2020: I've put PT_Vertex on the back of the
+		//Position lists. See definition for thinking.
+		void getSelectedPositions(pos_list &l)const;
 		void getSelectedBoneJoints(int_list &l)const;
 		void getSelectedPoints(int_list &l)const;
 		void getSelectedProjections(int_list &l)const;
+		void getSelectedVertices(int_list &l)const;
+
+		//2020: This is unlikely a permanent solution.
+		//I'm not sure how else to implement this API
+		//with existing semantics.
+		template<class T> struct Get3
+		{
+			template<class Functor>
+			Get3(const Functor &pred)
+			{
+				p = &pred;
+				f = [](const void *p, const T t[3])
+				{
+					(*(const Functor*)p)(t);
+				};
+			}
+			const void *p;
+			void(*f)(const void*,const T[3]);
+			void operator()(const T get[3]){ f(p,get); }
+		};
+		void getSelectedInterpolation(AnimationModeE am, unsigned anim, unsigned frame, Get3<Interpolate2020E>);
 
 		bool unselectAll();
 				
@@ -1778,6 +2099,7 @@ class Model
 			return (this->*(os==OS_Selected?&Model::getSelectedBoundingRegion:&Model::getBoundingRegion))(x1,y1,z1,x2,y2,z2);
 		}
 
+		// CAUTION: No longer clears keyframes in ANIMMODE_SKELETON
 		void deleteSelected();
 
 		// When changing the selection state of a lot of primitives,a difference
@@ -1844,7 +2166,7 @@ class Model
 
 		bool isVertexVisible(unsigned v)const;
 		bool isTriangleVisible(unsigned t)const;
-		bool isGroupVisible(unsigned g)const;
+		//bool isGroupVisible(unsigned g)const; //UNUSED
 		bool isBoneJointVisible(unsigned j)const;
 		bool isPointVisible(unsigned p)const;
 
@@ -1862,6 +2184,11 @@ class Model
 		// Transform functions
 		// ------------------------------------------------------------------
 
+		//NOTICE: These all use MU_MovePrimitive whereas setPositionCenter
+		//and setPointTranslation, etc. use MU_SetObjectXYZ (formerly there
+		//was an undo object of this type for every combination of types and
+		//parameters.) MU_MovePrimitive keeps a mapped array of reassignments.
+		//FIX ME? MU_TranslateSelected, etc. exists via translateSelected, etc!
 		bool movePosition(const Position &pos, double x, double y, double z);
 		bool moveVertex(unsigned v, double x, double y, double z);
 		bool moveBoneJoint(unsigned j, double x, double y, double z);
@@ -1871,15 +2198,17 @@ class Model
 		//FIX ME 
 		//Call sites all use vectors. What does it 
 		//even mean to "translate" with a matrix??
-		void translateSelected(const Matrix &m);
-
+		//void translateSelected(const Matrix &m);
+		void translateSelected(const double vec[3]);
 		void rotateSelected(const Matrix &m, double *point);
+		void interpolateSelected(Interpolant2020E,Interpolate2020E);
 
 		// Applies arbitrary matrix to primitives (selected or all based on scope).
 		// Some matrices cannot be undone (consider a matrix that scales a dimension to 0).
 		// If the matrix cannot be undone,set undoable to false (a matrix is undoable if
 		// the determinant is not equal to zero).
-		void applyMatrix(const Matrix &m,OperationScopeE scope,bool animations,bool undoable);
+		//void applyMatrix(const Matrix &m,OperationScopeE scope,bool animations,bool undoable);
+		void applyMatrix(Matrix,OperationScopeE scope,bool animations,bool undoable);
 
 	protected:
 
@@ -1902,17 +2231,11 @@ class Model
 		// Book-keeping for add/delete undo
 		// ------------------------------------------------------------------
 
+		//REMOVE US
+		//https://github.com/zturtleman/mm3d/issues/92
 		void adjustVertexIndices(unsigned index, int count);
 		void adjustTriangleIndices(unsigned index, int count);
 		void adjustProjectionIndices(unsigned index, int count);
-
-		// ------------------------------------------------------------------
-		// Texture projections
-		// ------------------------------------------------------------------
-
-		void applyCylinderProjection(unsigned int proj);
-		void applySphereProjection(unsigned int proj);
-		void applyPlaneProjection(unsigned int proj);
 
 		// ------------------------------------------------------------------
 		// Hiding/visibility
@@ -1950,8 +2273,10 @@ class Model
 		void selectTrianglesFromVertices(bool all = true);
 		void selectGroupsFromTriangles(bool all = true);
 
+		public:
 		bool parentJointSelected(int joint)const;
 		bool directParentJointSelected(int joint)const;
+		protected:
 
 		// ------------------------------------------------------------------
 		// Undo
@@ -1985,9 +2310,9 @@ class Model
 		// See the various accessors for this data for details on what these
 		// properties mean.
 
-		bool m_initialized;
-
 		friend class MainWin; //EXPOSE US
+		friend class MU_InterpolateSelected;
+		friend class MU_SetAnimFrameCount;
 		std::string	m_filename;
 		std::string	m_exportFile;
 		std::string	m_filterSpecificError;
@@ -1996,38 +2321,46 @@ class Model
 		std::list<std::string> m_loadErrors; //queue
 
 		MetaDataList			 m_metaData;
-		std::vector<Vertex *>		m_vertices;
-		std::vector<Triangle *>	 m_triangles;
-		std::vector<Group *>		 m_groups;
-		std::vector<Material *>	 m_materials;
-		std::vector<Joint *>		 m_joints;
-		std::vector<Point *>		 m_points;
-		std::vector<TextureProjection *>	 m_projections;
-		std::vector<FrameAnim *>	m_frameAnims;
-		std::vector<SkelAnim *>	 m_skelAnims;
+		_VertexList m_vertices;
+		_TriangleList m_triangles;
+		_GroupList m_groups;
+		_MaterialList m_materials;
+		_JointList m_joints;
+		_PointList m_points;
+		_ProjectionList m_projections;
+		_FrameAnimList m_frameAnims;		
+		_SkelAnimList m_skelAnims;
 
+		//REMOVE US
 		DrawingContextList m_drawingContexts;
+		bool m_validContext; //2020
 
-		BspTree	  m_bspTree;
-		bool		  m_validBspTree;
+		bool m_validBspTree;
 
-		std::vector<FormatData *>  m_formatData;
+		BspTree m_bspTree;
+
+		std::vector<FormatData*> m_formatData;
 		
 		//2019: Changing to int to break depenency on the
 		//config system.
 		//DrawJointModeE m_drawJoints;
 		bool m_drawJoints,m_drawSelection;
 		bool m_drawProjections;
+		
+		//bool m_forceAddOrDelete; //OBSOLETE
 
-		bool m_validNormals;
+		bool m_validAnim; //2020
+				
 		bool m_validJoints;
+		bool m_validAnimJoints; //2020
 
-		bool m_forceAddOrDelete;
+		bool m_validNormals;		
+		bool m_validAnimNormals; //2020
 
 		AnimationModeE m_animationMode;
 		unsigned m_currentFrame;
 		unsigned m_currentAnim;
-		double	m_currentTime;
+		double m_currentTime;
 
 		//MM3D_EDIT?
 		//NOTE: These are ModelViewport::ViewOptionsE.
@@ -2045,7 +2378,8 @@ class Model
 
 		ObserverList m_observers;
 
-		BackgroundImage *m_background[6];
+		//BackgroundImage *m_background[6];
+		std::vector<BackgroundImage*> m_background;
 
 		bool			  m_saved;
 		SelectionModeE m_selectionMode;

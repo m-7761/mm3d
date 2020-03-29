@@ -147,9 +147,13 @@ public:
 	//
 	// You will not get mouse events for the middle button.
 	//
-	virtual void mouseButtonDown(int buttonState, int x, int y) = 0;
-	virtual void mouseButtonMove(int buttonState, int x, int y) = 0;
-	virtual void mouseButtonUp(int buttonState, int x, int y){}
+	virtual void mouseButtonDown() = 0;
+	virtual void mouseButtonMove() = 0;
+	virtual void mouseButtonUp(){}
+
+	inline void mouseButtonDown(int buttonState, int x, int y);
+	inline void mouseButtonMove(int buttonState, int x, int y);
+	inline void mouseButtonUp(int buttonState, int x, int y);
 	
 	//2019: Replaces DecalManager.
 	virtual void draw(bool focused){}
@@ -207,9 +211,8 @@ protected:
 	// These functions act like addVertex and addPoint except that they
 	// work in the viewport space instead of the model space, use these
 	// instead of addVertex/addPoint whenever possible
-	ToolCoordT addPosition(Model::PositionTypeE type, const char *name,
-	double,double,double, double xrot=0,double=0,double=0,int boneId=-1);
-	ToolCoordT addPosition(Model::PositionTypeE type,double,double,double); 
+	ToolCoordT addPosition(Model::PositionTypeE type,double,double,double,
+		const char *name=nullptr, int boneId=-1);
 	void movePosition(const Model::Position &pos,double x, double y, double z);
 	void makeToolCoordList(ToolCoordList &list,const pos_list&positions);
 };
@@ -253,10 +256,6 @@ public:
 	// Call this to force an update on the current model view
 	virtual void updateView() = 0;
 
-	 //NOTE: THIS IS LIMITED TO ANIMATION.
-	// Call this to force an update on 3d views of the current model
-	virtual void update3dView() = 0;
-
 	// Call this to force an update on all model views
 	virtual void updateAllViews() = 0;
 
@@ -271,7 +270,12 @@ public:
 	// a manipulation operation on selected vertices, for update or all
 	// other start operations you would set this value to false).
 	//
-	virtual void getParentXYValue(int x, int y, double &xval, double &yval,bool selected = false) = 0;
+	virtual void getParentXYValue(double &xval, double &yval,bool selected = false) = 0;
+
+	inline void getParentXYValue(int bs, int x, int y, double &xval, double &yval)
+	{
+		_bs = bs; _bx = x; _by = y; getParentXYValue(xval,yval); 
+	}
 
 	// The getRawParentXYValue function returns the mouse coordinates
 	// in viewport space (as opposed to model space), X is left and
@@ -281,7 +285,12 @@ public:
 	// 
 	// This function ignores snap to vertex/grid settings.
 	//
-	virtual void getRawParentXYValue(int x, int y, double &xval, double &yval) = 0;
+	virtual void getRawParentXYValue(double &xval, double &yval) = 0;
+
+	inline void getRawParentXYValue(int x, int y, double &xval, double &yval)
+	{
+		_bx = x; _by = y; getRawParentXYValue(xval,yval); 
+	}
 
 	// The getParentViewMatrix function returns the Matrix
 	// that is applied to the model to produce the parent's
@@ -304,12 +313,12 @@ public:
 	// for providing an appropriate value. For example,a sphere tool
 	// would use the same radius for all three axis,and might center
 	// the undefined coordinate on zero (0).
-	virtual void getXYZ(int x, int y, double*,double*,double*) = 0;
+	virtual void getXYZ(double*,double*,double*) = 0;
 
 	//REFACTOR
-	bool getXValue(int x, int y, double *val) //UNUSED
+	bool getXValue(double *val) //UNUSED
 	{
-		double _y,_z; getXYZ(x,y,val,&_y,&_z);
+		double _y,_z; getXYZ(val,&_y,&_z);
 
 		switch(int v=getView()) //???
 		{
@@ -320,9 +329,9 @@ public:
 		case ViewBack: case ViewOrtho: return true;
 		}
 	}
-	bool getYValue(int x, int y, double *val) //UNUSED
+	bool getYValue(double *val) //UNUSED
 	{
-		double _x,_z; getXYZ(x,y,&_x,val,&_z);
+		double _x,_z; getXYZ(&_x,val,&_z);
 
 		switch(int v=getView()) //???
 		{
@@ -333,9 +342,9 @@ public:
 		case ViewRight: case ViewOrtho: return true;
 		}
 	}
-	bool getZValue(int x, int y, double *val) //UNUSED
+	bool getZValue(double *val) //UNUSED
 	{
-		double _x,_y; getXYZ(x,y,&_x,&_y,val);
+		double _x,_y; getXYZ(&_x,&_y,val);
 
 		switch(int v=getView()) //???
 		{
@@ -368,6 +377,27 @@ public:
 	virtual void groupParam(){}
 	virtual void updateParams() = 0;
 	virtual void removeParams() = 0;
+		
+	int _bs,_bx,_by;
+
+	int &getButtonX(){ return _bx; }
+	int &getButtonY(){ return _by; }
+	int &getButtons(){ return _bs; }
 };
+inline void Tool::mouseButtonDown(int buttonState, int x, int y)
+{
+	parent->_bs = buttonState; parent->_bx = x; parent->_by = y;
+	mouseButtonDown();
+}
+inline void Tool::mouseButtonMove(int buttonState, int x, int y)
+{
+	parent->_bs = buttonState; parent->_bx = x; parent->_by = y;
+	mouseButtonMove();
+}
+inline void Tool::mouseButtonUp(int buttonState, int x, int y)
+{
+	parent->_bs = buttonState; parent->_bx = x; parent->_by = y;
+	mouseButtonUp();
+}
 
 #endif // __TOOL_H

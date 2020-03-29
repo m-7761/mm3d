@@ -40,7 +40,7 @@ struct EdgeTurnCommand : Command
 	}
 
 	//NOTE: Shift is to avoid proximity to Ctrl+D (duplicate).
-	virtual const char *getKeymap(int){ return "Ctrl+Shift+F"; }
+	virtual const char *getKeymap(int){ return "Shift+Ctrl+F"; }
 
 	virtual bool activated(int,Model*);
 		

@@ -30,7 +30,6 @@ class Matrix
 {
 	public:
 		Matrix();
-		~Matrix(){};
 
 		void loadIdentity();
 		bool isIdentity()const;
@@ -41,6 +40,13 @@ class Matrix
 
 		bool operator==(const Matrix &rhs)const;
 		bool equiv(const Matrix &rhs, double tolerance = 0.00001)const;
+
+		void scale(const double xyz[3]) //2020
+		{
+			for(int i=0;i<3;i++) 
+			for(int j=0;j<3;j++) getVector(i)[j]*=xyz[i];
+		}
+		void getScale(double xyz[3])const; //2020
 
 		void setTranslation(const Vector &vector);
 		void setTranslation(const double *vector);
@@ -65,8 +71,12 @@ class Matrix
 		void setRotationQuaternion(const Quaternion &quat);
 		void getRotationQuaternion(Quaternion &quat)const;
 
+		//NOTE: inverseRotateVector applies scaling to the rotation 
 		void inverseTranslateVector(double *pVect)const;
 		void inverseRotateVector(double *pVect)const;
+
+		void translateVector(double *pVect)const; //2020
+		void rotateVector(double *pVect)const; //2020
 
 		void normalizeRotation();
 
@@ -97,6 +107,9 @@ class Matrix
 		friend Vector operator*(const Vector &lhs, const Matrix &rhs);
 		friend class Vector;
 
+		const double *getVector(int r)const { return m_val+r*4; };
+		double *getVector(int r){ return m_val+r*4; };
+
 	protected:
 
 		//const double *getMatrix()const { return m_val; }; //???
@@ -109,15 +122,21 @@ class Vector
 	public:
 		Vector(const double *val = nullptr);
 		Vector(const double &x, const double &y, const double &z, const double &w = 1.0);
-		~Vector();
+		Vector(const Vector &val, double w)
+		{
+			for(int i=3;i-->0;)
+			m_val[i] = val.m_val[i]; m_val[3] = w;
+		}
 
 		void show()const;
 
-		//FIX ME
+		//NOTE: This does/did 4 component transform
+		//REMOVE ME
 		//Is this used?
 		//What is translation by matrix supposed to mean?
-		void translate(const Matrix &rhs);
+		//void translate(const Matrix &rhs);
 
+		//WARNING: transform ASSUMES w IS 1
 		void transform(const Matrix &rhs);
 		void transform3(const Matrix &rhs);
 		void set(int c, double val);
@@ -141,6 +160,15 @@ class Vector
 		const double *getVector()const { return m_val; };
 		double *getVector(){ return m_val; };
 
+		void getVector(double(&v3)[3])const //2020
+		{
+			for(int i=3;i-->0;) v3[i] = m_val[i];
+		}
+		void getVector3(double v3[3])const //2020
+		{
+			for(int i=3;i-->0;) v3[i] = m_val[i];
+		}
+
 		double &operator[](int index);
 		const double &operator[](int index)const;
 		Vector operator+=(const Vector &rhs);
@@ -149,8 +177,15 @@ class Vector
 
 		friend Vector operator*(const Vector &lhs, const Matrix &rhs);
 		friend Vector operator*(const Vector &lhs, const double &rhs);
+		friend Vector operator*(const double &rhs, const Vector &lhs);
 		friend Vector operator-(const Vector &lhs, const Vector &rhs);
 		friend Vector operator+(const Vector &lhs, const Vector &rhs);
+
+		//Vector operator-()const //2020
+		Vector neg3()const //2020
+		{
+			return Vector(-m_val[0],-m_val[1],-m_val[2],/*-*/m_val[3]);
+		}
 
 	protected:
 		double m_val[4];
@@ -159,28 +194,44 @@ class Vector
 class Quaternion : public Vector
 {
 	public:
-		Quaternion(const double *val = nullptr);
-		Quaternion(const Vector &val);
-		~Quaternion();
+
+		using Vector::Vector; //C++11		
+		Quaternion(const Vector &cp):Vector(cp) //C++
+		{} 
+		Quaternion(const double *val=nullptr):Vector(val)
+		{
+			if(val) m_val[3] = val[3]; //differs?
+		}
 
 		void show()const;
 		void setEulerAngles(const double *radians);
+		void getEulerAngles(double radians[3]); //2020
 		void setRotationOnAxis(double x, double y, double z, double radians);
 		void setRotationOnAxis(const double *axis, double radians);
-		void setRotationToPoint(const double &faceX, const double &faceY, const double &faceZ,
-				const double &pointX, const double &pointY, const double &pointZ);
-		void setRotationToPoint(const Vector &face, const Vector &point);
-		void getRotationOnAxis(double *axis, double &radians)const;
+		void getRotationOnAxis(double *axis, double &radians)const;		
 		void set(int c, double val);
 		double get(int c)const { return m_val[c]; };
 
 		void normalize();
 
-		Quaternion swapHandedness();
+		//REMOVE ME
+		//This rolls randomly, so probably not of any use. It was being used
+		//by drawJoints.
+		//void setRotationToPoint(const Vector &face, const Vector &point);
 
-		const double *getVector()const { return m_val; };
+		//UNUSED
+		//Pretty sure this is equivalent to negating either the 4th component
+		//or the first three components with the provided Vector::operator-().
+		//Quaternion swapHandedness();
 
 		friend Quaternion operator*(const Quaternion &lhs, const Quaternion &rhs);
+
+		//2020
+		//Note this is 3 Quaternion multiplies (it can be done slightly more 
+		//efficiently) which is more than a Matrix multiply, but maybe about
+		//the same as setRotationQuaternion and multiplying.
+		friend Vector operator*(const Vector &lhs, const Quaternion &rhs);
+		void apply(Vector &pVec)const{ pVec = pVec * *this; }
 
 	protected:
 		//double m_val[4];
@@ -201,29 +252,36 @@ bool floatCompareVector(const T *lhs, const T *rhs, size_t len, double tolerance
 	return true;
 }
 
-template<typename T> T distance(T x1,T y1,T z1,T x2,T y2,T z2)
+template<typename T> T magnitude(T x1, T y1, T z1)
 {
-	T xDiff = x1-x2;
-	T yDiff = y1-y2;
-	T zDiff = z1-z2;
-
-	return sqrt(xDiff*xDiff+yDiff*yDiff+zDiff*zDiff);
+	return sqrt(x1*x1+y1*y1+z1*z1);
 }
 
+template<typename T> T distance(T x1,T y1,T z1,T x2,T y2,T z2)
+{
+	return magnitude(x1-x2,y1-y2,z1-z2);
+}
+
+template<typename T> T magnitude(T x1,T y1)
+{
+	return sqrt(x1*x1+y1*y1);
+}
 template<typename T> T distance(T x1,T y1,T x2,T y2)
 {
-	T xDiff = x1-x2;
-	T yDiff = y1-y2;
+	return magnitude(x1-x2,y1-y2);
+}
 
-	return sqrt(xDiff*xDiff+yDiff*yDiff);
+template<typename T> T squared_mag3(const T *vec)
+{
+	return vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2];
 }
 
 template<typename T> T mag3(const T *vec)
 {
-	return sqrt(vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2]);
+	return sqrt(squared_mag3(vec));
 }
 
-template<typename T> void normalize3(T *vec)
+template<typename T> T normalize3(T *vec)
 {
 	if(vec!=nullptr)
 	{
@@ -231,12 +289,14 @@ template<typename T> void normalize3(T *vec)
 		vec[0] = vec[0]/length;
 		vec[1] = vec[1]/length;
 		vec[2] = vec[2]/length;
+		return length;
 	}
+	return 0;
 }
 
-extern double distance (const Vector &v1, const Vector &v2);
+extern double distance(const Vector &v1, const Vector &v2);
 
-extern double distance (const double *v1, const double *v2);
+extern double distance(const double *v1, const double *v2);
 
 template<typename T> T dot3(const T *lhs, const T *rhs)
 {
@@ -252,15 +312,39 @@ template<typename T> bool equiv3(const T *lhs, const T *rhs)
 		  && fabs(lhs[2]-rhs[2])<0.0001);
 }
 
+
+template<typename T> //2020
+static T *cross_product(T *result,
+		const T *a, const T *b)
+{
+	result[0] = a[1]*b[2]-b[1]*a[2];
+	result[1] = a[2]*b[0]-b[2]*a[0];
+	result[2] = a[0]*b[1]-b[0]*a[1]; return result;
+}
+
 template<typename T>
-static void calculate_normal(T *normal,
+static T *calculate_normal(T *normal,
 		const T *a, const T *b, const T *c)
 {
-	normal[0] = a[1] *(b[2]-c[2])+b[1] *(c[2]-a[2])+c[1] *(a[2]-b[2]);
-	normal[1] = a[2] *(b[0]-c[0])+b[2] *(c[0]-a[0])+c[2] *(a[0]-b[0]);
-	normal[2] = a[0] *(b[1]-c[1])+b[0] *(c[1]-a[1])+c[0] *(a[1]-b[1]);
+	//Newell's Method for triangles?
+	//https://github.com/zturtleman/mm3d/issues/115
+	//normal[0] = a[1] *(b[2]-c[2])+b[1] *(c[2]-a[2])+c[1] *(a[2]-b[2]);
+	//normal[1] = a[2] *(b[0]-c[0])+b[2] *(c[0]-a[0])+c[2] *(a[0]-b[0]);
+	//normal[2] = a[0] *(b[1]-c[1])+b[0] *(c[1]-a[1])+c[0] *(a[1]-b[1]);
 
-	normalize3(normal);
+	T ba[3] = {b[0]-a[0],b[1]-a[1],b[2]-a[2]};
+	T ca[3] = {c[0]-a[0],c[1]-a[1],c[2]-a[2]};
+	cross_product(normal,ba,ca);
+
+	normalize3(normal); return normal;
+}
+
+template<typename T> //2020
+static T *delta3(T *result, const T *a, const T *b)
+{
+	result[0] = a[0]-b[0];
+	result[1] = a[1]-b[1];
+	result[2] = a[2]-b[2]; return result;
 }
 
 #endif // __GLMATH_H

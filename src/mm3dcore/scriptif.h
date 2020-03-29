@@ -32,9 +32,6 @@ class MeshRectangle
 {
 public:
 
-	MeshRectangle(){}
-	virtual ~MeshRectangle(){}
-
 	std::vector<int> m_vertices;
 	std::vector<int> m_faces;
 };
@@ -165,17 +162,17 @@ extern void scriptif_animJoin(Model *model,Model::AnimationModeE mode,
 		unsigned anim1, unsigned anim2);
 
 extern int scriptif_animConvertToFrame(Model *model,Model::AnimationModeE mode,
-		unsigned animIndex, const char *newName, unsigned frameCount);
+		unsigned animIndex, const char *newName, unsigned frameCount, Model::Interpolate2020E);
 
 extern void scriptif_skelAnimSetKeyframe(Model *model,
 		unsigned animIndex, unsigned frame, unsigned joint,bool isRotation,
-		double x, double y, double z);
+		double x, double y, double z, Model::Interpolate2020E);
 
 extern void scriptif_skelAnimDeleteKeyframe(Model *model,
 		unsigned animIndex, unsigned frame, unsigned joint,bool isRotation);
 
 extern void scriptif_frameAnimSetVertex(Model *model, unsigned animIndex,
-		unsigned frame, unsigned v, double x, double y, double z);
+		unsigned frame, unsigned v, double x, double y, double z, Model::Interpolate2020E);
 
 extern void scriptif_modelSelectAll(Model *model);
 

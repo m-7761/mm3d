@@ -42,11 +42,11 @@
 //
 //	 PLUGIN_API bool plugin_init()
 //	 {
-//		 Toolbox::registerToolFunction(_newMyToolFunc);
+//		 Toolbox::registerToolFunction(MyToolFunc);
 //		 return true;
 //	 }
 //	
-//	 static void _newMyToolFunc(Toolbox *tb)
+//	 static void MyToolFunc(Toolbox *tb)
 //	 {
 //		 MyTool *mt = new MyTool();
 //		 tb->registerTool(mt);

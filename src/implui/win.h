@@ -20,7 +20,8 @@ extern Widgets95::configure keycfg;
 enum
 {
 	pic_icon=0,
-	pic_play,pic_stop,	
+	pic_play,pic_pause,
+	pic_stop,pic_loop,
 	pic_zoomin,pic_zoomout,
 	pic_N
 };
@@ -105,6 +106,7 @@ enum
 	id_view_swap,
 	id_view_flip,
 	id_view_settings,
+	id_view_init,
 
 	/*Tool menu*/
 	id_tool_none,
@@ -146,16 +148,18 @@ enum
 	/*Animation menu*/	
 	id_animate_settings,
 	id_animate_render,
-	id_animate_copy,
 	id_animate_paste,
-	id_animate_copy_selection,
-	//id_animate_paste_selection,
-	id_animate_rotate,
-	id_animate_translate,
-	id_animate_clear,
+	id_animate_paste_v,
+	id_animate_copy,
+	id_animate_copy_all,
+	id_animate_delete,
 	//Additional
 	id_animate_window,
-	id_animate_play,id_animate_pause,
+	id_animate_play,
+	id_animate_stop,
+	id_animate_loop,
+	id_animate_snap,
+	id_animate_insert,
 	
 	/*Help menu*/
 	id_help,  //wxOSX needs to be Help.
@@ -259,8 +263,7 @@ struct Win : Widgets95::ui
 			nav.ralign().space(1);	
 			in.picture(pics[pic_zoomin]);
 			out.picture(pics[pic_zoomout]);
-			typedef TextureWidget tw;
-			value.edit(tw::zoom_min,1.0,tw::zoom_max);
+			value.edit(TextureWidget::zoom_min,1.0,TextureWidget::zoom_max);
 			value.spinner.set_speed(-0.00001);
 		}
 
@@ -293,8 +296,7 @@ struct Win : Widgets95::ui
 		template<class T>
 		slider_value(node *frame, utf8 name, double min, double max, T val, int id=id_value)
 			:
-		nav(frame),
-		slider(nav,"",bar::horizontal,id,slider_cb),value(nav,"",id,value_cb)
+		nav(frame),slider(nav,"",bar::horizontal,id,slider_cb),value(nav,"",id,value_cb)
 		{
 			init(name,min,max,val); slider.style(bar::sunken).space<top>(2);
 		}

@@ -27,16 +27,14 @@
 
 #ifdef MM3D_EDIT
 
-void Model::insertVertex(unsigned index,Model::Vertex *vertex)
+void Model::insertVertex(unsigned index, Model::Vertex *vertex)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	//if(m_animationMode) return; //REMOVE ME
+	invalidateAnim(); vertex->_source(m_animationMode); //OVERKILL
 
 	m_changeBits |= AddGeometry;
 
-	invalidateNormals();
+	invalidateNormals(); //OVERKILL
 
 	if(index==m_vertices.size())
 	{
@@ -66,19 +64,16 @@ void Model::insertVertex(unsigned index,Model::Vertex *vertex)
 
 void Model::removeVertex(unsigned index)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddGeometry;
 
-	invalidateNormals();
+	invalidateNormals(); //OVERKILL
 
 	if(index<m_vertices.size())
 	{
 		//unsigned count = 0;
-		//std::vector<Vertex *>::iterator it;
+		//std::vector<Vertex*>::iterator it;
 		//for(it = m_vertices.begin(); it!=m_vertices.end(); it++)
 		{
 			//if(count==index)
@@ -97,377 +92,209 @@ void Model::removeVertex(unsigned index)
 	}
 }
 
-void Model::insertTriangle(unsigned index,Model::Triangle *triangle)
+void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>m_triangles.size())
+	return log_error("insertTriangle(%d)index out of range\n",index);
+
+	//if(m_animationMode) return; //REMOVE ME
+	invalidateAnim(); triangle->_source(m_animationMode); //OVERKILL
 
 	m_changeBits |= AddGeometry;
 
-	invalidateNormals();
+	invalidateNormals(); //OVERKILL
 
-	if(index==m_triangles.size())
+	//2020: Keep connectivity to help calculateNormals
+	auto &vi = triangle->m_vertexIndices;
+	for(int i=3;i-->0;)
+	m_vertices[vi[i]]->m_faces.push_back({triangle,i});
+
+	if(index<m_triangles.size())
 	{
-		m_triangles.push_back(triangle);
+		//FIX US
+		//https://github.com/zturtleman/mm3d/issues/92
+		m_triangles.insert(m_triangles.begin()+index,triangle);
+		adjustTriangleIndices(index,+1);
 	}
-	else if(index<m_triangles.size())
-	{
-		//unsigned count = 0;
-		//std::vector<Triangle *>::iterator it;
-		//for(it = m_triangles.begin(); it!=m_triangles.end(); it++)
-		{
-			//if(count==index)
-			{
-				//m_triangles.insert(it,triangle);
-				m_triangles.insert(m_triangles.begin()+index,triangle);
-				adjustTriangleIndices(index,+1);
-				//break;
-			}
-			//count++;
-		}
-	}
-	else
-	{
-		log_error("insertTriangle(%d)index out of range\n",index);
-	}
+	else m_triangles.push_back(triangle);
 }
 
 void Model::removeTriangle(unsigned index)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
-
-	m_changeBits |= AddGeometry;
-
-	invalidateNormals();
+	//if(m_animationMode) return; //REMOVE ME
 
 	if(index<m_triangles.size())
-	{
+	{		
+		m_changeBits |= AddGeometry;
+
+		invalidateNormals(); //OVERKILL
+
+		//2020: Keep connectivity to help calculateNormals
+		auto triangle = m_triangles[index];
+		auto &vi = triangle->m_vertexIndices;
+		for(int i=3;i-->0;)
+		m_vertices[vi[i]]->_erase_face(triangle,i);
+
+		//FIX US
 		//https://github.com/zturtleman/mm3d/issues/92
-		//unsigned count = 0;
-		//std::vector<Triangle *>::iterator it;
-		//for(it = m_triangles.begin(); it!=m_triangles.end(); it++)
-		{
-		//	if(count==index)
-			{
-		//		m_triangles.erase(it);
-				m_triangles.erase(m_triangles.begin()+index);
-				adjustTriangleIndices(index,-1);
-		//		break;
-			}
-		//	count++;
-		}
+		m_triangles.erase(m_triangles.begin()+index);
+		adjustTriangleIndices(index,-1);
 	}
-	else
-	{
-		log_error("removeTriangle(%d)index out of range\n",index);
-	}
+	else log_error("removeTriangle(%d)index out of range\n",index);
 }
 
 void Model::insertGroup(unsigned index,Model::Group *group)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>m_groups.size())
+	return log_error("insertGroup(%d)index out of range\n",index); 
+
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
-	if(index==m_groups.size())
-	{
-		m_groups.push_back(group);
-	}
-	else if(index<m_groups.size())
-	{
-		//unsigned count = 0;
-		//std::vector<Group *>::iterator it;
-		//for(it = m_groups.begin(); it!=m_groups.end(); it++)
-		{
-			//if(count==index)
-			{
-				//m_groups.insert(it,group);
-				m_groups.insert(m_groups.begin()+index,group);
-				//break;
-			}
-			//count++;
-		}
-	}
-	else
-	{
-		log_error("insertGroup(%d)index out of range\n",index);
-	}
+	m_groups.insert(m_groups.begin()+index,group);
 }
 
 void Model::removeGroup(unsigned index)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
 	if(index<m_groups.size())
 	{
-		//unsigned count = 0;
-		//std::vector<Group *>::iterator it;
-		//for(it = m_groups.begin(); it!=m_groups.end(); it++)
-		{
-			//if(count==index)
-			{
-				//m_groups.erase(it);
-				m_groups.erase(m_groups.begin()+index);
-				//break;
-			}
-			//count++;
-		}
+		m_groups.erase(m_groups.begin()+index);
 	}
-	else
-	{
-		log_error("removeGroup(%d)index out of range\n",index);
-	}
+	else log_error("removeGroup(%d)index out of range\n",index);
 }
 
-void Model::insertBoneJoint(unsigned index,Model::Joint *joint)
+void Model::insertBoneJoint(unsigned index, Joint *joint)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>m_joints.size())
+	return log_error("insertBoneJoint(%d)index out of range\n",index);
 
+	//if(m_animationMode) return; //REMOVE ME?
+	invalidateAnim(); joint->_source(m_animationMode);
+	
 	m_changeBits |= AddOther;
-
-	if(index==m_joints.size())
-	{
-		m_joints.push_back(joint);
-
-		// Append keyframe list
-		for(unsigned anim = 0; anim<m_skelAnims.size(); anim++)
-		{
-			SkelAnim *sa = m_skelAnims[anim];
-			log_debug("appended keyframe list for joint %d\n",index);
-			sa->m_jointKeyframes.push_back(KeyframeList());
-		}
-	}
-	else if(index<m_joints.size())
+		
+	if(index<m_joints.size())
 	{
 		// Adjust parent relationships
-		unsigned j;
-		for(j = 0; j<m_joints.size(); j++)
+		for(unsigned j=0;j<m_joints.size();j++)
+		if(m_joints[j]->m_parent>=(signed)index)
 		{
-			if(m_joints[j]->m_parent>=(signed)index)
-			{
-				m_joints[j]->m_parent++;
-			}
+			m_joints[j]->m_parent++;
 		}
 
 		// Adjust joint indices of keyframes after this joint
-		for(unsigned anim = 0; anim<m_skelAnims.size(); anim++)
+		for(auto*sa:m_skelAnims)		
+		for(unsigned j=index;j<sa->m_keyframes.size();j++)
+		for(unsigned k=0;k<sa->m_keyframes[j].size();k++)
 		{
-			SkelAnim *sa = m_skelAnims[anim];
-			for(j = index; j<sa->m_jointKeyframes.size(); j++)
-			{
-				for(unsigned k = 0; k<sa->m_jointKeyframes[j].size(); k++)
-				{
-					sa->m_jointKeyframes[j][k]->m_jointIndex++;
-				}
-			}
-
-			// Insert joint into keyframe list
-			if(index==sa->m_jointKeyframes.size())
-			{
-				log_debug("appended keyframe list for joint %d\n",j);
-				sa->m_jointKeyframes.push_back(KeyframeList());
-			}
-			else
-			{
-				JointKeyframeList::iterator it = sa->m_jointKeyframes.begin();
-				for(j = 0; j<sa->m_jointKeyframes.size(); j++)
-				{
-					if(j==index)
-					{
-						log_debug("inserted keyframe list for joint %d\n",j);
-						sa->m_jointKeyframes.insert(it,KeyframeList());
-						break;
-					}
-					it++;
-				}
-			}
+			sa->m_keyframes[j][k]->m_objectIndex++;
+		}
+	
+		// Adjust vertex assignments
+		for(auto*ea:m_vertices) for(auto&i:ea->m_influences)			
+		{
+			if(i.m_boneId>=(signed)index) i.m_boneId++;
 		}
 
+		// Adjust point assignments
+		for(auto*ea:m_points) for(auto&i:ea->m_influences)
 		{
-			infl_list::iterator it;
-
-			// Adjust vertex assignments
-			for(unsigned v = 0; v<m_vertices.size(); v++)
-			{
-				infl_list &l = m_vertices[v]->m_influences;
-				for(it = l.begin(); it!=l.end(); it++)
-				{
-					if((*it).m_boneId>=(signed)index)
-					{
-						(*it).m_boneId++;
-					}
-				}
-			}
-
-			// Adjust point assignments
-			for(unsigned p = 0; p<m_points.size(); p++)
-			{
-				infl_list &l = m_points[p]->m_influences;
-				for(it = l.begin(); it!=l.end(); it++)
-				{
-					if((*it).m_boneId>=(signed)index)
-					{
-						(*it).m_boneId++;
-					}
-				}
-			}
+			if(i.m_boneId>=(signed)index) i.m_boneId++;
 		}
 
-		unsigned count = 0;
-		std::vector<Joint *>::iterator it;
-		for(it = m_joints.begin(); it!=m_joints.end(); it++)
-		{
-			if(count==index)
-			{
-				m_joints.insert(it,joint);
-				break;
-			}
-			count++;
-		}
-
-		m_validJoints = false;
+		m_joints.insert(m_joints.begin()+index,joint);
 	}
-	else
+	else m_joints.push_back(joint);
+
+	// Insert joint into keyframe list
+	for(auto*sa:m_skelAnims)
 	{
-		log_error("insertBoneJoint(%d)index out of range\n",index);
+		//log_debug("inserted keyframe list for joint %d\n",j); //???
+		sa->m_keyframes.insert(sa->m_keyframes.begin()+index,KeyframeList());
 	}
+
+	invalidateSkel(); //m_validJoints = false;
 }
 
-void Model::removeBoneJoint(unsigned joint)
+void Model::removeBoneJoint(unsigned index)
 {
-	log_debug("removeBoneJoint(%d)\n",joint);
+	//if(m_animationMode) return; //REMOVE ME
 
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>=m_joints.size())
+	return log_error("removeBoneJoint(%d)index out of range\n",index);
+
+	//log_debug("removeBoneJoint(%d)\n",index); //???
 
 	m_changeBits |= AddOther;
 
-	if(joint<m_joints.size())
+	// Adjust parent relationships
+	for(size_t j=m_joints.size();j-->0;)
 	{
-		// Adjust parent relationships
-		unsigned j = 0;
-
-		for(j = 0; j<m_joints.size(); j++)
+		if(m_joints[j]->m_parent==(signed)index)
 		{
-			if(m_joints[j]->m_parent==(signed)joint)
-			{
-				m_joints[j]->m_parent = m_joints[joint]->m_parent;
-			}
-			else if(m_joints[j]->m_parent>(signed)joint)
-			{
-				m_joints[j]->m_parent--;
-			}
+			m_joints[j]->m_parent = m_joints[index]->m_parent;
 		}
+		else if(m_joints[j]->m_parent>(signed)index)
+		{
+			m_joints[j]->m_parent--;
+		}
+	}
+
+	//for(auto*sa:m_skelAnims)
+	for(unsigned anim=0;anim<m_skelAnims.size();anim++) 
+	{
+		auto sa = m_skelAnims[anim];
 
 		// Adjust skeletal animations
-		unsigned anim = 0;
-		for(anim = 0; anim<m_skelAnims.size(); anim++)
+		if(index<sa->m_keyframes.size())
 		{
-			SkelAnim *sa = m_skelAnims[anim];
-			if(joint<sa->m_jointKeyframes.size())
+			// Delete joint keyframes
+			for(auto&kf=sa->m_keyframes[index];!kf.empty();)
 			{
-				// Delete joint keyframes
-				for(int index = sa->m_jointKeyframes[joint].size()-1; index>=0; index--)
-				{
-					log_debug("deleting keyframe %d for joint %d\n",index,joint);
-					deleteSkelAnimKeyframe(anim,sa->m_jointKeyframes[joint][index]->m_frame,
-							joint,sa->m_jointKeyframes[joint][index]->m_isRotation);
-				}
+				//log_debug("deleting keyframe %d for joint %d\n",index,joint); //???
 
-				// Remove joint from keyframe list
-				JointKeyframeList::iterator it = sa->m_jointKeyframes.begin();
-				for(j = 0; j<sa->m_jointKeyframes.size(); j++)
-				{
-					if(j==joint)
-					{
-						log_debug("removed keyframe list for joint %d\n",j);
-						sa->m_jointKeyframes.erase(it);
-						break;
-					}
-					it++;
-				}
+				deleteKeyframe(anim,kf.back()->m_frame,{PT_Joint,index});
+			}
+				
+			// Remove joint from keyframe list
+			{
+				//log_debug("removed keyframe list for joint %d\n",index); //???
+						
+				sa->m_keyframes.erase(sa->m_keyframes.begin()+index);
 			}
 		}
+		else assert(index<sa->m_keyframes.size()); //2020
 
 		// Adjust joint indices of keyframes after this joint
-		for(anim = 0; anim<m_skelAnims.size(); anim++)
+		for(unsigned j=index;j<sa->m_keyframes.size();j++)
 		{
-			SkelAnim *sa = m_skelAnims[anim];
-			for(j = joint; j<sa->m_jointKeyframes.size(); j++)
+			for(size_t i=sa->m_keyframes[j].size();i-->0;)
 			{
-				for(unsigned index = 0; index<sa->m_jointKeyframes[j].size(); index++)
-				{
-					sa->m_jointKeyframes[j][index]->m_jointIndex--;
-				}
+				sa->m_keyframes[j][i]->m_objectIndex--;
 			}
 		}
-
-		{
-			infl_list::iterator it;
-
-			// Adjust vertex assignments
-			for(unsigned v = 0; v<m_vertices.size(); v++)
-			{
-				infl_list &l = m_vertices[v]->m_influences;
-				for(it = l.begin(); it!=l.end(); it++)
-				{
-					if((*it).m_boneId>(signed)joint)
-					{
-						(*it).m_boneId--;
-					}
-				}
-			}
-
-			// Adjust point assignments
-			for(unsigned p = 0; p<m_points.size(); p++)
-			{
-				infl_list &l = m_points[p]->m_influences;
-				for(it = l.begin(); it!=l.end(); it++)
-				{
-					if((*it).m_boneId>(signed)joint)
-					{
-						(*it).m_boneId--;
-					}
-				}
-			}
-		}
-
-		std::vector<Joint *>::iterator it;
-		unsigned count;
-		for(count = 0,it = m_joints.begin(); it!=m_joints.end(); it++)
-		{
-			if(count==joint)
-			{
-				m_joints.erase(it);
-				break;
-			}
-			count++;
-		}
-
-		m_validJoints = false;
 	}
-	else
+
+	// Adjust vertex assignments
+	for(auto*ea:m_vertices) for(auto&i:ea->m_influences)			
 	{
-		log_error("removeBoneJoint(%d)index out of range\n",joint);
+		if(i.m_boneId>(signed)index) i.m_boneId--;
 	}
+
+	// Adjust point assignments
+	for(auto*ea:m_points) for(auto&i:ea->m_influences)
+	{
+		if(i.m_boneId>(signed)index) i.m_boneId--;
+	}
+				
+	m_joints.erase(m_joints.begin()+index);
+
+	invalidateSkel(); //m_validJoints = false;
 }
 
 void Model::insertInfluence(const Position &pos, unsigned index, const InfluenceT &influence)
@@ -552,36 +379,23 @@ void Model::removeInfluence(const Position &pos, unsigned index)
 	}
 }
 
-void Model::insertPoint(unsigned index,Model::Point *point)
+void Model::insertPoint(unsigned index, Model::Point *point)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>m_points.size())
+	return log_error("insertPoint(%d)index out of range\n",index);
+
+	//if(m_animationMode) return; //REMOVE ME
+	invalidateAnim(); point->_source(m_animationMode);
 
 	m_changeBits |= AddOther;
 
-	if(index==m_points.size())
+	m_points.insert(m_points.begin()+index,point);
+
+	// Insert point into keyframe list
+	for(auto*fa:m_frameAnims)
 	{
-		m_points.push_back(point);
-	}
-	else if(index<m_points.size())
-	{
-		unsigned count = 0;
-		std::vector<Point *>::iterator it;
-		for(it = m_points.begin(); it!=m_points.end(); it++)
-		{
-			if(count==index)
-			{
-				m_points.insert(it,point);
-				break;
-			}
-			count++;
-		}
-	}
-	else
-	{
-		log_error("insertPoint(%d)index out of range\n",index);
+		//log_debug("inserted keyframe list for point %d\n",j); //???
+		fa->m_keyframes.insert(fa->m_keyframes.begin()+index,KeyframeList());
 	}
 }
 
@@ -589,204 +403,121 @@ void Model::removePoint(unsigned point)
 {
 	log_debug("removePoint(%d)\n",point);
 
-	if(m_animationMode)
-	{
-		return;
-	}
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
 	if(point<m_points.size())
 	{
-		std::vector<Point *>::iterator it;
-		unsigned count;
-		for(count = 0,it = m_points.begin(); it!=m_points.end(); it++)
-		{
-			if(count==point)
-			{
-				m_points.erase(it);
-				break;
-			}
-			count++;
-		}
+		m_points.erase(m_points.begin()+point);
 	}
-	else
-	{
-		log_error("removePoint(%d)index out of range\n",point);
-	}
+	else log_error("removePoint(%d)index out of range\n",point);
 }
 
-void Model::insertProjection(unsigned index,Model::TextureProjection *proj)
+void Model::insertProjection(unsigned index, Model::TextureProjection *proj)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>m_projections.size())
+	return log_error("insertProjection(%d)index out of range\n",index);
+
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
-	if(index==m_projections.size())
+	if(index<m_projections.size())
 	{
-		m_projections.push_back(proj);
+		m_projections.insert(m_projections.begin()+index,proj);
+
+		adjustProjectionIndices(index,+1);
 	}
-	else if(index<m_projections.size())
-	{
-		unsigned count = 0;
-		std::vector<TextureProjection *>::iterator it;
-		for(it = m_projections.begin(); it!=m_projections.end(); it++)
-		{
-			if(count==index)
-			{
-				m_projections.insert(it,proj);
-				adjustProjectionIndices(index,+1);
-				break;
-			}
-			count++;
-		}
-	}
-	else
-	{
-		log_error("insertProjection(%d)index out of range\n",index);
-	}
+	else m_projections.push_back(proj);
 }
 
 void Model::removeProjection(unsigned proj)
 {
 	log_debug("removeProjection(%d)\n",proj);
 
-	if(m_animationMode)
-	{
-		return;
-	}
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
 	if(proj<m_projections.size())
 	{
-		std::vector<TextureProjection *>::iterator it;
-		unsigned count;
-		for(count = 0,it = m_projections.begin(); it!=m_projections.end(); it++)
-		{
-			if(count==proj)
-			{
-				m_projections.erase(it);
-				adjustProjectionIndices(proj,-1);
-				break;
-			}
-			count++;
-		}
+		m_projections.erase(m_projections.begin()+proj);
+		adjustProjectionIndices(proj,-1);
 	}
-	else
-	{
-		log_error("removeProjection(%d)index out of range\n",proj);
-	}
+	else log_error("removeProjection(%d)index out of range\n",proj);
 }
 
-void Model::insertTexture(unsigned index,Model::Material *texture)
+void Model::insertTexture(unsigned index, Model::Material *texture)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	if(index>m_materials.size())
+	return log_error("insertTexture(%d)index out of range\n",index);
+
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
-	if(index==m_materials.size())
-	{
-		m_materials.push_back(texture);
-		invalidateTextures();
-	}
-	else if(index<m_materials.size())
-	{
-		unsigned count = 0;
-		std::vector<Material *>::iterator it;
-		for(it = m_materials.begin(); it!=m_materials.end(); it++)
-		{
-			if(count==index)
-			{
-				m_materials.insert(it,texture);
-				invalidateTextures();
-				break;
-			}
-			count++;
-		}
-	}
-	else
-	{
-		log_error("insertTexture(%d)index out of range\n",index);
-	}
+	m_materials.insert(m_materials.begin()+index,texture);
+
+	invalidateTextures(); //OVERKILL
 }
 
 void Model::removeTexture(unsigned index)
 {
-	if(m_animationMode)
-	{
-		return;
-	}
+	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
 	if(index<m_materials.size())
 	{
-		unsigned count = 0;
-		std::vector<Material *>::iterator it;
-		for(it = m_materials.begin(); it!=m_materials.end(); it++)
-		{
-			if(count==index)
-			{
-				m_materials.erase(it);
-				invalidateTextures();
-				break;
-			}
-			count++;
-		}
+		m_materials.erase(m_materials.begin()+index);
 	}
-	else
-	{
-		log_error("removeTexture(%d)index out of range\n",index);
-	}
+	else log_error("removeTexture(%d)index out of range\n",index);
 }
 
-void Model::adjustVertexIndices(unsigned index, int count)
+void Model::adjustVertexIndices(unsigned index, int amount)
 {
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	for(auto t=m_triangles.size();t-->0;)	
+	for(auto&i:m_triangles[t]->m_vertexIndices)
 	{
-		for(unsigned v = 0; v<3; v++)
-		{
-			if(m_triangles[t]->m_vertexIndices[v]>=index)
-			{
-				m_triangles[t]->m_vertexIndices[v] += count;
-			}
-		}
+		if(i>=index) i+=amount;
 	}
 }
 
-void Model::adjustTriangleIndices(unsigned index, int count)
+void Model::adjustTriangleIndices(unsigned index, int amount)
 {
 	for(unsigned g = 0; g<m_groups.size(); g++)
 	{
-		Group *grp = m_groups[g];
-		std::unordered_set<int> newSet;
-		for(auto it = grp->m_triangleIndices.cbegin();
-				it!=grp->m_triangleIndices.cend();
-				++it)
+		//Group *grp = m_groups[g];
+		auto &grp = m_groups[g]->m_triangleIndices;
+		
+		/*REMOVE ME
+		//https://github.com/zturtleman/mm3d/issues/92
+		std::unordered_set<int> newSet; //!!!
+
+		for(auto i:grp)
 		{
-			if((unsigned)*it>=index)
-				newSet.insert(*it+count);
+			if((unsigned)i>=index)
+			newSet.insert(i+amount);
 			else
-				newSet.insert(*it);
+			newSet.insert(i);
 		}
-		grp->m_triangleIndices.swap(newSet);
+		grp.swap(newSet);
+		*/		
+		for(size_t i=grp.size();i-->0;)
+		{
+			if(grp[i]>=index) grp[i]+=amount; else break;
+		}
 	}
 }
 
-void Model::adjustProjectionIndices(unsigned index, int count)
+void Model::adjustProjectionIndices(unsigned index, int amount)
 {
 	for(unsigned t = 0; t<m_triangles.size(); t++)
 	{
 		if(m_triangles[t]->m_projection>=(int)index)
 		{
-			m_triangles[t]->m_projection += count;
+			m_triangles[t]->m_projection += amount;
 		}
 	}
 }

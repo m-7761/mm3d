@@ -127,12 +127,14 @@ void Model::Group::sprint(std::string &dest)
 	sprintf(tempstr,"  S%d",m_smooth);
 	dest += tempstr;
 
-	sprintf(tempstr,"%c%c  ",
-			(m_visible ? 'V' : 'H'),
+	//UNUSED
+	//sprintf(tempstr,"%c%c  ",
+	//		(m_visible ? 'V' : 'H'),
+	sprintf(tempstr,"%c  ",
 			(m_selected ? 'S' : 'U'));
 	dest += tempstr;
 
-	sprintf(tempstr,"Faces:%d",(int)m_triangleIndices.size());
+	sprintf(tempstr,"Faces:%d",m_triangleIndices.size());
 	dest += tempstr;
 }
 
@@ -192,9 +194,9 @@ void Model::Point::sprint(std::string &dest)
 	dest += tempstr;
 
 	sprintf(tempstr,"T %.5f,%.5f,%.5f  ",
-			(float)m_trans[0],
-			(float)m_trans[1],
-			(float)m_trans[2]);
+			(float)m_abs[0],
+			(float)m_abs[1],
+			(float)m_abs[2]);
 	dest += tempstr;
 
 	sprintf(tempstr,"R %.5f,%.5f,%.5f  ",
@@ -242,15 +244,15 @@ void Model::Joint::sprint(std::string &dest)
 	dest += tempstr;
 
 	sprintf(tempstr,"T %.5f,%.5f,%.5f  ",
-			(float)m_localTranslation[0],
-			(float)m_localTranslation[1],
-			(float)m_localTranslation[2]);
+			(float)m_rel[0],
+			(float)m_rel[1],
+			(float)m_rel[2]);
 	dest += tempstr;
 
 	sprintf(tempstr,"R %.5f,%.5f,%.5f  ",
-			(float)m_localRotation[0],
-			(float)m_localRotation[1],
-			(float)m_localRotation[2]);
+			(float)m_rot[0],
+			(float)m_rot[1],
+			(float)m_rot[2]);
 	dest += tempstr;
 }
 

@@ -138,7 +138,6 @@ bool DuplicateCommand::activated(int arg, Model *model)
 
 	if(!joints.empty())
 	{
-
 		// Duplicated joints
 		log_debug("Duplicating %d joints\n",joints.size());
 		for(lit = joints.begin(); lit!=joints.end(); lit++)
@@ -160,20 +159,25 @@ bool DuplicateCommand::activated(int arg, Model *model)
 			}
 
 			double coord[3];
-			double rot[3] = { 0,0,0 };
+			//double rot[3] = { 0,0,0 }; //UNUSED
 			model->getBoneJointCoords(*lit,coord);
 
 			int nj = model->addBoneJoint(model->getBoneJointName(*lit),
-						coord[0],coord[1],coord[2],rot[0],rot[1],rot[2],parent);
+						coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
 			jointMap[*lit] = nj;
 
+			//FIX ME
 			// Assign duplicated vertices to duplicated bone joints
-			int_list vertlist = model->getBoneJointVertices(*lit);
+			int_list vertlist;
+			model->getBoneJointVertices(*lit,vertlist);
 			int_list::iterator vit;
 			for(vit = vertlist.begin(); vit!=vertlist.end(); vit++)
 			{
 				if(model->isVertexSelected(*vit))
 				{
+					//LOOKS HIGHLY PROBLEMATIC
+					//LOOKS HIGHLY PROBLEMATIC
+					//LOOKS HIGHLY PROBLEMATIC
 					model->setVertexBoneJoint(vertMap[*vit],nj);
 				}
 			}
@@ -186,20 +190,21 @@ bool DuplicateCommand::activated(int arg, Model *model)
 		log_debug("Duplicating %d points\n",points.size());
 		for(lit = points.begin(); lit!=points.end(); lit++)
 		{
-			int parent = model->getPointBoneJoint(*lit);
-
+			/*2020: addPoint ignored this parameter so
+			//I removed it.
+			int parent = model->getPrimaryPointInfluence(*lit);
 			if(model->isBoneJointSelected(parent))
 			{
 				parent = jointMap[parent];
-			}
+			}*/
 
 			double coord[3];
 			double rot[3] = { 0,0,0 };
-			model->getPointCoords(*lit,coord);
-			model->getPointRotation(*lit,rot);
+			model->getPointCoordsUnanimated(*lit,coord);
+			model->getPointRotationUnanimated(*lit,rot);
 
 			int np = model->addPoint(model->getPointName(*lit),
-						coord[0],coord[1],coord[2],rot[0],rot[1],rot[2],parent);
+						coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]/*,parent*/);
 			pointMap[*lit] = np;
 		}
 	}
@@ -230,7 +235,7 @@ bool DuplicateCommand::activated(int arg, Model *model)
 		model->selectPoint(pointMap[*lit]);
 	}
 
-	model->invalidateNormals();
+	model->invalidateNormals(); //OVERKILL
 
 	if(joints.empty()&&tri.empty()&&points.empty())
 	{

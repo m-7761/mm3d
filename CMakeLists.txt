@@ -103,7 +103,9 @@ find_package(Widgets95 REQUIRED)
 
 file(GLOB implui_files "src/implui/*.cc" "src/*.cc")     
 add_library(implui_obj OBJECT ${implui_files})
-target_include_directories(implui_obj ${mm3d_incl})
+target_include_directories(implui_obj
+      PUBLIC
+      ${mm3d_incl})
 #NOTE: This lets #include <widgets95.h> work without using an old fashioned
 #macro like ${WIDGETS95_INCLUDE_DIRS} that requires manual setup that seems
 #to not be recommended by the modern CMake guidelines.

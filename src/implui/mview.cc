@@ -75,8 +75,9 @@ void ViewBar::submit(control *cc)
 	else if(c==cc) switch(cc->id())
 	{
 	case id_bar:
-	if(int n=cc->int_val()+1)
-	model.sidebar.anim_panel.frame.set_int_val(n).execute_callback();
+	//if(int n=cc->int_val()+1)
+	//model.sidebar.anim_panel.frame.set_int_val(n).execute_callback();
+	model.sidebar.anim_panel.frame.set_float_val(*cc).execute_callback();
 	}
 }
 static std::vector<Tool::ViewE> mview_new;

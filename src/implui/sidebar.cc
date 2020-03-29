@@ -98,7 +98,10 @@ void SideBar::submit(control *c)
 	if(v>=&prop_panel&&v<&prop_panel+1)
 	{
 		if(c!=prop_panel.nav) prop_panel.submit(c);
-		else config.set("ui_prop_sidebar",(bool)*c);
+		else if(config.set("ui_prop_sidebar",(bool)*c))
+		{
+			prop_panel.modelChanged(~0); //OPTIMIZATION
+		}
 	}
 }
 
@@ -108,11 +111,16 @@ void SideBar::AnimPanel::submit(control *c)
 	{		
 	case id_init:
 
+		frame.edit(0.0); //NEW (2020)
+		extern int viewwin_tick(Win::si*,int,double&,int);
+		frame.spinner.set_tick_callback(viewwin_tick);
+
 		//refresh_list(); //Won't do.
+
 		break;
 	
 	case id_animate_play: 
-	case id_animate_pause:
+	case id_animate_loop:
 	case id_animate_settings:
 
 		model.perform_menu_action(id);
@@ -255,7 +263,15 @@ void SideBar::BoolPanel::init()
 	button_b.disable();
 }
 
-
+void SideBar::PropPanel::stop()
+{
+	double t = model.sidebar.anim_panel.frame;
+	
+	if(t!=model->getCurrentAnimationFrameTime())
+	{
+		model.perform_menu_action(id_animate_stop);
+	}
+}
 void SideBar::PropPanel::submit(control *c)
 {
 	sidebar_updater raii; //REMOVE ME
@@ -266,9 +282,23 @@ void SideBar::PropPanel::submit(control *c)
 
 		pos.dimensions.disable();
 
-		proj.menu.add_item(0,"Cylinder");
-		proj.menu.add_item(1,"Sphere");
-		proj.menu.add_item(2,"Plane");
+		for(int i=0;i<3;i++)
+		{
+			interp.menu[i].set_parent(interp.nav).id('t').expand();
+			interp.menu[i].add_item(Model::InterpolateNone,"<None>");
+		}
+		interp.menu[0].add_item(Model::InterpolateCopy,"<Position>");
+		interp.menu[0].add_item(Model::InterpolateLerp,"Lerp Position");
+		interp.menu[0].add_item(Model::InterpolateStep,"Step Position");		
+		interp.menu[1].add_item(Model::InterpolateCopy,"<Rotation>");
+		interp.menu[1].add_item(Model::InterpolateLerp,"Lerp Rotation");
+		interp.menu[1].add_item(Model::InterpolateStep,"Step Rotation");
+		interp.menu[2].add_item(Model::InterpolateCopy,"<Scale>");
+		interp.menu[2].add_item(Model::InterpolateLerp,"Lerp Scale");
+		interp.menu[2].add_item(Model::InterpolateStep,"Step Scale");
+		proj.type.menu.add_item(0,"Cylinder");
+		proj.type.menu.add_item(1,"Sphere");
+		proj.type.menu.add_item(2,"Plane");
 			
 		return;
 
@@ -278,8 +308,19 @@ void SideBar::PropPanel::submit(control *c)
 
 	case 'X': case 'Y': case 'Z':
 
-		c>=&rot.nav?rot.change():pos.change();
+		stop();
+		if(auto cc=c->parent())
+		{
+			if(cc==&pos.nav) pos.change();
+			if(cc==&rot.nav) rot.change();
+			if(cc==&scale.nav) scale.change(0,c);
+			if(cc==&proj.nav) proj.change();
+		}
 		break;
+
+	case 't': 
+
+		stop(); interp.change(0,c); break;
 
 	case -id_projection_settings:
 
@@ -299,7 +340,7 @@ void SideBar::PropPanel::submit(control *c)
 
 	case '0': case '1': case '2': case '3':
 	
-		infl.submit(c); break;
+		stop(); infl.submit(c); break;
 	}		
 
 	//model.views.modelUpdatedEvent(); //???
@@ -313,37 +354,71 @@ void SideBar::PropPanel::modelChanged()
 }
 void SideBar::PropPanel::modelChanged(int changeBits)
 {	
-	if(!changeBits){ assert(changeBits); return; }
-
+	//NOTE: This can happen now because AnimationFrame
+	//is suppressed during animation playback. Because
+	//changes are deferred it's not possible to filter
+	//it here.
+	if(!changeBits) return;
+	
 	if(sidebar_updating) return; //REMOVE ME
 
-	if(nav.hidden()) return;
+	if(!nav) return; //OPTIMIZATION
 
 	//log_debug("modelChanged()\n"); //???
 			
-	bool show;
-	if(show=!model->getAnimationMode()
-	&&model->getSelectedBoneJointCount()
-	 +model->getSelectedPointCount()==1)
-	name.change(changeBits);
+	auto mode = model->getAnimationMode();
+
+	int sn[4] = {};	
+	for(auto&i:model.selection) sn[i.type]++;
+	Model::Position ss = {};
+	size_t sz = model.selection.size();
+	if(1==sz) ss = model.selection[0];
+
+	bool show = ss.type;
+	if(mode&&ss.type==Model::PT_Projection)
+	show = false;
 	name.nav.set_hidden(!show);
+	if(show) name.change(changeBits);
 
 	// Position should always be visible
 	pos.change(changeBits);
-	 	
-	// Only allow points in None and Frame
-	// Only allow joints in None and Skel
-	int iM = model->getSelectedPointCount();
-	int iN = model->getSelectedBoneJointCount();
-	if(show= 
-	(iM==1&&iN==0&&model->getAnimationMode()!=Model::ANIMMODE_SKELETAL)
-	||(iN==1&&iM==0&&model->getAnimationMode()!=Model::ANIMMODE_FRAME))
-	rot.change(changeBits);
+
+	// Only allow joints in None and Skel	
+	if(show) switch(ss.type)
+	{
+	case Model::PT_Point:
+		show = mode!=Model::ANIMMODE_SKELETAL;
+		break;
+	case Model::PT_Joint:
+		show = mode!=Model::ANIMMODE_FRAME;
+		break;
+	case Model::PT_Projection:
+		show = mode==Model::ANIMMODE_NONE;
+		break;
+	}
 	rot.nav.set_hidden(!show);
+	if(show) rot.change(changeBits);
+
+	if(ss.type==Model::PT_Projection)
+	show = false;
+	scale.nav.set_hidden(!show);
+	if(show) scale.change(changeBits);
+
+	show = mode?sz!=0:false;
+	if(mode==Model::ANIMMODE_SKELETAL)
+	for(auto&i:model.selection) 
+	if(i.type!=Model::PT_Joint)
+	show = false;
+	if(mode==Model::ANIMMODE_FRAME)
+	for(auto&i:model.selection) 
+	if(i.type!=Model::PT_Vertex&&i.type!=Model::PT_Point)
+	show = false;
+	interp.nav.set_hidden(!show);
+	if(show) interp.change(changeBits);
 
 	show = false;
-	iN = model->getTriangleCount();
-	for(int i=0;i<iN;i++)
+	int trisN = model->getTriangleCount();
+	for(int i=0;i<trisN;i++)
 	if(model->isTriangleSelected(i)) //FIX ME
 	{
 		show = true;
@@ -352,73 +427,30 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	}	
 	group.nav.set_hidden(!show);
 
-	show = false;
-	iN = model->getProjectionCount();
-	for(int i=0;i<iN;i++)
-	if(model->isProjectionSelected(i))
-	{
-		show = true;
-		proj.change(changeBits);
-		break; 
-	}
-	proj.props_base::nav.set_hidden(!show);
-
-	show = false;
+	show = !mode&&sn[Model::PT_Projection];
+	proj.nav.set_hidden(!show);
+	if(show) proj.change(changeBits);
+	
 	// Only show influences if there are influences to show
-	if(model->getBoneJointCount()&&!model->getAnimationMode())
-	{
-		iN = model->getPointCount();
-		if(!show) for(int i=0;i<iN;i++)
-		{
-			if(model->isPointSelected(i))
-			{
-				show = true; break;
-			}
-		}
-		iN = model->getVertexCount();
-		if(!show) for(int i=0;i<iN;i++)
-		{
-			if(model->isVertexSelected(i))
-			{
-				show = true; break;
-			}
-		}
-
-		if(show) infl.change(changeBits);
-	}
+	if(model->getBoneJointCount()
+	&&mode!=Model::ANIMMODE_FRAME)
+	show = sn[Model::PT_Vertex]||sn[Model::PT_Point];
+	else show = false;
 	infl.nav.set_hidden(!show);
+	if(show) infl.change(changeBits);
 }
 
 void SideBar::PropPanel::name_props::change(int changeBits)
 {
-	utf8 str = nullptr;
-	int iN = model->getBoneJointCount();
-	if(!str) for(int i=0;i<iN;i++)
-	if(model->isBoneJointSelected(i))
-	{
-		if(!changeBits)		
-		model->setBoneJointName(i,str=name);
-		else str = model->getBoneJointName(i);
-		break;
-	}
-
-	iN = model->getPointCount();
-	if(!str) for(int i=0;i<iN;i++)
-	if(model->isPointSelected(i))
-	{
-		if(!changeBits)			
-		model->setPointName(i,str=name);			
-		else str = model->getPointName(i);
-		break;
-	}
-
-	if(changeBits&&str&&str!=name.text())
-	{
-		name.set_text(str);
-	}
-
 	if(!changeBits)
-	model->operationComplete(::tr("Rename","operation complete"));
+	{
+		model->setPositionName(model.selection[0],name);
+		model->operationComplete(::tr("Rename","operation complete"));
+	}
+	else if(utf8 n=model->getPositionName(model.selection[0]))
+	{
+		if(n!=name.text()) name.set_text(n);
+	}
 }
 
 void SideBar::PropPanel::pos_props::change(int changeBits)
@@ -428,22 +460,31 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 		//FIX ME
 		//2019: Assuming something like this should be done.
 		//But I'm not sure what is the correct flags to use.
-		//if(~changeBits&Model::SelectionVertices)
-		//return;
-
-		pos_list l;
-		model->getSelectedPositions(l);
+		int watchlist = 
+		Model::SelectionVertices| //SelectionChange?
+		Model::SelectionJoints|
+		Model::SelectionPoints|
+		Model::SelectionProjections|
+		Model::MoveGeometry|
+		Model::MoveOther|
+		Model::AnimationMode|
+		Model::AnimationFrame;
+		if(0==(changeBits&watchlist))
+		return;
 
 		//WORRIED THIS IS IMPRECISE
-		double init = l.empty()?0.0:DBL_MAX;
+		double init = model.selection.empty()?0.0:DBL_MAX;
 		double cmin[3] = {+init,+init,+init};
 		double cmax[3] = {-init,-init,-init};
 	
-		pos_list::iterator itt,it;
-		for(it=l.begin(),itt=l.end();it<itt;it++)
+		for(auto&i:model.selection)
 		{
+			if(i.type==Model::PT_Projection
+			&&model->getAnimationMode())
+			continue; 
+
 			double coords[3];
-			model->getPositionCoords(*it,coords);
+			model->getPositionCoords(i,coords);
 			for(int i=0;i<3;i++)
 			cmin[i] = std::min(cmin[i],coords[i]);
 			for(int i=0;i<3;i++)
@@ -458,6 +499,10 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 		y.set_float_val(centerpoint[1]);
 		z.set_float_val(centerpoint[2]);
 	
+		bool hide = 1>=model.selection.size();
+		dimensions.set_hidden(hide);
+		if(hide) return;
+
 		//TODO: Add tooltip... make editable?
 		//dimensions.text().format("%g,%g,%g",cmax[0]-cmin[0],cmax[1]-cmin[1],cmax[2]-cmin[2]);
 		dimensions.text().clear();
@@ -495,117 +540,172 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 			trans[i] = coords[i]-centerpoint[i];
 			centerpoint[i] = coords[i];
 		}
-
-		//FIX ME: Translate via vector.
-		Matrix m;
-		m.setTranslation(trans[0],trans[1],trans[2]);
-		model->translateSelected(m);
-
+		model->translateSelected(trans);
 		model->operationComplete(::tr("Set Position","operation complete"));
 	}
 }
 
 void SideBar::PropPanel::rot_props::change(int changeBits)
 {
-	bool found = false; double rad[3] = {};
-
-	Model::AnimationModeE mode = model->getAnimationMode();
+	double rad[3] = {};
 
 	if(changeBits) // Update coordinates in text fields
 	{	
-		if(!found) 
-		{
-			int iN = model->getPointCount();
-			for(int i=0;i<iN;i++)
-			if(model->isPointSelected(i))
-			{
-				model->getPointRotation(i,rad);
-
-				found = true; break;
-			}
-		}		
-		if(!found) 
-		if(!mode||mode==Model::ANIMMODE_SKELETAL)
-		{
-			int iN = model->getBoneJointCount();
-			for(int i=0;i<iN;i++)
-			if(model->isBoneJointSelected(i))
-			if(mode)
-			{
-				int anim = model->getCurrentAnimation();
-				int frame = model->getCurrentAnimationFrame();
-				if(model->getSkelAnimKeyframe(anim,frame,i,true,rad[0],rad[1],rad[2]))
-				{
-					found = true; break;
-				}
-			}
-			else
-			{
-				Matrix rm;
-				model->getBoneJointRelativeMatrix(i,rm);
-				rm.getRotation(rad[0],rad[1],rad[2]);
-
-				found = true; break;
-			}
-		}
-		for(int i=0;i<3;i++) rad[i]/=PIOVER180;
-
-		x.set_float_val(rad[0]);
-		y.set_float_val(rad[1]);
-		z.set_float_val(rad[2]);
-
-		nav.enable(found);
+		//FIX ME
+		//2019: Assuming something like this should be done.
+		//But I'm not sure what is the correct flags to use.
+		int watchlist = 
+		Model::SelectionJoints|
+		Model::SelectionPoints|
+		Model::SelectionProjections|
+		Model::MoveOther|
+		Model::AnimationMode|
+		Model::AnimationFrame;		
+		if(0==(changeBits&watchlist))
+		return;
 	}
 	else // Change model based on text field input
 	{	
 		rad[0] = x; rad[1] = y; rad[2] = z;
 
 		for(int i=0;i<3;i++) rad[i]*=PIOVER180;
+	}
 
-		if(!found)
+	if(changeBits)
+	model->getPositionRotation(model.selection[0],rad);
+	else
+	model->setPositionRotation(model.selection[0],rad);
+
+	if(changeBits)
+	{
+		for(int i=0;i<3;i++) rad[i]/=PIOVER180;
+
+		x.set_float_val(rad[0]);
+		y.set_float_val(rad[1]);
+		z.set_float_val(rad[2]);
+	}
+	else model->operationComplete(::tr("Set Rotation","operation complete"));
+}
+
+void SideBar::PropPanel::scale_props::change(int changeBits, control *c)
+{
+	double rad[3] = {};
+
+	if(changeBits) // Update coordinates in text fields
+	{	
+		//FIX ME
+		//2019: Assuming something like this should be done.
+		//But I'm not sure what is the correct flags to use.
+		int watchlist = 
+		Model::SelectionJoints|
+		Model::SelectionPoints|
+		Model::SelectionProjections|
+		Model::MoveOther|
+		Model::AnimationMode|
+		Model::AnimationFrame;		
+		if(0==(changeBits&watchlist))
+		return;
+	}
+	else // Change model based on text field input
+	{	
+		//NOTE: To do this I had to change spinner::do_click to 
+		//use Ctrl+Alt instead of Shift to change the increment.
+		if(event.curr_shift&&!event.tab_activate_event)
 		{
-			int iN = model->getPointCount();
-			for(int i=0;i<iN;i++)		
-			if(model->isPointSelected(i))
-			{
-				model->setPointRotation(i,rad);
+			unsigned i = (spinbox*)c-&x; assert(i<3);
+			model->getPositionScale(model.selection[0],rad);
+			double diff = c->float_val()-rad[i];
+			for(i=3;i-->0;) rad[i]+=diff;
+		}
+		else
+		{
+			rad[0] = x; rad[1] = y; rad[2] = z;
+		}
+	}
 
-				found = true; break;
+	if(changeBits)
+	model->getPositionScale(model.selection[0],rad);
+	else
+	model->setPositionScale(model.selection[0],rad);
+
+	if(changeBits)
+	{
+		x.set_float_val(rad[0]);
+		y.set_float_val(rad[1]);
+		z.set_float_val(rad[2]);
+	}
+	else model->operationComplete(::tr("Set Scale","operation complete"));
+}
+
+void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
+{	
+	if(changeBits) // Update coordinates in text fields
+	{
+		if(0==(changeBits&
+		(Model::MoveGeometry
+		|Model::MoveOther
+		|Model::AnimationMode
+		|Model::AnimationFrame
+		|(model->inSkeletalMode()?Model::SelectionJoints
+		:Model::SelectionVertices|Model::SelectionPoints)))) 
+		{
+			return;
+		}
+
+		auto am = model->getAnimationMode();
+		int anim = model->getCurrentAnimation();
+		int frame = model->getCurrentAnimationFrame();		
+		
+		const auto keep = Model::InterpolateKeep;
+		Model::Interpolate2020E cmp[3] = {keep,keep,keep};
+		int mask = 0;
+		model->getSelectedInterpolation
+		(am,anim,frame,[&](const Model::Interpolate2020E e[3])
+		{
+			int i = e[1]==Model::InterpolateVoid?1:3;
+			mask|=i;
+			while(i-->0)
+			if(cmp[i]!=Model::InterpolateVoid)
+			{
+				if(cmp[i]!=e[i])
+				if(cmp[i]==keep)
+				cmp[i] = e[i]; 
+				else 
+				cmp[i] = Model::InterpolateVoid;
+			}
+		});
+		menu[1].set_hidden(mask==1);
+		menu[2].set_hidden(mask==1);
+
+		if(!mask) //Keyframe without data?
+		{
+			memset(cmp,0x00,sizeof(cmp));
+		}
+		else //No data exists between frames...
+		{
+			if(model->getCurrentAnimationFrameTime()
+			!=model->getAnimFrameTime(am,anim,frame))
+			{
+				for(int i=3;i-->0;) if(cmp[i]>0)
+				{
+					cmp[i] = Model::InterpolateNone;
+				}
 			}
 		}
-		if(!found)
-		if(!mode||mode==Model::ANIMMODE_SKELETAL)
-		{
-			int iN = model->getBoneJointCount();
-			for(int i=0;i<iN;i++)			
-			if(model->isBoneJointSelected(i))
-			{
-				if(mode)
-				{
-					int anim = model->getCurrentAnimation();
-					int frame = model->getCurrentAnimationFrame();
-
-					model->setSkelAnimKeyframe(anim,frame,i,true,rad[0],rad[1],rad[2]);
-					model->setCurrentAnimationFrame(frame); // Force re-animate
-				}
-				else
-				{
-					model->setBoneJointRotation(i,rad);
-					model->setupJoints();
-				}
-
-				found = true; break;
-			}
-		}
-
-		if(found)
-		model->operationComplete(::tr("Set Rotation","operation complete"));
+		for(int i=3;i-->0;) menu[i].set_int_val(cmp[i]);	
+	}
+	else // Change model based on text field input
+	{
+		unsigned i = (dropdown*)c-menu; assert(i<3);
+		model->interpolateSelected
+		((Model::Interpolant2020E)i,(Model::Interpolate2020E)menu[i].int_val());
+		model->operationComplete(::tr("Set Interpolation","operation complete"));
 	}
 }
 
 void SideBar::PropPanel::group_props::change(int changeBits)
 {
-	if(0==(changeBits&(Model::AddOther|Model::SelectionChange)))
+	if(0==(changeBits&(Model::AddOther|Model::SelectionFaces)))
 	{
 		return; // Only change if group or selection change	
 	}
@@ -725,20 +825,52 @@ void SideBar::PropPanel::group_props::submit(int id)
 
 void SideBar::PropPanel::proj_props::change(int changeBits)
 {
-	int iN = model->getProjectionCount();
-	for(int i=0;i<iN;i++)
-	if(model->isProjectionSelected(i))
+	if(changeBits)
+	{
+		int watchlist =
+		Model::SelectionProjections|
+		Model::MoveOther|
+		Model::AnimationMode;		
+		if(0==(changeBits&watchlist))
+		return;
+	}
+
+	for(auto&i:model.selection)
+	if(i.type==Model::PT_Projection)
 	{
 		if(changeBits) // Update projection fields
 		{
-			menu.select_id(model->getProjectionType(i));
+			type.menu.select_id(model->getProjectionType(i));
 			break;
 		}
-		else model->setProjectionType(i,menu);
+		else model->setProjectionType(i,type.menu);
 	}
 
-	if(!changeBits)
-	model->operationComplete(::tr("Set Projection Type","operation complete"));
+	if(changeBits)
+	{
+		bool hide = 1!=model.selection.size();
+		if(hide!=scale.hidden())
+		{
+			if(hide) nav.space<top>(0);
+			nav.set_name(hide?"":"Scale");
+			type.nav.set_name(hide?"Projection Type":"Type");
+			scale.set_hidden(hide);
+		}
+		if(!hide)
+		{
+			scale.set_float_val(model->getProjectionScale(model.selection[0]));
+		}
+		else if(!model.sidebar.prop_panel.group.nav.hidden())
+		{
+			hide = false;
+		}
+		type.nav.set_name(hide?"Projection":"Type");
+	}
+	else 
+	{
+		model->setProjectionScale(model.selection[0],scale);			
+		model->operationComplete(::tr("Set Projection Type","operation complete"));
+	}
 }
 
 static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int weight)
@@ -746,6 +878,7 @@ static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int
 	Widgets95::li::item *it[4] = {v.first_item()};
 	for(int i=1;i<4;i++) it[i] = it[i-1]->next();
 
+	//REMOVE ME
 	it[0]->set_text(::tr("<Mixed>","multiple types of bone joint influence"));
 	it[1]->set_text(::tr("Custom","bone joint influence"));
 	it[2]->set_text(::tr("Auto","bone joint influence"));
@@ -755,7 +888,8 @@ static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int
 	{
 		utf8 str = "%d"; switch(type)
 		{
-		case 0: str = ::tr("<Mixed>","multiple types of bone joint influence");
+		case 0: //REMOVE ME
+				str = ::tr("<Mixed>","multiple types of bone joint influence");
 				break;
 		case 2: str = ::tr("Auto: %d"); //::tr("Auto: %1").arg(weight);
 				break;
@@ -772,7 +906,10 @@ static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int
 }
 void SideBar::PropPanel::infl_props::change(int changeBits)
 {
-	if(0==(changeBits&(Model::AddOther|Model::SelectionChange)))
+	int watchlist = Model::SelectionChange;
+	watchlist&=~Model::SelectionJoints;
+	watchlist&=~Model::SelectionProjections;
+	if(0==(changeBits&(Model::AddOther|watchlist)))
 	{
 		return; // Only change if group or selection change	
 	}
@@ -781,7 +918,10 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 
 	int bonesN = model->getBoneJointCount();
 
-	bool enable = !model->getAnimationMode();
+	//Why was this? I've changed model_influence.cc to
+	//recalculate positions as the weights are changed.
+	//bool enable = !model->getAnimationMode();
+	bool enable = true;
 
 	//FIX ME
 	//Don't rebuild this list if unchanged.
@@ -800,29 +940,22 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		groups[i].joint.reference(groups[0].joint);
 	}
 
+	//TODO: Remove <Mixed>
 	/*REMINDER: +1 must skip over <Mixed> in the menu. */
 	// Update influence fields		
 	JointCount def = {}; def.typeIndex = Model::IT_Auto+1;
 	jcl.clear(); jcl.resize(bonesN,def);
 	
-	pos_list l; model->getSelectedPositions(l);
-	pos_list::iterator it,itt = l.end();
-
 	// for now just do a sum on which bone joints are used the most
 	// TODO: may want to weight by influence later
-	for(it=l.begin();it<itt;it++) switch(it->type)
+	for(auto&i:model.selection)
+	if(auto*infl=model->getPositionInfluences(i))
+	for(auto&ea:*infl)
 	{
-	case Model::PT_Vertex: case Model::PT_Point: //TODO: Filter out.
-	
-		const infl_list &ll = model->getPositionInfluences(*it);
-		infl_list::const_iterator jt,jtt;
-		for(jt=ll.begin(),jtt=ll.end();jt<jtt;jt++)		
-		{
-			int bone = jt->m_boneId;
-			jcl[bone].count++;
-			jcl[bone].weight+=(int)lround(jt->m_weight*100);
-			jcl[bone].typeCount[jt->m_type]++;
-		}
+		int bone = ea.m_boneId;
+		jcl[bone].count++;
+		jcl[bone].weight+=(int)lround(ea.m_weight*100);
+		jcl[bone].typeCount[ea.m_type]++;
 	}
 
 	for(int bone=0;bone<bonesN;bone++)
@@ -858,11 +991,20 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		// No more influences; done.
 		if(maxVal<=0) 
 		{
+			int ii = i; //NEW
+
 			for(;i<Model::MAX_INFLUENCES;i++)
 			{
 				groups[i].joint.select_id(-1);
 				groups[i].v.select_id(-1);
+				groups[i].prev_joint = -1;
+
+				groups[i].joint.set_hidden();
+				groups[i].weight.set_hidden();
 			}
+			if(ii<Model::MAX_INFLUENCES)
+			groups[ii].joint.set_hidden(false);
+
 			break; 
 		}
 
@@ -872,6 +1014,11 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		groups[i].joint.add_item(bone,model->getBoneJointName(bone));
 		groups[i].joint.select_id(bone);
 		groups[i].prev_joint = bone;
+
+		//NEW: It looks weird for 'weight' to be disabled but 'joint'
+		//to be enabled.
+		groups[i].joint.set_hidden(false);
+		groups[i].weight.set_hidden(false);
 
 		log_debug("bone i %d is bone ID %d\n",i,bone); //???
 
@@ -886,99 +1033,120 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 
 	int j = group.joint; bool updateRemainders = false;
 
-	pos_list l; model->getSelectedPositions(l);
-	pos_list::iterator it,itt = l.end();
+	pos_list &l = model.selection;
 
 	if(c==group.joint) /* Joint selected? */
-	{	
-		if(group.joint)
+	{
+		bool enable = j>=0; int jj = group.prev_joint;
+
+		if(enable)
 		for(int i=0;i<Model::MAX_INFLUENCES;i++) if(i!=index)
 		{
 			int compile[4==Model::MAX_INFLUENCES]; (void)compile;
 
-			if(groups[i].prev_joint==group.joint.int_val())
+			if(groups[i].prev_joint==j)
 			{
 				// trying to assign new joint when we already have that joint
 				// in one of the edit boxes. Change the selection back. This
 				// will cause some nasty bugs and probably confuse the user.
 				// Change the selection back.	
-				return (void)group.joint.select_id(group.prev_joint);
+				return (void)group.joint.select_id(jj);
 			}
 		}
+		group.prev_joint = j;
 
-		int new_joint = group.joint;
-		int old_joint = group.prev_joint;
-		group.prev_joint = new_joint--; old_joint--;
-
-		if(old_joint>0)
+		bool hide; if(jj>=0)
 		{
-			for(it=l.begin();it<itt;it++)			
-			model->removePositionInfluence(*it,old_joint);
-			jcl[old_joint].count = 0;
+			for(auto&i:l)
+			model->removePositionInfluence(i,jj);
+			jcl[jj].count = 0;
+
+			hide = true;
 		}
-		int weight = 0; if(new_joint>0)
-		{
-			jcl[new_joint].count = l.size();
+		else hide = false;
 
-			for(it=l.begin();it<itt;it++)
+		//NEW: Hide joints removed from the back
+		//of the list, but don't attempt to move
+		//joints around because that's too messy.
+		if(index+1==Model::MAX_INFLUENCES
+		||!hide||groups[index+1].weight.hidden())
+		{
+			//Should be the last of them.
+			groups[index].weight.set_hidden(hide);
+			if(index+1<Model::MAX_INFLUENCES)
+			groups[index+1].joint.set_hidden(hide);
+		}
+
+		int weight = 0; if(enable)
+		{
+			jcl[j].count = l.size();
+
+			for(auto&i:l)
 			{
-				double w = model->calculatePositionInfluenceWeight(*it,new_joint);
+				double w = model->calculatePositionInfluenceWeight(i,j);
 
 				log_debug("influence = %f\n",w); //???
 
-				model->addPositionInfluence(*it,new_joint,Model::IT_Auto,w);
+				model->addPositionInfluence(i,j,Model::IT_Auto,w);
 
 				weight+=(int)lround(w*100);
 			}
 
 			if(!l.empty())			
-			jcl[new_joint].weight = (int)lround(weight/(double)l.size());			
+			jcl[j].weight = (int)lround(weight/(double)l.size());			
+			//TODO: Remove <Mixed>
 			/*REMINDER: +1 must skip over <Mixed> in the menu. */
-			jcl[new_joint].typeIndex = Model::IT_Auto+1;
+			jcl[j].typeIndex = Model::IT_Auto+1;
 		}		
 		model->operationComplete(::tr("Change Joint Assignment","operation complete"));
 
-		bool enable = new_joint>=0;
-		weight = enable?jcl[new_joint].weight:0;		
-		sidebar_update_weight_v(group.v,enable,enable?jcl[new_joint].typeIndex:-1,weight);
+		weight = enable?jcl[j].weight:0;		
+		sidebar_update_weight_v(group.v,enable,enable?jcl[j].typeIndex:-1,weight);
 	}
 	else if(c==group.weight) /* Weight text edited? */
 	{
-		double weight = std::max(0,std::min<int>(100,group.weight))/100.0;
-
-		log_debug("setting joint %d weight to %f\n",j,weight); //???
-
-		for(it=l.begin();it<itt;it++)
+		//FIX ME
+		auto &yuck = group.weight.text();
+		if(yuck.empty()||isdigit(yuck[0]))
 		{
-			model->setPositionInfluenceType(*it,j,Model::IT_Custom);
-			model->setPositionInfluenceWeight(*it,j,weight);
+			double weight = std::max(0,std::min<int>(100,group.weight))/100.0;
+
+			log_debug("setting joint %d weight to %f\n",j,weight); //???
+
+			for(auto&i:l)
+			{
+				model->setPositionInfluenceType(i,j,Model::IT_Custom);
+				model->setPositionInfluenceWeight(i,j,weight);
+			}
+			model->operationComplete(::tr("Change Influence Weight","operation complete"));
 		}
-		model->operationComplete(::tr("Change Influence Weight","operation complete"));
+		else model_status(model,StatusError,STATUSTIME_LONG,"Please input a plain number.");
 	}
 	else if(c==group.v) /* Weight mode selected? */
 	{
 		Model::InfluenceTypeE type = Model::IT_Auto;
 		switch(group.v)
 		{
-		case 0: return; //<Mixed> // Not really a valid selection
+		case 0: //REMOVE ME
+				return; //<Mixed> // Not really a valid selection
 		case 1: type = Model::IT_Custom; break;
 		case 3: type = Model::IT_Remainder; break;
 		}
 
 		log_debug("setting joint %d type to %d\n",j,(int)type); //???
 
-		int weight = 0; for(it=l.begin();it<itt;it++)
+		int weight = 0; for(auto&i:l)
 		{
-			model->setPositionInfluenceType(*it,j,type);
+			model->setPositionInfluenceType(i,j,type);
 			if(type==Model::IT_Auto)
 			{
-				double w = model->calculatePositionInfluenceWeight(*it,j);
-				model->setPositionInfluenceWeight(*it,j,w);
+				double w = model->calculatePositionInfluenceWeight(i,j);
+				model->setPositionInfluenceWeight(i,j,w);
 				weight+=(int)lround(w*100);
 			}
 			else
 			{
-				model->setPositionInfluenceWeight(*it,j,(double)jcl[j].weight/100);
+				model->setPositionInfluenceWeight(i,j,(double)jcl[j].weight/100);
 			}
 		}
 		model->operationComplete(::tr("Change Influence Type","operation complete"));
@@ -1000,11 +1168,9 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		log_debug("getting remainder weight for joint %d\n",j); //???
 		
 		int count = 0; double weight = 0;
-		for(it=l.begin();it<itt;it++) switch(it->type)
+		for(auto&i:l) if(auto*infl=model->getPositionInfluences(i))
 		{
-		case Model::PT_Vertex: case Model::PT_Point: //TODO: Filter out.
-			
-			const infl_list &ll = model->getPositionInfluences(*it);
+			const infl_list &ll = *infl;
 			infl_list::const_iterator jt,jtt;
 			for(jt=ll.begin(),jtt=ll.end();jt<jtt;jt++)
 			if(jt->m_type==Model::IT_Remainder&&j==(*jt).m_boneId)

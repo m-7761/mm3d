@@ -389,7 +389,7 @@ std::string fixAbsolutePath(const char *base, const char *path)
 					}
 					else
 					{
-						std::string dirent = _findDirent(&ptr[0]);
+						std::string dirent = _findDirent(&ptr[0]); //???
 
 						if(dirent.c_str()[0]!='\0')
 						{

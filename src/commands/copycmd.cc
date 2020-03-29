@@ -49,12 +49,13 @@ extern Command *copycmd(){ return new CopyCommand; }
 
 bool CopyCommand::activated(int, Model *model)
 {
-	if(model->getSelectedTriangleCount()==0
-	 &&model->getSelectedPointCount()==0
-	 &&model->getSelectedProjectionCount()==0)
+	if(!model->getSelectedTriangleCount()
+	 &&!model->getSelectedBoneJointCount()
+	 &&!model->getSelectedPointCount()
+	 &&!model->getSelectedProjectionCount())
 	{
 		model_status(model,StatusError,STATUSTIME_LONG,
-		TRANSLATE("Command","You must have at least 1 face,joint,or point selected to Copy"));
+		TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Copy"));
 		return false;
 	}
 

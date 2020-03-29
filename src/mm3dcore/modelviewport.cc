@@ -219,7 +219,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	if(x<0||y<0||w<=0||h<=0) return;
 	
 	glScissor(x,y,w,h); //NEW
-
+	
 	//if(m_inOverlay) //???
 	//void setViewportDraw()
 	double aspect = (double)w/h;
@@ -382,42 +382,50 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
-	glDisable(GL_LIGHTING);
-	if(drawSelections)
-	{
-		//TESTING
-		//Trying to create a visual cue.
-		bool dl = true;
-		bool dv = !parent->tool->isNullTool();
-		if(dl) model->drawLines();
-		if(dv) model->drawVertices();
-
-		glDisable(GL_DEPTH_TEST);
-		model->drawJoints();
-	}
-	else glDisable(GL_DEPTH_TEST);
-	
-	model->drawPoints();
-	model->drawProjections();
 
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 
-	if(!m_rendering) //animexportwin?
+	if(drawSelections)
 	{
-		drawOrigin();
+		//TESTING
+		//Trying to create a visual cue.
+		model->drawLines(0.5f);
+		model->drawVertices(!parent->tool->isNullTool());
 	}
 
-	glEnable(GL_DEPTH_TEST);
-	
 	if(!m_rendering) //animexportwin?
 	{
 		//2019: I'm moving this to after so it isn't
 		//blended behind drawLines.
 		drawGridLines();
 	}
-	
+		
+	if(drawSelections)
+	{
+		model->drawJoints(0.333333f);
+	}
+
 	glDisable(GL_DEPTH_TEST);
+	
+	model->drawPoints();
+	model->drawProjections();	
+
+	if(!m_rendering) //animexportwin?
+	{
+		//drawOrigin();
+		{
+			float scale = (float)m_zoom/10;
+			glBegin(GL_LINES);
+			glColor3f(1,0,0);
+			glVertex3f(0,0,0); glVertex3f(scale,0,0);
+			glColor3f(0,1,0);
+			glVertex3f(0,0,0); glVertex3f(0,scale,0);
+			glColor3f(0,0,1);
+			glVertex3f(0,0,0); glVertex3f(0,0,scale);
+			glEnd();
+		}
+	}
 
 	//TODO: Probably ought to break this up into two
 	//stages, one in model space, one in screen space.
@@ -428,7 +436,10 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	{
 		parent->drawTool(this);
 	}
-		
+	
+	//Don't trust drawTool.
+	glDisable(GL_DEPTH_TEST);
+
 	if(!m_rendering) //if(this->hasFocus())
 	{
 		//m_inOverlay = true; //???
@@ -646,33 +657,6 @@ void ModelViewport::drawGridLines()
 		}*/
 	}
 }
-void ModelViewport::drawOrigin()
-{
-	glDisable(GL_DEPTH_TEST);
-
-	glBegin(GL_LINES);
-
-	double scale = m_zoom/10.0;
-
-	if(m_view<=Tool::ViewPerspective)
-	{
-		double x = m_scroll[0];
-		double y = m_scroll[1];
-		double z = m_scroll[2]+m_zoom;
-		scale = sqrt(x*x+y*y+z*z)/10.0;
-	}
-
-	glColor3f(1,0,0);
-	glVertex3f(0,0,0); glVertex3d(scale,0,0);
-	glColor3f(0,1,0);
-	glVertex3f(0,0,0); glVertex3d(0,scale,0);
-	glColor3f(0,0,1);
-	glVertex3f(0,0,0); glVertex3d(0,0,scale);
-
-	glEnd();
-
-	glEnable(GL_DEPTH_TEST);
-}
 void ModelViewport::drawBackground()
 {	
 	if(!updateBackground()) return;
@@ -864,11 +848,15 @@ double ModelViewport::getUnitWidth()
 bool ModelViewport::updateBackground()
 {
 	Model *model = parent->getModel();
-	const char *file = model->getBackgroundImage(m_view-1);	
-	bool ret = *file!='\0';
-	bool diff = file!=m_backgroundFile; 
-	if(diff) m_backgroundFile = file;	
-	if(!diff||!ret) return ret;
+	const char *file;
+	if(file=model->getBackgroundImage(m_view-1))
+	{
+		bool ret = *file!='\0';
+		bool diff = file!=m_backgroundFile; 
+		if(diff) m_backgroundFile = file;	
+		if(!diff||!ret) return ret;
+	}
+	else return false;
 		
 	if(!m_backgroundTexture) glGenTextures(1,&m_backgroundTexture);
 
@@ -920,7 +908,7 @@ void ModelViewport::updateViewport(int how)
 void ModelViewport::wheelEvent(int wh, int bs, int x, int y)
 {
 	//bool rotate = (e->modifiers()&Qt::ControlModifier)!=0;
-	bool rotate = (bs&Tool::BS_Ctrl)!=0;
+	bool rotate = bs&Tool::BS_Ctrl&&~bs&Tool::BS_Alt;
 	if(wh>0) rotate?rotateClockwise():zoomIn();	
 	else rotate?rotateCounterClockwise():zoomOut();
 }
@@ -944,12 +932,19 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 	bool rotate = (bs&Tool::BS_Ctrl)!=0;
 	
 	if(pressOverlayButton(x,y,rotate))	
-	if(m_overlayButton==ScrollButtonPan)
 	{
-		m_scrollStartPosition = {x,y};
-		m_operation = rotate?MO_Rotate:MO_Pan;
+		if(m_overlayButton==ScrollButtonPan)
+		{
+			m_scrollStartPosition = {x,y};
+			m_operation = rotate?MO_Rotate:MO_Pan;
+		}
+		else 
+		{
+			//UNUSED
+			//m_operation = rotate?MO_RotateButton:MO_PanButton; 
+			m_operation = MO_None;
+		}
 	}
-	else m_operation = rotate?MO_RotateButton:MO_PanButton;
 	else 
 	{
 		//m_operation = MO_None;
@@ -967,11 +962,11 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 			&&!parent->getModel()->getDrawSelection();
 			bool def = persp||parent->tool->isNullTool();
 
-			//Misift BS_Right did nothing.
 			//if(def&&bt==Tool::BS_Left||bs&Tool::BS_Ctrl)
-			if(def||bs&Tool::BS_Ctrl)
+			if((def||bs&Tool::BS_Ctrl)&&~bs&Tool::BS_Alt)
 			{
-				m_operation = MO_Rotate;
+				//FIX ME: Make this behavior configurable.
+				m_operation = bt&Tool::BS_Right?MO_Pan:MO_Rotate;
 				m_scrollStartPosition = {x,y};
 			}
 			else
@@ -1011,23 +1006,6 @@ void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 	bool multipanning = bs&Tool::BS_Shift;
 	if(m_operation!=MO_Rotate&&m_operation!=MO_Pan)
 	multipanning = false;
-
-	if(!multipanning) if(m_view>Tool::ViewPerspective)
-	{
-		Vector pos;
-		getParentXYValue(x,y,pos[0],pos[1],true);
-		m_invMatrix.apply(pos);
-		for(int i=0;i<3;i++) 
-		if(fabs(pos[i])<0.000001) pos[i] = 0;
-
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
-		"Units: %g  (%g,%g,%g)",m_unitWidth,pos[0],pos[1],pos[2]);
-	}
-	else
-	{
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
-		"Units: %g",m_unitWidth); //getUnitWidth());
-	}
 
 	if(m_operation==MO_Rotate)
 	{
@@ -1080,7 +1058,7 @@ void ModelViewport::mouseReleaseEvent(int bt, int bs, int x, int y)
 		{
 			Tool *tool = parent->tool;
 			tool->mouseButtonUp(bt|bs,x-m_viewportX,y-m_viewportY);
-			model->operationComplete(TRANSLATE("Tool",tool->getName(0)));
+			model->operationComplete(TRANSLATE("Tool",tool->getName(parent->tool_index)));
 
 			//REMOVE ME
 			//Getting the count is inefficient for this purpose. 
@@ -1393,18 +1371,31 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	parent->viewChangeEvent(*this); //NEW
 }
 
-void ModelViewport::getParentXYValue(int x, int y, double &xval, double &yval, bool selected)
-{
+void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, double &yval, bool selected)
+{	
+	//TODO: Cache result in Parent::getParentXYValue?
+
 	Model *model = parent->getModel();
 
-	getRawParentXYValue(x,y,xval,yval);
+	getRawParentXYValue(bx,by,xval,yval);
 
 	double maxDist = 4.1/m_viewportWidth*m_width;
 
 	Model::ViewportUnits &vu = model->getViewportUnits();
 
+	//EXPERIMENTAL
+	//Ctrl+Alt snaps animations and vertices.
+	//NOTE: Ctrl is taken by the view rotate
+	//function. Other uses of Alt causes the
+	//window menu to appear to be focused on.
+	int snaps = vu.snap; 
+	if(bs&Tool::BS_Ctrl&&bs&Tool::BS_Alt)
+	{
+		snaps = snaps?0:~0;
+	}
+
 	//if(config.get("ui_snap_vertex",false))
-	if(vu.snap&vu.VertexSnap)
+	if(snaps&vu.VertexSnap)
 	{
 		// snap to vertex
 
@@ -1422,9 +1413,7 @@ void ModelViewport::getParentXYValue(int x, int y, double &xval, double &yval, b
 			coord[1]+=mat.get(3,1);
 			coord[2]+=mat.get(3,2);
 
-			double xdiff = coord[0]-xval;
-			double ydiff = coord[1]-yval;
-			double dist = distance(xdiff,ydiff,0.0,0.0);
+			double dist = distance(coord[0],coord[1],xval,yval);
 
 			if(dist<curDist)
 			{
@@ -1481,7 +1470,7 @@ void ModelViewport::getParentXYValue(int x, int y, double &xval, double &yval, b
 	}
 
 	//if(config.get("ui_snap_grid",false))
-	if(vu.snap&vu.UnitSnap)
+	if(snaps&vu.UnitSnap)
 	if(m_view<Tool::ViewOrtho)		
 	{
 		// snap to grid
@@ -1506,6 +1495,26 @@ void ModelViewport::getParentXYValue(int x, int y, double &xval, double &yval, b
 		val = mult*m_unitWidth;
 
 		if(fabs(y-val)<maxDist) yval = val-m_scroll[1];
+	}
+	
+	//if(!multipanning)
+	if(m_view>Tool::ViewPerspective)
+	{
+		Vector pos;
+		//getParentXYValue(bs,x,y,pos[0],pos[1],false); //???
+		pos[0] = xval;
+		pos[1] = yval;
+		m_invMatrix.apply(pos);
+		for(int i=0;i<3;i++) 
+		if(fabs(pos[i])<0.000001) pos[i] = 0;
+
+		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
+		"Units: %g  (%g,%g,%g)",m_unitWidth,pos[0],pos[1],pos[2]);
+	}
+	else
+	{
+		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
+		"Units: %g",m_unitWidth); //getUnitWidth());
 	}
 }
 
@@ -1548,6 +1557,9 @@ void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double
 		}
 	}
 
+	//CAUTION: This is the only way to set Z translation
+	//for ortho views. The Rotate Tool sets its pivot on
+	//this center position.
 	m_scroll[0] = (x1+x2)/2;
 	m_scroll[1] = (y1+y2)/2;
 	m_scroll[2] = (z1+z2)/2;
@@ -1603,6 +1615,9 @@ void ModelViewport::Parent::initializeGL(Model *m)
 	//TODO: Get from Model settings.
 	int backColor[3] = {130,200,200};
 
+	//glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL,GL_SEPARATE_SPECULAR_COLOR); //2020
+	glLightModeli(0x81F8,0x81FA); //2020
+
 	glShadeModel(GL_SMOOTH);
 	glClearColor
 	(backColor[0]/255.0f
@@ -1618,7 +1633,7 @@ void ModelViewport::Parent::initializeGL(Model *m)
 		GLfloat diffuse[]  = { 0.9f, 0.9f, 0.9f, 1.0f };
 		GLfloat position[] = { 0.0f, 0.0f, 1.0f, 0.0f };
 
-		glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE);
+		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???
 		glLightfv(GL_LIGHT0,GL_AMBIENT,ambient);
 		glLightfv(GL_LIGHT0,GL_DIFFUSE,diffuse);
 		glLightfv(GL_LIGHT0,GL_POSITION,position);
@@ -1630,7 +1645,7 @@ void ModelViewport::Parent::initializeGL(Model *m)
 		GLfloat diffuse[]  = { 0.9f, 0.5f, 0.5f, 1.0f };
 		GLfloat position[] = { 0.0f, 0.0f, 1.0f, 0.0f };
 
-		glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE);
+		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???
 		glLightfv(GL_LIGHT1,GL_AMBIENT,ambient);
 		glLightfv(GL_LIGHT1,GL_DIFFUSE,diffuse);
 		glLightfv(GL_LIGHT1,GL_POSITION,position);
@@ -1684,11 +1699,11 @@ void ModelViewport::Parent::checkGlErrors(Model *m)
 	model_status(m,StatusNormal,STATUSTIME_NONE,e);
 }
 
-void ModelViewport::Parent::getXYZ(int x, int y, double *xx, double *yy, double *zz)
+void ModelViewport::Parent::getXYZ(double *xx, double *yy, double *zz)
 {
 	ModelViewport &mvp = ports[m_focus];
 	Vector vec;
-	mvp.getRawParentXYValue(x,y,vec[0],vec[1]);
+	getRawParentXYValue(vec[0],vec[1]);
 	mvp.m_invMatrix.apply(vec);
 	*xx = vec[0]; *yy = vec[1]; *zz = vec[2];
 }

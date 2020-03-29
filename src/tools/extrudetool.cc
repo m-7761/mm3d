@@ -51,11 +51,11 @@ struct ExtrudeTool : Tool
 		TRANSLATE("Tool","Tip: Hold shift to restrict movement to one dimension"));
 	}
 
-	virtual void mouseButtonDown(int buttonState, int x, int y);
-	virtual void mouseButtonMove(int buttonState, int x, int y);
+	virtual void mouseButtonDown();
+	virtual void mouseButtonMove();
 
 	//REMOVE ME
-	virtual void mouseButtonUp(int buttonState, int x, int y)
+	virtual void mouseButtonUp()
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Extrude complete"));
@@ -70,13 +70,13 @@ struct ExtrudeTool : Tool
 
 extern Tool *extrudetool(){ return new ExtrudeTool; }
 
-void ExtrudeTool::mouseButtonDown(int buttonState, int x, int y)
+void ExtrudeTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
 	m_allowX = m_allowY = true;
 
-	parent->getParentXYValue(x,y,m_x,m_y,true);
+	parent->getParentXYValue(m_x,m_y,true);
 		
 	// TODO widget for back-facing
 	if(!m_impl.extrude(model,0,0,0,false))
@@ -90,12 +90,12 @@ void ExtrudeTool::mouseButtonDown(int buttonState, int x, int y)
 		TRANSLATE("Tool","Extruding selected faces"));
 	}
 }
-void ExtrudeTool::mouseButtonMove(int buttonState, int x, int y)
+void ExtrudeTool::mouseButtonMove()
 {
 	double pos[2];
-	parent->getParentXYValue(x,y,pos[0],pos[1]);
+	parent->getParentXYValue(pos[0],pos[1]);
 
-	if(buttonState&BS_Shift&&m_allowX&&m_allowY)
+	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
 	{
 		double ax = fabs(pos[0]-m_x);
 		double ay = fabs(pos[1]-m_y);
@@ -113,13 +113,14 @@ void ExtrudeTool::mouseButtonMove(int buttonState, int x, int y)
 
 	parent->getParentViewInverseMatrix().apply3(v);
 
-	Matrix m; //???
+	/*Matrix m; //???
 	m.set(3,0,v[0]);
 	m.set(3,1,v[1]);
-	m.set(3,2,v[2]);
+	m.set(3,2,v[2]);*/
 
 	//FIX ME: Translate via vector.
-	parent->getModel()->translateSelected(m);
+	//parent->getModel()->translateSelected(m);
+	parent->getModel()->translateSelected(v);
 	parent->updateAllViews();
 }
 

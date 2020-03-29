@@ -23,14 +23,14 @@
 #include "mm3dtypes.h" //PCH
 #include "translate.h"
 
-static TransLLCallbackF _transFunc = nullptr;
+static TransLLCallbackF translate_transFunc = nullptr;
 
 void transll_install_handler(TransLLCallbackF f)
 {
-	_transFunc = f;
+	translate_transFunc = f;
 }
 
 const char *transll(const char *ctxt, const char *msg)
 {
-	return _transFunc?_transFunc(ctxt,msg):msg;
+	return translate_transFunc?translate_transFunc(ctxt,msg):msg;
 }

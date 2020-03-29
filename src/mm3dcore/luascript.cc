@@ -35,13 +35,13 @@ extern "C" {
 #include <lualib.h>
 };
 
-typedef struct _ReadChunkData_t
+struct ReadChunkDataT
 {
 	const char *filename;
 	FileDataSource *src;
-} ReadChunkDataT;
+};
 
-static const char *_luascript_readchunk(lua_State *L,void *data, size_t *size)
+static const char *luascript_readchunk(lua_State *L,void *data, size_t *size)
 {
 	ReadChunkDataT *rcd = (ReadChunkDataT *)data;
 	static const int MAX_DATA = 1024;
@@ -107,7 +107,7 @@ int LuaScript::runFile(const char *filename)
 		ReadChunkDataT rcd;
 		rcd.src = nullptr;
 		rcd.filename = filename;
-		rval = lua_load(m_luaState,_luascript_readchunk,(void *)&rcd,filename,nullptr);
+		rval = lua_load(m_luaState,luascript_readchunk,(void *)&rcd,filename,nullptr);
 
 		if(rval==0)
 		{

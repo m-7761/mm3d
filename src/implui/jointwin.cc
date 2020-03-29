@@ -24,7 +24,7 @@
 #include "mm3dtypes.h" //PCH
 #include "win.h"
 
-#include "model.h"
+#include "viewwin.h"
 
 #include "log.h"
 #include "msg.h"
@@ -37,7 +37,7 @@ struct JointWin : Win
 {
 	void submit(control*);
 
-	JointWin(Model *model)
+	JointWin(MainWin &model)
 		:
 	Win("Joints"),model(model),
 	joint(main,"",id_item),
@@ -55,7 +55,7 @@ struct JointWin : Win
 		submit(main);
 	}
 
-	Model *model;
+	MainWin &model;
 
 	struct selection_group
 	{
@@ -170,13 +170,12 @@ void JointWin::submit(control *c)
 		case 2: //"Assign Selected to Joint"
 		case 3: //"Add Selected to Joint"
 		{
-			pos_list pl; model->getSelectedPositions(pl);
 			int j = joint;
-			log_debug("%sing %d objects to joint %d\n",bt==2?"ass":"add",pl.size(),j);
-			for(pos_list::iterator it=pl.begin();it!=pl.end();it++)
+			//log_debug("%sing %d objects to joint %d\n",bt==2?"ass":"add",model.selection.size(),j); //???
+			for(auto&i:model.selection)
 			{
-				if(bt==2) model->setPositionBoneJoint(*it,j);
-				if(bt==3) model->addPositionInfluence(*it,j,Model::IT_Custom,1);
+				if(bt==2) model->setPositionBoneJoint(i,j);
+				if(bt==3) model->addPositionInfluence(i,j,Model::IT_Custom,1);
 			}
 			break;
 		}}
@@ -198,4 +197,4 @@ void JointWin::submit(control *c)
 	basic_submit(id);
 }
 
-extern void jointwin(Model *m){ JointWin(m).return_on_close(); }
+extern void jointwin(MainWin &m){ JointWin(m).return_on_close(); }
