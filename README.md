@@ -2,7 +2,7 @@
 Simplified fork of Maverick/Misfit Model 3D meant for improving core data model.
 
 # demo for Windows users
-https://github.com/mick-p1982/mm3d/releases/tag/win32-demo
+https://github.com/mick-p1982/mm3d/releases/tag/win32-demo2
 
 # build
 1) Use CMake to build/install Widgets 95 (https://sourceforge.net/p/widgets-95).
