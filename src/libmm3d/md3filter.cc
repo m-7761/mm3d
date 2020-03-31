@@ -101,359 +101,351 @@ const char *s_animSyncWarning[] =
 
 Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 {
-	if(model&&filename&&filename[0])
+	// New logic:
+	//
+	// 1)Load each file into memory
+	// 2)Create model structure with vertices,triangles,groups,and skins
+	//	 for all meshes in all files
+	//		a)Set up points
+	//		b)Set meshes
+	//		c)Make sure vertices are relative to appropriate tag
+	// 3)Load animations
+	//		a)Set up points
+	//		b)Set meshes
+	//		c)Make sure vertices are relative to appropriate tag
+	//
+	// Notes:
+	//
+	// 1)don't add tags multiple times
+	// 2)get correct anim number from anim frame counts
+	// 3)set default vertex coords for meshes that aren't in an animation
+
+	Md3FileDataList fileList;
+
+	bool loadAll = false;
+
+	m_modelPath = "";
+	m_modelBaseName = "";
+	std::string modelFullName = "";
+
+	m_pathList.clear();
+
+	normalizePath(filename,modelFullName,m_modelPath,m_modelBaseName);
+	m_modelPath+='/';
+
+	std::string lowerFile = m_modelPath+fixFileCase(m_modelPath.c_str(),"lower.md3");
+	std::string upperFile = m_modelPath+fixFileCase(m_modelPath.c_str(),"upper.md3");
+	std::string headFile  = m_modelPath+fixFileCase(m_modelPath.c_str(),"head.md3" );
+
+	if(	 PORT_strncasecmp(m_modelBaseName.c_str(),"lower.",6)==0 
+			||PORT_strncasecmp(m_modelBaseName.c_str(),"upper.",6)==0 
+			||PORT_strncasecmp(m_modelBaseName.c_str(),"head.", 5)==0)
 	{
-		// New logic:
-		//
-		// 1)Load each file into memory
-		// 2)Create model structure with vertices,triangles,groups,and skins
-		//	 for all meshes in all files
-		//		a)Set up points
-		//		b)Set meshes
-		//		c)Make sure vertices are relative to appropriate tag
-		// 3)Load animations
-		//		a)Set up points
-		//		b)Set meshes
-		//		c)Make sure vertices are relative to appropriate tag
-		//
-		// Notes:
-		//
-		// 1)don't add tags multiple times
-		// 2)get correct anim number from anim frame counts
-		// 3)set default vertex coords for meshes that aren't in an animation
-
-		Md3FileDataList fileList;
-
-		bool loadAll = false;
-
-		m_modelPath = "";
-		m_modelBaseName = "";
-		std::string modelFullName = "";
-
-		m_pathList.clear();
-
-		normalizePath(filename,modelFullName,m_modelPath,m_modelBaseName);
-		m_modelPath+='/';
-
-		std::string lowerFile = m_modelPath+fixFileCase(m_modelPath.c_str(),"lower.md3");
-		std::string upperFile = m_modelPath+fixFileCase(m_modelPath.c_str(),"upper.md3");
-		std::string headFile  = m_modelPath+fixFileCase(m_modelPath.c_str(),"head.md3" );
-
-		if(	 PORT_strncasecmp(m_modelBaseName.c_str(),"lower.",6)==0 
-			  ||PORT_strncasecmp(m_modelBaseName.c_str(),"upper.",6)==0 
-			  ||PORT_strncasecmp(m_modelBaseName.c_str(),"head.", 5)==0)
+		if(file_exists(lowerFile.c_str())
+				&&file_exists(upperFile.c_str())
+				&&file_exists(headFile.c_str()))
 		{
-			if(file_exists(lowerFile.c_str())
-				  &&file_exists(upperFile.c_str())
-				  &&file_exists(headFile.c_str()))
-			{
-				log_debug("have all files for %s\n",m_modelPath.c_str());
+			log_debug("have all files for %s\n",m_modelPath.c_str());
 
-				char answer = msg_info_prompt(TRANSLATE("LowLevel","This looks like a player model.\nDo you want to load all sections?"),"Ync");
-				if(answer=='Y')
-				{
-					loadAll = true;
-					model->addMetaData("MD3_composite","1");
-				}
-				else if(answer=='N')
-				{
-					model->addMetaData("MD3_composite","0");
-				}
-				else
-				{
-					return Model::ERROR_CANCEL;
-				}
+			char answer = msg_info_prompt(TRANSLATE("LowLevel","This looks like a player model.\nDo you want to load all sections?"),"Ync");
+			if(answer=='Y')
+			{
+				loadAll = true;
+				model->addMetaData("MD3_composite","1");
+			}
+			else if(answer=='N')
+			{
+				model->addMetaData("MD3_composite","0");
+			}
+			else
+			{
+				return Model::ERROR_CANCEL;
 			}
 		}
+	}
 
-		if(loadAll)
-		{
-			Md3FileDataT fd;
+	if(loadAll)
+	{
+		Md3FileDataT fd;
 
-			fd.section = MS_Lower;
-			fd.modelBaseName = "lower.md3";
-			fd.modelFile = lowerFile;
-			fd.tag = "";
-			fd.tagPoint = -1;
-			fd.src = nullptr;
-			fd.offsetMeshes = 0;
-			fd.numMeshes = 0;
-			fd.offsetTags = 0;
-			fd.numTags = 0;
-			fd.numFrames = 0;
-			fileList.push_back(fd);
+		fd.section = MS_Lower;
+		fd.modelBaseName = "lower.md3";
+		fd.modelFile = lowerFile;
+		fd.tag = "";
+		fd.tagPoint = -1;
+		fd.src = nullptr;
+		fd.offsetMeshes = 0;
+		fd.numMeshes = 0;
+		fd.offsetTags = 0;
+		fd.numTags = 0;
+		fd.numFrames = 0;
+		fileList.push_back(fd);
 
-			fd.section = MS_Upper;
-			fd.modelBaseName = "upper.md3";
-			fd.modelFile = upperFile;
-			fd.tag = "tag_torso";
-			fileList.push_back(fd);
+		fd.section = MS_Upper;
+		fd.modelBaseName = "upper.md3";
+		fd.modelFile = upperFile;
+		fd.tag = "tag_torso";
+		fileList.push_back(fd);
 
-			fd.section = MS_Head;
-			fd.modelBaseName = "head.md3";
-			fd.modelFile = headFile;
-			fd.tag = "tag_head";
-			fileList.push_back(fd);
-		}
-		else
-		{
-			Md3FileDataT fd;
-
-			fd.section = MS_None;
-			fd.modelBaseName = m_modelBaseName;
-			fd.modelFile = filename;
-			fd.tag = "";
-			fd.tagPoint = -1;
-			fd.src = nullptr;
-			fd.offsetMeshes = 0;
-			fd.numMeshes = 0;
-			fd.offsetTags = 0;
-			fd.numTags = 0;
-			fd.numFrames = 0;
-
-			fileList.push_back(fd);
-		}
-
-		Md3FileDataList::iterator it = fileList.begin();
-
-		if(loadAll)
-		{
-			readAnimations(false);
-		}
-
-		for(it = fileList.begin(); it!=fileList.end(); it++)
-		{
-			m_modelBaseName = (*it).modelBaseName;
-
-			// FIXME just return this below on error (and make sure to
-			// explicitly close it)
-			Model::ModelErrorE err = Model::ERROR_NONE;
-			m_src = openInput((*it).modelFile.c_str(),err);
-
-			if(err!=Model::ERROR_NONE)
-			{
-				m_src->close();
-				return err;
-			}
-
-			log_debug("loading model file %s\n",(*it).modelFile.c_str());
-
-			model->setFilename(modelFullName.c_str());
-
-			m_model = model;
-
-			Matrix loadMatrix;
-			loadMatrix.setRotationInDegrees(-90,-90,0);
-
-			int8_t magic[4];
-			m_src->readBytes(magic,sizeof(magic));
-			int32_t version = m_src->readI32();
-			char pk3Name[MAX_QPATH];
-			readString(pk3Name,sizeof(pk3Name));
-			replaceBackslash(pk3Name);
-
-			int32_t flags = m_src->readI32();
-			int32_t numFrames = m_src->readI32();
-			int32_t numTags = m_src->readI32();
-			int32_t numMeshes = m_src->readI32();
-			int32_t numSkins = m_src->readI32();
-			int32_t offsetFrames = m_src->readI32();
-			int32_t offsetTags = m_src->readI32();
-			int32_t offsetMeshes = m_src->readI32();
-			int32_t offsetEnd = m_src->readI32();
-
-			log_debug("Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
-			log_debug("Version: %d\n",	 version);
-			log_debug("PK3 Name: %s\n",	pk3Name);
-			log_debug("Flags: %d\n",	flags);
-			log_debug("Frames: %d\n",	  numFrames);
-			log_debug("Tags: %d\n",		 numTags);
-			log_debug("Meshes: %d\n",	numMeshes);
-			log_debug("Skins: %d\n",		numSkins);
-			log_debug("Offset Frames: %d\n",	  offsetFrames);
-			log_debug("Offset Tags: %d\n", offsetTags);
-			log_debug("Offset Meshes: %d\n", offsetMeshes);
-			log_debug("Offset End: %d\n",		 offsetEnd);
-			log_debug("File Length: %d\n",		m_src->getFileSize());
-
-			if(magic[0]!='I'&&magic[1]!='D'&&magic[2]!='P'&&magic[3]!='3')
-			{
-				log_debug("Bad Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
-				return Model::ERROR_BAD_MAGIC;
-			}
-
-			if(version!=MD3_VERSION)
-			{
-				return Model::ERROR_UNSUPPORTED_VERSION;
-			}
-
-			
-			Md3PathT mpath;
-			mpath.section  = (*it).section;
-			mpath.material = -1;
-			mpath.path = extractPath(pk3Name);
-			log_debug("extracted model path: %s\n",mpath.path.c_str());
-
-			m_pathList.push_back(mpath);
-			m_lastMd3Path = mpath.path;
-
-			// frames
-			// mm3d doesn't need this,but nice to have if you ever need to debug
-
-#if 0
-			m_src->seek(offsetFrames);
-			for(int i = 0; i<numFrames; i++)
-			{
-				float minBound[3];
-				for(int t = 0; t<3; t++)
-				{
-					minBound[t] = m_src->readF32();
-				}
-
-				float maxBound[3];
-				for(int t = 0; t<3; t++)
-				{
-					maxBound[t] = m_src->readF32();
-				}
-
-				float localOrigin[3];
-				for(int t = 0; t<3; t++)
-				{
-					localOrigin[t] = m_src->readF32();
-				}
-
-				//float radius = m_src->readF32();
-
-				char frameName[16];
-				readString(frameName,sizeof(frameName));
-
-				//log_debug("Frame %d minBound: %f,%f,%f\n",i,minBound[0],minBound[1],minBound[2]);
-				//log_debug("Frame %d maxBound: %f,%f,%f\n",i,maxBound[0],maxBound[1],maxBound[2]);
-				//log_debug("Frame %d localOrigin: %f,%f,%f\n",i,localOrigin[0],localOrigin[1],localOrigin[2]);
-				//log_debug("Frame %d radius: %f\n",i,radius);
-				log_debug("Frame %d name: %s\n",i,frameName);
-			}
-#endif // 1
-
-			if((*it).tag.size()>0)
-			{
-				(*it).tagPoint = m_model->getPointByName((*it).tag.c_str());
-				log_debug("tag point for %s is %d\n",(*it).tag.c_str(),(*it).tagPoint);
-			}
-
-			m_meshVecInfos = new MeshVectorInfoT*[numMeshes];
-			setPoints((*it).section,offsetTags,numTags,numFrames,(*it).tagPoint,-1);
-			setMeshes((*it).section,offsetMeshes,numMeshes,(*it).tagPoint,-1);
-
-			(*it).meshVecInfos = m_meshVecInfos;
-			(*it).src = m_src;
-			(*it).offsetMeshes = offsetMeshes;
-			(*it).numMeshes = numMeshes;
-			(*it).offsetTags = offsetTags;
-			(*it).numTags = numTags;
-			(*it).numFrames = numFrames;
-		}
-
-		if(fileList.front().numFrames>1)
-		{
-			log_debug("Model has animation,setting up animation mode.\n");
-			if(m_model->getAnimCount(Model::ANIMMODE_FRAME)==0)
-			{
-				if(!loadAll||!readAnimations(true))
-				{
-					int animIndex = m_model->addAnimation(Model::ANIMMODE_FRAME,"AnimFrames");
-					m_model->setAnimFPS(Model::ANIMMODE_FRAME,animIndex,15.0);
-					m_model->setAnimFrameCount(Model::ANIMMODE_FRAME,0,fileList.front().numFrames);
-					m_model->setAnimWrap(Model::ANIMMODE_FRAME,animIndex,false);
-				}
-			}
-		}
-
-		for(it = fileList.begin(); it!=fileList.end(); it++)
-		{
-			m_meshVecInfos = (*it).meshVecInfos;
-			m_src = (*it).src;
-
-			//Animations
-			int32_t animIndex = 0;
-			if((*it).numFrames>0)
-			{
-				setPoints((*it).section,(*it).offsetTags,(*it).numTags,(*it).numFrames,(*it).tagPoint,animIndex);
-				setMeshes((*it).section,(*it).offsetMeshes,(*it).numMeshes,(*it).tagPoint,animIndex);
-			}
-		}
-
-		// Set MD3_PATH
-		size_t len = m_pathList.size();
-
-		std::string mainStr = "";
-		size_t i = 0;
-		for(i = 0; mainStr.empty()&&i<len; i++)
-		{
-			if(m_pathList[i].material<0)
-			{
-				mainStr = m_pathList[i].path;
-				break;
-			}
-		}
-
-		model->addMetaData("MD3_PATH",mainStr.c_str());
-
-		for(i = 0; i<len; i++)
-		{
-			if(!m_pathList[i].path.empty()
-				  &&PORT_strcasecmp(m_pathList[i].path.c_str(),mainStr.c_str())!=0)
-			{
-				std::string key = "MD3_PATH_";
-				if(m_pathList[i].material>=0)
-				{
-					const char *name = model->getTextureName(
-							m_pathList[i].material);
-					key += name ? name : "";
-				}
-				else
-				{
-					switch (m_pathList[i].section)
-					{
-						case MS_Head:
-							key += "head";
-							break;
-						case MS_Upper:
-							key += "upper";
-							break;
-						case MS_Lower:
-							key += "lower";
-							break;
-						default:
-							key += "main";
-							break;
-					}
-				}
-
-				model->addMetaData(key.c_str(),m_pathList[i].path.c_str());
-			}
-		}
-
-		// Clean-up
-		for(it = fileList.begin(); it!=fileList.end(); it++)
-		{
-			for(int i = 0; i<(*it).numMeshes; i++)
-			{
-				delete[] (*it).meshVecInfos[i];
-			}
-			delete[] (*it).meshVecInfos;
-
-			(*it).src->close();
-			(*it).src = nullptr;
-		}
-
-		return Model::ERROR_NONE;
+		fd.section = MS_Head;
+		fd.modelBaseName = "head.md3";
+		fd.modelFile = headFile;
+		fd.tag = "tag_head";
+		fileList.push_back(fd);
 	}
 	else
 	{
-		log_error("no filename supplied for model filter");
-		return Model::ERROR_NO_FILE;
+		Md3FileDataT fd;
+
+		fd.section = MS_None;
+		fd.modelBaseName = m_modelBaseName;
+		fd.modelFile = filename;
+		fd.tag = "";
+		fd.tagPoint = -1;
+		fd.src = nullptr;
+		fd.offsetMeshes = 0;
+		fd.numMeshes = 0;
+		fd.offsetTags = 0;
+		fd.numTags = 0;
+		fd.numFrames = 0;
+
+		fileList.push_back(fd);
 	}
+
+	Md3FileDataList::iterator it = fileList.begin();
+
+	if(loadAll)
+	{
+		readAnimations(false);
+	}
+
+	for(it = fileList.begin(); it!=fileList.end(); it++)
+	{
+		m_modelBaseName = (*it).modelBaseName;
+
+		// FIXME just return this below on error (and make sure to
+		// explicitly close it)
+		Model::ModelErrorE err = Model::ERROR_NONE;
+		m_src = openInput((*it).modelFile.c_str(),err);
+
+		if(err!=Model::ERROR_NONE)
+		{
+			m_src->close();
+			return err;
+		}
+
+		log_debug("loading model file %s\n",(*it).modelFile.c_str());
+
+		model->setFilename(modelFullName.c_str());
+
+		m_model = model;
+
+		Matrix loadMatrix;
+		loadMatrix.setRotationInDegrees(-90,-90,0);
+
+		int8_t magic[4];
+		m_src->readBytes(magic,sizeof(magic));
+		int32_t version = m_src->readI32();
+		char pk3Name[MAX_QPATH];
+		readString(pk3Name,sizeof(pk3Name));
+		replaceBackslash(pk3Name);
+
+		int32_t flags = m_src->readI32();
+		int32_t numFrames = m_src->readI32();
+		int32_t numTags = m_src->readI32();
+		int32_t numMeshes = m_src->readI32();
+		int32_t numSkins = m_src->readI32();
+		int32_t offsetFrames = m_src->readI32();
+		int32_t offsetTags = m_src->readI32();
+		int32_t offsetMeshes = m_src->readI32();
+		int32_t offsetEnd = m_src->readI32();
+
+		log_debug("Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
+		log_debug("Version: %d\n",	 version);
+		log_debug("PK3 Name: %s\n",	pk3Name);
+		log_debug("Flags: %d\n",	flags);
+		log_debug("Frames: %d\n",	  numFrames);
+		log_debug("Tags: %d\n",		 numTags);
+		log_debug("Meshes: %d\n",	numMeshes);
+		log_debug("Skins: %d\n",		numSkins);
+		log_debug("Offset Frames: %d\n",	  offsetFrames);
+		log_debug("Offset Tags: %d\n", offsetTags);
+		log_debug("Offset Meshes: %d\n", offsetMeshes);
+		log_debug("Offset End: %d\n",		 offsetEnd);
+		log_debug("File Length: %d\n",		m_src->getFileSize());
+
+		if(magic[0]!='I'&&magic[1]!='D'&&magic[2]!='P'&&magic[3]!='3')
+		{
+			log_debug("Bad Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
+			return Model::ERROR_BAD_MAGIC;
+		}
+
+		if(version!=MD3_VERSION)
+		{
+			return Model::ERROR_UNSUPPORTED_VERSION;
+		}
+
+			
+		Md3PathT mpath;
+		mpath.section  = (*it).section;
+		mpath.material = -1;
+		mpath.path = extractPath(pk3Name);
+		log_debug("extracted model path: %s\n",mpath.path.c_str());
+
+		m_pathList.push_back(mpath);
+		m_lastMd3Path = mpath.path;
+
+		// frames
+		// mm3d doesn't need this,but nice to have if you ever need to debug
+
+#if 0
+		m_src->seek(offsetFrames);
+		for(int i = 0; i<numFrames; i++)
+		{
+			float minBound[3];
+			for(int t = 0; t<3; t++)
+			{
+				minBound[t] = m_src->readF32();
+			}
+
+			float maxBound[3];
+			for(int t = 0; t<3; t++)
+			{
+				maxBound[t] = m_src->readF32();
+			}
+
+			float localOrigin[3];
+			for(int t = 0; t<3; t++)
+			{
+				localOrigin[t] = m_src->readF32();
+			}
+
+			//float radius = m_src->readF32();
+
+			char frameName[16];
+			readString(frameName,sizeof(frameName));
+
+			//log_debug("Frame %d minBound: %f,%f,%f\n",i,minBound[0],minBound[1],minBound[2]);
+			//log_debug("Frame %d maxBound: %f,%f,%f\n",i,maxBound[0],maxBound[1],maxBound[2]);
+			//log_debug("Frame %d localOrigin: %f,%f,%f\n",i,localOrigin[0],localOrigin[1],localOrigin[2]);
+			//log_debug("Frame %d radius: %f\n",i,radius);
+			log_debug("Frame %d name: %s\n",i,frameName);
+		}
+#endif // 1
+
+		if((*it).tag.size()>0)
+		{
+			(*it).tagPoint = m_model->getPointByName((*it).tag.c_str());
+			log_debug("tag point for %s is %d\n",(*it).tag.c_str(),(*it).tagPoint);
+		}
+
+		m_meshVecInfos = new MeshVectorInfoT*[numMeshes];
+		setPoints((*it).section,offsetTags,numTags,numFrames,(*it).tagPoint,-1);
+		setMeshes((*it).section,offsetMeshes,numMeshes,(*it).tagPoint,-1);
+
+		(*it).meshVecInfos = m_meshVecInfos;
+		(*it).src = m_src;
+		(*it).offsetMeshes = offsetMeshes;
+		(*it).numMeshes = numMeshes;
+		(*it).offsetTags = offsetTags;
+		(*it).numTags = numTags;
+		(*it).numFrames = numFrames;
+	}
+
+	if(fileList.front().numFrames>1)
+	{
+		log_debug("Model has animation,setting up animation mode.\n");
+		if(m_model->getAnimCount(Model::ANIMMODE_FRAME)==0)
+		{
+			if(!loadAll||!readAnimations(true))
+			{
+				int animIndex = m_model->addAnimation(Model::ANIMMODE_FRAME,"AnimFrames");
+				m_model->setAnimFPS(Model::ANIMMODE_FRAME,animIndex,15.0);
+				m_model->setAnimFrameCount(Model::ANIMMODE_FRAME,0,fileList.front().numFrames);
+				m_model->setAnimWrap(Model::ANIMMODE_FRAME,animIndex,false);
+			}
+		}
+	}
+
+	for(it = fileList.begin(); it!=fileList.end(); it++)
+	{
+		m_meshVecInfos = (*it).meshVecInfos;
+		m_src = (*it).src;
+
+		//Animations
+		int32_t animIndex = 0;
+		if((*it).numFrames>0)
+		{
+			setPoints((*it).section,(*it).offsetTags,(*it).numTags,(*it).numFrames,(*it).tagPoint,animIndex);
+			setMeshes((*it).section,(*it).offsetMeshes,(*it).numMeshes,(*it).tagPoint,animIndex);
+		}
+	}
+
+	// Set MD3_PATH
+	size_t len = m_pathList.size();
+
+	std::string mainStr = "";
+	size_t i = 0;
+	for(i = 0; mainStr.empty()&&i<len; i++)
+	{
+		if(m_pathList[i].material<0)
+		{
+			mainStr = m_pathList[i].path;
+			break;
+		}
+	}
+
+	model->addMetaData("MD3_PATH",mainStr.c_str());
+
+	for(i = 0; i<len; i++)
+	{
+		if(!m_pathList[i].path.empty()
+				&&PORT_strcasecmp(m_pathList[i].path.c_str(),mainStr.c_str())!=0)
+		{
+			std::string key = "MD3_PATH_";
+			if(m_pathList[i].material>=0)
+			{
+				const char *name = model->getTextureName(
+						m_pathList[i].material);
+				key += name ? name : "";
+			}
+			else
+			{
+				switch (m_pathList[i].section)
+				{
+					case MS_Head:
+						key += "head";
+						break;
+					case MS_Upper:
+						key += "upper";
+						break;
+					case MS_Lower:
+						key += "lower";
+						break;
+					default:
+						key += "main";
+						break;
+				}
+			}
+
+			model->addMetaData(key.c_str(),m_pathList[i].path.c_str());
+		}
+	}
+
+	// Clean-up
+	for(it = fileList.begin(); it!=fileList.end(); it++)
+	{
+		for(int i = 0; i<(*it).numMeshes; i++)
+		{
+			delete[] (*it).meshVecInfos[i];
+		}
+		delete[] (*it).meshVecInfos;
+
+		(*it).src->close();
+		(*it).src = nullptr;
+	}
+
+	return Model::ERROR_NONE;
 }
 
 unsigned Md3Filter::readString(char *dest, size_t len)

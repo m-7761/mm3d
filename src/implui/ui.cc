@@ -43,9 +43,28 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "misc.h"
 #include "msg.h"
 #include "cmdline.h"
+#include "filtermgr.h"
 
 #include "texmgr.h"
 #include "datasource.h"
+
+static void ui_drop(char **f, int n)
+{
+	for(int i=0;i<n;i++,f++) 
+	{
+		char *url = *f;
+		if(!strncmp(url,"file://",7)) url+=7;
+
+		Model::ModelErrorE err = Model::ERROR_NONE;
+		Model *m = new Model;
+		if(auto err=FilterManager::getInstance()->readFile(m,url))
+		{
+			msg_error("%s: %s",*f,transll(Model::errorToString(err,m)));
+			delete m;
+		}
+		else new MainWin(m);
+	}
+}
 
 static void ui_info(const char *str)
 {
@@ -116,9 +135,10 @@ const char *ui_translate(const char *ctxt, const char *msg) //transimp.h
 
 int pics[pic_N] = {}; //extern
 int ui_prep(int &argc, char *argv[]) //extern
-{
+{	
 	Widgets95::glut::set_wxWidgets_enabled();
 	glutInit(&argc,argv);
+	glutext::glutDropFilesFunc(ui_drop);
 
 	#define _(x) pics[pic_##x] = \
 	glutext::glutCreateImageList((char**)x##_xpm);

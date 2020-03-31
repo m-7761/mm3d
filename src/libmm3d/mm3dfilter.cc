@@ -665,11 +665,6 @@ template<int I> struct mm3dfilter_cmp_t //convertAnimToFrame
 };
 Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filename)
 {
-	if(filename==nullptr||filename[0]=='\0')
-	{
-		return Model::ERROR_BAD_ARGUMENT;
-	}
-
 	/*if(sizeof(float32_t)!=4)
 	{
 		msg_error(TRANSLATE("LowLevel","MM3D encountered an unexpected data size problem\nSee Help->About to contact the developers")).c_str());
@@ -703,9 +698,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	m_src->read(fileHeader.modelFlags); //UNUSED
 	m_src->read(fileHeader.offsetCount);
 
-	bool mm3d2020 = !strncmp(fileHeader.magic,MAGIC2020,strlen(MAGIC));
+	bool mm3d2020 = !memcmp(fileHeader.magic,MAGIC2020,strlen(MAGIC));
 	if(!mm3d2020)
-	if(strncmp(fileHeader.magic,MAGIC,strlen(MAGIC))) //MISFIT3D?
+	if(memcmp(fileHeader.magic,MAGIC,strlen(MAGIC))) //MISFIT3D?
 	{
 		log_warning("bad magic number file\n");
 		return Model::ERROR_BAD_MAGIC;
@@ -716,9 +711,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	{
 		return Model::ERROR_UNSUPPORTED_VERSION;
 	}
-	if(fileHeader.versionMinor>WRITE_VERSION_MINOR) //2020
+	else if(fileHeader.versionMajor==WRITE_VERSION_MAJOR) //2020
 	{
-		return Model::ERROR_UNSUPPORTED_VERSION;
+		if(fileHeader.versionMinor>WRITE_VERSION_MINOR)
+		{
+			return Model::ERROR_UNSUPPORTED_VERSION;
+		}
 	}
 
 	unsigned offsetCount = fileHeader.offsetCount;

@@ -1833,6 +1833,8 @@ bool Model::getSelectedBoundingRegion(double *x1, double *y1, double *z1, double
 
 	if(!x1||!y1||!z1||!x2||!y2||!z2) return false; //???
 	
+	validateAnim(); //2020
+
 	int visible = 0;
 	bool havePoint = false; //REMOVE ME
 	*x1 = *y1 = *z1 = *x2 = *y2 = *z2 = 0.0;
@@ -1884,7 +1886,7 @@ bool Model::getSelectedBoundingRegion(double *x1, double *y1, double *z1, double
 		if(m_joints[j]->m_selected)
 		{
 			double coord[3];
-			m_joints[j]->m_absolute.getTranslation(coord);
+			m_joints[j]->m_final.getTranslation(coord);
 
 			if(havePoint) //???
 			{
@@ -1930,9 +1932,9 @@ bool Model::getSelectedBoundingRegion(double *x1, double *y1, double *z1, double
 		if(m_points[p]->m_selected)
 		{
 			double coord[3];
-			coord[0] = m_points[p]->m_abs[0];
-			coord[1] = m_points[p]->m_abs[1];
-			coord[2] = m_points[p]->m_abs[2];
+			coord[0] = m_points[p]->m_absSource[0];
+			coord[1] = m_points[p]->m_absSource[1];
+			coord[2] = m_points[p]->m_absSource[2];
 
 			if(havePoint) //???
 			{
