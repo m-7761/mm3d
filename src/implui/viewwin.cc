@@ -145,7 +145,7 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 	//Do on redraw so animation data isn't calculated unnecessarily.
 	views.modelUpdatedEvent();
 }
-void MainWin::modelChanged()
+void MainWin::_drawingModelChanged()
 {
 	int changeBits = _deferredModelChanged;
 	_deferredModelChanged = 0;
@@ -156,7 +156,14 @@ void MainWin::modelChanged()
 		model->getSelectedPositions(selection);
 	}
 
-	views.modelUpdatedEvent(); 
+	//ViewPanel::draw calls _drawingModelChanged.
+	//There's no sense in calling updateAllViews.
+	//views.modelUpdatedEvent(); 
+	{
+		views.status.setStats(); //This is somewhat optimized.
+
+		//updateAllViews(); //Overkill?
+	}
 	sidebar.modelChanged(changeBits);
 
 	if(_projection_win) _projection_win->modelChanged(changeBits);
@@ -223,10 +230,7 @@ static void viewwin_close_func()
 	MainWin *w = viewwin();
 	if(!viewwin_close_func_quit)
 	if(!w->save_work_prompt()) return;
-
-	//Not automatic currently. The menus are linked to this.
-	glutDetachMenu(glutext::GLUT_NON_BUTTON);
-
+		
 	//REMOVE ME
 	//viewpanel_display_func is sometimes entered on closing
 	//after removal from viewwin_list.
@@ -237,7 +241,14 @@ static void viewwin_close_func()
 	Widgets95::glut::set_glutSpecialFunc(nullptr);
 	Widgets95::glut::set_glutMouseFunc(nullptr);
 	Widgets95::glut::set_glutMotionFunc(nullptr);
-	Widgets95::glut::set_glutPassiveMotionFunc(nullptr);
+	Widgets95::glut::set_glutPassiveMotionFunc(nullptr);	
+	//REMINDER: glutDetachMenu causes reshape with wrong
+	//size saved to the config file. This just keeps the
+	//wrong size from ever being recorded.
+	Widgets95::glut::set_glutReshapeFunc(nullptr);
+	//Not automatic currently. The menus can't be deleted
+	//without first detaching.
+	glutDetachMenu(glutext::GLUT_NON_BUTTON);
 
 	//viewwin_list.remove(w); //C++
 	std::swap(viewwin(w->glut_window_id),viewwin_list.back());
@@ -1578,20 +1589,17 @@ void MainWin::perform_menu_action(int id)
 	case id_file_save: 
 		
 		w->save_work(); return;
-
-	case id_file_save_as: 
+ 
+	case id_file_save_as: case id_file_export:
 		
-		MainWin::save(model,false); return;
-
-	case id_file_export: 
-		
-		MainWin::save(model,true); return;
+		if(MainWin::save(model,id_file_export==id))
+		if(id_file_save_as==id)
+		w->_rewrite_window_title();
+		return;
 
 	case id_file_export_selection: 
-		
-		if(m->getSelectedPointCount()
-		+m->getSelectedTriangleCount()
-		+m->getSelectedProjectionCount())
+
+		if(!w->selection.empty())
 		{
 			if(Model*tmp=m->copySelected())
 			{

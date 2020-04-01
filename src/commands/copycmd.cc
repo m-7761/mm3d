@@ -49,6 +49,7 @@ extern Command *copycmd(){ return new CopyCommand; }
 
 bool CopyCommand::activated(int, Model *model)
 {
+	//FIX ME
 	if(!model->getSelectedTriangleCount()
 	 &&!model->getSelectedBoneJointCount()
 	 &&!model->getSelectedPointCount()

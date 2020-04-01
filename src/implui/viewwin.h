@@ -35,7 +35,7 @@ public:
 	// Model::Observer method
 	int _deferredModelChanged;
 	virtual void modelChanged(int changeBits);
-	virtual void modelChanged();
+	void _drawingModelChanged();
 		
 	MainWin(Model *model=nullptr), ~MainWin();
 

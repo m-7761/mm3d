@@ -58,7 +58,8 @@ void segfault_handler(int sig) //FIX ME
 	exit(0);
 }
 
-int main(int argc,char *argv[])
+//REMINDER: extern lets wWinMain can call main if necessary
+extern int main(int argc, char *argv[])
 {
 	int rval = 0;
 	
@@ -172,3 +173,4 @@ int main(int argc,char *argv[])
 
 	return rval;
 }
+

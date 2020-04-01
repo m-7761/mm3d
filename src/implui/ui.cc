@@ -23,6 +23,7 @@
 #include "mm3dtypes.h" //PCH
 
 #ifdef WIN32
+#include "Shellapi.h"
 #pragma comment(lib,"shlwapi.lib")
 #pragma comment(lib,"opengl32.lib")
 #pragma comment(lib,"glu32.lib")  
@@ -280,3 +281,96 @@ struct StdTexFilter : TextureFilter
 	}
 };
 TextureFilter *ui_texfilter(){ return new StdTexFilter; }
+
+//Console "assert" always terminates :(
+#ifdef WIN32
+BOOL WINAPI wWinMain_CONSOLE_HandlerRoutine(DWORD dwCtrlType)
+{
+	switch(dwCtrlType)
+	{
+	//Reminder: Ctrl+C can't copy because there's not a selection.
+	case CTRL_C_EVENT:
+	case CTRL_BREAK_EVENT: //return 0; //Terminates after breaking.
+	case CTRL_CLOSE_EVENT:
+	case CTRL_SHUTDOWN_EVENT:
+
+		/*I guess?
+		//HACK: This is happening on another thread that is causing an
+		//assert() to be fired on shutdown that locks the debugger/IDE.
+		//The assert is because atexit() is never called on the thread.
+		SendMessage(Windows_main,WM_DESTROY,0,0);*/
+		MainWin::quit();
+		return 1;
+	}
+	return 0;
+}
+int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
+{
+	extern int main(int argc, char *argv[]);
+
+	#ifdef _DEBUG //compiler
+	_set_error_mode(_OUT_TO_MSGBOX); 
+	//Turns on windows heap debugging
+	#if HEAP_DEBUG
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF|_CRTDBG_CHECK_CRT_DF/*|_CRTDBG_DELAY_FREE_MEM_DF*/);
+	#else
+	//_CRTDBG_LEAK_CHECK_DF floods output on debugger termination
+	_crtDbgFlag = _CRTDBG_ALLOC_MEM_DF; //|_CRTDBG_LEAK_CHECK_DF;
+	//_crtDbgFlag|=_CRTDBG_CHECK_ALWAYS_DF; //careful
+	#endif
+	#endif
+
+#ifdef _CONSOLE
+
+	//Convert UTF16_LE to UTF8 and do CONSOLE stuff before main().
+	int argc = 0;
+	wchar_t **argw = CommandLineToArgvW(GetCommandLineW(),&argc);
+	char **argv = new char*[argc]; //MEMORY-LEAK
+	for(int i=0;i<argc;i++)
+	{
+		int len = WideCharToMultiByte(CP_UTF8,0,argw[i],-1,0,0,0,0);
+		argv[i] = new char[len+1];
+		WideCharToMultiByte(CP_UTF8,0,argw[i],-1,argv[i],len,0,0);
+		argv[i][len] = '\0';
+	}
+	 
+	#ifdef _CONSOLE
+	//This is not necessary for CONSOLE applications, but it's better
+	//to not be a console application since that seems to close doors.	
+	if(!AttachConsole(ATTACH_PARENT_PROCESS))
+	{
+		AllocConsole(); 
+//		Windows_cons = GetConsoleWindow();		
+//		PostMessage(Windows_cons,WM_SETICON,ICON_BIG,Windows_main_icon);
+//		PostMessage(Windows_cons,WM_SETICON,ICON_SMALL,Windows_main_icon);
+	}
+	FILE *C2143;
+	freopen_s(&C2143,"CONOUT$","w",stdout);
+	freopen_s(&C2143,"CONOUT$","w",stderr);
+	//BLACK MAGIC: better to clear these together after reopening.
+	clearerr(stdout); clearerr(stderr); 
+	/*REFERENCE
+	//The C-Runtime (CRT) in the DLL doesn't know it's redirected.
+	if(Silence_console_if_DEBUG!=1) //If so it's already been set.
+	daeErrorHandler::setErrorHandler(new daeStandardErrorHandler);				
+	
+	//NEW: Trying to not cut off the console output.	
+	CONSOLE_SCREEN_BUFFER_INFOEX csbi = {sizeof(csbi)};
+	if(GetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE),&csbi))
+	{
+		enum{ min=5000 }; if(csbi.dwSize.Y<min) //10000		
+		{
+			csbi.dwSize.Y = min;
+			SetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE),&csbi);
+		}
+	}*/
+	#endif
+
+	//There are shutdown issues if the CONSOLE is used. Especially if
+	//debugging.
+	SetConsoleCtrlHandler(wWinMain_CONSOLE_HandlerRoutine,1);
+	UINT cp = GetConsoleOutputCP(); SetConsoleOutputCP(65001);	
+	int exit_code = main(argc,argv); SetConsoleOutputCP(cp); return exit_code;
+	#endif
+}
+#endif

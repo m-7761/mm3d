@@ -706,14 +706,18 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		return Model::ERROR_BAD_MAGIC;
 	}
 
-	//if(fileHeader.versionMajor!=WRITE_VERSION_MAJOR) //???
-	if(fileHeader.versionMajor>WRITE_VERSION_MAJOR)
+	//FIX ME
+	//Assuming can't read if MISFIT3D is newer than 1.7.
+	const int major = mm3d2020?WRITE_VERSION_MAJOR:1;
+	const int minor = mm3d2020?WRITE_VERSION_MINOR:7;
+
+	if(fileHeader.versionMajor>major)
 	{
 		return Model::ERROR_UNSUPPORTED_VERSION;
 	}
-	else if(fileHeader.versionMajor==WRITE_VERSION_MAJOR) //2020
+	else if(fileHeader.versionMajor==major) //2020
 	{
-		if(fileHeader.versionMinor>WRITE_VERSION_MINOR)
+		if(fileHeader.versionMinor>minor)
 		{
 			return Model::ERROR_UNSUPPORTED_VERSION;
 		}

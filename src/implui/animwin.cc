@@ -470,8 +470,8 @@ void AnimWin::Impl::set_frame(double i)
 	
 	//shelf2.timeline.name().push_back('\t');
 
-	//frame = i; 
-	frame = model->getCurrentAnimationFrame(); 
+	//frame = i;
+	frame = model->getAnimFrame(mode,anim,i);
 	shelf2.timeline.set_float_val(i); //NEW!
 }
 

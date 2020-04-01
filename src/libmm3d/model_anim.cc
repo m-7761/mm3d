@@ -2514,6 +2514,11 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				}
 				else pp = jk[first[i]-1]->m_parameter;
 
+				if(pp==p->m_parameter)
+				{
+					pp = getPositionObject(pos)->getParamsUnanimated((Interpolant2020E)i);
+				}
+
 				if(!lerp) d = p;
 			}		
 			else if(InterpolateCopy==e)
@@ -2696,6 +2701,11 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				}
 				else pp = jk[first[i]-1]->m_coord;
 
+				if(pp==p->m_coord)
+				{
+					pp = m_vertices[pos]->m_coord;
+				}
+
 				if(!lerp) d = p;
 			}		
 			else if(InterpolateCopy==e)
@@ -2719,7 +2729,7 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				//since older MM3D files used step mode and fixed count.
 
 				dp = pp;				
-				pp = m_vertices[pos]->m_coord;				
+				pp = m_vertices[pos]->m_coord;
 				t = lerp?time/cmp:0;
 			}
 		

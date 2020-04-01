@@ -937,8 +937,8 @@ class MU_SetAnimFrameCount : public ModelUndo
 
 		void removeTimeTable(const std::vector<double> &tt)
 		{
-			if(m_oldCount>m_newCount) 
-			m_timetable.assign(tt.begin()+m_where,tt.begin()+m_where+m_oldCount-m_newCount); 
+			if(m_oldCount>m_newCount) //Reminder: Dinkumware range checks +/- operators
+			m_timetable.assign(tt.begin()+m_where,tt.begin()+(m_where+m_oldCount-m_newCount)); 
 		}
 
 		Model::FrameAnimData *removeVertexData(){ return &m_vertices; }

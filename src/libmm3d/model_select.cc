@@ -1544,12 +1544,11 @@ void Model::beginSelectionDifference()
 
 namespace
 {
-	template<class T, Model::SelectionModeE E>
-	struct model_select
+	template<class T> struct model_select
 	{
 		MU_Select *undo;
 		operator MU_Select*(){ return undo; }
-		model_select(bool ue, int &cb, std::vector<T*> &l):undo()
+		model_select(bool ue, int &cb, std::vector<T*> &l, Model::SelectionModeE e, Model::ChangeBits f):undo()
 		{
 			int i,iN = (unsigned)l.size();
 			for(i=0;i<iN;i++)			
@@ -1557,9 +1556,9 @@ namespace
 			break;
 			if(i!=iN)
 			{			
-				cb|=E; if(!ue) return;
+				cb|=f; if(!ue) return;
 
-				undo = new MU_Select(E);
+				undo = new MU_Select(e);
 				for(;i<iN;i++)			
 				if(l[i]->m_selected!=l[i]->m_marked)
 				undo->setSelectionDifference(i,l[i]->m_selected,l[i]->m_marked);
@@ -1577,12 +1576,14 @@ void Model::endSelectionDifference()
 	m_selecting = false;
 
 	bool ue = m_undoEnabled;
-	sendUndo(model_select<Vertex,SelectVertices>(ue,m_changeBits,m_vertices),true);
-	sendUndo(model_select<Triangle,SelectTriangles>(ue,m_changeBits,m_triangles),true);
-	sendUndo(model_select<Group,SelectGroups>(ue,m_changeBits,m_groups),true);
-	sendUndo(model_select<Joint,SelectJoints>(ue,m_changeBits,m_joints),true);
-	sendUndo(model_select<Point,SelectPoints>(ue,m_changeBits,m_points),true);
-	sendUndo(model_select<TextureProjection,SelectProjections>(ue,m_changeBits,m_projections),true);
+	//FIX ME
+	//These enum names are too similar. (This was a bug immediately after implementing model_select.)
+	sendUndo(model_select<Vertex>(ue,m_changeBits,m_vertices,SelectVertices,SelectionVertices),true);
+	sendUndo(model_select<Triangle>(ue,m_changeBits,m_triangles,SelectTriangles,SelectionFaces),true);
+	sendUndo(model_select<Group>(ue,m_changeBits,m_groups,SelectGroups,SelectionGroups),true);
+	sendUndo(model_select<Joint>(ue,m_changeBits,m_joints,SelectJoints,SelectionJoints),true);
+	sendUndo(model_select<Point>(ue,m_changeBits,m_points,SelectPoints,SelectionPoints),true);
+	sendUndo(model_select<TextureProjection>(ue,m_changeBits,m_projections,SelectProjections,SelectionProjections),true);
 }
 
 void Model::getSelectedPositions(pos_list &positions)const

@@ -274,7 +274,12 @@ void ViewPanel::draw()
 {
 	//Sync with drawing.
 	if(model._deferredModelChanged)
-	model.modelChanged();
+	{
+		//I think this might be calling glutSetWindow :(
+		int gw = glutGetWindow();
+		model._drawingModelChanged();
+		glutSetWindow(gw);
+	}
 
 	//REMINDER: I spent like a day fussing with this
 	//to layout the outlines between the views, only
