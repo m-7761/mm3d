@@ -22,7 +22,98 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "objfilter.h"
+#include "modelfilter.h"
+#include "datadest.h"
+#include "datasource.h"
+
+//#include "objfilter.h"
+class ObjFilter : public ModelFilter
+{
+public:
+
+	// Note, filename interacts with FileFactory:
+	// https://github.com/zturtleman/mm3d/issues/70
+	// It would be best to pass DataDest/DataSource
+	// by reference, except for multipart models is
+	// an open problem.
+	//
+	Model::ModelErrorE readFile(Model *model, const char *const filename);
+	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+
+	const char *getReadTypes(){ return "OBJ"; }
+	const char *getWriteTypes(){ return "OBJ"; }
+
+	// Create a new options object that is specific to this filter
+	Options *getDefaultOptions(){ return new ObjOptions; };
+
+	class ObjMaterial
+	{
+		public:
+			ObjMaterial();
+
+			std::string name;
+			float		 diffuse[4];
+			float		 ambient[4];
+			float		 specular[4];
+			float		 shininess;
+			float		 alpha;
+			std::string textureMap;
+	};
+
+	struct UvDataT
+	{
+		float u,v;
+	};
+	typedef std::vector<UvDataT> UvDataList;
+
+	struct MaterialGroupT
+	{
+		unsigned material,group;
+	};
+	typedef std::vector<MaterialGroupT> MaterialGroupList;
+
+protected:
+	bool readLine(char *line);
+	bool readVertex(char *line);
+	bool readTextureCoord(char *line);
+	bool readFace(char *line);
+	bool readGroup(char *line);
+	bool readLibrary(char *line);
+	bool readMaterial(char *line);
+
+	bool readMaterialLibrary(const char *filename);
+
+	void addObjMaterial(ObjMaterial *mat);
+	char *skipSpace(char *str);
+
+	bool writeLine(const char *line,...);
+	bool writeStripped(const char *line,...);
+	bool writeHeader();
+	bool writeMaterials();
+	bool writeGroups();
+
+	Model		 *m_model;
+	ObjOptions  *m_options;
+	DataSource  *m_src;
+	DataDest	 *m_dst;
+	int			  m_curGroup;
+	int			  m_curMaterial;
+	bool			 m_needGroup;
+	int			  m_vertices;
+	int			  m_faces;
+	int			  m_groups;
+	UvDataList	 m_uvList;
+	MaterialGroupList m_mgList;
+
+	std::string  m_groupName;
+
+	std::string  m_modelPath;
+	std::string  m_modelBaseName;
+	std::string  m_modelFullName;
+	std::string  m_materialFile;
+	std::string  m_materialFullFile;
+	std::vector<std::string>m_materialNames;
+};
 
 #include "../mm3dcore/version.h"
 #include "model.h"
@@ -32,24 +123,13 @@
 #include "filtermgr.h"
 #include "mm3dport.h"
 
-namespace {
-
-void replace(char *str,char this_char,char that_char)
+static void objfilter_replace(char *str,char this_char,char that_char)
 {
-	size_t len = strlen(str);
-	for(size_t t = 0; t<len; ++t)
-		if(str[t]==this_char)
-			str[t] = that_char;
+	for(size_t t=strlen(str);t-->0;)
+	{
+		if(str[t]==this_char) str[t] = that_char;
+	}
 }
-
-}
-
-ObjFilter::ObjOptions::ObjOptions()
-	: m_saveNormals(true),
-	  m_places(6),
-	  m_texPlaces(6),
-	  m_normalPlaces(6)
-{}
 
 ObjFilter::ObjMaterial::ObjMaterial()
 	: name(""),
@@ -163,7 +243,7 @@ bool ObjFilter::writeStripped(const char *fmt,...)
 	va_list ap;
 	va_start(ap,fmt);
 	vsnprintf(line,sizeof(line),fmt,ap);
-	replace(line,',','.');
+	objfilter_replace(line,',','.');
 	va_end(ap);
 
 	objfilter_OFWS_StateE state = OFWS_Whitespace;
@@ -617,12 +697,12 @@ bool ObjFilter::readLine(char *line)
 	if(strncmp(str,"v ",2)==0)
 	{
 		m_vertices++;
-		replace(str,',','.');
+		objfilter_replace(str,',','.');
 		readVertex(str);
 	}
 	else if(strncmp(str,"vt ",3)==0)
 	{
-		replace(str,',','.');
+		objfilter_replace(str,',','.');
 		readTextureCoord(str);
 	}
 	else if(strncmp(str,"f ",2)==0)
@@ -1064,3 +1144,7 @@ bool ObjFilter::readMaterialLibrary(const char *filename)
 	return true;
 }
 
+extern ModelFilter *objfilter(ModelFilter::PromptF f)
+{
+	auto o = new ObjFilter; o->setOptionsPrompt(f); return o;
+}

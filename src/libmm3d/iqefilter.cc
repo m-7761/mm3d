@@ -22,7 +22,26 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "iqefilter.h"
+#include "modelfilter.h"
+
+//#include "iqefilter.h"
+class IqeFilter : public ModelFilter
+{
+public:
+
+	Model::ModelErrorE readFile(Model *model, const char *const filename);
+	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+
+	const char *getWriteTypes(){ return "IQE"; }
+
+	Options *getDefaultOptions(){ return new IqeOptions; };
+
+protected:
+
+	IqeOptions *m_options;
+
+	bool writeLine(DataDest *dst, const char *line,...);
+};
 
 #include "texture.h"
 #include "texmgr.h"
@@ -36,15 +55,6 @@
 #include "datadest.h"
 
 static const char *IQE_HEADER = "# Inter-Quake Export";
-
-IqeFilter::IqeOptions::IqeOptions()
-	: m_saveMeshes(true),
-	  m_savePointsJoint(true),
-	  m_savePointsAnim(true),
-	  m_saveSkeleton(true),
-	  m_saveAnimations(true),
-	  m_animations()
-{}
 
 Model::ModelErrorE IqeFilter::readFile(Model *model, const char *const filename)
 {
@@ -491,3 +501,7 @@ bool IqeFilter::writeLine(DataDest *dst, const char *line,...)
 	return true;
 }
 
+extern ModelFilter *iqefilter(ModelFilter::PromptF f)
+{
+	auto o = new IqeFilter; o->setOptionsPrompt(f); return o;
+}

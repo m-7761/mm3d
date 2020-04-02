@@ -21,14 +21,15 @@
  */
 
 #include "mm3dtypes.h" //PCH
+
 #include "win.h"
-#include "iqefilter.h"
+#include "modelfilter.h" //"iqefilter.h"
 
 struct IqePrompt : Win
 {
 	void submit(int);
 
-	IqePrompt(Model *model, IqeFilter::IqeOptions *iqe)
+	IqePrompt(Model *model, IqeOptions *iqe)
 		:
 	Win("IQE Filter Options"),
 	model(model),iqe(iqe),
@@ -48,7 +49,7 @@ struct IqePrompt : Win
 	}
 
 	Model *model;
-	IqeFilter::IqeOptions *iqe;
+	IqeOptions *iqe;
 
 	boolean a,b,c,d,e;
 	listbox animation; 
@@ -92,6 +93,6 @@ void IqePrompt::submit(int id)
 }
 extern bool iqeprompt(Model *model, ModelFilter::Options *o)
 {
-	auto iqe = o->getOptions<IqeFilter::IqeOptions>();
+	auto iqe = o->getOptions<IqeOptions>();
 	return iqe&&id_ok==IqePrompt(model,iqe).return_on_close();
 }

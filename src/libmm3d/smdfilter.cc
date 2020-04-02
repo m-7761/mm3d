@@ -22,7 +22,26 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "smdfilter.h"
+#include "modelfilter.h"
+
+//#include "smdfilter.h"
+class SmdFilter : public ModelFilter
+{
+public:
+
+	Model::ModelErrorE readFile(Model *model, const char *const filename);
+	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+
+	const char *getWriteTypes(){ return "SMD"; }
+
+	Options *getDefaultOptions(){ return new SmdOptions; };
+
+protected:
+
+	SmdOptions  *m_options;
+
+	bool writeLine(DataDest *dst, const char *line,...);
+};
 
 #include "texture.h"
 #include "texmgr.h"
@@ -35,14 +54,7 @@
 #include "mm3dport.h"
 #include "datadest.h"
 
-SmdFilter::SmdOptions::SmdOptions()
-	: m_saveMeshes(true),
-	  m_savePointsJoint(false),
-	  m_multipleVertexInfluences(false),
-	  m_animations()
-{}
-
-void SmdFilter::SmdOptions::setOptionsFromModel(Model *m)
+void SmdOptions::setOptionsFromModel(Model *m)
 {
 	char value[128];
 	if(m->getMetaData("smd_vertex_format",value,sizeof(value)))
@@ -557,4 +569,9 @@ bool SmdFilter::writeLine(DataDest *dst, const char *line,...)
 	va_end(ap);
 	dst->writePrintf("\r\n");
 	return true;
+}
+
+extern ModelFilter *smdfilter(ModelFilter::PromptF f)
+{
+	auto o = new SmdFilter; o->setOptionsPrompt(f); return o;
 }

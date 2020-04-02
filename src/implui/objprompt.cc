@@ -21,14 +21,15 @@
  */
 
 #include "mm3dtypes.h" //PCH
+
 #include "win.h"
-#include "objfilter.h"
+#include "modelfilter.h" //#include "objfilter.h"
 
 struct ObjPrompt : Win
 {
 	void submit(int);
 
-	ObjPrompt(Model *model, ObjFilter::ObjOptions *obj)
+	ObjPrompt(Model *model, ObjOptions *obj)
 		:
 	Win("OBJ Filter Options"),
 	model(model),obj(obj),
@@ -42,7 +43,7 @@ struct ObjPrompt : Win
 		submit(id_init);
 	}
 
-	Model *model; ObjFilter::ObjOptions *obj;
+	Model *model; ObjOptions *obj;
 
 	struct decimal_group
 	{
@@ -98,7 +99,7 @@ void ObjPrompt::submit(int id)
  
 extern bool objprompt(Model *model, ModelFilter::Options *o)
 {
-	auto obj = o->getOptions<ObjFilter::ObjOptions>();
+	auto obj = o->getOptions<ObjOptions>();
 	return obj&&id_ok==ObjPrompt(model,obj).return_on_close();
 }
 

@@ -22,22 +22,24 @@
 
 #include "mm3dtypes.h" //PCH
 
+#include "modelfilter.h"
 #include "filtermgr.h"
 #include "log.h"
 
-//REMOVE US
+/*REMOVE US
 #include "mm3dfilter.h"
 #include "md2filter.h"
 #include "md3filter.h"
-//#include "lwofilter.h"
-//#include "cal3dfilter.h"
-//#include "cobfilter.h"
-//#include "dxffilter.h"
+//#include "lwofilter.h" //end-of-support?
+//#include "cal3dfilter.h" //end-of-support?
+//#include "cobfilter.h" //end-of-support?
+//#include "dxffilter.h" //end-of-support?
 #include "objfilter.h"
 #include "ms3dfilter.h"
-//#include "txtfilter.h"
+//#include "txtfilter.h" //end-of-support?
 #include "iqefilter.h"
 #include "smdfilter.h"
+*/
 
 extern void init_std_filters()
 {
@@ -45,53 +47,48 @@ extern void init_std_filters()
 
 	FilterManager *mgr = FilterManager::getInstance();
 
-	ModelFilter *filter;
+	typedef ModelFilter::PromptF prompt;
+	typedef ModelFilter *filter(ModelFilter::PromptF);
 
-	filter = new MisfitFilter();
-	mgr->registerFilter(filter);
+	extern filter mm3dfilter;
+	mgr->registerFilter(mm3dfilter(nullptr));
 	
-	filter = new Ms3dFilter();
-	extern ModelFilter::PromptF ms3dprompt;
-	filter->setOptionsPrompt(ms3dprompt);
-	mgr->registerFilter(filter);
+	extern filter ms3dfilter;
+	extern prompt ms3dprompt;
+	mgr->registerFilter(ms3dfilter(ms3dprompt));
 	
-	//filter = new TextFilter();
-	//mgr->registerFilter(filter);
+	//extern filter textfilter;
+	//mgr->registerFilter(textfilter(nullptr));
+
+	extern filter objfilter;
+	extern prompt objprompt;
+	mgr->registerFilter(objfilter(objprompt));
 	
-	filter = new ObjFilter();
-	extern ModelFilter::PromptF objprompt;
-	filter->setOptionsPrompt(objprompt);
-	mgr->registerFilter(filter);
+	//extern filter lwofilter;
+	//mgr->registerFilter(lwofilter(nullptr));
+
+	extern filter md2filter;
+	mgr->registerFilter(md2filter(nullptr));
 	
-	//filter = new LwoFilter();
-	//mgr->registerFilter(filter);
+	extern filter md3filter;
+	mgr->registerFilter(md3filter(nullptr));
 	
-	filter = new Md2Filter();
-	mgr->registerFilter(filter);
+	//extern filter cal3dfilter;
+	//extern prompt cal3dprompt;
+	//mgr->registerFilter(cal3dfilter(cal3dprompt));
 	
-	//Won't build.
-	//https://github.com/zturtleman/mm3d/issues/74
-	filter = new Md3Filter();
-	mgr->registerFilter(filter);
+	//extern filter cobfilter;
+	//mgr->registerFilter(cobfilter(nullptr));
 	
-	//filter = new Cal3dFilter();
-	//filter->setOptionsPrompt(cal3dprompt_show);
-	//mgr->registerFilter(filter);
-	
-	//filter = new CobFilter();
-	//mgr->registerFilter(filter);
-	
-	//filter = new DxfFilter();
-	//mgr->registerFilter(filter);
-	
-	filter = new IqeFilter();
-	extern ModelFilter::PromptF iqeprompt;
-	filter->setOptionsPrompt(iqeprompt);
-	mgr->registerFilter(filter);
-	
-	filter = new SmdFilter();
-	extern ModelFilter::PromptF smdprompt;
-	filter->setOptionsPrompt(smdprompt);
-	mgr->registerFilter(filter);
+	//extern filter dxffilter;
+	//mgr->registerFilter(dxffilter(nullptr));
+
+	extern filter iqefilter;
+	extern prompt iqeprompt;
+	mgr->registerFilter(iqefilter(iqeprompt));
+
+	extern filter smdfilter;
+	extern prompt smdprompt;
+	mgr->registerFilter(smdfilter(smdprompt));
 }
 

@@ -58,7 +58,7 @@ public:
 
 		static void stats(); //???
 
-		virtual void setOptionsFromModel(Model*) = 0; //NEW
+		virtual void setOptionsFromModel(Model*){} //NEW
 
 		template<class T> T *getOptions()
 		{	
@@ -222,6 +222,63 @@ protected:
 	PromptF *m_promptFunc;
 
 	FileFactory	m_defaultFactory, *m_factory;
+};
+
+//2020: These are here to cut back on the huge number of 
+//files so finding a file doesn't involve wading through
+//hundreds of source code files!!
+
+class Ms3dOptions : public ModelFilter::Options
+{
+public:
+
+	int m_subVersion = 0;
+	uint32_t m_vertexExtra = 0xffffffff;
+	uint32_t m_vertexExtra2 = 0xffffffff;
+	uint32_t m_jointColor = 0xffffffff;
+
+	virtual void setOptionsFromModel(Model*); //ms3dfilter.cc
+};
+
+class SmdOptions : public ModelFilter::Options
+{
+public:
+
+	bool m_saveMeshes = true;
+	bool m_savePointsJoint = false;
+	bool m_multipleVertexInfluences = false;
+	std::vector<unsigned int> m_animations;
+
+	virtual void setOptionsFromModel(Model*); //smdfilter.cc
+};
+
+class IqeOptions : public ModelFilter::Options
+{
+public:
+
+	bool m_saveMeshes = true;
+	bool m_savePointsJoint = true;
+	bool m_savePointsAnim = true;
+	bool m_saveSkeleton = true;
+	bool m_saveAnimations = true;
+	std::vector<unsigned int> m_animations;
+};
+
+// For a class derived from ModelFilter::Options,you'll
+// want to add member variables for everything the user
+// can control.  Whether or not you add accessors
+// for the member variables is left to your discretion.
+//
+// Set the default values for the filter options in
+// the constructor.
+class ObjOptions : public ModelFilter::Options
+{
+public:
+
+	bool m_saveNormals = true;
+	int m_places = 6;
+	int m_texPlaces = 6;
+	int m_normalPlaces = 6;
 };
 
 #endif // __MODELFILTER_H

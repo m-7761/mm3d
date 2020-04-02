@@ -21,15 +21,15 @@
  */
 
 #include "mm3dtypes.h" //PCH
-#include "win.h"
 
-#include "ms3dfilter.h"
+#include "win.h"
+#include "modelfilter.h" //#include "ms3dfilter.h"
 
 struct Ms3dPrompt : Win
 {
 	void submit(int);
 	
-	Ms3dPrompt(Model *model, Ms3dFilter::Ms3dOptions *ms3d)
+	Ms3dPrompt(Model *model, Ms3dOptions *ms3d)
 		:
 	Win("MS3D Filter Options"),
 	model(model),ms3d(ms3d),
@@ -53,7 +53,7 @@ struct Ms3dPrompt : Win
 		submit(id_init);
 	}
 
-	Model *model; Ms3dFilter::Ms3dOptions *ms3d;
+	Model *model; Ms3dOptions *ms3d;
 
 	multiple vformat;
 	panel extra_nav; textbox extra1,extra2;
@@ -88,7 +88,7 @@ void Ms3dPrompt::submit(int id)
 
 extern bool ms3dprompt(Model *model, ModelFilter::Options *o)
 {
-	auto ms3d = o->getOptions<Ms3dFilter::Ms3dOptions>();
+	auto ms3d = o->getOptions<Ms3dOptions>();
 	return id_ok==Ms3dPrompt(model,ms3d).return_on_close();
 }
 

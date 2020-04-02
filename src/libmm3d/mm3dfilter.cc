@@ -22,7 +22,45 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "mm3dfilter.h"
+#include "modelfilter.h"
+#include "datasource.h"
+#include "datadest.h"
+
+//#include "mm3dfilter.h"
+class MisfitFilter : public ModelFilter
+{
+public:
+
+	Model::ModelErrorE readFile(Model *model, const char *const filename);
+	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
+
+	const char *getReadTypes(){ return "MM3D"; }
+	const char *getWriteTypes(){ return "MM3D"; }
+
+	static const char MAGIC[], MAGIC2020[];;
+
+	static const uint8_t WRITE_VERSION_MAJOR;
+	static const uint8_t WRITE_VERSION_MINOR;
+
+	static const uint16_t OFFSET_TYPE_MASK;
+	static const uint16_t OFFSET_UNI_MASK;
+	static const uint16_t OFFSET_DIRTY_MASK; //DIRTY?
+
+protected:
+
+	void read(float32_t &val);
+	void write(float32_t val);
+	void writeBytes(const void *buf, size_t len);
+	void writeHeaderA(uint16_t flags,uint32_t count);
+	void writeHeaderB(uint16_t flags,uint32_t count,uint32_t size);
+
+	void readHeaderA(uint16_t &flags,uint32_t &count);
+	void readHeaderB(uint16_t &flags,uint32_t &count,uint32_t &size);
+
+	DataSource *m_src;
+	DataDest	*m_dst;
+	size_t		 m_readLength;
+};
 
 #include "model.h"
 #include "filedatadest.h"
@@ -3486,3 +3524,7 @@ void MisfitFilter::readHeaderB(uint16_t &flags,uint32_t &count,uint32_t &size)
 	m_src->read(size);
 }
 
+extern ModelFilter *mm3dfilter(ModelFilter::PromptF f)
+{
+	auto o = new MisfitFilter; o->setOptionsPrompt(f); return o;
+}

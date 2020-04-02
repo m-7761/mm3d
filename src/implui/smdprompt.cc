@@ -22,15 +22,15 @@
 
 
 #include "mm3dtypes.h" //PCH
-#include "win.h"
 
-#include "smdfilter.h"
+#include "win.h"
+#include "modelfilter.h" //"smdfilter.h"
 
 struct SmdPrompt : Win
 {
 	void submit(int);
 	
-	SmdPrompt(Model *model, SmdFilter::SmdOptions *smd)
+	SmdPrompt(Model *model, SmdOptions *smd)
 		:
 	Win("SMD Filter Options"),
 	model(model),smd(smd),
@@ -55,7 +55,7 @@ struct SmdPrompt : Win
 	}
 
 	Model *model;
-	SmdFilter::SmdOptions *smd;
+	SmdOptions *smd;
 
 	multiple type;	
 	boolean points_as_joints;
@@ -104,6 +104,6 @@ void SmdPrompt::submit(int id)
  
 extern bool smdprompt(Model *model, ModelFilter::Options *o)
 {
-	auto smd = o->getOptions<SmdFilter::SmdOptions>();
+	auto smd = o->getOptions<SmdOptions>();
 	return id_ok==SmdPrompt(model,smd).return_on_close();
 }

@@ -22,7 +22,67 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "ms3dfilter.h"
+#include "modelfilter.h"
+#include "mesh.h"
+
+//#include "ms3dfilter.h"
+class Ms3dFilter : public ModelFilter
+{
+public:
+
+	Ms3dFilter():m_options(){};
+
+	struct VertexWeightT
+	{
+		int boneId;
+		int weight;
+	}; 
+	typedef std::vector<VertexWeightT> VertexWeightList;
+
+	enum CommentTypeE
+	{
+		CT_GROUP,
+		CT_MATERIAL,
+		CT_JOINT,
+		CT_MODEL,
+		CT_MAX,
+	};
+
+	Model::ModelErrorE readFile(Model *model, const char *const filename);
+	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+
+	Options *getDefaultOptions(){ return new Ms3dOptions; };
+
+	const char *getReadTypes(){ return "MS3D"; }
+	const char *getWriteTypes(){ return "MS3D"; }
+
+protected:
+
+	void readString(char *buf, size_t len);
+
+	bool readCommentSection();
+	bool readVertexWeightSection();
+
+	bool readVertexWeight(int subVersion, int vertex,
+			VertexWeightList &weightList);
+
+	void writeCommentSection();
+	void writeVertexWeightSection(const MeshList &ml);
+	void writeJointColorSection();
+
+	// The infl_list must be sorted before calling this function
+	void writeVertexWeight(int subVersion,
+			const infl_list &ilist);
+
+	DataDest	*m_dst;
+	DataSource *m_src;
+
+	Model	*m_model;
+		
+	Ms3dOptions *m_options;
+
+	static char const MAGIC_NUMBER[];
+};
 
 #include "weld.h"
 #include "misc.h"
@@ -123,14 +183,7 @@ struct ms3dfilter_JointNameListRecT
 	std::string m_name;
 };
 
-Ms3dFilter::Ms3dOptions::Ms3dOptions()
-	: m_subVersion(0),
-	  m_vertexExtra(0xffffffff),
-	  m_vertexExtra2(0xffffffff),
-	  m_jointColor(0xffffffff)
-{}
-
-void Ms3dFilter::Ms3dOptions::setOptionsFromModel(Model *m)
+void Ms3dOptions::setOptionsFromModel(Model *m)
 {
 	char value[128];
 	if(m->getMetaData("ms3d_sub_version",value,sizeof(value)))
@@ -1478,3 +1531,7 @@ bool Ms3dFilter::readVertexWeight(int subVersion,
 	return true;
 }
 
+extern ModelFilter *ms3dfilter(ModelFilter::PromptF f)
+{
+	auto o = new Ms3dFilter; o->setOptionsPrompt(f); return o;
+}
