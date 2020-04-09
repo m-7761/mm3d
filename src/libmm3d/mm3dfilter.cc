@@ -1834,16 +1834,15 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			model->setAnimWrap(Model::ANIMMODE_SKELETAL,anim,(flags&MSAF_ANIM_LOOP)!=0);
 			
 			if(mm3d2020)
-			{
+			{				
 				float32_t frame2020;
-				m_src->read(frame2020);
-				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frame2020);
-			
 				for(uint32_t f=0;f<frameCount;f++)
 				{
 					m_src->read(frame2020);
 					model->setAnimFrameTime(Model::ANIMMODE_SKELETAL,anim,f,frame2020);
 				}
+				m_src->read(frame2020);
+				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frame2020);
 			}
 			else sparse.assign(frameCount,true);
 
@@ -1938,7 +1937,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			char		name[1024];
 			float32_t fps;
 			uint32_t  frameCount;
-			float32_t frame2020;
 
 			m_src->read(flags);
 			m_src->readAsciiz(name,sizeof(name));
@@ -1949,10 +1947,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			log_debug("fps %f\n",fps);
 			m_src->read(frameCount);
 			log_debug("frame count %u\n",frameCount);
-
-			if(mm3d2020) m_src->read(frame2020);
-			if(mm3d2020) log_debug("mode 2020 loop/stop frame %f\n",frame2020);
-
+						
 			if(!mm3d2020)
 			if(frameCount>size //???
 			 ||frameCount*vcount*sizeof(float32_t)*3>size-10)
@@ -1966,9 +1961,19 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			model->setAnimFrameCount(Model::ANIMMODE_FRAME,anim,frameCount);
 			model->setAnimWrap(Model::ANIMMODE_FRAME,anim,(flags &MFAF_ANIM_LOOP)!=0);
 
+			if(mm3d2020)
+			{	
+				float32_t frame2020;
+				for(uint32_t f=0;f<frameCount;f++)
+				{
+					m_src->read(frame2020);
+					model->setAnimFrameTime(Model::ANIMMODE_FRAME,anim,f,frame2020);
+				}
+				m_src->read(frame2020);
+				model->setAnimTimeFrame(Model::ANIMMODE_FRAME,anim,frame2020);
+			}
+			
 			Model::FrameAnim *fa = modelFrameAnims[a];
-
-			if(mm3d2020) fa->m_frame2020 = frame2020;
 						
 			Model::Interpolate2020E e2020 = Model::InterpolateLerp;
 						
@@ -1989,10 +1994,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				unsigned vM,vN,v = 0;
 
 				vM = vcount; if(mm3d2020)
-				{					
-					m_src->read(frame2020);					
-					fa->m_timetable2020[f] = frame2020;					
-
+				{
 					vN = 0;
 
 				restart2020:
@@ -3195,9 +3197,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fps);
 			m_dst->write(frameCount);
 			float32_t tempf;
-			m_dst->write(tempf=sa->m_frame2020); //2020
 			for(uint32_t f=0;f<frameCount;f++)
 			m_dst->write(tempf=sa->m_timetable2020[f]); //2020
+			m_dst->write(tempf=sa->m_frame2020); //2020
 
 			unsigned ajcount = sa->m_keyframes.size();
 			assert(ajcount==model->getBoneJointCount());
@@ -3276,6 +3278,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			uint32_t temp32 = frameCount;
 			m_dst->write(temp32);
 			float32_t tempf;
+			for(uint32_t f=0;f<frameCount;f++)
+			m_dst->write(tempf=fa->m_timetable2020[f]); //2020
 			m_dst->write(tempf=fa->m_frame2020); //2020
 
 			unsigned fp = fa->m_frame0;
@@ -3288,8 +3292,6 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			//algorithms. Historically MM3D filters data by frame
 			for(unsigned f=0;f<frameCount;f++,fp++)
 			{
-				m_dst->write(tempf=fa->m_timetable2020[f]); //2020
-
 				//log_debug("vcount = %d,avcount = %d,size = %d\n",vcount,avcount,animSize); //???
 								
 				for(size_t w=0,v=0;v<vcount;)
