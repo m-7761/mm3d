@@ -576,7 +576,8 @@ class Model
 				void release();
 				void sprint(std::string &dest);
 
-				int m_objectIndex;	 // Joint that this keyframe affects
+				//int m_objectIndex; //???
+				unsigned m_objectIndex; // Joint that this keyframe affects
 									//on a per frame basis and frame numbers are implicit.
 				unsigned m_frame;	 // Frame number for this keyframe
 

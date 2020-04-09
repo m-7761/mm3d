@@ -3175,8 +3175,10 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		baseSize+=sizeof(uint16_t)+sizeof(float32_t)+sizeof(uint32_t);
 		baseSize+=sizeof(float32_t); //m_frame2020
 
-		for(Model::SkelAnim*sa:modelSkels)
+		for(uint32_t anim=0;anim<count;anim++)
 		{
+			auto sa = modelSkels[anim];
+
 			uint32_t animSize = baseSize+sa->m_name.length()+1;
 
 			uint32_t frameCount = sa->_frame_count();
@@ -3217,6 +3219,14 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				for(auto*kf:sa->m_keyframes[j])
 				{					
 					if(f!=kf->m_frame) continue;
+
+					//HACK: MM3D doesn't need this but it's helpful so third-party loaders don't
+					//have to compute it.
+					if(kf->m_interp2020==Model::InterpolateCopy)
+					{
+						double *x[3] = {}; x[kf->m_isRotation>>1] = kf->m_parameter;
+						model->interpKeyframe(anim,f,{Model::PT_Joint,kf->m_objectIndex},x[0],x[1],x[2]);
+					}
 
 					MM3DFILE_KeyframeT fileKf;
 					fileKf.objectIndex = j;
@@ -3379,6 +3389,14 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				for(auto*kf:fa->m_keyframes[j])
 				{					
 					if(f!=kf->m_frame) continue;
+
+					//HACK: MM3D doesn't need this but it's helpful so third-party loaders don't
+					//have to compute it.
+					if(kf->m_interp2020==Model::InterpolateCopy)
+					{
+						double *x[3] = {}; x[kf->m_isRotation>>1] = kf->m_parameter;
+						model->interpKeyframe(anim,f,{Model::PT_Point,kf->m_objectIndex},x[0],x[1],x[2]);
+					}
 
 					MM3DFILE_KeyframeT fileKf;
 					fileKf.objectIndex = j;
