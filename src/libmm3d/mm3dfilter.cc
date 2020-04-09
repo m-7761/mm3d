@@ -556,7 +556,8 @@ namespace
 
 	struct MM3DFILE_KeyframeT
 	{
-		uint32_t	objectIndex;
+		//2020: high-order 16b hold type/interp mode.
+		uint32_t objectIndex;
 		//0 is Rotate, 1 Translate, 2 Scale
 		uint8_t	 keyframeType;
 		float32_t  param[3];
@@ -820,7 +821,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Meta data
 	if(mm3dfilter_offsetIncluded(MDT_Meta,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Meta,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Meta,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Meta,offsetList);
 
 		m_src->seek(offset);
@@ -864,7 +865,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Vertices
 	if(mm3dfilter_offsetIncluded(MDT_Vertices,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Vertices,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Vertices,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Vertices,offsetList);
 
 		m_src->seek(offset);
@@ -906,7 +907,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Triangles
 	if(mm3dfilter_offsetIncluded(MDT_Triangles,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Triangles,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Triangles,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Triangles,offsetList);
 
 		m_src->seek(offset);
@@ -947,7 +948,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	{
 		// Just for debugging... we don't actually use any of this
 
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_TriangleNormals,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_TriangleNormals,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_TriangleNormals,offsetList);
 
 		m_src->seek(offset);
@@ -1004,7 +1005,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	std::vector<std::string> texNames;
 	if(mm3dfilter_offsetIncluded(MDT_ExtTextures,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_ExtTextures,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_ExtTextures,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_ExtTextures,offsetList);
 
 		m_src->seek(offset);
@@ -1048,7 +1049,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Materials
 	if(mm3dfilter_offsetIncluded(MDT_Materials,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Materials,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Materials,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Materials,offsetList);
 
 		m_src->seek(offset);
@@ -1157,7 +1158,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 	if(mm3dfilter_offsetIncluded(MDT_Groups,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Groups,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Groups,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Groups,offsetList);
 
 		m_src->seek(offset);
@@ -1183,7 +1184,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			uint16_t flags; //SHADOWING
 			uint32_t triCount;
 			uint8_t  smoothness;
-			uint32_t materialIndex;
+			int32_t materialIndex; //uint32_t
 			char name[1024];
 
 			m_src->read(flags);
@@ -1215,7 +1216,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Smooth Angles
 	if(mm3dfilter_offsetIncluded(MDT_SmoothAngles,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_SmoothAngles,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_SmoothAngles,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_SmoothAngles,offsetList);
 
 		m_src->seek(offset);
@@ -1258,7 +1259,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Texture coordinates
 	if(mm3dfilter_offsetIncluded(MDT_TexCoords,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_TexCoords,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_TexCoords,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_TexCoords,offsetList);
 
 		m_src->seek(offset);
@@ -1299,7 +1300,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Canvas Background Images
 	if(mm3dfilter_offsetIncluded(MDT_CanvasBackgrounds,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_CanvasBackgrounds,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_CanvasBackgrounds,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_CanvasBackgrounds,offsetList);
 
 		m_src->seek(offset);
@@ -1349,7 +1350,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Joints
 	if(mm3dfilter_offsetIncluded(MDT_Joints,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Joints,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Joints,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Joints,offsetList);
 
 		m_src->seek(offset);
@@ -1422,7 +1423,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// weighted influences are not present.
 	if(mm3dfilter_offsetIncluded(MDT_JointVertices,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_JointVertices,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_JointVertices,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_JointVertices,offsetList);
 
 		m_src->seek(offset);
@@ -1468,7 +1469,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Points
 	if(mm3dfilter_offsetIncluded(MDT_Points,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_Points,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_Points,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_Points,offsetList);
 
 		m_src->seek(offset);
@@ -1556,7 +1557,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Weighted influences
 	if(mm3dfilter_offsetIncluded(MDT_WeightedInfluences,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_WeightedInfluences,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_WeightedInfluences,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_WeightedInfluences,offsetList);
 
 		m_src->seek(offset);
@@ -1575,13 +1576,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		//unsigned vcount = model->getVertexCount();
 		for(unsigned v = 0; v<vcount; v++)
 		{
-			model->removeAllVertexInfluences(v);
+			model->removeAllVertexInfluences(v); //REMOVE US //???
 		}
-
 		//unsigned pcount = model->getVertexCount(); //BUG
 		for(unsigned p = 0; p<pcount; p++)
 		{
-			model->removeAllPointInfluences(p);
+			model->removeAllPointInfluences(p); //REMOVE US //???
 		}
 
 		for(unsigned t = 0; t<count; t++)
@@ -1619,7 +1619,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 						break;
 				}
 
-				double weight = ((double)fileWi.infWeight)/100.0;
+				double weight = fileWi.infWeight/100.0;
 
 				log_debug("adding position influence %d,%d,%f\n",
 						pos.index,(int)type,(float)weight);
@@ -1632,7 +1632,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Texture Projections
 	if(mm3dfilter_offsetIncluded(MDT_TexProjections,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_TexProjections,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_TexProjections,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_TexProjections,offsetList);
 
 		m_src->seek(offset);
@@ -1746,7 +1746,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Texture Projection Triangles (have to read this after projections)
 	if(mm3dfilter_offsetIncluded(MDT_ProjectionTriangles,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_ProjectionTriangles,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_ProjectionTriangles,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_ProjectionTriangles,offsetList);
 
 		m_src->seek(offset);
@@ -1789,7 +1789,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Skeletal Animations
 	if(mm3dfilter_offsetIncluded(MDT_SkelAnims,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_SkelAnims,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_SkelAnims,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_SkelAnims,offsetList);
 
 		m_src->seek(offset);
@@ -1870,13 +1870,21 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 					m_src->read(fileKf.param[1]);
 					m_src->read(fileKf.param[2]);
 
+					auto oi = fileKf.objectIndex;
+					auto e = Model::InterpolateLerp;
+					if(mm3d2020)
+					{
+						assert((oi>>16&0xFF)==Model::PT_Joint);
+						e = (Model::Interpolate2020E)(oi>>24&0xFF);
+						oi&=0xFFFF;
+					}
+
 					auto t = Model::KeyTranslate;
 					if(~fileKf.keyframeType&1) 
 					t = fileKf.keyframeType?Model::KeyScale:Model::KeyRotate;
 
-					model->setKeyframe(anim,f,
-					{Model::PT_Joint,fileKf.objectIndex},t,
-					fileKf.param[0],fileKf.param[1],fileKf.param[2]);
+					model->setKeyframe(anim,f,{Model::PT_Joint,oi},t,
+					fileKf.param[0],fileKf.param[1],fileKf.param[2],e);
 				}
 			}			
 
@@ -1893,7 +1901,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Frame Animations
 	if(mm3dfilter_offsetIncluded(MDT_FrameAnims,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_FrameAnims,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_FrameAnims,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_FrameAnims,offsetList);
 
 		m_src->seek(offset);
@@ -2062,7 +2070,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Frame Animation Points
 	if(mm3dfilter_offsetIncluded(MDT_FrameAnimPoints,offsetList))
 	{
-		bool	  variable = mm3dfilter_offsetIsVariable(MDT_FrameAnimPoints,offsetList);
+		bool variable = mm3dfilter_offsetIsVariable(MDT_FrameAnimPoints,offsetList);
 		uint32_t offset	= mm3dfilter_offsetGet(MDT_FrameAnimPoints,offsetList);
 
 		m_src->seek(offset);
@@ -2088,7 +2096,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			uint16_t flags; //SHADOWING
 			uint32_t anim;
-			uint32_t frameCount; //frameCount;
+			uint32_t frameCount;
 
 			m_src->read(flags);
 			m_src->read(anim);
@@ -2129,13 +2137,17 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 						m_src->read(fileKf.param[1]);
 						m_src->read(fileKf.param[2]);
 
+						auto oi = fileKf.objectIndex;
+						assert((oi>>16&0xFF)==Model::PT_Point);
+						auto e = (Model::Interpolate2020E)(oi>>24&0xFF);
+						oi&=0xFFFF;
+
 						auto t = Model::KeyTranslate;
 						if(~fileKf.keyframeType&1) 
 						t = fileKf.keyframeType?Model::KeyScale:Model::KeyRotate;
 
-						model->setKeyframe(anim,f,
-						{Model::PT_Point,fileKf.objectIndex},t,
-						fileKf.param[0],fileKf.param[1],fileKf.param[2]);
+						model->setKeyframe(anim,f,{Model::PT_Point,oi},t,
+						fileKf.param[0],fileKf.param[1],fileKf.param[2],e);
 					}
 				}
 				else for(Model::Position p{Model::PT_Point,0};p<pcount;p++) //LEGACY
@@ -3206,6 +3218,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 					MM3DFILE_KeyframeT fileKf;
 					fileKf.objectIndex = j;
+					fileKf.objectIndex|=Model::PT_Joint<<16; //2020
+					fileKf.objectIndex|=kf->m_interp2020<<24; //2020
 					switch(kf->m_isRotation)
 					{
 					case 1: fileKf.keyframeType = 1; break; //translate
@@ -3214,7 +3228,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					}
 					fileKf.param[0] = kf->m_parameter[0];
 					fileKf.param[1] = kf->m_parameter[1];
-					fileKf.param[2] = kf->m_parameter[2];
+					fileKf.param[2] = kf->m_parameter[2];					
 
 					m_dst->write(fileKf.objectIndex);
 					m_dst->write(fileKf.keyframeType);
@@ -3366,6 +3380,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 					MM3DFILE_KeyframeT fileKf;
 					fileKf.objectIndex = j;
+					fileKf.objectIndex|=Model::PT_Point<<16; //2020
+					fileKf.objectIndex|=kf->m_interp2020<<24; //2020
 					switch(kf->m_isRotation)
 					{
 					case 1: fileKf.keyframeType = 1; break; //translate
