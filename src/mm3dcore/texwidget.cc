@@ -1176,7 +1176,8 @@ void TextureWidget::restoreSelectedUv()
 		//hiding. When hidden it doesn't generate these.
 
 		if((size_t)ea<m_vertices.size()) //???
-		m_vertices[ea].selected = true; else assert(0);
+		m_vertices[ea].selected = true;
+		else{ assert(0); break; } //Happens (FIX ME)
 	}
 }
 

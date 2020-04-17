@@ -963,7 +963,7 @@ class Model
 
 			int lines3d;
 
-			double inc,inc3d;
+			double inc,inc3d,ptsz3d;
 
 			int xyz3d; //1|2|4
 

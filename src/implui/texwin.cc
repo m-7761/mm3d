@@ -273,7 +273,7 @@ void TextureWin::new_material_or_name(int id)
 		if(id==id_name)
 		{	
 			model->setTextureName(m,name.c_str());
-			material.selection()->text() = name;		
+			material.selection()->set_text(name);
 		}
 		else if(id==id_new)
 		{

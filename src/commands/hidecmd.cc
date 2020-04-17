@@ -36,8 +36,8 @@ struct HideCommand : Command
 		switch(arg)
 		{
 		default: assert(0);
-		case 0: return TRANSLATE_NOOP("Command","Hide Unselected");
-		case 1: return TRANSLATE_NOOP("Command","Hide Selected");
+		case 0: return TRANSLATE_NOOP("Command","Hide Selected");
+		case 1: return TRANSLATE_NOOP("Command","Hide Unselected");
 		case 2: return TRANSLATE_NOOP("Command","Unhide All");
 		}
 	}
@@ -49,7 +49,7 @@ struct HideCommand : Command
 		default: assert(0);
 		case 0: return "H";
 		case 1: return "Shift+H";
-		case 2: return "Shift+U";
+		case 2: return "Shift+Ctrl+H";
 		}
 	}
 
@@ -65,14 +65,14 @@ bool HideCommand::activated(int arg,Model *model)
 	default: assert(0); 
 	case 0:
 		model_status(model,StatusNormal,STATUSTIME_SHORT,
-		TRANSLATE("Command","Unselected primitives hidden"));
-		model->hideUnselected();
-		return true;
-	case 1:
-		model_status(model,StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Command","Selected primitives hidden"));
 		model->hideSelected();
 		return true;
+	case 1:
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Command","Unselected primitives hidden"));
+		model->hideUnselected();
+		return true;	
 	case 2:
 		model_status(model,StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Command","Primitives unhidden"));

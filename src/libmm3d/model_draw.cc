@@ -39,7 +39,7 @@ static void model_draw_defaultMaterial()
 	glMaterialf(GL_FRONT,GL_SHININESS,0.0f);
 }
 
-static void model_draw_drawPointOrientation(bool selected, float scale,
+static void model_draw_drawPointOrientation(bool selected, double scale,
 		  const Matrix &m)
 {
 	 float color = (selected)? 0.9f : 0.7f;
@@ -982,7 +982,11 @@ void Model::drawPoints()
 {
 	validateAnim();
 
-	float scale = 2; //???
+	//float scale = 2; //???
+	double scale = m_viewportUnits.ptsz3d;
+	if(!scale) scale = 0.25;
+	scale*=m_viewportUnits.inc3d;
+	if(!scale) scale = 2;
 	
 	glPointSize(3);
 	for(unsigned p = 0; p<m_points.size(); p++)

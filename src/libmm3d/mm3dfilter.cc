@@ -2730,13 +2730,14 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 				replaceSlash(filename);
 
-				uint32_t texSize = baseSize+strlen(filename)+1;
+				size_t len = strlen(filename)+1;
+				uint32_t texSize = baseSize+len;
 
 				uint16_t flags = 0x0000;
 
 				m_dst->write(texSize);
 				m_dst->write(flags);
-				m_dst->writeBytes(filename,strlen(filename)+1);
+				m_dst->writeBytes(filename,len);
 
 				log_debug("material file is %s\n",filename);
 			}

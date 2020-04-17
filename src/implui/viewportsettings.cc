@@ -65,6 +65,7 @@ struct ViewportSettings : Win
 		nav(main,"3D Grid"),
 		unit(nav,"Default Grid Unit\t"),
 		lines(nav,"Grid Lines\t"),
+		points(nav,"Point Size\t"),
 		xy(nav,"X/Y Plane"),
 		xz(nav,"X/Z Plane"),
 		yz(nav,"Y/Z Plane")
@@ -74,7 +75,7 @@ struct ViewportSettings : Win
 		}
 
 		panel nav;
-		textbox unit,lines;
+		textbox unit,lines,points;
 		boolean xy,xz,yz;
 	};
 	ortho_group ortho;
@@ -107,6 +108,7 @@ void ViewportSettings::submit(int i)
 		.add_item("Fixed Grid");
 		persp.unit.edit(0.00001,vu.inc3d,100000.0);
 		persp.lines.edit(1,vu.lines3d,1000);
+		persp.points.edit(0.01,vu.ptsz3d,1.0);
 		persp.xy.set(vu.xyz3d&4);
 		persp.xz.set(vu.xyz3d&2);
 		persp.yz.set(vu.xyz3d&1);
@@ -118,6 +120,7 @@ void ViewportSettings::submit(int i)
 		config.set("ui_grid_mode",(int)ortho.mult);
 		config.set("ui_3dgrid_inc",(float)persp.unit);
 		config.set("ui_3dgrid_count",(int)persp.lines);
+		config.set("ui_point_size",(double)persp.points);
 		config.set("ui_3dgrid_xy",(bool)persp.xy);
 		config.set("ui_3dgrid_xz",(bool)persp.xz);
 		config.set("ui_3dgrid_yz",(bool)persp.yz);
@@ -125,6 +128,7 @@ void ViewportSettings::submit(int i)
 		vu.grid = ortho.mult;
 		vu.inc3d = persp.unit;
 		vu.lines3d = persp.lines;
+		vu.ptsz3d = persp.points;
 		vu.xyz3d = 0;
 		if(persp.xy) vu.xyz3d|=4;
 		if(persp.xz) vu.xyz3d|=2;

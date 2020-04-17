@@ -125,7 +125,7 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 			//NOTE: Texture coords aren't animated ATM.
 			//model->validateAnim();
 
-			_texturecoord_win->modelChanged(0); //???
+	//		_texturecoord_win->modelChanged(0); //???
 		}
 
 		//_deferredModelChanged makes this unnecessary.
@@ -144,6 +144,11 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 
 	//Do on redraw so animation data isn't calculated unnecessarily.
 	views.modelUpdatedEvent();
+
+	//REMINDER: Can't defer these because of m_ignoreChange pattern
+	if(_projection_win) _projection_win->modelChanged(changeBits);
+	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
+	//if(_transform_win) = _transform_win->modelChanged(changeBits);
 }
 void MainWin::_drawingModelChanged()
 {
@@ -166,9 +171,11 @@ void MainWin::_drawingModelChanged()
 	}
 	sidebar.modelChanged(changeBits);
 
+	/*Can't defer these because of m_ignoreChange pattern???
 	if(_projection_win) _projection_win->modelChanged(changeBits);
 	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
 	//if(_transform_win) = _transform_win->modelChanged(changeBits);
+	*/
 }
  
 static void viewwin_mru(int id, char *add=nullptr)
@@ -1041,6 +1048,7 @@ Model *MainWin::_swap_models(Model *swap)
 		vu.inc = config.get("ui_grid_inc",4.0);
 		vu.grid = config.get("ui_grid_mode",0);
 		vu.inc3d = config.get("ui_3dgrid_inc",4.0);
+		vu.ptsz3d = config.get("ui_point_size",0.25);
 		vu.lines3d = config.get("ui_3dgrid_count",6);
 		vu.xyz3d = 0; //NEW
 		if(config.get("ui_3dgrid_xy",false)) vu.xyz3d|=4;

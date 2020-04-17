@@ -813,7 +813,7 @@ void SideBar::PropPanel::group_props::submit(int id)
 			if(id_ok==Win::EditBox(&groupName,::tr("New Group","Name of new group,window title"),::tr("Enter new group name:")))
 			{
 				model->addGroup(groupName.c_str());
-				group.menu.selection()->text() = groupName;
+				group.menu.selection()->set_text(groupName);
 				group.menu.add_item(iN+1,::tr("<New>"));
 				goto new_group;
 			}
