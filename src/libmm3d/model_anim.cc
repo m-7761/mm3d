@@ -2462,9 +2462,15 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				// get earliest keyframe for rotation and translation
 				if(!stop[i])
 				{
-					stop[i] = k;
-
-					if(!key[i]) key[i] = k;
+					if(key[i]) 
+					{						
+						if(time<=tt[key[i]-1])
+						{
+							stop[i] = key[i]; 
+						}
+						else stop[i] = k;
+					}
+					else stop[i] = key[i] = k;
 				}
 
 				last[i] = k;
@@ -2651,9 +2657,15 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				// get earliest keyframe for rotation and translation
 				if(!stop[i])
 				{
-					stop[i] = k;
-
-					if(!key[i]) key[i] = k;
+					if(key[i]) 
+					{						
+						if(time<=tt[key[i]-1])
+						{
+							stop[i] = key[i]; 
+						}
+						else stop[i] = k;
+					}
+					else stop[i] = key[i] = k;
 				}
 
 				last[i] = k;

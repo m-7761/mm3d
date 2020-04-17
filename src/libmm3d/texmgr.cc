@@ -132,7 +132,7 @@ Texture *TextureManager::getTexture(const char *name_and_format, DataSource &src
 	newTexture->m_name.erase(newTexture->m_name.rfind('.'));
 	newTexture->m_isBad = false;
 
-	name = strchr(name_and_format,'.');
+	name = strrchr(name_and_format,'.');
 	name = name?name+1:name_and_format;
 	newTexture->m_origFormat = name; //NEW
 
@@ -366,7 +366,7 @@ extern bool texmgr_can_read_or_write(utf8 ext, utf8 cmp)
 		return !cmp&&ext&&*ext; //ModelFilter
 	}
 
-	if(utf8 dot=strchr(cmp,'.')) cmp = dot+1;
+	if(utf8 dot=strrchr(cmp,'.')) cmp = dot+1;
 
 	for(utf8 p=cmp;;p++,ext++)
 	{

@@ -241,7 +241,7 @@ void GroupWin::new_group_or_name(int id)
 		if(id==id_name)
 		{	
 			model->setGroupName(g,name.c_str());
-			group.selection()->text() = name;		
+			group.selection()->set_text(name);	
 		}
 		else if(id==id_new)
 		{

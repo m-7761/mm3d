@@ -113,7 +113,7 @@ void PointWin::submit(int id)
 		if(id_ok==EditBox(&name,::tr("Rename point","window title"),::tr("Enter new point name:")))
 		{
 			model->setPointName((int)point,name.c_str());
-			point.selection()->text() = name;
+			point.selection()->set_text(name);
 		}
 		break;
 	}

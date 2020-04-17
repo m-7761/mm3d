@@ -80,7 +80,7 @@ void ProjectionWin::submit(int id)
 		if(id_ok==EditBox(&name,::tr("Rename projection","window title"),::tr("Enter new point name:")))		
 		{
 			model->setProjectionName(p,name.c_str());
-			projection.selection()->text() = name;
+			projection.selection()->set_text(name);
 			operationComplete(::tr("Rename Projection","operation complete"));
 		}
 		break;
@@ -169,7 +169,7 @@ void ProjectionWin::modelChanged(int changeBits)
 		// a change to projection itself,or a non-projection change,just 
 		// re-initialize the projection display for the current projection
 		int p = projection;
-		projection.selection()->text() = model->getProjectionName(p);
+		projection.selection()->set_text(model->getProjectionName(p));
 		type.select_id(model->getProjectionType(p));		
 		addProjectionTriangles();
 	}

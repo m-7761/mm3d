@@ -144,6 +144,11 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 
 	//Do on redraw so animation data isn't calculated unnecessarily.
 	views.modelUpdatedEvent();
+
+	//REMINDER: Can't defer these because of m_ignoreChange pattern
+	if(_projection_win) _projection_win->modelChanged(changeBits);
+	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
+	//if(_transform_win) = _transform_win->modelChanged(changeBits);
 }
 void MainWin::_drawingModelChanged()
 {
@@ -166,9 +171,11 @@ void MainWin::_drawingModelChanged()
 	}
 	sidebar.modelChanged(changeBits);
 
+	/*Can't defer these because of m_ignoreChange pattern???
 	if(_projection_win) _projection_win->modelChanged(changeBits);
 	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
 	//if(_transform_win) = _transform_win->modelChanged(changeBits);
+	*/
 }
  
 static void viewwin_mru(int id, char *add=nullptr)
