@@ -240,8 +240,12 @@ void TextureCoordWin::submit(control *c)
 {
 	int id = c->id(); switch(id)
 	{
-	case id_init: init2:
-
+	case id_init: 
+	
+		//HACK: one pixel increment
+		u.spinner.set_speed(); 
+		v.spinner.set_speed();
+		init2:
 		texture.setLinesColor((int)white);
 		texture.setSelectionColor((int)red);
 		texture.setScaleFromCenter(scale_sfc);

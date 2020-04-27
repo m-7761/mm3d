@@ -408,7 +408,7 @@ void AnimSetWin::submit(int id)
 				if(!e.fps.text().empty())
 				model->setAnimFPS(mode,ea->id(),e.fps);
 				if(!e.frames.text().empty())
-				model->setAnimFrameCount(mode,ea->id(),(int)e.frames);
+				model->setAnimTimeFrame(mode,ea->id(),(int)e.frames);
 
 				auto &t = ea->text();
 				t.replace(0,t.find('\0'),c_str);
@@ -422,7 +422,7 @@ void AnimSetWin::submit(int id)
 			if(!e.fps.text().empty())
 			model->setAnimFPS(mode,i,e.fps);
 			if(!e.frames.text().empty())
-			model->setAnimFrameCount(mode,i,(int)e.frames);
+			model->setAnimTimeFrame(mode,i,(int)e.frames);
 			if(j==-1) j = i;
 			model->moveAnimation(mode,i,j); //NEW
 
