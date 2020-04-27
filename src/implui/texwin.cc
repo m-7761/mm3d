@@ -174,8 +174,9 @@ void TextureWin::submit(int id)
 	case id_delete:
 	
 		model->deleteTexture(m);
-		material.delete_item(m);
-		material.select_id(0);
+		material.delete_all().select_id(0);
+		for(int i=0,iN=model->getTextureCount();i<iN;i++)				
+		material.add_item(i,model->getTextureName(i));
 		material_selected();
 		break;
 

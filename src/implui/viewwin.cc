@@ -22,6 +22,8 @@
 
 #include "mm3dtypes.h" //PCH
 
+#include "mm3dport.h" //PATH_MAX
+
 #include "pluginmgr.h"
 #include "viewwin.h"
 #include "viewpanel.h"
@@ -177,7 +179,7 @@ void MainWin::_drawingModelChanged()
 	//if(_transform_win) = _transform_win->modelChanged(changeBits);
 	*/
 }
- 
+
 static void viewwin_mru(int id, char *add=nullptr)
 {
 	glutSetMenu(id); 
@@ -201,17 +203,26 @@ static void viewwin_mru(int id, char *add=nullptr)
 
 		size_t n,len = strlen(add);
 
-		add[len] = '\n';
+		//Seems to somehow trigger heap corruption
+		//check for std::string
+		//add[len] = '\n';
+		char buf[PATH_MAX];
+		if(len>sizeof(buf)-1) return; //FIX ME
+
+		memcpy(buf,add,len+1);
 		#ifdef WIN32
-		for(char*p=add;*p;p++) if(*p=='\\') *p = '/';
+		for(char*p=buf+len;p-->buf;)
+		{
+			if(*p=='\\') *p = '/';
+		}
 		#endif
-		if(n=mru.find(add,0,len+1))
+		buf[len] = '\n';
+		if(n=mru.find(buf,0,len+1))
 		{	
 			if(n!=mru.npos) mru.erase(n,len+1);
 			else lines++;
-			mru.insert(mru.begin(),add,add+len+1);
-		}
-		add[len] = '\0';
+			mru.insert(mru.begin(),buf,buf+len+1);
+		}		
 
 		if(!n) return; //ILLUSTRATING
 
@@ -229,6 +240,10 @@ static void viewwin_mru(int id, char *add=nullptr)
 	}
 
 	if(add) config.set(cfg,mru);
+}
+extern void viewwin_mru_drop(char *add)
+{
+	viewwin_mru(viewwin_mruf_menu,add);
 }
 
 static bool viewwin_close_func_quit = false;

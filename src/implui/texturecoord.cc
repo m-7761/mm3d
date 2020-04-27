@@ -515,8 +515,8 @@ void TextureCoordWin::setTextureCoordsEtc(bool setCoords)
 	{
 		centerpoint[i] = (cmin[i]+cmax[i])/2;
 	}
-	u.set_float_val(centerpoint[0]*texture.getUvWidth());
-	v.set_float_val(centerpoint[1]*texture.getUvHeight());
+	u.set_float_val(centerpoint[0]*=texture.getUvWidth());
+	v.set_float_val(centerpoint[1]*=texture.getUvHeight());
 	
 	//dimensions.text().format("%g,%g,%g",cmax[0]-cmin[0],cmax[1]-cmin[1],cmax[2]-cmin[2]);
 	//dimensions.text().clear();

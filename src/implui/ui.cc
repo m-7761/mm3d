@@ -63,7 +63,13 @@ static void ui_drop(char **f, int n)
 			msg_error("%s: %s",*f,transll(Model::errorToString(err,m)));
 			delete m;
 		}
-		else new MainWin(m);
+		else 
+		{
+			new MainWin(m);
+			//add path to most-recently-used menu?
+			extern void viewwin_mru_drop(char*);
+			viewwin_mru_drop(url);
+		}
 	}
 }
 

@@ -121,9 +121,7 @@ void GroupWin::submit(int id)
 		angle.set_range(0,180).id(id_angle).expand();
 		{
 			group_selected();		
-		}
-		submit(id_smooth);
-		submit(id_angle);
+		}		
 		smooth.sspace<left>({angle}); //EXPERIMENTAL
 
 		break;
@@ -143,8 +141,9 @@ void GroupWin::submit(int id)
 		case id_delete:
 
 			model->deleteGroup(g);	
-			group.delete_item(g).select_id(0);
-			group.select_id(0);
+			group.delete_all().select_id(0);
+			for(int i=0,iN=model->getGroupCount();i<iN;i++)	
+			group.add_item(i,model->getGroupName(i));
 			group_selected();
 			break;
 
@@ -226,6 +225,8 @@ void GroupWin::group_selected()
 		material.select_id(model->getGroupTextureId(g));
 	}
 	texture.setTexture(material);
+
+	submit(id_smooth); submit(id_angle);
 }
 void GroupWin::new_group_or_name(int id)
 {

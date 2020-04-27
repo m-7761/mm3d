@@ -129,7 +129,10 @@ Texture *TextureManager::getTexture(const char *name_and_format, DataSource &src
 
 	const char *name = strrchr(name_and_format,'/');
 	newTexture->m_name = name?name+1:name_and_format;
-	newTexture->m_name.erase(newTexture->m_name.rfind('.'));
+	if(auto ext=newTexture->m_name.rfind('.'))
+	{
+		if(~ext) newTexture->m_name.erase(ext);
+	}
 	newTexture->m_isBad = false;
 
 	name = strrchr(name_and_format,'.');
