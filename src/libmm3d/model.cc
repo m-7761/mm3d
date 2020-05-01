@@ -565,6 +565,13 @@ int Model::addVertex(double x, double y, double z)
 	vertex->m_free = false;
 	m_vertices.push_back(vertex);
 
+	auto &fa = m_frameAnims; if(!fa.empty())
+	{
+		int fp = fa.back()->m_frame0+fa.back()->_frame_count();
+		vertex->m_frames.reserve(fp);
+		while(fp-->0) vertex->m_frames.push_back(FrameAnimVertex::get());
+	}
+
 	if(m_undoEnabled)
 	{
 		MU_AddVertex *undo = new MU_AddVertex();
