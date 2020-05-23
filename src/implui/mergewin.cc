@@ -51,6 +51,7 @@ struct MergeWin : Win
 		animate2.style(bi::etched);
 		animate2.add_item(Model::AM_ADD,"Append animations");
 		animate2.add_item(Model::AM_MERGE,"Merge if possible");
+		animate2.select_id(Model::AM_ADD);
 
 		active_callback = &MergeWin::submit;
 
@@ -95,8 +96,16 @@ void MergeWin::submit(control *c)
 		if(animate)
 		mode = Model::AnimationMergeE(animate2.int_val());
 		double rot[3] = { rotation.x,rotation.y,rotation.z };
-		double trans[3] = { translation.x,translation.y,translation.z };		
-		model->mergeModels(merge,texture,mode,true,trans,rot);
+		double trans[3] = { translation.x,translation.y,translation.z };
+		for(int i=3;i-->0;) if(trans[i]||(rot[i]*=PIOVER180))
+		{			
+			Matrix mat;
+			mat.setRotation(rot);
+			mat.setTranslation(trans);
+			merge->applyMatrix(mat,Model::OS_Global,true,true);
+			break;
+		}
+		model->mergeModels(merge,texture,mode,true/*,trans,rot*/);
 		//model->operationComplete(::tr("Merge models"));				
 		model->operationComplete(::tr("Merge models","operation complete"));
 	}

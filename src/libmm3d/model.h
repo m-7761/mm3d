@@ -285,6 +285,7 @@ class Model
 		//https://github.com/zturtleman/mm3d/issues/106
 		enum Interpolate2020E
 		{
+			InterpolateKopy =-3, // HACK: See setKeyframe
 			InterpolateKeep =-2, // HACK: Default argument
 			InterpolateVoid =-1, // HACK: Return value
 			InterpolateNone = 0, // Enable sparse animation
@@ -1329,7 +1330,10 @@ class Model
 		//may or may not be a different value since usually
 		//the value will be 1 more than the current but not
 		//always when inserting to the front.
-		unsigned makeCurrentAnimationFrame();
+		unsigned makeCurrentAnimationFrame()
+		{
+			return insertAnimFrame(m_animationMode,m_currentAnim,m_currentTime);
+		}
 
 		unsigned getCurrentAnimation()const;
 		unsigned getCurrentAnimationFrame()const;
@@ -1379,6 +1383,9 @@ class Model
 
 		//2020: Formerly clearAnimFrame.
 		bool deleteAnimFrame(AnimationModeE mode, unsigned anim, unsigned frame);
+
+		//2020: Same deal as makeCurrentAnimationFrame
+		unsigned insertAnimFrame(AnimationModeE mode, unsigned anim, double time);
 
 		// Frame animation geometry
 		//void setFrameAnimVertexCount(unsigned vertexCount);
@@ -1469,8 +1476,11 @@ class Model
 		int interpKeyframe(unsigned anim, unsigned frame, unsigned vertex, double trans[3])const;
 		int interpKeyframe(unsigned anim, unsigned frame, double frameTime, unsigned vertex, double trans[3])const;
 
+		//2020: This doesn't copy FrameAnimVertex data.
+		AnimBase2020 *_dup(AnimationModeE mode, AnimBase2020 *copy, bool keyframes=true);
+
 		// Animation set operations
-		int copyAnimation(AnimationModeE mode, unsigned anim, const char *newName);
+		int copyAnimation(AnimationModeE mode, unsigned anim, const char *newName=nullptr);
 		int splitAnimation(AnimationModeE mode, unsigned anim, const char *newName, unsigned frame);
 		bool joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2);
 		bool mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2);
@@ -1644,26 +1654,23 @@ class Model
 
 		Model *copySelected()const;
 
+		bool duplicateSelected(); //2020 (dupcmd)
+
 		// A BSP tree is calculated for triangles that have textures with an alpha
 		// channel (transparency). It is used to determine in what order triangles
 		// must be rendered to get the proper blending results (triangles that are
 		// farther away from the camera are rendered first so that closer triangles
 		// are drawn on top of them).
-		void calculateBspTree();
-		void invalidateBspTree();
+		void calculateBspTree(), invalidateBspTree();
 
-		// The model argument should be const, but it calls validateSkel.
-		// TODO: Calling validateSkel in here should not be necessary.
-		bool mergeModels(Model *model,bool textures,AnimationMergeE mergeMode,bool emptyGroups,
-				double *trans = nullptr, double *rot = nullptr);
+		//2020: I've removed the trans/rot argument to focus on the task at hand
+		//Please use applyMatrix.
+		bool mergeModels(const Model *model, bool textures, AnimationMergeE mergeMode, bool emptyGroups);
 
 		// These are helper functions for the boolean operations
-		void removeInternalTriangles(
-				int_list &listA,int_list &listB);
-		void removeExternalTriangles(
-				int_list &listA,int_list &listB);
-		void removeBTriangles(
-				int_list &listA,int_list &listB);
+		void removeInternalTriangles(int_list &listA, int_list &listB);
+		void removeExternalTriangles(int_list &listA, int_list &listB);
+		void removeBTriangles(int_list &listA, int_list &listB);
 
 		// ------------------------------------------------------------------
 		// Group and material functions
@@ -1778,6 +1785,8 @@ class Model
 		bool getBoneJointCoordsUnanimated(unsigned jointNumber, double *coord)const;
 		bool getBoneJointRotation(unsigned jointNumber, double *coord)const;
 		bool getBoneJointRotationUnanimated(unsigned jointNumber, double *coord)const;
+		bool getBoneJointScale(unsigned jointNumber, double *coord)const;
+		bool getBoneJointScaleUnanimated(unsigned jointNumber, double *coord)const;
 
 		bool getBoneJointFinalMatrix(unsigned jointNumber,Matrix &m)const;
 		bool getBoneJointAbsoluteMatrix(unsigned jointNumber,Matrix &m)const;
@@ -2209,7 +2218,7 @@ class Model
 		// If the matrix cannot be undone,set undoable to false (a matrix is undoable if
 		// the determinant is not equal to zero).
 		//void applyMatrix(const Matrix &m,OperationScopeE scope,bool animations,bool undoable);
-		void applyMatrix(Matrix,OperationScopeE scope,bool animations,bool undoable);
+		void applyMatrix(Matrix, OperationScopeE scope, bool animations, bool undoable);
 
 	protected:
 

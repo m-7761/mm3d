@@ -470,18 +470,18 @@ void AnimSetWin::submit(int id)
 				unsort(); //YUCK
 
 				model->moveAnimation(mode, //NEW
-				model->copyAnimation(mode,ea->id(),*ea),ea->id()+1);
+				model->copyAnimation(mode,ea->id()),ea->id()+1);
 				table.insert(ea->next(),new_item(ea->id()+1)); 
 				break;
 
 			case id_split:
 								
-				a = ea->id(); b = model->getAnimFrameCount(mode,a); if(b<2)
+				a = ea->id(); /*b = model->getAnimFrameCount(mode,a); if(b<2)
 				{
 					InfoBox(::tr("Cannot Split","Cannot split animation window title"),
 					::tr("Must have at least 2 frames to split","split animation"),id_ok);
 				}
-				else //SIMPLIFY ME
+				else*/ //SIMPLIFY ME
 				{	
 					std::string name;
 					name = ::tr("Split","'Split' refers to splitting an animation into two separate animations");
@@ -490,17 +490,21 @@ void AnimSetWin::submit(int id)
 					name.push_back(' '); //MERGE US
 					name.append(::tr("at frame number","the frame number where the second (split) animation begins"));
 
-					int split = b/2;
-					if(id_ok!=EditBox(&split,::tr("Split at frame","Split animation frame window title"),name.c_str(),2,b))
+					//int split = b/2;
+					double b = model->getAnimTimeFrame(mode,a);
+					double t = b/2;
+					if(id_ok!=EditBox(&t,::tr("Split at frame","Split animation frame window title"),name.c_str(),/*2*/0,b))
 					return;
+
+					int split = model->insertAnimFrame(mode,a,t);
 					
 					name = model->getAnimName(mode,a);
 					name.push_back(' ');
 					name.append(::tr("split"));
-					if((b=model->splitAnimation(mode,a,name.c_str(),split))<0)
+					if((split=model->splitAnimation(mode,a,name.c_str(),split))<0)
 					return;
 		
-					a++; model->moveAnimation(mode,b,a); //NEW
+					a++; model->moveAnimation(mode,split,a); //NEW
 
 					ea = ea->next(); //HACK
 					{

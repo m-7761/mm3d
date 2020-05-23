@@ -930,6 +930,7 @@ class MU_SetAnimFrameCount : public ModelUndo
 		bool combine(Undo *);
 
 		void undoRelease();
+		void redoRelease();
 
 		unsigned size();
 
@@ -1101,7 +1102,7 @@ class MU_DeleteObjectKeyframe : public ModelUndo
 
 		unsigned size();
 
-		void setAnimationData(const unsigned &anim);
+		void setAnimationData(unsigned anim);
 		void deleteKeyframe(Model::Keyframe *keyframe);
 
 	private:
@@ -1176,7 +1177,7 @@ class MU_MoveFrameVertex : public ModelUndo
 
 		unsigned size();
 
-		void setAnimationData(const unsigned &anim, const unsigned &frame );
+		void setAnimationData(unsigned anim, unsigned frame);
 
 		void addVertex(int v, double x, double y, double z,
 		Model::Interpolate2020E e, Model::FrameAnimVertex *old, bool sort=true);
@@ -1224,7 +1225,7 @@ class MU_MoveFramePoint : public ModelUndo
 
 		unsigned size();
 
-		void setAnimationData(const unsigned &anim, const unsigned &frame);
+		void setAnimationData(unsigned anim, unsigned frame);
 
 		struct Point //2020
 		{

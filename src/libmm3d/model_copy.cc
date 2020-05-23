@@ -215,14 +215,14 @@ Model *Model::copySelected()const
 		log_debug("Copying %d points\n",points.size());
 		for(lit = points.begin(); lit!=points.end(); lit++)
 		{
-			double coord[3];
-			double rot[3] = { 0,0,0 };
+			double coord[3],rot[3],xyz[3];
 			getPointCoordsUnanimated(*lit,coord);
 			getPointRotationUnanimated(*lit,rot);
+			getPointScaleUnanimated(*lit,xyz);
 
-			// TODO point type (if it is ever used)
 			int np = m->addPoint(getPointName(*lit),
-					coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]);
+			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]);
+			memcpy(m->m_points[np]->m_xyz,xyz,sizeof(xyz));
 			pointMap[*lit] = np;
 
 			m->selectPoint(np);
@@ -252,18 +252,16 @@ Model *Model::copySelected()const
 			}
 
 			//TODO: Why not just copy the matrix by value?
-			double coord[3];
-			double rot[3] = { 0,0,0 };
+			double coord[3],rot[3],xyz[3];
 			getBoneJointCoordsUnanimated(*lit,coord);
 			getBoneJointRotationUnanimated(*lit,rot); //2020
-			//double scale[3] = {};
-			//getBoneJointScaleUnanimated(*lit,scale); //UNFINISHED
+			getBoneJointScaleUnanimated(*lit,xyz);
 
 			int nj = m->addBoneJoint(getBoneJointName(*lit),
 			coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
 			jointMap[*lit] = nj;
-			m_joints[nj]->m_absolute.setRotation(rot); //It's just numbers.
-
+			memcpy(m->m_joints[nj]->m_rot,rot,sizeof(rot));
+			memcpy(m->m_joints[nj]->m_xyz,xyz,sizeof(xyz));
 			m->selectBoneJoint(nj);
 		}
 
@@ -307,4 +305,194 @@ Model *Model::copySelected()const
 	m->calculateSkel(); m->calculateNormals();
 
 	return m;
+}
+
+bool Model::duplicateSelected()
+{
+	//2020: this code comes from the body of dupcmd.cc
+	
+	//2020: I added this code to phase these containers out but most
+	//of them are still required
+	//std::unordered_map<int,int> vertMap,triMap,jointMap,pointMap;
+	std::unordered_map<int,int> vertMap,triMap,jointMap;
+	unsigned vertbase = m_vertices.size();
+	unsigned tribase = m_triangles.size();
+	unsigned jointbase = m_joints.size();
+	unsigned pointbase = m_points.size();
+	//projbase = m_projections.size(); //IMPLEMENT ME
+
+	//if(!tri.empty())
+	{
+		//model_status(model,StatusNormal,STATUSTIME_SHORT,
+		//TRANSLATE("Command","Selected primitives duplicated"));
+		
+		// Duplicated vertices
+		//log_debug("Duplicating %d vertices\n",vert.size());
+		for(unsigned v=0;v<vertbase;v++)
+		{
+			if(!m_vertices[v]->m_selected) continue;
+
+			double coords[3];
+			getVertexCoords(v,coords);
+			int nv = addVertex(coords[0],coords[1],coords[2]);
+
+			if(isVertexFree(v)) setVertexFree(nv,true);
+
+			vertMap[v] = nv;
+		}
+
+		// Duplicate faces
+		//log_debug("Duplicating %d faces\n",tri.size());
+		for(unsigned t=0;t<tribase;t++)
+		{
+			if(!m_triangles[t]->m_selected) continue;
+
+			unsigned v[3];
+			getTriangleVertices(t,v[0],v[1],v[2]);
+			int nt = addTriangle(vertMap[v[0]],vertMap[v[1]],vertMap[v[2]]);
+
+			triMap[t] = nt;
+		//}
+
+		// Duplicate texture coords
+		//log_debug("Duplicating %d face texture coordinates\n",tri.size());
+		//for(lit = tri.begin(); lit!=tri.end(); lit++)
+		//{	
+			for(unsigned i=0;i<3;i++)
+			{
+				float s,t;
+				getTextureCoords(t,i,s,t);
+				setTextureCoords(triMap[t],i,s,t);
+			}
+		}
+
+		if(getGroupCount())
+		{
+			// Set groups
+			//log_debug("Setting %d triangle groups\n",tri.size());
+			for(unsigned t=0;t<tribase;t++)
+			{
+				if(!m_triangles[t]->m_selected) continue;
+
+				//FIX ME: getTriangleGroup is dumb!!
+				//FIX ME: getTriangleGroup is dumb!!
+				//FIX ME: getTriangleGroup is dumb!!
+				//FIX ME: getTriangleGroup is dumb!!
+
+				// This works,even if triangle group==-1
+				int gid = getTriangleGroup(t);
+				if(gid>=0)
+				{
+					addTriangleToGroup(gid,triMap[t]);
+				}
+			}
+		}
+
+	}
+
+	//if(!joints.empty())
+	{
+		int_list vertlist;
+
+		// Duplicated joints
+		//log_debug("Duplicating %d joints\n",joints.size());
+		for(unsigned j=0;j<jointbase;j++)
+		{
+			if(!m_joints[j]->m_selected) continue;
+
+			int parent = getBoneJointParent(j);
+
+			// TODO this will not work if parent joint comes after child
+			// joint.  That shouldn't happen... but...
+			if(isBoneJointSelected(parent))
+			{
+				parent = jointMap[parent];
+			}
+
+			// If joint is root joint,assign duplicated joint to be child
+			// of original
+			if(parent==-1)
+			{
+				parent = 0;
+			}
+
+			double coord[3],rot[3],xyz[3];
+			//double rot[3] = { 0,0,0 }; //UNUSED
+			getBoneJointCoords(j,coord);
+			getBoneJointRotationUnanimated(j,rot); //2020
+			getBoneJointScaleUnanimated(j,xyz);
+
+			int nj = addBoneJoint(getBoneJointName(j),
+			coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
+			memcpy(m_joints[nj]->m_rot,rot,sizeof(rot));
+			memcpy(m_joints[nj]->m_xyz,xyz,sizeof(xyz));
+			jointMap[j] = nj;
+
+			//FIX ME
+			// Assign duplicated vertices to duplicated bone joints			
+			getBoneJointVertices(j,vertlist);
+			int_list::iterator vit;
+			for(vit = vertlist.begin(); vit!=vertlist.end(); vit++)
+			{
+				if(isVertexSelected(*vit))
+				{
+					//LOOKS HIGHLY PROBLEMATIC
+					//LOOKS HIGHLY PROBLEMATIC
+					//LOOKS HIGHLY PROBLEMATIC
+					setVertexBoneJoint(vertMap[*vit],nj);
+				}
+			}
+		}
+	}
+
+	//if(!points.empty())
+	{
+		// Duplicated points
+		//log_debug("Duplicating %d points\n",points.size());
+		for(unsigned p=0;p<pointbase;p++)
+		{
+			if(!m_points[p]->m_selected) continue;
+		
+			/*2020: addPoint ignored this parameter so
+			//I removed it.
+			int parent = getPrimaryPointInfluence(p);
+			if(isBoneJointSelected(parent))
+			{
+				parent = jointMap[parent];
+			}*/
+
+			double coord[3],rot[3],xyz[3];
+			getPointCoordsUnanimated(p,coord);
+			getPointRotationUnanimated(p,rot);
+			getPointScaleUnanimated(p,rot);
+
+			int np = addPoint(getPointName(p),
+			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]/*,parent*/);
+			memcpy(m_points[np]->m_xyz,xyz,sizeof(xyz));
+			//pointMap[p] = np;
+		}
+	}
+
+	if(vertMap.empty()&&triMap.empty()
+	&&jointMap.empty()&&pointbase==getPointCount())
+	{
+		return false;
+	}
+
+	unselectAll();
+	
+	//2020: I'm quickly copying this from mergeModels 
+	//to remove old map containers
+	int n = getTriangleCount();
+	while(n-->tribase) selectTriangle(n);
+	n = getVertexCount();
+	while(n-->vertbase) selectVertex(n);
+	n = getBoneJointCount();
+	while(n-->jointbase) selectBoneJoint(n);
+	n = getPointCount();
+	while(n-->pointbase) selectPoint(n);
+	//n=getProjectionCount();
+	//while(n-->projbase) selectProjection(n); //IMPLEMENTE ME
+
+	calculateSkel(); calculateNormals(); return true;
 }

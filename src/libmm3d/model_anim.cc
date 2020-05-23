@@ -81,6 +81,33 @@ Model::AnimBase2020 *Model::_anim(unsigned anim, unsigned frame, Position pos, b
 
 #ifdef MM3D_EDIT
 
+unsigned Model::insertAnimFrame(AnimationModeE mode, unsigned anim, double time)
+{
+	auto ab = _anim(mode,anim); if(!ab) return 0; 
+
+	auto frame = getAnimFrame(mode,anim,time);
+	double cmp = ab->_frame_time(frame);
+	unsigned count = ab->_frame_count();
+	if(time>cmp //insert after?
+	||frame==0&&cmp>0&&time!=cmp //insert before?
+	||!count&&!cmp&&!frame) //e.g. zero-length pose?
+	{
+		//If 0 the new frame is somewhere before the
+		//first frame and it has a nonzero timestamp.
+		frame+=time>cmp;
+
+		//TODO: Relying on setAnimFrameCount to fill
+		//out the new vertices with the current ones.
+		//It would be an improvement to do that here.
+		//REMINDER: HOW MU_AddFrameAnimFrame ANOTHER //???
+		//ModelUndo WON'T BE NEEDED TO FILL THE DATA.
+		setAnimFrameCount(mode,anim,count+1,frame,nullptr);
+		setAnimFrameTime(mode,anim,frame,time);
+		setCurrentAnimationFrame(frame,AT_invalidateAnim);
+	}
+	else assert(time==cmp); return frame;
+}
+
 int Model::addAnimation(AnimationModeE m, const char *name)
 {
 	LOG_PROFILE();
@@ -155,7 +182,7 @@ void Model::deleteAnimation(AnimationModeE m, unsigned index)
 
 		auto fp = fa->m_frame0;
 		auto dt = undo?undo->removeVertexData():nullptr;
-		removeFrameAnimFrame(fp,fp+fa->_frame_count(),m_undoEnabled?dt:nullptr);			
+		removeFrameAnimFrame(fp,fa->_frame_count(),dt);			
 
 		removeFrameAnim(index);
 	}
@@ -192,7 +219,7 @@ bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, u
 	//NOTE: where is for makeCurrentAnimationFrame.
 	bool compat_mode = where==~0u; if(compat_mode)
 	{
-		where = diff>0?old_count:(int)count+diff;
+		where = diff>0?old_count:(int)old_count+diff;
 	}
 	else if(diff<0)
 	{
@@ -231,12 +258,20 @@ bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, u
 		FrameAnim *fa = m_frameAnims[anim];
 		auto fp = fa->m_frame0+where;
 
+		auto dt = undo?undo->removeVertexData():nullptr;
+
 		if(diff<0)
 		{
-			auto dt = undo?undo->removeVertexData():nullptr;
-			removeFrameAnimFrame(fp,-diff,m_undoEnabled?dt:nullptr);
+			removeFrameAnimFrame(fp,-diff,dt);
 		}
-		else insertFrameAnimFrame(fp,diff,ins);
+		else 
+		{
+			//NEW: Gathering the pointers so routines like copyAnimation
+			//don't have to generate undo data for their copied vertices.
+			assert(!ins||!dt);
+
+			insertFrameAnimFrame(fp,diff,ins?ins:dt);
+		}
 
 		for(size_t a=anim+1;a<m_frameAnims.size();a++)
 		{
@@ -829,41 +864,27 @@ bool Model::setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigne
 int Model::copyAnimation(AnimationModeE mode, unsigned index, const char *newName)
 {
 	AnimBase2020 *ab = _anim(mode,index); if(!ab) return -1;
-	int num = addAnimation(mode,newName); if(num<0) return num;
+	//int num = addAnimation(mode,newName); if(num<0) return num;
+	int num = getAnimCount(mode);
+	AnimBase2020 *ab2 = _dup(mode,ab);
+	if(newName) ab2->m_name = newName;
 
-	setAnimFrameCount(mode,num,ab->_frame_count());
-	setAnimFPS(mode,num,ab->m_fps);
-	setAnimWrap(mode,num,ab->m_wrap);
-
-	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
-	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
-	for(auto*kf:ab->m_keyframes[j])
-	{
-		setKeyframe(num,kf->m_frame,j,kf->m_isRotation,
-		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
-	}
-	
-	if(fa) 
+	if(auto fa=ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr)
 	{	
+		//Note, setFrameAnimVertexCoords is unnecessary 
+		//because this is a fresh animation
 		auto fp = fa->m_frame0;
 		auto fd = m_frameAnims[num]->m_frame0;
-
-		bool ue = m_undoEnabled;
-		MU_MoveFrameVertex *undo;
-		for(unsigned f=fa->_frame_count();f-->0;fp++,fd++)
+		auto fc = fa->_frame_count();
+		for(auto*ea:m_vertices)
 		{
-			if(ue) undo = new MU_MoveFrameVertex;
-			if(ue) undo->setAnimationData(num,f);
+			//Note, it's easier on the cache to do
+			//the vertices in the outer loop
 
-			int v = 0; for(auto*ea:m_vertices)
-			{
-				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
-				if(!p->m_interp2020) continue;
-				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
-				*d = *p;
-			}
+			auto p = &ea->m_frames[fp];
+			auto d = &ea->m_frames[fd];
 
-			if(ue) sendUndo(undo,false);
+			for(unsigned c=fc;c-->0;d++,p++) **d = **p;
 		}
 	}		
 
@@ -878,47 +899,55 @@ int Model::splitAnimation(AnimationModeE mode, unsigned index, const char *newNa
 
 	int num = addAnimation(mode,newName); if(num<0) return num;
 
-	setAnimFrameCount(mode,num,ab->_frame_count()-frame);
-	setAnimFPS(mode,num,ab->m_fps);
-	//setAnimWrap(mode,num,ab->m_wrap); //???
+	AnimBase2020 *ab2;
+	if(mode==ANIMMODE_SKELETAL) ab2 = m_skelAnims[num];
+	else ab2 = m_frameAnims[num];
+
+	int fc = ab->_frame_count()-frame;
+	setAnimFrameCount(mode,num,fc);
+	ab2->m_fps = ab->m_fps;
+	ab2->m_wrap = ab->m_wrap;
+	double ft = ab->m_timetable2020[frame];
+	ab2->m_frame2020 = ab->m_frame2020-ft;
+	while(fc-->0)
+	ab2->m_timetable2020[fc] = ab->m_timetable2020[frame+fc]-ft;		
 	
 	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
 	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
 	for(auto*kf:ab->m_keyframes[j])
 	if(kf->m_frame>=frame)
 	{
-		setKeyframe(num,kf->m_frame,j,kf->m_isRotation,
+		setKeyframe(num,kf->m_frame-frame,j,kf->m_isRotation,
 		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 	}
 
 	if(fa) 
 	{	
-		auto fp = fa->m_frame0;
+		//Note, setFrameAnimVertexCoords is unnecessary 
+		//because this is a fresh animation
+		auto fp = fa->m_frame0+frame;
 		auto fd = m_frameAnims[num]->m_frame0;
-
-		bool ue = m_undoEnabled;
-		MU_MoveFrameVertex *undo;
-		for(unsigned f=fa->_frame_count();f-->frame;fp++,fd++)
+		auto fc = fa->_frame_count();
+		for(auto*ea:m_vertices)
 		{
-			if(ue) undo = new MU_MoveFrameVertex;
-			if(ue) undo->setAnimationData(num,f);
+			//Note, it's easier on the cache to do
+			//the vertices in the outer loop
 
-			int v = 0; for(auto*ea:m_vertices)
-			{
-				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
-				if(!p->m_interp2020) continue;
-				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
-				*d = *p;
-			}
+			auto p = &ea->m_frames[fp];
+			auto d = &ea->m_frames[fd];
 
-			if(ue) sendUndo(undo,false);
-		}
+			for(unsigned c=fc;c-->frame;d++,p++) **d = **p;
+		}	
 	}	
 	
+	//NOTE: setAnimTimeFrame fails if the end frames aren't first removed
+	//using setAnimFrameCount.
 	setAnimFrameCount(mode,index,frame);
-	moveAnimation(mode,num,index+1);
+	setAnimTimeFrame(mode,index,ft);
+
+	moveAnimation(mode,num,index+1); 
 	
-	return num;
+	return index+1; //return num;
 }
 
 bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
@@ -930,17 +959,50 @@ bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 	auto ab = _anim(mode,anim2); //ab2
 	if(!aa||!ab) return false;
 
-	unsigned fc1 = aa->_frame_count();
-	unsigned fc2 = ab->_frame_count();
+	//2020: I'm not sure I've fully tested this code with every
+	//possible permutation but it looks fine. If not please fix.
+	
+	//NOTE: I don't recommend inserting a dummy frame to keep a
+	//keyframe from blending with the earlier animation's frame
+	//because it's impossible to tease the results apart in the
+	//final data set, whereas it's pretty trivial in the editor
+	//to insert the dummy frame before or after with copy/paste.
 
-	setAnimFrameCount(mode,anim1,fc1+fc2);
+	int fc1 = aa->_frame_count();
+	int fc2 = ab->_frame_count();
+	double tf = getAnimTimeFrame(mode,anim1);
+	int spliced = 0; if(fc1&&fc2)
+	{
+		//If both animations have frames on the end and beginning
+		//they are overlapped and must be merged together somehow.
+		double t1 = getAnimFrameTime(mode,anim1,fc1-1);
+		double t2 = getAnimFrameTime(mode,anim2,0);
+		spliced = t1>=tf&&t2<=0;
+
+		fc1-=spliced; //!
+	}	
+	int fc = fc1+fc2;
+	setAnimFrameCount(mode,anim1,fc);
+
+	//2020: Convert the frames into the correct time scales and 
+	//add the durations and timestamps together.
+	double r = 1;
+	if(aa->m_fps!=ab->m_fps)
+	r = aa->m_fps/ab->m_fps;
+	setAnimTimeFrame(mode,anim1,tf+r*getAnimTimeFrame(mode,anim2));
+	for(int i=spliced,f=fc1+spliced;f<fc;f++)	
+	setAnimFrameTime(mode,anim1,f,tf+r*ab->m_timetable2020[i++]);	
 
 	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
 	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
-	for(auto*kf:ab->m_keyframes[j])
+	for(auto*kf:ab->m_keyframes[j])	
 	{
+		//HACK: Don't overwrite an existing keyframe with Copy.
+		auto e = kf->m_interp2020;
+		if(e==InterpolateCopy) e = InterpolateKopy;
+
 		setKeyframe(anim1,kf->m_frame+fc1,j,kf->m_isRotation,
-		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
+		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],e);
 	}
 	
 	if(fa) 
@@ -957,8 +1019,17 @@ bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 
 			int v = 0; for(auto*ea:m_vertices)
 			{
-				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
-				if(!p->m_interp2020) continue;
+				auto p = ea->m_frames[fp], d = ea->m_frames[fd];				
+
+				//Give priority to the second animation since
+				//it's easier to implement for keyframes above.
+				//If there's no data in that animation keep the
+				//first animation's data since that's like above.
+				if(!f&&spliced&&p->m_interp2020<=InterpolateCopy)
+				{
+					if(d->m_interp2020||!p->m_interp2020) continue;
+				}
+
 				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
 				*d = *p;
 			}
@@ -982,41 +1053,156 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 	unsigned fc1 = aa->_frame_count();
 	unsigned fc2 = ab->_frame_count();
 
+	/*2020: Doing this interleaved.
 	if(fc1!=fc2)
 	{
-		/*str = ::tr("Cannot merge animation %1 and %2,\n frame counts differ.")
-		.arg(model->getAnimName(mode,a)).arg(model->getAnimName(mode,b));*/
+		//str = ::tr("Cannot merge animation %1 and %2,\n frame counts differ.")
+		//.arg(model->getAnimName(mode,a)).arg(model->getAnimName(mode,b));
 		msg_error(TRANSLATE("LowLevel",
 		"Cannot merge animation %d and %d,\n frame counts differ."),anim1,anim2);
 		return false;
+	}*/
+
+	int_list smap,tmap;
+	std::vector<double> ts;
+	
+	double r = 1;
+	if(aa->m_fps!=ab->m_fps)
+	r = aa->m_fps/ab->m_fps;
+	double s = -1, t = -1;
+	for(int i=0,j=0;i<fc1||j<fc2;)
+	{
+		if(i<fc1) s = aa->m_timetable2020[i];
+		if(j<fc2) t = ab->m_timetable2020[j]*r;
+
+		double st; int ii = i, jj = j;
+
+		if(s<t&&s>=0)
+		{
+			i++; st = s;
+		}
+		else if(t<s&&t>=0)
+		{
+			j++; st = t;
+		}
+		else if(s==t&&t>=0)
+		{
+			i++; j++; st = t;
+		}
+		else 
+		{
+			assert(0); break;
+		}
+
+		size_t fc = ts.size();
+
+		if(!fc||st!=ts.back())
+		{
+			ts.push_back(st);
+		}
+		else fc--;
+
+		if(ii!=i) smap.push_back(fc);
+		if(jj!=j) tmap.push_back(fc);
 	}
 
+	//Do this before setAnimFrameTime to be safe.
+	double tf1 = getAnimTimeFrame(mode,anim1);
+	double tf2 = getAnimTimeFrame(mode,anim2);
+	if(tf2>tf1) setAnimTimeFrame(mode,anim1,tf2);
+
+	auto sz = (unsigned)ts.size();
+	setAnimFrameCount(mode,anim1,sz);
+	while(sz-->0)
+	setAnimFrameTime(mode,anim1,sz,ts[sz]);
+
+	//Remap anim1 keyframes to new interleaved times.
+	std::vector<Keyframe*> kmap;
 	auto fa = ANIMMODE_FRAME==mode?(FrameAnim*)ab:nullptr;
-	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
-	for(auto*kf:ab->m_keyframes[j]) 
-	if(kf->m_interp2020)
+	for(Position j{fa?PT_Point:PT_Joint,0};j<aa->m_keyframes.size();j++)
+	for(auto*kf:aa->m_keyframes[j])
 	{
-		setKeyframe(anim1,kf->m_frame,j,kf->m_isRotation,
+		int f = smap[kf->m_frame];
+
+		//HACK: There isn't an undo system for just changing the frame.
+		if(!m_undoEnabled)
+		{
+			kf->m_frame = f;
+		}
+		else if(kf->m_frame!=f)
+		{
+			kmap.push_back(kf);
+			deleteKeyframe(anim1,kf->m_frame,j,kf->m_isRotation);
+		}
+	}
+	for(auto*kf:kmap) //Use setKeyframe for undo support?
+	{
+		//FIX ME: This calls for a new ModelUndo object!!
+
+		Position j{fa?PT_Point:PT_Joint,kf->m_objectIndex};
+		setKeyframe(anim1,smap[kf->m_frame],j,kf->m_isRotation,
 		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
+	}
+
+	//Add anim2 keyframes to anim1
+	for(Position j{fa?PT_Point:PT_Joint,0};j<ab->m_keyframes.size();j++)
+	for(auto*kf:ab->m_keyframes[j])
+	{
+		//HACK: Don't overwrite an existing keyframe with Copy.
+		auto e = kf->m_interp2020;
+		if(e==InterpolateCopy) e = InterpolateKopy;
+
+		setKeyframe(anim1,tmap[kf->m_frame],j,kf->m_isRotation,
+		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],e);
 	}
 
 	if(fa) 
 	{	
-		auto fp = fa->m_frame0;
-		auto fd = ((FrameAnim*)aa)->m_frame0;
-
+		int fp,fp0 = fa->m_frame0;
+		int fd,fd0 = ((FrameAnim*)aa)->m_frame0;
+		
 		bool ue = m_undoEnabled;
 		MU_MoveFrameVertex *undo;
-		for(unsigned f=fa->_frame_count();f-->0;fp++,fd++)
+		for(auto f=(unsigned)ts.size();f-->0;)
 		{
 			if(ue) undo = new MU_MoveFrameVertex;
 			if(ue) undo->setAnimationData(anim1,f);
 
+			int fq = -1;
+			for(auto&i:smap) if(i==f) 
+			{
+				fp = fd0+(&i-smap.data());
+				fd = fd0+i;
+				fq = fp;
+			}
+			for(auto&i:tmap) if(i==f) 
+			{
+				fp = fp0+(&i-tmap.data());
+				fd = fd0+i;				
+			}
+			if(fq==-1) fq = fp;
+
 			int v = 0; for(auto*ea:m_vertices)
 			{
 				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
-				if(!p->m_interp2020) continue;
+
+				//Give priority to non-Copy data, but prefer
+				//Copy to None too.
+				//Note, anim2 is given priority since that's
+				//how joinAnimations works on the splice. It
+				//would be best to offer a parameter perhaps.
+				if(p->m_interp2020<=InterpolateCopy&&fq!=fp)
+				{
+					auto q = ea->m_frames[fq];
+
+					if(q->m_interp2020>p->m_interp2020)
+					{
+						p = q;
+					}
+				}
+
 				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+
 				*d = *p;
 			}
 
@@ -1024,9 +1210,7 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 		}
 	}		
 
-	deleteAnimation(mode,anim2);
-
-	return true;
+	deleteAnimation(mode,anim2); return true;
 }
 
 bool Model::moveAnimation(AnimationModeE mode, unsigned oldIndex, unsigned newIndex)
@@ -1209,6 +1393,12 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 				return true; //2020
 			}
 		}
+		if(InterpolateKopy==interp2020)
+		{ 
+			assert(kf->m_interp2020);
+
+			return true;
+		}
 	}
 	else
 	{
@@ -1218,6 +1408,11 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 		// Do lookup to return proper index
 		list.find_sorted(kf,index);
+
+		if(InterpolateKopy==interp2020)
+		{ 
+			interp2020 = InterpolateCopy;
+		}
 	}
 	
 	//HACK: Supply default interpolation mode to any
@@ -1476,19 +1671,18 @@ void Model::insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData
 {
 	if(!frames) return;
 
-	FrameAnimVertex **dp,**dpp; if(data) 
+	FrameAnimVertex **dp,**dpp; if(data&&!data->empty()) 
 	{
-		if(!data->empty())
-		{
-			dp = data->data(); assert(data->size()==m_vertices.size()*frames);
-		}
-		else data = nullptr;
+		dp = data->data(); assert(data->size()==m_vertices.size()*frames);
+	}
+	else 
+	{
+		dp = nullptr; if(data) data->reserve(m_vertices.size()*frames);
 	}
 
 	for(auto*ea:m_vertices)
 	{
-		auto it = ea->m_frames.begin()+frame0;
-		if(data)
+		auto it = ea->m_frames.begin()+frame0; if(dp)
 		{
 			dpp = dp+frames;
 
@@ -1501,7 +1695,14 @@ void Model::insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData
 			ea->m_frames.insert(it,frames,nullptr);
 			it = ea->m_frames.begin()+frame0;
 
-			for(auto i=frames;i-->0;) *it++ = FrameAnimVertex::get(); 
+			for(auto i=frames;i-->0;)
+			{
+				auto fav = FrameAnimVertex::get();
+
+				if(data) data->push_back(fav);
+
+				*it++ = fav; 
+			}
 		}		
 	}
 }
@@ -2517,8 +2718,7 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 					{
 						pp = jk[k]->m_parameter; break;
 					}
-				}
-				else pp = jk[first[i]-1]->m_parameter;
+				}				
 
 				if(pp==p->m_parameter)
 				{
@@ -2711,7 +2911,6 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 						pp = jk[k]->m_coord; break;
 					}
 				}
-				else pp = jk[first[i]-1]->m_coord;
 
 				if(pp==p->m_coord)
 				{

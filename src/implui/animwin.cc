@@ -505,6 +505,13 @@ bool AnimWin::Impl::copy(bool selected)
 				cp.object = jt; copy1.push_back(cp);
 			}
 		}
+
+		if(copy1.empty())
+		{
+			//msg_error(::tr("No skeletal animation data to copy"));
+			model_status(model,StatusError,STATUSTIME_LONG,"No skeletal animation data to copy");		
+			return false;
+		}
 	}
 	else if(mode==Model::ANIMMODE_FRAME)
 	{
@@ -556,17 +563,30 @@ bool AnimWin::Impl::copy(bool selected)
 				cpt.object = pt; copy3.push_back(cpt);
 			}
 		}
+
+		if(copy2.empty()&&copy3.empty())
+		{
+			//msg_error(::tr("No frame animation data to copy"));
+			model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to copy");		
+			return false;
+		}
 	}
 
-	return !copy1.empty()||!copy2.empty()||!copy3.empty();
+	return true;
 }
 void AnimWin::Impl::paste(bool values)
 {
+	if(!mode) return;
+		
+	frame = model->makeCurrentAnimationFrame();
+
 	if(mode==Model::ANIMMODE_FRAME)
 	{
 		if(copy2.empty()&&copy3.empty())
 		{
-			return msg_error(::tr("No frame animation data to paste"));			
+			//msg_error(::tr("No frame animation data to paste"));
+			model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to paste");		
+			return;
 		}
 
 		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
@@ -596,7 +616,9 @@ void AnimWin::Impl::paste(bool values)
 	{
 		if(copy1.empty())
 		{
-			return msg_error(::tr("No skeletal animation data to paste"));
+			//msg_error(::tr("No skeletal animation data to paste"));
+			model_status(model,StatusError,STATUSTIME_LONG,"No skeletal animation data to paste");		
+			return;
 		}
 
 		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
@@ -691,6 +713,9 @@ void AnimWin::Impl::play(int id)
 		sidebar.play.picture(pic).redraw();
 		shelf2.play.picture(pic).redraw();
 	}
+
+	//REMOVE ME (TEMPORARY FIX)
+	glutSetWindow(win.model.glut_window_id);
 
 	glutSetMenu(win.menu);
 	void *x = playing?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK;

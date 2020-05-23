@@ -1401,34 +1401,6 @@ void Model::endHideDifference()
 	}}
 }
 
-unsigned Model::makeCurrentAnimationFrame()
-{
-	auto mode = m_animationMode; 
-	if(!mode) return 0;
-	auto anim = m_currentAnim, frame = m_currentFrame; 
-	double time = m_currentTime;
-	auto ab = _anim(mode,anim);
-	double cmp = ab->_frame_time(frame);
-	unsigned count = ab->_frame_count();
-	if(time>cmp //insert after?
-	||frame==0&&cmp>0&&time!=cmp //insert before?
-	||!count&&!cmp&&!frame) //e.g. zero-length pose?
-	{
-		//If 0 the new frame is somewhere before the
-		//first frame and it has a nonzero timestamp.
-		frame+=time>cmp;
-
-		//TODO: Relying on setAnimFrameCount to fill
-		//out the new vertices with the current ones.
-		//It would be an improvement to do that here.
-		//REMINDER: HOW MU_AddFrameAnimFrame ANOTHER //???
-		//ModelUndo WON'T BE NEEDED TO FILL THE DATA.
-		setAnimFrameCount(mode,anim,count+1,frame,nullptr);
-		setAnimFrameTime(mode,anim,frame,time);
-		setCurrentAnimationFrame(frame,AT_invalidateAnim);
-	}
-	else assert(time==cmp); return frame;
-}
 void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate2020E e)
 {
 	assert(e>=0&&e<=InterpolateLerp); //InterpolateLerp
@@ -4470,6 +4442,14 @@ bool Model::getBoneJointRotation(unsigned joint, double *coord)const
 bool Model::getBoneJointRotationUnanimated(unsigned joint, double *coord)const
 {
 	return getPositionRotationUnanimated({PT_Joint,joint},coord);
+}
+bool Model::getBoneJointScale(unsigned joint, double *coord)const
+{
+	return getPositionScale({PT_Joint,joint},coord);
+}
+bool Model::getBoneJointScaleUnanimated(unsigned joint, double *coord)const
+{
+	return getPositionScaleUnanimated({PT_Joint,joint},coord);
 }
 bool Model::getPointCoords(unsigned point, double *coord)const
 {

@@ -1046,128 +1046,261 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 
 #ifdef MM3D_EDIT
 
+struct SpatialSort //credit Assimp/SpatialSort.cpp
+{	
+	Vector planeNormal;
+
+    SpatialSort(Model &m):planeNormal(0.8523f,0.34321f,0.5736f)
+    {
+		planeNormal.normalize();
+
+		auto &pl = m.getVertexList();
+
+		entries.reserve(pl.size());
+		Entry e; e.index = 0;
+		for(auto*p:pl)
+		{
+			for(int i=3;i-->0;)
+			e[i] = p->m_coord[i];
+			e[3] = e.dot3(planeNormal);
+			entries.push_back(e); 
+			e.index++;
+		}
+		std::sort(entries.begin(),entries.end());
+	}
+
+	struct Entry : Vector
+	{
+        int index; 
+
+        inline bool operator<(const Entry &e)const
+		{
+			return m_val[3]<e.m_val[3]; //distance
+		}
+    };
+	std::vector<Entry> entries;
+	
+	void find(double cmp[3], double radius, std::vector<int> &out)const
+	{
+		const double dist = dot3(cmp,planeNormal.getVector());
+		const double minDist = dist-radius, maxDist = dist+radius;
+		out.clear();
+		if(entries.empty()||maxDist<entries.front()[3]||minDist>entries.back()[3]) 
+		return;
+
+		size_t i = entries.size()/2, binaryStepSize = entries.size()/4;
+		for(;binaryStepSize>1;binaryStepSize/=2)
+		if(entries[i][3]<minDist) 
+		i+=binaryStepSize; else i-=binaryStepSize;		
+		while(i>0&&entries[i][3]>minDist) 
+		i--;
+		while(i<(entries.size()-1)&&entries[i][3]<minDist) 
+		i++;
+		const double radius2 = radius*radius;
+		for(;i<entries.size()&&entries[i][3]<maxDist;i++)
+		{
+			double diff[3];
+			for(int j=3;j-->0;)
+			diff[j] = entries[i][j]-cmp[j];
+			if(squared_mag3(diff)<radius2)
+			out.push_back(entries[i].index);
+		}
+	}
+};
+
+Model::AnimBase2020 *Model::_dup(AnimationModeE mode, AnimBase2020 *a, bool keyframes)
+{
+	unsigned index = addAnimation(mode,a->m_name.c_str());
+	setAnimFrameCount(mode,index,a->_frame_count());
+
+	AnimBase2020 *b;
+	if(mode==ANIMMODE_SKELETAL) b = m_skelAnims[index];
+	else b = m_frameAnims[index];
+
+	b->m_fps = a->m_fps;
+	b->m_frame2020 = a->m_frame2020;
+	b->m_timetable2020 = a->m_timetable2020;
+	b->m_wrap = a->m_wrap;
+
+	if(keyframes)
+	{
+		Position j{mode==ANIMMODE_SKELETAL?PT_Joint:PT_Point,0};
+
+		for(;j<a->m_keyframes.size();j++)			
+		for(auto*kf:a->m_keyframes[j])
+		{
+			setKeyframe(index,kf->m_frame,j,kf->m_isRotation,
+			kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
+		}
+	}
+
+	return b;
+}
 bool Model::mergeAnimations(Model *model)
 {
-	if(m_animationMode) return false; //REMOVE ME
+	//if(m_animationMode) return false; //REMOVE ME
 
 	unsigned count = model->getAnimCount(ANIMMODE_SKELETAL);
-	unsigned ac1 = getAnimCount(ANIMMODE_SKELETAL);
 
-	if(count==0)
+	if(!count&&!model->getAnimCount(ANIMMODE_FRAME))
 	{
-		msg_warning(TRANSLATE("LowLevel","Model contains no skeletal animations"));
+		//msg_warning(TRANSLATE("LowLevel","Model contains no skeletal animations"));
+		msg_warning(TRANSLATE("LowLevel","Model contains no animations"));
 		return false;
 	}
 
-	unsigned j1 = getBoneJointCount();
-	unsigned j2 = model->getBoneJointCount();
-
-	if(j1!=j2) mismatchwarn:
+	if(count)
 	{
-		msg_warning(TRANSLATE("LowLevel","Model skeletons do not match"));
-		return false;
-	}
-	for(unsigned j = 0; j<j1; j++)
-	if(m_joints[j]->m_parent!=model->m_joints[j]->m_parent)
-	{
-		goto mismatchwarn;
-	}
+		unsigned j1 = getBoneJointCount();
+		unsigned j2 = model->getBoneJointCount();
 
-//	bool canAdd = canAddOrDelete();
-//	forceAddOrDelete(true);
-
-	// Do skeletal add
-	{
-		for(unsigned n = 0; n<count; n++)
+		if(j1!=j2) mismatchwarn:
 		{
-			unsigned framecount = model->getAnimFrameCount(ANIMMODE_SKELETAL,n);
+			msg_warning(TRANSLATE("LowLevel","Model skeletons do not match"));
+			return false;
+		}
+		for(unsigned j = 0; j<j1; j++)
+		if(m_joints[j]->m_parent!=model->m_joints[j]->m_parent)
+		{
+			goto mismatchwarn;
+		}
+	}
 
-			unsigned index = addAnimation(ANIMMODE_SKELETAL,model->getAnimName(ANIMMODE_SKELETAL,n));
-			setAnimFrameCount(ANIMMODE_SKELETAL,index,framecount);
-			setAnimFPS(ANIMMODE_SKELETAL,n,model->getAnimFPS(ANIMMODE_SKELETAL,n));
+	//	bool canAdd = canAddOrDelete();
+	//	forceAddOrDelete(true);
 
-			SkelAnim *sa = model->m_skelAnims[n];
+	auto f = [&](AnimBase2020 *a, AnimationModeE mode)
+	{
+		unsigned index = addAnimation(mode,a->m_name.c_str());
+		setAnimFrameCount(mode,index,a->_frame_count());
 
-			for(unsigned j = 0; j<sa->m_keyframes.size(); j++)			
-			for(unsigned k = 0; k<sa->m_keyframes[j].size(); k++)
+		AnimBase2020 *b;
+		if(mode==ANIMMODE_SKELETAL) b = m_skelAnims[index];
+		else b = m_frameAnims[index];
+
+		b->m_fps = a->m_fps;
+		b->m_frame2020 = a->m_frame2020;
+		b->m_timetable2020 = a->m_timetable2020;
+
+		auto pt = mode==ANIMMODE_SKELETAL?PT_Joint:PT_Point;
+
+		//TODO: compare points/joints by position?
+		for(unsigned j=0;j<a->m_keyframes.size();j++)			
+		for(unsigned k=0;k<a->m_keyframes[j].size();k++)
+		{
+			Keyframe *kf = a->m_keyframes[j][k];
+			setKeyframe(index,kf->m_frame,{pt,j},kf->m_isRotation,
+			kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
+		}
+
+		return b;
+	};
+
+	if(count) // Do skeletal add
+	{
+		for(unsigned n=0;n<count;n++)
+		{
+			_dup(ANIMMODE_SKELETAL,model->m_skelAnims[n]);
+		}
+	}
+
+	count = model->getAnimCount(ANIMMODE_FRAME);
+
+	if(!count&&!model->getAnimCount(ANIMMODE_SKELETAL))
+	{
+		//msg_warning(TRANSLATE("LowLevel","Model contains no skeletal animations"));
+		msg_warning(TRANSLATE("LowLevel","Model contains no animations"));
+		return false;
+	}
+
+	if(count) //2020
+	{
+		std::vector<std::pair<FrameAnim*,FrameAnim*>> ab;
+
+		for(unsigned n=0;n<count;n++)
+		{
+			FrameAnim *a = model->m_frameAnims[n];
+			AnimBase2020 *b = _dup(ANIMMODE_FRAME,a);
+			ab.push_back({a,(FrameAnim*)b});
+		}
+		
+		SpatialSort ss(*model);
+		std::vector<int> match;
+
+		//todo: want to configure this
+		double r = 2*std::numeric_limits<float>::epsilon();
+
+		//todo: offer 1-to-1 alternative
+		for(auto*v:m_vertices)
+		{
+			ss.find(v->m_coord,r,match);
+
+			if(match.empty()) continue;
+
+			if(match.size()>1)
 			{
-				Keyframe *kf = sa->m_keyframes[j][k];
+				//todo: try to resolve conflicts
+			}
 
-				setKeyframe(ac1+n,kf->m_frame,{Model::PT_Joint,j},kf->m_isRotation,
-						kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
+			auto *w = model->m_vertices[match.front()];
+
+			//I've changed MU_SetAnimFrameCount so that it should restore
+			//these without having to generate separate undo data
+			for(auto&ea:ab)
+			{
+				int ap = ea.first->m_frame0;
+				int bp = ea.second->m_frame0;
+
+				for(size_t i=ea.first->_frame_count();i-->0;)
+				{
+					*v->m_frames[bp++] = *w->m_frames[ap++];
+				}
 			}
 		}
 	}
 
-	invalidateNormals();
+//	invalidateNormals(); //???
 
 //	forceAddOrDelete(canAdd&&m_frameAnims.empty());
 
 	return true;
 }
 
-bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bool emptyGroups, double *trans, double *rot)
+bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE animations, bool emptyGroups)
 {
 	if(m_animationMode) return false; //REMOVE ME
 
 //	bool canAdd = canAddOrDelete();
 //	forceAddOrDelete(true);
 
-	Matrix mat;
-
-	if(rot)
-	{
-		log_debug("merge rotation: %f,%f,%f\n",rot[0],rot[1],rot[2]);
-		mat.setRotation(rot);
-	}
-
-	if(trans)
-	{
-		log_debug("merge translation: %f,%f,%f\n",trans[0],trans[1],trans[2]);
-		mat.setTranslation(trans);
-	}
-
-	unsigned vertbase	= 0;
-	unsigned tribase	 = 0;
-	unsigned grpbase	 = 0;
-	unsigned jointbase  = 0;
-	unsigned pointbase  = 0;
-	unsigned projbase	= 0;
-	unsigned matbase	 = 0;
-
-	unsigned n = 0;
-	unsigned count = 0;
-
 	std::unordered_map<int,int> groupMap;
 	std::unordered_map<int,int> materialMap;
 	std::unordered_set<int> materialsNeeded;
 
-	vertbase	= m_vertices.size();
-	tribase	 = m_triangles.size();
-	grpbase	 = m_groups.size();
-	jointbase  = m_joints.size();
-	pointbase  = m_points.size();
-	projbase	= m_projections.size();
-	matbase	 = m_materials.size();
+	unsigned vertbase = m_vertices.size();
+	unsigned tribase = m_triangles.size();
+	unsigned grpbase = m_groups.size();
+	unsigned jointbase = m_joints.size();
+	unsigned pointbase = m_points.size();
+	unsigned projbase = m_projections.size();
+	unsigned matbase = m_materials.size();
 
 	unselectAll();
 
+	unsigned n,count;
 	count = model->m_vertices.size();
 	for(n = 0; n<count; n++)
 	{
-		Vertex *vert = model->m_vertices[n];
-		Vector vec(vert->m_coord);
-		vec = vec *mat;
-		addVertex(vec[0],vec[1],vec[2]);
+		Vertex *v = model->m_vertices[n];		
+		addVertex(v->m_coord[0],v->m_coord[1],v->m_coord[2]);
 	}
 
 	count = model->m_triangles.size();
 	for(n = 0; n<count; n++)
 	{
 		Triangle *tri = model->m_triangles[n];
-
 		addTriangle(tri->m_vertexIndices[0]+vertbase,
-				tri->m_vertexIndices[1]+vertbase,tri->m_vertexIndices[2]+vertbase);
+		tri->m_vertexIndices[1]+vertbase,tri->m_vertexIndices[2]+vertbase);
 	}
 
 	count = model->m_groups.size();
@@ -1180,92 +1313,50 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 			uint8_t val = model->getGroupSmooth(n);
 			setGroupSmooth(groupMap[n],val);
 			int mat = model->getGroupTextureId(n);
-			if(mat>=0)
-			{
-				materialsNeeded.insert(mat);
-			}
+			if(mat>=0) materialsNeeded.insert(mat);
 		}
 	}
 
-	count = model->m_joints.size();
-	if(count>0)
+	count = model->m_joints.size(); 
+	if(count>0) model->validateSkel();
+	for(n = 0; n<count; n++)
 	{
-		model->validateSkel();
-		for(n = 0; n<count; n++)
-		{
-			Joint *joint = model->m_joints[n];
-			double rot[3];
-			double tran[3];
+		Joint *joint = model->m_joints[n];
+			
+		int parent = joint->m_parent;
+		if(parent>=0) parent+=jointbase;
 
-			Matrix jabs = joint->m_absolute *mat;
-
-			jabs.getRotation(rot);
-			jabs.getTranslation(tran);
-
-			int parent = joint->m_parent;
-
-			if(parent>=0)
-			{
-				parent += jointbase;
-			}
-
-			//NOTE: Passing those rotations to addBoneJoint was
-			//incorrect anyway since it modified them.
-			unsigned i =
-			addBoneJoint(joint->m_name.c_str(),tran[0],tran[1],tran[2],
-					/*rot[0],rot[1],rot[2],*/parent);
-			m_joints[i]->m_absolute.setRotation(rot);
-		}
+		//NOTE: Passing those rotations to addBoneJoint was
+		//incorrect anyway since it modified them.
+		double *tran = joint->m_abs;
+		unsigned nj = addBoneJoint(joint->m_name.c_str(),tran[0],tran[1],tran[2],
+		/*rot[0],rot[1],rot[2],*/parent);
+		memcpy(m_joints[nj]->m_rot,joint->m_rot,sizeof(joint->m_rot));
+		memcpy(m_joints[nj]->m_xyz,joint->m_xyz,sizeof(joint->m_xyz));
 	}
 
-	count = model->m_points.size();
-	if(count>0)
+	count = model->m_points.size(); 	
+	for(n = 0; n<count; n++)
 	{
-		for(n = 0; n<count; n++)
+		Point *point = model->m_points[n];
+
+		double *tran = point->m_abs, *rot = point->m_rot;
+		int pnum = addPoint(point->m_name.c_str(),tran[0],tran[1],tran[2],rot[0],rot[1],rot[2]);
+
+		memcpy(m_points[pnum]->m_xyz,point->m_xyz,3*sizeof(point->m_xyz));
+
+		for(auto&ea:model->m_points[n]->m_influences)
 		{
-			Point *point = model->m_points[n];
-
-			Matrix abs;
-
-			double rot[3];
-			rot[0] = point->m_rot[0];
-			rot[1] = point->m_rot[1];
-			rot[2] = point->m_rot[2];
-
-			abs.setTranslation(point->m_abs[0],point->m_abs[1],point->m_abs[2]);
-			abs.setRotation(rot);
-
-			Matrix pabs = abs *mat;
-
-			double tran[3];
-
-			pabs.getRotation(rot);
-			pabs.getTranslation(tran);
-
-			int pnum = addPoint(point->m_name.c_str(),tran[0],tran[1],tran[2],
-					rot[0],rot[1],rot[2]);
-
-			infl_list *ilist = &model->m_points[n]->m_influences;
-			infl_list::iterator it;
-
-			for(it = ilist->begin(); it!=ilist->end(); it++)
-			{
-				addPointInfluence(pnum,(*it).m_boneId+jointbase,
-						(*it).m_type,(*it).m_weight);
-			}
+			addPointInfluence(pnum,ea.m_boneId+jointbase,ea.m_type,ea.m_weight);
 		}
 	}
 
 	count = model->m_vertices.size();
 	for(n = 0; n<count; n++)
 	{
-		infl_list *ilist = &model->m_vertices[n]->m_influences;
-		infl_list::iterator it;
-
-		for(it = ilist->begin(); it!=ilist->end(); it++)
+		for(auto&ea:model->m_vertices[n]->m_influences)
 		{
-			addVertexInfluence(n+vertbase,(*it).m_boneId+jointbase,
-					(*it).m_type,(*it).m_weight);
+			addVertexInfluence(n+vertbase,ea.m_boneId+jointbase,ea.m_type,ea.m_weight);
 		}
 	}
 
@@ -1324,7 +1415,7 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 		}
 
 		count = model->getProjectionCount();
-		for(n = 0; n<count; ++n)
+		for(n = 0; n<count; n++)
 		{
 			const char *name = model->getProjectionName(n);
 			int type = model->getProjectionType(n);
@@ -1354,7 +1445,7 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 		{
 			for(unsigned i = 0; i<3; i++)
 			{
-				model->getTextureCoords(n,	i,s,t);
+				model->getTextureCoords(n,i,s,t);
 				setTextureCoords(n+tribase,i,s,t);
 			}
 
@@ -1372,265 +1463,94 @@ bool Model::mergeModels(Model *model,bool textures,AnimationMergeE animations,bo
 		}
 	}
 
-	bool frameAnimsNeeded = (getAnimCount(ANIMMODE_FRAME)>0);
-	/*if(frameAnimsNeeded)
-	{
-		setFrameAnimVertexCount(m_vertices.size());
-		setFrameAnimPointCount(m_points.size());
-	}*/
-
-	unsigned oldcount = getAnimCount(ANIMMODE_FRAME);
 	if(animations!=AM_NONE)
 	{
 		// Do frame merge if possible
 		unsigned ac1 = getAnimCount(ANIMMODE_FRAME);
 		unsigned ac2 = model->getAnimCount(ANIMMODE_FRAME);
 
-		bool match = false;
-
-		if(animations==AM_MERGE&&ac1==ac2)
+		bool merge = animations==AM_MERGE&&ac1==ac2;		
+		// Have to check frame counts too
+		for(unsigned a=0;merge&&a<ac1;a++)
 		{
-			match = true; // Have to check frame counts too
+			unsigned fc1 = getAnimFrameCount(ANIMMODE_FRAME,a);
+			unsigned fc2 = model->getAnimFrameCount(ANIMMODE_FRAME,a);
 
-			unsigned a = 0;
-
-			for(a = 0; match&&a<ac1; a++)
-			{
-				unsigned fc1 = getAnimFrameCount(ANIMMODE_FRAME,a);
-				unsigned fc2 = model->getAnimFrameCount(ANIMMODE_FRAME,a);
-
-				if(fc1!=fc2)
-				{
-					match = false;
-				}
-			}
-
-			if(match)
-			{
-				for(a = 0; a<ac1; a++)
-				{
-					unsigned fc1 = getAnimFrameCount(ANIMMODE_FRAME,a);
-					unsigned f;
-
-					unsigned vertcount = model->m_vertices.size();
-
-					for(f = 0; f<fc1; f++)
-					{
-						for(unsigned v = 0; v<vertcount; v++)
-						{
-							double coord[3] = { 0,0,0 };
-							auto e = model->getFrameAnimVertexCoords(a,f,v,coord[0],coord[1],coord[2]);
-							Vector vec(coord);
-							if(e>InterpolateCopy) vec = vec * mat;
-							setFrameAnimVertexCoords(a,f,v+vertbase,vec[0],vec[1],vec[2],e);
-						}
-					}
-
-					unsigned pointcount = model->m_points.size();
-
-					for(f = 0; f<fc1; f++)
-					{
-						for(unsigned p=0;p<pointcount;p++)
-						{
-							double coord[3] = { 0,0,0 };
-							//model->getFrameAnimPointCoords(a,f,p,coord[0],coord[1],coord[2]);
-							auto e = model->getKeyframe(a,f,{PT_Point,p},KeyTranslate,coord[0],coord[1],coord[2]);
-							Vector vec(coord);
-							if(e>InterpolateCopy) vec = vec * mat;
-							//setFrameAnimPointCoords(a,f,p+pointbase,vec[0],vec[1],vec[2]);
-							setKeyframe(a,f,{PT_Point,p+pointbase},KeyTranslate,vec[0],vec[1],vec[2],e);
-
-							//model->getFrameAnimPointRotation(a,f,p,coord[0],coord[1],coord[2]);
-							e = model->getKeyframe(a,f,{PT_Point,p},KeyRotate,coord[0],coord[1],coord[2]);
-							if(e>InterpolateCopy)
-							{
-								Matrix m;
-								m.setRotation(coord);
-								m = m * mat;
-								m.getRotation(coord);
-							}
-							//setFrameAnimPointRotation(a,f,p+pointbase,coord[0],coord[1],coord[2]);
-							setKeyframe(a,f,{PT_Point,p+pointbase},KeyRotate,coord[0],coord[1],coord[2],e);
-						}
-					}
-				}
-
-				frameAnimsNeeded = false;
-			}
+			if(fc1!=fc2) merge = false;
 		}
 
 		// Do frame add otherwise
-		if(!match||animations==AM_ADD)
-		{
-			count = model->getAnimCount(ANIMMODE_FRAME);
-			for(n = 0; n<count; n++)
+		unsigned base = merge?0:ac1;
+		for(unsigned a=0;a<ac2;a++)
+		{			
+			FrameAnim *fa = model->m_frameAnims[a];
+			
+			if(!merge) _dup(ANIMMODE_FRAME,fa,false);								
+
+			for(unsigned j=0;j<fa->m_keyframes.size();j++)
+			for(Keyframe *kf:fa->m_keyframes[j])
 			{
-				unsigned framecount = model->getAnimFrameCount(ANIMMODE_FRAME,n);
-
-				unsigned index = addAnimation(ANIMMODE_FRAME,model->getAnimName(ANIMMODE_FRAME,n));
-				setAnimFrameCount(ANIMMODE_FRAME,index,framecount);
-
-				unsigned f;
-
-				unsigned vertcount = model->m_vertices.size();
-
-				for(f = 0; f<framecount; f++)
-				{
-					for(unsigned v = 0; v<vertcount; v++)
-					{
-						double coord[3] = { 0,0,0 };
-						auto e = model->getFrameAnimVertexCoords(n,f,v,coord[0],coord[1],coord[2]);
-						Vector vec(coord);
-						if(e>InterpolateCopy)
-						vec = vec * mat;
-						setFrameAnimVertexCoords(index,f,v+vertbase,vec[0],vec[1],vec[2],e);
-					}
-				}
-
-				unsigned pointcount = model->m_points.size();
-
-				for(f = 0; f<framecount; f++)
-				{
-					for(unsigned p = 0; p<pointcount; p++)
-					{
-						double coord[3] = { 0,0,0 };
-						//model->getFrameAnimPointCoords(n,f,p,coord[0],coord[1],coord[2]);
-						auto e = model->getKeyframe(n,f,{PT_Point,p},KeyTranslate,coord[0],coord[1],coord[2]);
-						Vector vec(coord);
-						if(e>InterpolateCopy) 
-						vec = vec * mat;
-						//setFrameAnimPointCoords(index,f,p+pointbase,vec[0],vec[1],vec[2]);
-						setKeyframe(index,f,{PT_Point,p+pointbase},KeyTranslate,vec[0],vec[1],vec[2],e);
-
-						//model->getFrameAnimPointRotation(n,f,p,coord[0],coord[1],coord[2]);
-						e = model->getKeyframe(n,f,{PT_Point,p},KeyRotate,coord[0],coord[1],coord[2]);							
-						if(e>InterpolateCopy)
-						{
-							Matrix m;
-							m.setRotation(coord);
-							m = m *mat;
-							m.getRotation(coord);
-						}
-						//setFrameAnimPointRotation(index,f,p+pointbase,coord[0],coord[1],coord[2]);
-						setKeyframe(index,f,{PT_Point,p+pointbase},KeyRotate,coord[0],coord[1],coord[2],e);
-					}
-				}
+				setKeyframe(base+a,kf->m_frame,{Model::PT_Point,j+pointbase},
+				kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 			}
+
+			//Note, setFrameAnimVertexCoords is unnecessary 
+			//because this is a fresh animation
+			auto fp = fa->m_frame0;
+			auto fd = m_frameAnims[base+a]->m_frame0;
+			auto fc = fa->_frame_count();
+			for(size_t v=model->m_vertices.size();v-->0;)
+			{
+				//Note, it's easier on the cache to do
+				//the vertices in the outer loop
+
+				auto p = &model->m_vertices[v]->m_frames[fp];
+				auto d = &m_vertices[vertbase+v]->m_frames[fd];
+
+				for(unsigned c=fc;c-->0;d++,p++) **d = **p;
+			}			
 		}
 
 		// Do skeletal merge if possible
 		ac1 = getAnimCount(ANIMMODE_SKELETAL);
 		ac2 = model->getAnimCount(ANIMMODE_SKELETAL);
 
-		match = false;
-		if(ac1==ac2&&animations==AM_MERGE)
+		merge = ac1==ac2&&animations==AM_MERGE;
+		// Have to check frame counts too
+		for(unsigned a=0;merge&&a<ac1;a++)
 		{
-			match = true; // Still need to check frame count
+			unsigned fc1 = getAnimFrameCount(ANIMMODE_SKELETAL,a);
+			unsigned fc2 = model->getAnimFrameCount(ANIMMODE_SKELETAL,a);
 
-			unsigned a = 0;
-
-			for(a = 0; match&&a<ac1; a++)
-			{
-				unsigned fc1 = getAnimFrameCount(ANIMMODE_SKELETAL,a);
-				unsigned fc2 = model->getAnimFrameCount(ANIMMODE_SKELETAL,a);
-
-				if(fc1!=fc2)
-				{
-					match = false;
-				}
-			}
-
-			if(match)
-			{
-				for(a = 0; a<ac1; a++)
-				{
-					SkelAnim *sa = model->m_skelAnims[a];
-
-					for(unsigned j = 0; j<sa->m_keyframes.size(); j++)
-					{
-						for(unsigned k = 0; k<sa->m_keyframes[j].size(); k++)
-						{
-							Keyframe *kf = sa->m_keyframes[j][k];
-
-							setKeyframe(a,kf->m_frame,{Model::PT_Joint,j+jointbase},
-							kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-						}
-					}
-				}
-			}
+			if(fc1!=fc2) merge = false;
 		}
 
-		// Do skeletal add otherwise
-		if(!match||animations==AM_ADD)
-		{
-			count = model->getAnimCount(ANIMMODE_SKELETAL);
-			for(n = 0; n<count; n++)
+		base = merge?0:ac1;
+		for(unsigned a=0;a<ac2;a++)
+		{	
+			SkelAnim *sa = model->m_skelAnims[a];
+
+			if(!merge) _dup(ANIMMODE_SKELETAL,sa,false);
+
+			for(unsigned j=0;j<sa->m_keyframes.size();j++)
+			for(Keyframe *kf:sa->m_keyframes[j])
 			{
-				unsigned framecount = model->getAnimFrameCount(ANIMMODE_SKELETAL,n);
-
-				unsigned index = addAnimation(ANIMMODE_SKELETAL,model->getAnimName(ANIMMODE_SKELETAL,n));
-				setAnimFrameCount(ANIMMODE_SKELETAL,index,framecount);
-				setAnimFPS(ANIMMODE_SKELETAL,n,model->getAnimFPS(ANIMMODE_SKELETAL,n));
-
-				SkelAnim *sa = model->m_skelAnims[n];
-
-				for(unsigned j = 0; j<sa->m_keyframes.size(); j++)
-				{
-					for(unsigned k = 0; k<sa->m_keyframes[j].size(); k++)
-					{
-						Keyframe *kf = sa->m_keyframes[j][k];
-
-						setKeyframe(ac1+n,kf->m_frame,{Model::PT_Joint,j+jointbase},
-						kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-					}
-				}
+				setKeyframe(base+a,kf->m_frame,{Model::PT_Joint,j+jointbase},
+				kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 			}
 		}
 	}
-
-	/*REFERENCE
-	if(frameAnimsNeeded)
-	{
-		// We have frame anims that don't have our new vertices.  
-		// Must add them
-
-		count = oldcount; // Only need to adjust original frame anims
-		for(n = 0; n<count; n++)
-		{
-			unsigned framecount = getAnimFrameCount(ANIMMODE_FRAME,n);
-			unsigned vertcount = model->m_vertices.size();
-
-			for(unsigned v = 0; v<vertcount; v++)
-			{
-				double coord[3] = { 0,0,0 };
-				model->getVertexCoords(v,coord);
-
-				Vector vec(coord);
-				vec = vec *mat;
-
-				for(unsigned f = 0; f<framecount; f++)
-				{
-					setFrameAnimVertexCoords(n,f,v+vertbase,vec[0],vec[1],vec[2]);
-				}
-			}
-		}
-	}*/
-
-	count = getTriangleCount();
-	for(n = tribase; n<count; ++n)
-		selectTriangle(n);
-
-	count = getBoneJointCount();
-	for(n = jointbase; n<count; ++n)
-		selectBoneJoint(n);
-
-	count = getPointCount();
-	for(n = pointbase; n<count; ++n)
-		selectPoint(n);
-
-	count = getProjectionCount();
-	for(n = projbase; n<count; ++n)
-		selectProjection(n);
+			
+	n = getTriangleCount();
+	while(n-->tribase) selectTriangle(n);
+	//n=getVertexCount();
+	//while(n-->vertbase) selectVertex(n);
+	n = getBoneJointCount();
+	while(n-->jointbase) selectBoneJoint(n);
+	n = getPointCount();
+	while(n-->pointbase) selectPoint(n);
+	n = getProjectionCount();
+	while(n-->projbase) selectProjection(n);
 
 	calculateSkel(); calculateNormals();
 

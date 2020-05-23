@@ -2035,17 +2035,29 @@ void MU_SetAnimFrameCount::undo(Model *model)
 }
 void MU_SetAnimFrameCount::redo(Model *model)
 {
-	model->setAnimFrameCount(m_mode,m_animNum,m_newCount,m_where,nullptr);
+	model->setAnimFrameCount(m_mode,m_animNum,m_newCount,m_where,&m_vertices);
 }
 bool MU_SetAnimFrameCount::combine(Undo *u)
 {
 	return false;
 }
 void MU_SetAnimFrameCount::undoRelease()
-{
-	//log_debug("releasing animation in undo\n");
+{	
+	if(m_oldCount>m_newCount)
+	{
+		//log_debug("releasing animation in undo\n");
 
-	for(auto*ea:m_vertices) ea->release();
+		for(auto*ea:m_vertices) ea->release();
+	}
+}
+void MU_SetAnimFrameCount::redoRelease()
+{	
+	if(m_oldCount<m_newCount)
+	{
+		//log_debug("releasing animation in redo\n");
+
+		for(auto*ea:m_vertices) ea->release();
+	}	
 }
 unsigned MU_SetAnimFrameCount::size()
 {
@@ -2397,7 +2409,7 @@ unsigned MU_DeleteObjectKeyframe::size()
 	return sizeof(MU_DeleteObjectKeyframe)+m_list.size()*sizeof(Model::Keyframe);
 }
 
-void MU_DeleteObjectKeyframe::setAnimationData(const unsigned &anim)
+void MU_DeleteObjectKeyframe::setAnimationData(unsigned anim)
 {
 	m_anim = anim;
 }
@@ -2512,7 +2524,7 @@ unsigned MU_MoveFrameVertex::size()
 	return sizeof(MU_MoveFrameVertex)+m_vertices.size()*sizeof(MoveFrameVertexT);
 }
 
-void MU_MoveFrameVertex::setAnimationData(const unsigned &anim, const unsigned &frame)
+void MU_MoveFrameVertex::setAnimationData(unsigned anim, unsigned frame)
 {
 	m_anim = anim;
 	m_frame = frame;
@@ -2605,7 +2617,7 @@ unsigned MU_MoveFramePoint::size()
 {
 	return sizeof(MU_MoveFramePoint)+m_points.size()*sizeof(MoveFramePointT);
 }
-void MU_MoveFramePoint::setAnimationData(const unsigned &anim, const unsigned &frame)
+void MU_MoveFramePoint::setAnimationData(unsigned anim, unsigned frame)
 {
 	m_anim = anim;
 	m_frame = frame;
@@ -3076,7 +3088,7 @@ bool MU_DeleteAnimation::combine(Undo *u)
 
 void MU_DeleteAnimation::undoRelease()
 {
-	log_debug("releasing animation in undo\n");
+	//log_debug("releasing animation in undo\n");
 	if(m_skelAnim)
 	{
 		m_skelAnim->release();
@@ -3084,6 +3096,7 @@ void MU_DeleteAnimation::undoRelease()
 	if(m_frameAnim)
 	{
 		m_frameAnim->release();
+		
 		for(auto*ea:m_vertices) ea->release();
 	}
 }

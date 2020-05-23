@@ -209,7 +209,7 @@ static void viewwin_mru(int id, char *add=nullptr)
 		char buf[PATH_MAX];
 		if(len>sizeof(buf)-1) return; //FIX ME
 
-		memcpy(buf,add,len+1);
+		memcpy(buf,add,len);
 		#ifdef WIN32
 		for(char*p=buf+len;p-->buf;)
 		{
@@ -226,17 +226,24 @@ static void viewwin_mru(int id, char *add=nullptr)
 
 		if(!n) return; //ILLUSTRATING
 
-		if(lines>10) mru.erase(mru.rfind('\n'));
+		if(lines>10)
+		{
+			size_t s = mru.rfind('\n',mru.size()-1);
+			if(s!=mru.npos) //FIX ME (hand edited??)
+			mru.erase(s+1);
+		}
 	}
 
 	size_t r,s = 0;
 	int i,iN = glutGet(GLUT_MENU_NUM_ITEMS);
-	char *p = const_cast<char*>(mru.c_str());
-	for(i=0;i<lines;i++,p[s++]='\n',id++)
+	for(i=0;i<lines;i++,mru[s++]='\n',id++)
 	{
-		p[s=mru.find('\n',r=s)] = '\0';
-		if(i>=iN) glutAddMenuEntry(p+r,id);
-		else glutChangeToMenuEntry(1+i,p+r,id);
+		s = mru.find('\n',r=s); 
+		if(s==mru.npos) break; //FIX ME (hand edited??)
+
+		mru[s] = '\0';
+		if(i>=iN) glutAddMenuEntry(mru.c_str()+r,id);
+		else glutChangeToMenuEntry(1+i,mru.c_str()+r,id);
 	}
 
 	if(add) config.set(cfg,mru);
@@ -1227,7 +1234,10 @@ void MainWin::merge(Model *model, bool animations_only_non_interactive)
 				extern void mergewin(Model*,Model*);
 				mergewin(model,merge);
 			}
-			else model->mergeAnimations(merge);
+			else if(model->mergeAnimations(merge))
+			{
+				model->operationComplete(::tr("Merge animations","operation complete"));
+			}
 
 			viewwin_mru(viewwin_mruf_menu,(char*)file.c_str());
 
@@ -2160,7 +2170,7 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 		{
 			i = (int)t;
 		}
-		if(i<(int)m->getAnimTimeFrame(am,a))
+		if(i<=(int)m->getAnimTimeFrame(am,a))
 		{
 			t = i;
 		}
