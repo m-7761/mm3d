@@ -139,13 +139,12 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 		auto fa = FrameAnim::get();
 		fa->m_name = name;
 
-		fa->m_frame0 = 0;
-		if(!m_frameAnims.empty())
-		{
-			fa->m_frame0+=m_frameAnims.back()->m_frame0;
-			fa->m_frame0+=m_frameAnims.back()->_frame_count();
-		}
-
+		//TODO: Define FrameAnim::init or add m_frame0 to
+		//AnimBase2020.
+		if(!m_vertices.empty())		
+		fa->m_frame0 = m_vertices.front()->m_frames.size();
+		else fa->m_frame0 = 0;
+		
 		fa->m_keyframes.resize(m_points.size()); //YUCK
 
 		if(m_undoEnabled)
@@ -182,8 +181,7 @@ void Model::deleteAnimation(AnimationModeE m, unsigned index)
 
 		auto fp = fa->m_frame0;
 		auto dt = undo?undo->removeVertexData():nullptr;
-		removeFrameAnimFrame(fp,fa->_frame_count(),dt);			
-
+		removeFrameAnimFrame(fp,fa->_frame_count(),dt);
 		removeFrameAnim(index);
 	}
 
@@ -271,11 +269,6 @@ bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, u
 			assert(!ins||!dt);
 
 			insertFrameAnimFrame(fp,diff,ins?ins:dt);
-		}
-
-		for(size_t a=anim+1;a<m_frameAnims.size();a++)
-		{
-			m_frameAnims[a]->m_frame0+=diff;
 		}
 	}
 
@@ -1579,7 +1572,7 @@ void Model::removeFrameAnim(unsigned index)
 		//2019: MU_AddAnimation?
 		m_changeBits|=Model::AddAnimation;
 
-		FrameAnim *anim = m_frameAnims[index];
+		FrameAnim *fa = m_frameAnims[index];
 
 		/*unsigned num = 0;
 		std::vector<FrameAnim*>::iterator it = m_frameAnims.begin();
@@ -1595,11 +1588,6 @@ void Model::removeFrameAnim(unsigned index)
 		while(m_currentAnim>=m_frameAnims.size())
 		{
 			m_currentAnim--;
-		}
-
-		for(;index<m_frameAnims.size();index++)
-		{
-			m_frameAnims[index]->m_frame0-=anim->_frame_count();
 		}
 	}
 	else //2019
@@ -1705,6 +1693,11 @@ void Model::insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData
 			}
 		}		
 	}
+
+	for(auto*ea:m_frameAnims)
+	{
+		if(ea->m_frame0>frame0) ea->m_frame0+=frames;
+	}
 }
 
 void Model::removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data)
@@ -1729,6 +1722,11 @@ void Model::removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData
 		}
 		ea->m_frames.erase(it,itt);		
 	}	
+
+	for(auto*ea:m_frameAnims)
+	{
+		if(ea->m_frame0>frame0) ea->m_frame0-=frames;
+	}
 }
 
 #endif // MM3D_EDIT

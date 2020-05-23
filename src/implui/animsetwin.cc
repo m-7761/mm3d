@@ -102,13 +102,17 @@ struct AnimSetWin : Win
 
 	checkbox_item *new_item(int id)
 	{
+		auto i = new checkbox_item(id,nullptr);
+		format_item(i); return i;
+	}
+	void format_item(li::item *i)
+	{
+		int id = i->id();
 		utf8 n = model->getAnimName(mode,id);		
 		double fps = model->getAnimFPS(mode,id);
 		double frames = model->getAnimTimeFrame(mode,id);
-		auto i = new checkbox_item(id,nullptr);
 		i->check(model->getAnimWrap(mode,id));
 		i->text().format(&"%s\0%g\0%g",n,fps,frames);
-		return i;
 	}
 
 	static void cbcb(int impl, checkbox_item &it)
@@ -442,6 +446,8 @@ void AnimSetWin::submit(int id)
 	{
 		unsort(); //YUCK
 
+		li::item *i; //id_copy/id_merge
+
 		int a = -1, b = 0; table^[&](li::multisel ea)
 		{
 			switch(id)
@@ -521,7 +527,7 @@ void AnimSetWin::submit(int id)
 			
 				if(a==-1)
 				{
-					a = ea->id(); break;
+					a = ea->id(); i = ea; break;
 				}
 				b+=ea->id();
 				{
@@ -530,10 +536,14 @@ void AnimSetWin::submit(int id)
 					case id_join: ok = model->joinAnimations(mode,a,b); break;
 					case id_merge: ok = model->mergeAnimations(mode,a,b); break;
 					}
-					if(ok){ b--; table.erase(ea); }
+					if(ok)
+					{
+						format_item(i); //update Frames field?
+
+						b--; table.erase(ea); 
+					}
 				}
-				b-=ea->id(); 
-				break;
+				b-=ea->id(); break;
 			}
 		};
 		if(id==id_up||id==id_down)

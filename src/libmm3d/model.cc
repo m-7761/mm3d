@@ -565,11 +565,10 @@ int Model::addVertex(double x, double y, double z)
 	vertex->m_free = false;
 	m_vertices.push_back(vertex);
 
-	auto &fa = m_frameAnims; if(!fa.empty())
+	if(auto fp=m_vertices.front()->m_frames.size())
 	{
-		int fp = fa.back()->m_frame0+fa.back()->_frame_count();
-		vertex->m_frames.reserve(fp);
-		while(fp-->0) vertex->m_frames.push_back(FrameAnimVertex::get());
+		vertex->m_frames.assign(fp,nullptr);
+		while(fp-->0) vertex->m_frames[fp] = FrameAnimVertex::get();
 	}
 
 	if(m_undoEnabled)

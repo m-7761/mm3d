@@ -928,6 +928,7 @@ void AnimWin::submit(int id)
 		break;
 
 	case id_animate_paste:
+	case id_animate_paste_v:
 
 		impl->paste(id==id_animate_paste_v);
 		break;
