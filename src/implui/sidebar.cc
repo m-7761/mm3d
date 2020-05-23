@@ -533,6 +533,15 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 	}
 	else // Change model based on text field input
 	{
+		//YUCK: Historically the Position field is
+		//always visible just so Properties doesn't
+		//appear to be empty.
+		if(model.selection.empty()) 
+		{
+			model_status(model,StatusError,STATUSTIME_LONG,"Empty selection");
+			return;
+		}
+
 		//WORRIED THIS IS IMPRECISE
 		double trans[3],coords[3] = {x,y,z};		
 		for(int i=0;i<3;i++)
@@ -1120,7 +1129,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 			}
 			model->operationComplete(::tr("Change Influence Weight","operation complete"));
 		}
-		else model_status(model,StatusError,STATUSTIME_LONG,"Please input a plain number.");
+		else model_status(model,StatusError,STATUSTIME_LONG,"Please input a plain number");
 	}
 	else if(c==group.v) /* Weight mode selected? */
 	{

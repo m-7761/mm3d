@@ -181,7 +181,7 @@ void Model::deleteAnimation(AnimationModeE m, unsigned index)
 
 		auto fp = fa->m_frame0;
 		auto dt = undo?undo->removeVertexData():nullptr;
-		removeFrameAnimFrame(fp,fa->_frame_count(),dt);
+		removeFrameAnimData(fp,fa->_frame_count(),dt);
 		removeFrameAnim(index);
 	}
 
@@ -260,7 +260,7 @@ bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, u
 
 		if(diff<0)
 		{
-			removeFrameAnimFrame(fp,-diff,dt);
+			removeFrameAnimData(fp,-diff,dt);
 		}
 		else 
 		{
@@ -268,7 +268,7 @@ bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, u
 			//don't have to generate undo data for their copied vertices.
 			assert(!ins||!dt);
 
-			insertFrameAnimFrame(fp,diff,ins?ins:dt);
+			insertFrameAnimData(fp,diff,ins?ins:dt,fa);
 		}
 	}
 
@@ -1010,8 +1010,10 @@ bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 			if(ue) undo = new MU_MoveFrameVertex;
 			if(ue) undo->setAnimationData(anim1,fc1+f);
 
-			int v = 0; for(auto*ea:m_vertices)
+			int v = -1; for(auto*ea:m_vertices)
 			{
+				v++; //HACK: Increment always.
+
 				auto p = ea->m_frames[fp], d = ea->m_frames[fd];				
 
 				//Give priority to the second animation since
@@ -1023,7 +1025,7 @@ bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 					if(d->m_interp2020||!p->m_interp2020) continue;
 				}
 
-				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				if(ue) undo->addVertex(v,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
 				*d = *p;
 			}
 
@@ -1156,27 +1158,32 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 		
 		bool ue = m_undoEnabled;
 		MU_MoveFrameVertex *undo;
+
+		//NOTE: Forward order is important to
+		//not overwrite the source frame data.
 		for(auto f=(unsigned)ts.size();f-->0;)
 		{
-			if(ue) undo = new MU_MoveFrameVertex;
-			if(ue) undo->setAnimationData(anim1,f);
-
 			int fq = -1;
 			for(auto&i:smap) if(i==f) 
 			{
 				fp = fd0+(&i-smap.data());
-				fd = fd0+i;
 				fq = fp;
 			}
 			for(auto&i:tmap) if(i==f) 
 			{
 				fp = fp0+(&i-tmap.data());
-				fd = fd0+i;				
 			}
-			if(fq==-1) fq = fp;
+			if(fq==-1) fq = fp; 
+			
+			fd = fd0+f; if(fp==fd) continue;
 
-			int v = 0; for(auto*ea:m_vertices)
+			if(ue) undo = new MU_MoveFrameVertex;
+			if(ue) undo->setAnimationData(anim1,f);
+
+			int v = -1; for(auto*ea:m_vertices)
 			{
+				v++; //HACK: Increment always.
+
 				auto p = ea->m_frames[fp], d = ea->m_frames[fd];
 
 				//Give priority to non-Copy data, but prefer
@@ -1194,7 +1201,9 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 					}
 				}
 
-				if(ue) undo->addVertex(v++,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				if(p==d) continue;
+
+				if(ue) undo->addVertex(v,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
 
 				*d = *p;
 			}
@@ -1655,7 +1664,7 @@ void Model::removeSkelAnim(unsigned index)
 	}
 }
 
-void Model::insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data)
+void Model::insertFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data, FrameAnim *draw)
 {
 	if(!frames) return;
 
@@ -1696,11 +1705,15 @@ void Model::insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData
 
 	for(auto*ea:m_frameAnims)
 	{
-		if(ea->m_frame0>frame0) ea->m_frame0+=frames;
+		//Note, draw is required because it's ambiguous when adding to 
+		//the back of an animation, since it could be the front of the
+		//next animation.
+
+		if(ea->m_frame0>=frame0&&ea!=draw) ea->m_frame0+=frames;
 	}
 }
 
-void Model::removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data)
+void Model::removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data)
 {
 	if(!frames) return;
 
@@ -1725,6 +1738,9 @@ void Model::removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData
 
 	for(auto*ea:m_frameAnims)
 	{
+		//Note, I don't think this is ambiguous as with insertFrameAnimData
+		//but it might be?
+
 		if(ea->m_frame0>frame0) ea->m_frame0-=frames;
 	}
 }

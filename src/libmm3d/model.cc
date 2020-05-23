@@ -1460,7 +1460,11 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 				{
 					m_changeBits|=MoveOther;
 
-					if(undo) undo->addSelection(cmp); cmp = e;
+					//HACK: Maybe this value should already be stored.
+					if(cmp==InterpolateCopy)					
+					memcpy(c[i]->m_parameter,ea->getParams(d),3*sizeof(double));
+
+					if(undo) undo->addSelection(&cmp); cmp = e;
 				}
 			}
 			else if(const double*coord=ea->getParams(d))
@@ -1483,7 +1487,11 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 				{
 					m_changeBits|=MoveGeometry;
 
-					if(undo) undo->addSelection(cmp); cmp = e;
+					//HACK: Maybe this value should already be stored.
+					if(cmp==InterpolateCopy)					
+					memcpy(vf->m_coord,ea->m_absSource,3*sizeof(double));
+
+					if(undo) undo->addSelection(&cmp); cmp = e;
 				}
 				else if(const double*coord=ea->m_absSource)
 				{
@@ -1505,7 +1513,11 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 				{
 					m_changeBits|=MoveOther;
 
-					if(undo) undo->addSelection(cmp); cmp = e;
+					//HACK: Maybe this value should already be stored.
+					if(cmp==InterpolateCopy)					
+					memcpy(c[i]->m_parameter,ea->getParams(d),3*sizeof(double));
+
+					if(undo) undo->addSelection(&cmp); cmp = e;
 				}
 			}
 			else if(const double*coord=ea->getParams(d))
@@ -2301,7 +2313,7 @@ void Model::undo()
 
 		for(it = list->rbegin(); it!=list->rend(); it++)
 		{
-			ModelUndo *undo = static_cast<ModelUndo*>((*it));
+			ModelUndo *undo = static_cast<ModelUndo*>(*it);
 			undo->undo(this);
 		}
 

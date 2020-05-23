@@ -1720,9 +1720,9 @@ public:
 
 	unsigned size();
 
-	void addSelection(Model::Interpolate2020E e)
+	void addSelection(Model::Interpolate2020E *e)
 	{
-		m_eold.push_back(e);
+		m_eold.push_back({e,*e});
 	}
 
 private:
@@ -1732,7 +1732,8 @@ private:
 	bool m_skeletal; 
 	unsigned m_anim;
 	unsigned m_frame;
-	std::vector<Model::Interpolate2020E> m_eold;
+	typedef Model::Interpolate2020E e;
+	std::vector<std::pair<e*,e>> m_eold;
 	void _do(Model*,bool);
 };
 

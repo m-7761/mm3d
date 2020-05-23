@@ -2502,7 +2502,8 @@ bool MU_MoveFrameVertex::combine(Undo *u)
 {
 	MU_MoveFrameVertex *undo = dynamic_cast<MU_MoveFrameVertex*>(u);
 
-	if(undo)
+	//if(undo)
+	if(undo&&undo->m_frame==m_frame&&undo->m_anim==m_anim)	
 	{
 		MoveFrameVertexList::iterator it;
 
@@ -2597,7 +2598,8 @@ bool MU_MoveFramePoint::combine(Undo *u)
 {
 	MU_MoveFramePoint *undo = dynamic_cast<MU_MoveFramePoint*>(u);
 
-	if(undo)
+	//if(undo)
+	if(undo&&undo->m_frame==m_frame&&undo->m_anim==m_anim)	
 	{
 		MoveFramePointList::iterator it;
 
@@ -3048,7 +3050,7 @@ void MU_DeleteAnimation::undo(Model *model)
 	{
 		model->insertFrameAnim(m_anim,fa);
 		//2020: This restores FrameAnimVertex data to m_vertices.
-		model->insertFrameAnimFrame(fa->m_frame0,fa->_frame_count(),&m_vertices);
+		model->insertFrameAnimData(fa->m_frame0,fa->_frame_count(),&m_vertices,fa);
 		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
 		{
 			model->setCurrentAnimation(Model::ANIMMODE_FRAME,m_anim);
@@ -3070,7 +3072,7 @@ void MU_DeleteAnimation::redo(Model *model)
 	if(auto fa=m_frameAnim)
 	{
 		//2020: This removes FrameAnimVertex data from m_vertices.
-		model->removeFrameAnimFrame(fa->m_frame0,fa->_frame_count(),nullptr);
+		model->removeFrameAnimData(fa->m_frame0,fa->_frame_count(),nullptr);
 		model->removeFrameAnim(m_anim);
 
 		unsigned num = (m_anim<model->getAnimCount(Model::ANIMMODE_FRAME))? m_anim : m_anim-1;
@@ -3842,10 +3844,17 @@ void MU_InterpolateSelected::_do(Model *m, bool undoing)
 
 			unsigned index;
 			if(c.find_sorted(&kf,index))
-			c[index]->m_interp2020 = undoing?*it:m_e; 
+			{
+				auto cmp = &c[index]->m_interp2020;
+				
+				if(cmp==it->first)
+				{
+					*cmp = undoing?it->second:m_e; 
+
+					it++;
+				}
+			}
 			else assert(0);
-			
-			if(undoing) it++;
 		}
 	}
 	else
@@ -3857,7 +3866,14 @@ void MU_InterpolateSelected::_do(Model *m, bool undoing)
 		{
 			m->m_changeBits|=Model::MoveGeometry;
 
-			ea->m_frames[fp]->m_interp2020 = undoing?*it++:m_e; 
+			auto *cmp = &ea->m_frames[fp]->m_interp2020;
+
+			if(cmp==it->first)
+			{
+				*cmp = undoing?it->second:m_e; 
+
+				it++;
+			}
 		}
 		auto jt = fa->m_keyframes.begin();
 		for(auto*ea:m->m_points) 
@@ -3870,10 +3886,17 @@ void MU_InterpolateSelected::_do(Model *m, bool undoing)
 
 			unsigned index;
 			if(c.find_sorted(&kf,index))
-			c[index]->m_interp2020 = undoing?*it:m_e; 
+			{
+				auto cmp = &c[index]->m_interp2020;
+
+				if(cmp==it->first)
+				{
+					*cmp = undoing?it->second:m_e; 
+
+					it++;
+				}
+			}
 			else assert(0);
-			
-			if(undoing) it++;
 		}		
 	}
 

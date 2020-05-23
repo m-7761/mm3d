@@ -90,6 +90,10 @@ void UndoManager::addUndo(Undo *u, bool listCombine)
 
 	if(!listCombine)
 	{
+		//FIX ME!
+		//Why is this one way? See combineWithList for more concerns!
+		//https://github.com/zturtleman/mm3d/issues/138
+
 		m_listCombine = false;
 	}
 
@@ -243,8 +247,13 @@ bool UndoManager::combineWithList(Undo *u)
 	}
 	else if(m_listCombine)
 	{
-		if(m_currentList)
+		if(m_currentList) 
 		{
+			//FIX ME!
+			//It seems like this can get out of sequence? Why not just 
+			//combine to back of the list?
+			//https://github.com/zturtleman/mm3d/issues/138
+
 			UndoList::iterator it;
 			for(it = m_currentList->begin(); it!=m_currentList->end(); it++)
 			{

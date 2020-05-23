@@ -591,7 +591,7 @@ void AnimWin::Impl::paste(bool values)
 
 		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
 		{
-			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,p->e);
+			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,values?Model::InterpolateLerp:p->e);
 		}
 
 		/*for(FramePointCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)

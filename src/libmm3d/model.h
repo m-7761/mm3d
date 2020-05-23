@@ -2029,8 +2029,8 @@ class Model
 		void removeSkelAnim(unsigned anim);
 
 		//INTERNAL: setFrameCount subroutines
-		void insertFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data);
-		void removeFrameAnimFrame(unsigned frame0, unsigned frames, FrameAnimData *data);
+		void insertFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data, FrameAnim *draw);
+		void removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data);
 
 		// ------------------------------------------------------------------
 		// Selection functions
