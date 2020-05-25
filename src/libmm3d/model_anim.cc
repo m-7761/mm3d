@@ -881,7 +881,10 @@ int Model::copyAnimation(AnimationModeE mode, unsigned index, const char *newNam
 		}
 	}		
 
-	return num;
+	//2020: If splitAnimation does this then so should copy
+	moveAnimation(mode,num,index+1); 
+	
+	return index+1; //return num;
 }
 
 int Model::splitAnimation(AnimationModeE mode, unsigned index, const char *newName, unsigned frame)
@@ -1560,11 +1563,6 @@ void Model::insertFrameAnim(unsigned index, FrameAnim *anim)
 			count++;
 		}*/
 		m_frameAnims.insert(m_frameAnims.begin()+index,anim);
-
-		while(++index<m_frameAnims.size())
-		{
-			m_frameAnims[index]->m_frame0+=anim->_frame_count();
-		}
 	}
 	else
 	{

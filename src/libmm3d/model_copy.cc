@@ -343,15 +343,15 @@ bool Model::duplicateSelected()
 
 		// Duplicate faces
 		//log_debug("Duplicating %d faces\n",tri.size());
-		for(unsigned t=0;t<tribase;t++)
+		for(unsigned it=0;it<tribase;it++)
 		{
-			if(!m_triangles[t]->m_selected) continue;
+			if(!m_triangles[it]->m_selected) continue;
 
 			unsigned v[3];
-			getTriangleVertices(t,v[0],v[1],v[2]);
+			getTriangleVertices(it,v[0],v[1],v[2]);
 			int nt = addTriangle(vertMap[v[0]],vertMap[v[1]],vertMap[v[2]]);
 
-			triMap[t] = nt;
+			triMap[it] = nt;
 		//}
 
 		// Duplicate texture coords
@@ -361,8 +361,8 @@ bool Model::duplicateSelected()
 			for(unsigned i=0;i<3;i++)
 			{
 				float s,t;
-				getTextureCoords(t,i,s,t);
-				setTextureCoords(triMap[t],i,s,t);
+				getTextureCoords(it,i,s,t);
+				setTextureCoords(nt,i,s,t); //triMap[it]
 			}
 		}
 

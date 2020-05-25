@@ -245,7 +245,7 @@ void Model::removeBoneJoint(unsigned index)
 		}
 	}
 
-	//for(auto*sa:m_skelAnims)
+	//DUPLICATES removePoint
 	for(unsigned anim=0;anim<m_skelAnims.size();anim++) 
 	{
 		auto sa = m_skelAnims[anim];
@@ -399,19 +399,53 @@ void Model::insertPoint(unsigned index, Model::Point *point)
 	}
 }
 
-void Model::removePoint(unsigned point)
+void Model::removePoint(unsigned index)
 {
-	log_debug("removePoint(%d)\n",point);
+	if(index>=m_points.size())
+	return log_error("removePoint(%d)index out of range\n",index);
+
+	//log_debug("removePoint(%d)\n",index);
 
 	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
-
-	if(point<m_points.size())
+	
+	//DUPLICATES removeJoint
+	for(unsigned anim=0;anim<m_frameAnims.size();anim++) 
 	{
-		m_points.erase(m_points.begin()+point);
+		auto fa = m_frameAnims[anim];
+
+		// Adjust skeletal animations
+		if(index<fa->m_keyframes.size())
+		{
+			// Delete joint keyframes
+			for(auto&kf=fa->m_keyframes[index];!kf.empty();)
+			{
+				//log_debug("deleting keyframe %d for joint %d\n",index,joint); //???
+
+				deleteKeyframe(anim,kf.back()->m_frame,{PT_Point,index});
+			}
+				
+			// Remove joint from keyframe list
+			{
+				//log_debug("removed keyframe list for joint %d\n",index); //???
+						
+				fa->m_keyframes.erase(fa->m_keyframes.begin()+index);
+			}
+		}
+		else assert(index<fa->m_keyframes.size()); //2020
+
+		// Adjust joint indices of keyframes after this joint
+		for(unsigned j=index;j<fa->m_keyframes.size();j++)
+		{
+			for(size_t i=fa->m_keyframes[j].size();i-->0;)
+			{
+				fa->m_keyframes[j][i]->m_objectIndex--;
+			}
+		}
 	}
-	else log_error("removePoint(%d)index out of range\n",point);
+
+	m_points.erase(m_points.begin()+index);	
 }
 
 void Model::insertProjection(unsigned index, Model::TextureProjection *proj)

@@ -1435,6 +1435,8 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 		//return; //!
 	}
 
+	validateAnim(); //setKeyframe/setFrameAnimVertexCoords/InterpolateCopy
+
 	m_changeBits|=MoveGeometry;
 
 	auto undo = !m_undoEnabled?nullptr:

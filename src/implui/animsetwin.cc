@@ -454,7 +454,8 @@ void AnimSetWin::submit(int id)
 			{
 			case id_delete:
 
-				model->deleteAnimation(mode,ea->id());
+				model->deleteAnimation(mode,ea->id()-b);
+				b++;
 				table.erase(ea);
 				break;
 
@@ -475,9 +476,9 @@ void AnimSetWin::submit(int id)
 
 				unsort(); //YUCK
 
-				model->moveAnimation(mode, //NEW
-				model->copyAnimation(mode,ea->id()),ea->id()+1);
-				table.insert(ea->next(),new_item(ea->id()+1)); 
+				model->copyAnimation(mode,ea->id());
+				b++;
+				table.insert(ea->next(),new_item(ea->id()+b)); 
 				break;
 
 			case id_split:
@@ -527,23 +528,26 @@ void AnimSetWin::submit(int id)
 			
 				if(a==-1)
 				{
-					a = ea->id(); i = ea; break;
+					a = ea->id(); i = ea; 
 				}
-				b+=ea->id();
+				else
 				{
-					bool ok = false; switch(id)
+					switch(id)
 					{
-					case id_join: ok = model->joinAnimations(mode,a,b); break;
-					case id_merge: ok = model->mergeAnimations(mode,a,b); break;
+					case id_join: 					
+						if(model->joinAnimations(mode,a,ea->id()+b))
+						break; return;
+					case id_merge:					
+						if(model->mergeAnimations(mode,a,ea->id()+b))
+						break; return;
 					}
-					if(ok)
-					{
-						format_item(i); //update Frames field?
+					b--;
 
-						b--; table.erase(ea); 
-					}
+					format_item(i); //update Frames field?
+
+					table.erase(ea); 
 				}
-				b-=ea->id(); break;
+				break;
 			}
 		};
 		if(id==id_up||id==id_down)
