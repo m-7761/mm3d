@@ -209,8 +209,10 @@ bool DataDest::writeBytes(const void *buf, size_t bufLen)
 /*ssize_t*/intptr_t DataDest::writeVPrintf(const char *fmt, va_list ap)
 {
 	//int rval = vsnprintf(m_strbuf,MAX_PRINTF_SIZE,fmt,ap);
-	int rval; for(size_t sz;sz=m_vpfbuf.size();)
+	int rval; for(;;)
 	{
+		size_t sz = m_vpfbuf.size();
+
 		va_list va; va_copy(va,ap); //C++11		
 		rval = vsnprintf(m_vpfbuf.data(),sz,fmt,va); //ap	
 		va_end(va);

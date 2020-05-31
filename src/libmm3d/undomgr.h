@@ -113,7 +113,7 @@ class UndoManager
 		UndoList	*m_currentList;
 		AtomicList	m_atomic;
 		AtomicList	m_atomicRedo;
-		bool			m_listCombine;
+		bool			m_listCombine; //RETIRED
 
 		unsigned	  m_sizeLimit;
 		unsigned	  m_countLimit;

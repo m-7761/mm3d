@@ -30,7 +30,7 @@
 UndoManager::UndoManager()
 	: m_currentUndo(nullptr),
 	  m_currentList(nullptr),
-	  m_listCombine(true),
+	  m_listCombine(true), //RETIRED
 	  m_sizeLimit(0),
 	  m_countLimit(0),
 	  m_saveLevel(0)
@@ -88,19 +88,23 @@ void UndoManager::addUndo(Undo *u, bool listCombine)
 {
 	clearRedo();
 
+	
+	/*TODO: reinterpret listCombine as don't call combineWithList
+	https://github.com/zturtleman/mm3d/issues/138
 	if(!listCombine)
 	{
 		//FIX ME!
 		//Why is this one way? See combineWithList for more concerns!
-		//https://github.com/zturtleman/mm3d/issues/138
 
 		m_listCombine = false;
-	}
+	}*/
 
 	if(m_currentUndo)
 	{
 		// Try to combine these undo items
-		if(combineWithList(u))
+		/*https://github.com/zturtleman/mm3d/issues/138
+		if(combineWithList(u))*/
+		if(listCombine&&combineWithList(u))
 		{
 			// Combined, release new one
 			u->release();
@@ -146,7 +150,7 @@ void UndoManager::operationComplete(const char *opname)
 	}
 	m_currentList = nullptr;
 	m_currentUndo = nullptr;
-	m_listCombine = true;
+	m_listCombine = true; //RETIRED
 
 	checkSize();
 
@@ -247,13 +251,12 @@ bool UndoManager::combineWithList(Undo *u)
 	}
 	else if(m_listCombine)
 	{
+		/*FIX ME!
+		//It seems like this can get out of sequence? Why not just 
+		//combine to back of the list?
+		//https://github.com/zturtleman/mm3d/issues/138
 		if(m_currentList) 
 		{
-			//FIX ME!
-			//It seems like this can get out of sequence? Why not just 
-			//combine to back of the list?
-			//https://github.com/zturtleman/mm3d/issues/138
-
 			UndoList::iterator it;
 			for(it = m_currentList->begin(); it!=m_currentList->end(); it++)
 			{
@@ -262,7 +265,7 @@ bool UndoManager::combineWithList(Undo *u)
 					return true;
 				}
 			}
-		}
+		}*/
 	}
 	return false;
 }

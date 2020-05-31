@@ -50,7 +50,8 @@ struct EllipseTool : Tool
 
 	virtual void activated(int)
 	{
-		parent->addInt(true,&m_smoothness,TRANSLATE_NOOP("Param","Smoothness"),0,5);		
+		//Note: 4 is insane
+		parent->addInt(true,&m_smoothness,TRANSLATE_NOOP("Param","Smoothness"),0,3);		
 		parent->addBool(true,&m_sphere,TRANSLATE_NOOP("Param","Sphere"));
 		parent->addBool(true,&m_fromCenter,TRANSLATE_NOOP("Param","From Center"));
 	}
