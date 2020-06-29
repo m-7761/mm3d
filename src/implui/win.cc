@@ -34,8 +34,13 @@ Win::f1_titlebar::f1_titlebar(node *p):titlebar(p,msg())
 }
 
 static void win_close()
-{
+{	
 	auto w = (Win*)Widgets95::e::find_ui_by_window_id();
+
+	extern bool viewwin_confirm_close(int);
+	if(!viewwin_confirm_close(w->glut_window_id()))
+	return;
+	
 	auto c = w->main->find([](Win::control *p)
 	{
 		//Note: Radio button IDs fall into this range.
@@ -46,6 +51,7 @@ static void win_close()
 	{
 		return p->id()==id_ok&&dynamic_cast<Win::button*>(p);
 	});
+
 	if(c) w->active_callback(c);
 	else w->basic_submit(id_close);
 }

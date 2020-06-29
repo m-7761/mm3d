@@ -1268,7 +1268,7 @@ bool Model::mergeAnimations(Model *model)
 
 bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE animations, bool emptyGroups)
 {
-	if(m_animationMode) return false; //REMOVE ME
+//	if(m_animationMode) return false; //REMOVE ME
 
 //	bool canAdd = canAddOrDelete();
 //	forceAddOrDelete(true);

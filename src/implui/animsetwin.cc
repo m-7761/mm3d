@@ -112,6 +112,10 @@ struct AnimSetWin : Win
 		double fps = model->getAnimFPS(mode,id);
 		double frames = model->getAnimTimeFrame(mode,id);
 		i->check(model->getAnimWrap(mode,id));
+		format_item(i,n,fps,frames);
+	}
+	void format_item(li::item *i, const char *n, double fps, double frames)
+	{
 		i->text().format(&"%s\0%g\0%g",n,fps,frames);
 	}
 
@@ -304,7 +308,7 @@ void AnimSetWin::submit(int id)
 			submit(id_item);
 			table.outline(n);
 			table.find_line_ptr()->select();
-			table.show_line(n); //UNTESTED
+			table.show_line(n);
 			break;
 		}
 		else
@@ -413,9 +417,7 @@ void AnimSetWin::submit(int id)
 				model->setAnimFPS(mode,ea->id(),e.fps);
 				if(!e.frames.text().empty())
 				model->setAnimTimeFrame(mode,ea->id(),(int)e.frames);
-
-				auto &t = ea->text();
-				t.replace(0,t.find('\0'),c_str);
+				format_item(ea,c_str,e.fps,e.frames);
 			}
 		};
 		if(id==id_new)
@@ -436,8 +438,7 @@ void AnimSetWin::submit(int id)
 			table.add_item((new_item(j))->select());
 
 			refresh();
-		}	
-		else table.redraw(); //HACK
+		}
 		break;
 	}	
 	case id_up: case id_down:

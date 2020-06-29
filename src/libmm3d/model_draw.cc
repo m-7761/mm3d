@@ -828,10 +828,13 @@ void Model::drawJoints(float a)
 {
 	const Vector face(0,1,0),up(0,0,1);
 
+	/*this doesn't belong here, and besides there's
+	//use in seeing bones while posing an animation 
+	//and the joint creation tool needs to work too
 	if(!m_drawJoints
 	||m_animationMode!=ANIMMODE_NONE
 	&&m_animationMode!=ANIMMODE_SKELETAL)
-	return;
+	return;*/
 	
 	validateAnimSkel();
 

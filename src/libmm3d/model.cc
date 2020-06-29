@@ -606,6 +606,9 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 
 	//m_changeBits |= AddGeometry;
 
+	//I'm seeing subdivide triangles all set tot he same verts???
+	assert(v1!=v2&&v1!=v3&&v2!=v3);
+
 	auto &vs = m_vertices;
 	unsigned vsz = m_vertices.size();
 	if(v1<vsz&&v2<vsz&&v3<vsz)
@@ -787,6 +790,9 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3)
 {
 	//if(m_animationMode) return false; //REMOVE ME
+
+	//I'm seeing subdivide triangles all set tot he same verts???
+	assert(vert1!=vert2&&vert1!=vert3&&vert2!=vert3);
 
 	auto &vs = m_vertices;
 	unsigned vsz = m_vertices.size();
@@ -2089,25 +2095,22 @@ void Model::subdivideSelectedTriangles()
 	m_changeBits|=SelectionVertices|SelectionFaces; //2020
 
 	sorted_list<SplitEdgesT> seList;
-	std::vector<unsigned> verts;
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_SubdivideSelected;
-		sendUndo(undo);
-	}
+	//NOTICE: m_undoEnabled = false!
+	auto undo = m_undoEnabled?new MU_SubdivideTriangle:nullptr;
+	if(undo) sendUndo(new MU_SubdivideSelected);
+	if(undo) m_undoEnabled = false;
 
 	unsigned vertexStart = m_vertices.size();
 	unsigned tlen = m_triangles.size();
-		
-	//2020: Use addTriangle for this.
-	bool swap = false; 
-	std::swap(swap,m_undoEnabled);
-
+	unsigned tnew = tlen;
+	
 	for(unsigned t = 0; t<tlen; t++)
 	{
 		if(m_triangles[t]->m_selected)
 		{
+			unsigned verts[3];
+
 			for(unsigned v = 0; v<3; v++)
 			{
 				unsigned a = m_triangles[t]->m_vertexIndices[v];
@@ -2122,70 +2125,42 @@ void Model::subdivideSelectedTriangles()
 					b = c;
 				}
 
-				SplitEdgesT e;
-				e.a = a;
-				e.b = b;
-
-				int vNew = -1;
-				if(seList.find_sorted(e,index))
+				SplitEdgesT e{a,b};
+				if(!seList.find_sorted(e,index))
 				{
-					vNew = seList[index].vNew;
-				}
-				else
-				{
-					double pa[3];
-					double pb[3];
-
+					double pa[3],pb[3];
 					getVertexCoords(a,pa);
 					getVertexCoords(b,pb);
 
-					vNew = m_vertices.size();
+					int vNew = m_vertices.size();
 					addVertex((pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2);
 					m_vertices.back()->m_selected = true;
 					e.vNew = vNew;
 					seList.insert_sorted(e);
+					verts[v] = vNew;
 				}
-				verts.push_back(vNew);
+				else verts[v] = seList[index].vNew;
 			}
 
-			unsigned btri = m_triangles.size();
-	
-			addTriangle(m_triangles[t]->m_vertexIndices[1],verts[1],verts[0]);
-			m_triangles.back()->m_selected = true;
-
-			unsigned ctri = m_triangles.size();
-
-			addTriangle(m_triangles[t]->m_vertexIndices[2],verts[2],verts[1]);
-			m_triangles.back()->m_selected = true;
-
-			unsigned dtri = m_triangles.size();
-
-			addTriangle(verts[0],verts[1],verts[2]);
-			m_triangles.back()->m_selected = true;
+			addTriangle(m_triangles[t]->m_vertexIndices[1],verts[1],verts[0]);			
+			addTriangle(m_triangles[t]->m_vertexIndices[2],verts[2],verts[1]);			
+			addTriangle(verts[0],verts[1],verts[2]);			
 
 			setTriangleVertices(t,m_triangles[t]->m_vertexIndices[0],verts[0],verts[2]);
 
-			if(swap) //std::swap(swap,m_undoEnabled);
-			{
-				m_undoEnabled = true;
+			if(undo) undo->subdivide(t,tnew,tnew+1,tnew+2);
 
-				auto undo = new MU_SubdivideTriangle;
-				undo->subdivide(t,btri,ctri,dtri);
-				sendUndo(undo);
-			}
-
-			verts.clear();
+			for(int i=3;i-->0;) m_triangles[tnew++]->m_selected = true;
 		}
 	}
-	if(swap) //std::swap(swap,m_undoEnabled);
+	if(undo)
 	{
-		auto vundo = new MU_SubdivideTriangle;
-		for(unsigned i = vertexStart; i<m_vertices.size(); i++)
-		vundo->addVertex(i);
-		sendUndo(vundo);
-	}
+		m_undoEnabled = true;
 
-	std::swap(swap,m_undoEnabled);
+		for(unsigned i=vertexStart;i<m_vertices.size();i++)
+		undo->addVertex(i);
+		sendUndo(undo);
+	}	
 
 	invalidateNormals(); //OVERKILL
 }
@@ -2202,7 +2177,6 @@ void Model::subdivideSelectedTriangles_undo(unsigned t1, unsigned t2, unsigned t
 	//This should implement a MU object or shouldn't be a regular API method.
 	assert(!m_undoEnabled);
 
-	//2020: Use addTriangle for this.
 	bool swap = false; 
 	std::swap(swap,m_undoEnabled);
 	{

@@ -226,11 +226,12 @@ static void viewwin_mru(int id, char *add=nullptr)
 
 		if(!n) return; //ILLUSTRATING
 
-		if(lines>10)
+		while(lines>10)
 		{
 			size_t s = mru.rfind('\n',mru.size()-1);
 			if(s!=mru.npos) //FIX ME (hand edited??)
 			mru.erase(s+1);
+			lines--;
 		}
 	}
 
@@ -245,6 +246,7 @@ static void viewwin_mru(int id, char *add=nullptr)
 		if(i>=iN) glutAddMenuEntry(mru.c_str()+r,id);
 		else glutChangeToMenuEntry(1+i,mru.c_str()+r,id);
 	}
+	while(iN>i) glutRemoveMenuItem(iN--);
 
 	if(add) config.set(cfg,mru);
 }
@@ -2192,3 +2194,30 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 	return i;
 }
 
+bool viewwin_confirm_close(int id)
+{
+	auto ui = Widgets95::e::find_ui_by_window_id(id);
+
+	if(ui&&ui->modal()) for(auto*ea:viewwin_list)
+	{
+		if(ea->glut_window_id!=ui->glut_create_id())
+		continue;
+
+		if(!ea->model->canUndoCurrent())
+		return true;
+
+		auto c = ui->main->find(+id_ok);
+		if(!c) return true;
+
+		switch(Win::InfoBox(::tr("Keep changes?"),
+		::tr("Model has been modified\n"
+		"Do you want to keep the model as modified?"),
+		id_yes|id_no|id_cancel,id_cancel))
+		{
+		case id_cancel: return false;
+		case id_yes: ui->active_callback(c); break;
+		}
+		return true;
+	}
+	return true;
+}

@@ -1592,7 +1592,11 @@ void Model::removeFrameAnim(unsigned index)
 		m_frameAnims.erase(m_frameAnims.begin()+index);
 
 		if(m_animationMode==ANIMMODE_FRAME)
-		while(m_currentAnim>=m_frameAnims.size())
+		if(m_frameAnims.empty())
+		{
+			m_currentAnim = 0; //infinite loop?
+		}
+		else while(m_currentAnim>=m_frameAnims.size())
 		{
 			m_currentAnim--;
 		}
@@ -1651,8 +1655,12 @@ void Model::removeSkelAnim(unsigned index)
 		m_skelAnims.erase(m_skelAnims.begin()+index);
 
 		if(m_animationMode==ANIMMODE_SKELETAL)
-		while(m_currentAnim>=m_skelAnims.size())
-		{	
+		if(m_skelAnims.empty())
+		{
+			m_currentAnim = 0; //infinite loop?
+		}
+		else while(m_currentAnim>=m_skelAnims.size())
+		{
 			m_currentAnim--;
 		}
 	}

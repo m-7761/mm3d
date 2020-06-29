@@ -130,6 +130,11 @@ void GroupWin::submit(int id)
 
 		texture.draw(scene.x(),scene.y(),scene.width(),scene.height());
 		break;
+		
+	case id_item:
+
+		group_selected();
+		break;
 
 	case id_delete:
 	case id_select: case -id_select: //Deselect?
@@ -192,12 +197,8 @@ void GroupWin::submit(int id)
 		new_group_or_name(id);
 		break;
 
-	case id_item:
 	case id_ok:		
 
-		if(id==id_item)		
-		group_selected();
-		if(id==id_ok)
 		model->operationComplete(::tr("Group changes","operation complete"));		
 		break;
 

@@ -90,6 +90,9 @@ class UndoManager
 		// Items should be applied in reverse order (back to front)
 		UndoList *undoCurrent();
 
+		// Allow intelligent handling of window close button
+		bool canUndoCurrent()const{ return m_currentUndo!=nullptr; }
+
 		void showStatistics()const;
 
 		void setSizeLimit(unsigned sizeLimit) { m_sizeLimit  = sizeLimit; };

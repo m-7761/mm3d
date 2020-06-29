@@ -1987,6 +1987,9 @@ class Model
 		// a "Cancel" button to discard "unapplied" changes).
 		void undoCurrent();
 
+		// Allow intelligent handling of window close button
+		bool canUndoCurrent()const{ return m_undoMgr->canUndoCurrent(); }
+
 		const char *getUndoOpName()const;
 		const char *getRedoOpName()const;
 

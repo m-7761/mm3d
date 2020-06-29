@@ -31,30 +31,47 @@
 
 struct InvertNormalCommand : Command
 {
-	InvertNormalCommand():Command(1,GEOM_NORMALS_MENU){}
+	InvertNormalCommand():Command(2,GEOM_NORMALS_MENU){}
 
-	virtual const char *getName(int)
+	virtual const char *getName(int arg)
 	{
-		return TRANSLATE_NOOP("Command","Invert Normals"); 
+		switch(arg)
+		{		
+		case 0: return TRANSLATE_NOOP("Command","Make Faces Behind Faces"); 
+		default: assert(0);
+		case 1: return TRANSLATE_NOOP("Command","Invert Normals"); 
+		}
 	}
 
-	virtual const char *getKeymap(int){ return "N"; }
+	virtual const char *getKeymap(int arg)
+	{
+		assert((unsigned)arg<2); return !arg?"Shift+N":"N"; 
+	}
 
 	virtual bool activated(int,Model*);
 };
 
 extern Command *invnormalcmd(){ return new InvertNormalCommand; }
 
-bool InvertNormalCommand::activated(int, Model *model)
+bool InvertNormalCommand::activated(int arg, Model *model)
 {
 	int_list faces;
 	model->getSelectedTriangles(faces);
-	int_list::iterator it;
-
-	for(it = faces.begin(); it!=faces.end(); it++)
+	for(auto i:faces) if(!arg)
 	{
-		model->invertNormals(*it);
+		unsigned int v[3];
+		model->getTriangleVertices(i,v[0],v[1],v[2]);
+		int ii = model->addTriangle(v[2],v[1],v[0]);
+		for(int j=3;j-->0;)
+		{
+			float s,t;
+			model->getTextureCoords(i,j,s,t);
+			model->setTextureCoords(ii,2-j,s,t);
+		}
+		int g = model->getTriangleGroup(i);
+		if(g!=-1) model->addTriangleToGroup(g,ii);
 	}
+	else model->invertNormals(i);
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Normals inverted"));
 
