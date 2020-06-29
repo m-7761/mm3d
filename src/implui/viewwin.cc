@@ -225,14 +225,12 @@ static void viewwin_mru(int id, char *add=nullptr)
 		}		
 
 		if(!n) return; //ILLUSTRATING
-
-		while(lines>10)
-		{
-			size_t s = mru.rfind('\n',mru.size()-1);
-			if(s!=mru.npos) //FIX ME (hand edited??)
-			mru.erase(s+1);
-			lines--;
-		}
+	}
+	for(;lines>10;lines--)
+	{
+		size_t s = mru.rfind('\n',mru.size()-2);
+		if(s!=mru.npos) //FIX ME (hand edited??)
+		mru.erase(s+1);
 	}
 
 	size_t r,s = 0;

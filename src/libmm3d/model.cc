@@ -606,9 +606,6 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 
 	//m_changeBits |= AddGeometry;
 
-	//I'm seeing subdivide triangles all set tot he same verts???
-	assert(v1!=v2&&v1!=v3&&v2!=v3);
-
 	auto &vs = m_vertices;
 	unsigned vsz = m_vertices.size();
 	if(v1<vsz&&v2<vsz&&v3<vsz)
@@ -790,9 +787,6 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3)
 {
 	//if(m_animationMode) return false; //REMOVE ME
-
-	//I'm seeing subdivide triangles all set tot he same verts???
-	assert(vert1!=vert2&&vert1!=vert3&&vert2!=vert3);
 
 	auto &vs = m_vertices;
 	unsigned vsz = m_vertices.size();
