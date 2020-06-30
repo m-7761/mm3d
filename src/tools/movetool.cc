@@ -61,7 +61,7 @@ struct MoveTool : Tool
 		TRANSLATE("Tool","Move complete"));
 		parent->updateAllViews();
 	}		
-		double m_x,m_y;
+		double m_x,m_y,m_z;
 
 		bool m_allowX,m_allowY;
 };
@@ -70,7 +70,7 @@ extern Tool *movetool(){ return new MoveTool; }
 
 void MoveTool::mouseButtonDown()
 {
-	parent->getParentXYValue(m_x,m_y,true);
+	parent->getParentXYZValue(m_x,m_y,m_z,true);
 
 	m_allowX = m_allowY = true;
 	
@@ -79,8 +79,8 @@ void MoveTool::mouseButtonDown()
 }
 void MoveTool::mouseButtonMove()
 {	
-	double pos[2];
-	parent->getParentXYValue(pos[0],pos[1]);
+	double pos[3];
+	parent->getParentXYZValue(pos[0],pos[1],pos[2]);
 
 	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
 	{
@@ -94,9 +94,9 @@ void MoveTool::mouseButtonMove()
 	if(!m_allowX) pos[0] = m_x;
 	if(!m_allowY) pos[1] = m_y;
 
-	double v[3] = { pos[0]-m_x,pos[1]-m_y,0 };
+	double v[3] = { pos[0]-m_x,pos[1]-m_y,pos[2]-m_z };
 
-	m_x = pos[0]; m_y = pos[1];
+	m_x = pos[0]; m_y = pos[1]; m_z = pos[2];
 
 	parent->getParentViewInverseMatrix().apply3(v);
 

@@ -157,12 +157,16 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		glutSetMenu(_rops_menu);
 		int id = model->getDrawJoints()?model->getDrawOptions()&Model::DO_BONES?2:1:0;
 		glutext::glutMenuEnable(id_rops_hide_joints+id,glutext::GLUT_MENU_CHECK);	
+		if(!id&&model->unselectAllBoneJoints())
+		model->operationComplete(::tr("Hide bone joints"));
 	}
 	if(changeBits&Model::ShowProjections)
 	{
 		glutSetMenu(_rops_menu);
 		int id = model->getDrawProjections();
-		glutext::glutMenuEnable(id_rops_hide_projections+id,glutext::GLUT_MENU_CHECK);	
+		glutext::glutMenuEnable(id_rops_hide_projections+id,glutext::GLUT_MENU_CHECK);
+		if(!id&&model->unselectAllProjections())
+		model->operationComplete(::tr("Hide projections"));
 	}
 }
 void MainWin::_drawingModelChanged()
@@ -1597,7 +1601,7 @@ void MainWin::perform_menu_action(int id)
 
 		//REMOVE ME
 		//Note: The default key combo is Ctrl+Shift+D.
-		if(!clipboard_mode&&model->getAnimationMode())
+		if(!clipboard_mode&&m->getAnimationMode())
 		{
 			id = id_animate_delete; goto delete2; 
 		}
@@ -1634,7 +1638,7 @@ void MainWin::perform_menu_action(int id)
  
 	case id_file_save_as: case id_file_export:
 		
-		if(MainWin::save(model,id_file_export==id))
+		if(MainWin::save(m,id_file_export==id))
 		if(id_file_save_as==id)
 		w->_rewrite_window_title();
 		return;
@@ -1687,13 +1691,13 @@ void MainWin::perform_menu_action(int id)
 	/*View->Render Options menu*/
 	case id_rops_hide_joints:
 
-		if(m->getSelectedBoneJointCount())
-		if('Y'==msg_info_prompt(::tr("Cannot hide with selected joints.  Unselect joints now?"),"yN"))		
+		//if(m->getSelectedBoneJointCount())
+		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected joints.  Unselect joints now?"),"yN"))		
 		{
-			m->unselectAll();
+			if(m->unselectAllBoneJoints())
 			m->operationComplete(::tr("Hide bone joints"));
 		}
-		else return; //break; [[fallthrough]];
+		//else return; //break; [[fallthrough]];
 		
 	case id_rops_line_joints: 
 	case id_rops_show_joints:
@@ -1701,7 +1705,7 @@ void MainWin::perform_menu_action(int id)
 		if(id-=id_rops_hide_joints)
 		{
 			config.set("ui_draw_joints",id);
-			model->setDrawOption(Model::DO_BONES,id==2);
+			m->setDrawOption(Model::DO_BONES,id==2);
 		}
 		//Let Shift+B toggle.
 		//m->setDrawJoints(id!=0,0);
@@ -1710,22 +1714,22 @@ void MainWin::perform_menu_action(int id)
 	}
 	case id_rops_hide_projections:
 
-		if(model->getSelectedProjectionCount())	
-		if('Y'==msg_info_prompt(::tr("Cannot hide with selected projections.  Unselect projections now?"),"yN"))
+		//if(m->getSelectedProjectionCount())	
+		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected projections.  Unselect projections now?"),"yN"))
 		{
-			m->unselectAll();
-			model->operationComplete(::tr("Hide projections"));
+			if(m->unselectAllProjections())
+			m->operationComplete(::tr("Hide projections"));
 		}
-		else return; //break; [[fallthrough]];
+		//else return; //break; [[fallthrough]];
 
 	case id_rops_show_projections:
 	{
 		id-=id_rops_hide_projections;
 		//Let Shift+P toggle.
-		if(id==model->getDrawProjections())
+		if(id==m->getDrawProjections())
 		id = !id;
 		config.set("ui_render_projections",id);
-		model->setDrawProjections(id,Model::ShowProjections);
+		m->setDrawProjections(id,Model::ShowProjections);
 		break;
 	}
 	case id_rops_show_badtex: 
@@ -1734,7 +1738,7 @@ void MainWin::perform_menu_action(int id)
 		id-=id_rops_hide_badtex;
 		config.set("ui_render_bad_textures",id);
 		//NEW
-		model->setDrawOption(Model::DO_BADTEX,id);
+		m->setDrawOption(Model::DO_BADTEX,id);
 		break;
 
 	case id_rops_hide_lines: 
@@ -1742,13 +1746,13 @@ void MainWin::perform_menu_action(int id)
 		
 		id-=id_rops_hide_lines;
 		//Let Shift+W toggle.
-		if(id==model->getDrawSelection())
+		if(id==m->getDrawSelection())
 		{
 			id = !id;
 			glutext::glutMenuEnable(id_rops_hide_lines+id,glutext::GLUT_MENU_CHECK);
 		}		
 		config.set("ui_render_3d_selections",id);
-		model->setDrawSelection(id);
+		m->setDrawSelection(id);
 		break;
 
 	case id_rops_hide_backs:
@@ -1756,14 +1760,14 @@ void MainWin::perform_menu_action(int id)
 		
 		id-=id_rops_hide_backs;
 		//Let Shift+F toggle.
-		if(id==!(Model::DO_BACKFACECULL&model->getDrawOptions()))
+		if(id==!(Model::DO_BACKFACECULL&m->getDrawOptions()))
 		{
 			id = !id;
 			glutext::glutMenuEnable(id_rops_hide_backs+id,glutext::GLUT_MENU_CHECK);
 		}
 		config.set("ui_render_backface_cull",id);
 		//NEW
-		model->setDrawOption(Model::DO_BACKFACECULL,!id);
+		m->setDrawOption(Model::DO_BACKFACECULL,!id);
 		break;
 
 	/*View menu*/
@@ -1787,7 +1791,7 @@ void MainWin::perform_menu_action(int id)
 
 		const_cast<int&>(clipboard_mode) = glutGet(glutext::GLUT_MENU_CHECKED);
 		extern void animwin_enable_menu(int,int);
-		animwin_enable_menu(model->getAnimationMode()?_anim_menu:-_anim_menu,clipboard_mode);
+		animwin_enable_menu(m->getAnimationMode()?_anim_menu:-_anim_menu,clipboard_mode);
 		viewwin_status_func();
 		return;
 
@@ -1837,7 +1841,7 @@ void MainWin::perform_menu_action(int id)
 	case id_view_settings:
 		
 		extern void viewportsettings(Model*); 
-		viewportsettings(model); break;
+		viewportsettings(m); break;
 
 	case id_view_init: views.reset(); break;
 
@@ -1849,7 +1853,7 @@ void MainWin::perform_menu_action(int id)
 
 		config.set(id==id_snap_grid?"ui_snap_grid":"ui_snap_vertex",x);
 		
-		Model::ViewportUnits &vu = model->getViewportUnits();
+		Model::ViewportUnits &vu = m->getViewportUnits();
 
 		int y = id==id_snap_grid?vu.UnitSnap:vu.VertexSnap;
 
@@ -1906,9 +1910,8 @@ void MainWin::perform_menu_action(int id)
 		if(TextureManager::getInstance()->reloadTextures())		
 		for(auto ea:viewwin_list)
 		{
-			Model *model = ea->model;
-			model->invalidateTextures(); //OVERKILL
-			views.modelUpdatedEvent();
+			ea->model->invalidateTextures(); //OVERKILL
+			ea->views.modelUpdatedEvent();
 		}
 		return;
 

@@ -2060,7 +2060,7 @@ bool Model::getSelectedBoundingRegion(double *x1, double *y1, double *z1, double
 	return visible!=0;
 }
 
-bool Model::unselectAllVertices()
+void Model::unselectAllVertices()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
 	if(m_undoEnabled) beginSelectionDifference();
@@ -2069,10 +2069,10 @@ bool Model::unselectAllVertices()
 	{
 		m_vertices[v]->m_selected = false;
 	}
-	return true;
+	//return true;
 }
 
-bool Model::unselectAllTriangles()
+void Model::unselectAllTriangles()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
 	beginSelectionDifference();
@@ -2081,19 +2081,19 @@ bool Model::unselectAllTriangles()
 	{
 		m_triangles[t]->m_selected = false;
 	}
-	return true;
+	//return true;
 }
 
-bool Model::unselectAllGroups()
+void Model::unselectAllGroups()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
 	beginSelectionDifference();
 
 	for(unsigned m = 0; m<m_groups.size(); m++)
 	{
-		m_groups[m]->m_selected = false;
+		m_groups[m]->m_selected = false; //???
 	}
-	return true;
+	//return true;
 }
 
 bool Model::unselectAllBoneJoints()
@@ -2101,11 +2101,18 @@ bool Model::unselectAllBoneJoints()
 	//https://github.com/zturtleman/mm3d/issues/90
 	if(m_undoEnabled) beginSelectionDifference();
 
+	bool ret = false;
+
 	for(unsigned j = 0; j<m_joints.size(); j++)
 	{
-		m_joints[j]->m_selected = false;
+		if(m_joints[j]->m_selected)
+		{
+			ret = true;
+
+			m_joints[j]->m_selected = false;
+		}
 	}
-	return true;
+	return ret;
 }
 
 bool Model::unselectAllPoints()
@@ -2113,11 +2120,18 @@ bool Model::unselectAllPoints()
 	//https://github.com/zturtleman/mm3d/issues/90
 	if(m_undoEnabled) beginSelectionDifference();
 
+	bool ret = false;
+
 	for(unsigned p = 0; p<m_points.size(); p++)
 	{
-		m_points[p]->m_selected = false;
+		if(m_points[p]->m_selected)
+		{
+			ret = true;
+
+			m_points[p]->m_selected = false;
+		}
 	}
-	return true;
+	return ret;
 }
 
 bool Model::unselectAllProjections()
@@ -2125,14 +2139,22 @@ bool Model::unselectAllProjections()
 	//https://github.com/zturtleman/mm3d/issues/90
 	if(m_undoEnabled) beginSelectionDifference();
 
+	bool ret = false;
+
 	for(unsigned p = 0; p<m_projections.size(); p++)
 	{
-		m_projections[p]->m_selected = false;
+		if(m_projections[p]->m_selected)
+		{
+			ret = true;
+
+			m_projections[p]->m_selected = false;
+		}
 	}
-	return true;
+
+	return ret;
 }
 
-bool Model::unselectAll()
+void Model::unselectAll()
 {
 	LOG_PROFILE();
 
@@ -2146,7 +2168,7 @@ bool Model::unselectAll()
 	unselectAllProjections();
 
 	endSelectionDifference();
-	return true;
+	//return true;
 }
 
 void Model::selectFreeVertices()

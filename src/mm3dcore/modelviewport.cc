@@ -119,6 +119,8 @@ void ModelViewport::updateMatrix() //NEW
 	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],-z);
 	//Ortho should be 0 right? Tool::addPosition is offsetting
 	//according to m_scroll[2], but it didn't always do so?
+	//https://github.com/zturtleman/mm3d/issues/141#issuecomment-651962335
+	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],-m_scroll[2]);
 	m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],0);
 
 	m_invMatrix = m_viewMatrix.getInverse();
@@ -1357,8 +1359,10 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	parent->viewChangeEvent(*this); //NEW
 }
 
-void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, double &yval, bool selected)
+void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, double &yval, double &zval, bool selected)
 {	
+	zval = 0; //2020: Snapping to vertex Z component!
+
 	//TODO: Cache result in Parent::getParentXYValue?
 
 	Model *model = parent->getModel();
@@ -1385,7 +1389,8 @@ void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, doubl
 	{
 		// snap to vertex
 
-		double curDist = maxDist;
+		//double curDist = maxDist;
+		double curDist = maxDist*maxDist;
 		int i,iN,curIndex = -1;
 		Model::PositionTypeE curType = Model::PT_Vertex;
 		const Matrix &mat = m_viewMatrix;
@@ -1399,7 +1404,8 @@ void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, doubl
 			coord[1]+=mat.get(3,1);
 			coord[2]+=mat.get(3,2);
 
-			double dist = distance(coord[0],coord[1],xval,yval);
+			//double dist = distance(coord[0],coord[1],xval,yval);
+			double dist = pow(coord[0]-xval,2)+pow(coord[1]-yval,2);
 
 			if(dist<curDist)
 			{
@@ -1451,13 +1457,15 @@ void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, doubl
 		if(curIndex>=0)
 		{
 			xval = saveCoord[0]; yval = saveCoord[1];
+			zval = saveCoord[2]; 
 			maxDist = 0;
 		}
 	}
 
 	//if(config.get("ui_snap_grid",false))
 	if(snaps&vu.UnitSnap)
-	if(m_view<Tool::ViewOrtho)		
+	if(m_view<Tool::ViewOrtho)
+	if(m_view>Tool::ViewPerspective) //2020
 	{
 		// snap to grid
 
@@ -1480,7 +1488,10 @@ void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, doubl
 		mult = (int)(y/m_unitWidth+fudge);
 		val = mult*m_unitWidth;
 
-		if(fabs(y-val)<maxDist) yval = val-m_scroll[1];
+		if(fabs(y-val)<maxDist)
+		{
+			yval = val-m_scroll[1];
+		}
 	}
 	
 	//if(!multipanning)
@@ -1490,6 +1501,7 @@ void ModelViewport::getParentXYValue(int bs, int bx, int by, double &xval, doubl
 		//getParentXYValue(bs,x,y,pos[0],pos[1],false); //???
 		pos[0] = xval;
 		pos[1] = yval;
+		pos[2] = zval;
 		m_invMatrix.apply(pos);
 		for(int i=0;i<3;i++) 
 		if(fabs(pos[i])<0.000001) pos[i] = 0;

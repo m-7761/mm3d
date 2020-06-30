@@ -2093,11 +2093,10 @@ class Model
 		};
 		void getSelectedInterpolation(AnimationModeE am, unsigned anim, unsigned frame, Get3<Interpolate2020E>);
 
-		bool unselectAll();
-				
-		bool unselectAllVertices();
-		bool unselectAllTriangles();
-		bool unselectAllGroups();
+		void unselectAll();				
+		void unselectAllVertices();
+		void unselectAllTriangles();
+		void unselectAllGroups(); 
 		bool unselectAllBoneJoints();
 		bool unselectAllPoints();
 		bool unselectAllProjections();

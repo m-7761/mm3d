@@ -110,9 +110,9 @@ public:
 	};
 
 	void frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2);
-		
-	// Tool::Parent methods		
-	void getParentXYValue(int bs, int x, int y, double &xval, double &yval, bool selected);
+	
+	void getParentXYZValue(int bs, int x, int y, double &xval, double &yval, double &zval, bool selected);
+
 	void getRawParentXYValue(int x, int y, double &xval, double &yval)
 	{
 		xval = x/(double)m_viewportWidth*m_width-m_width/2;
@@ -253,10 +253,10 @@ public: //slots:
 	{
 		return ports[m_focus].m_view; 
 	}
-	virtual void getParentXYValue(double &xval, double &yval, bool selected)
+	virtual void getParentXYZValue(double &xval, double &yval, double &zval, bool selected)
 	{
 		//TODO: Cache result?
-		ports[m_focus].getParentXYValue(_bs,_bx,_by,xval,yval,selected);
+		ports[m_focus].getParentXYZValue(_bs,_bx,_by,xval,yval,zval,selected);
 	}
 	virtual void getRawParentXYValue(double &xval, double &yval)
 	{

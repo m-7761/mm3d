@@ -64,7 +64,7 @@ Model::AnimBase2020 *Model::_anim(unsigned anim, unsigned frame, Position pos, b
 
 		//REMOVE US
 		if(verbose)
-		log_error("anim keyframe out of range: anim %d, frame %d, %coint %d\n",anim,frame,pos.index); //???
+		log_error("anim keyframe out of range: anim %d, frame %d, %coint %d\n",anim,frame,c,pos.index); //???
 		if(verbose&&ab)		
 		log_error("max frame is %d, max %coint is %d\n",c,ab->_frame_count());
 
@@ -2651,7 +2651,7 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 	{
 		ret = interpKeyframe(anim,frame,pos,trans);
 	}
-	else if(AnimBase2020*ab=_anim(anim,frame,pos))
+	else if(AnimBase2020*ab=_anim(anim,frame,pos,false))
 	{
 		auto &jk = ab->m_keyframes[pos]; 
 		auto &tt = ab->m_timetable2020;

@@ -270,11 +270,21 @@ public:
 	// a manipulation operation on selected vertices, for update or all
 	// other start operations you would set this value to false).
 	//
-	virtual void getParentXYValue(double &xval, double &yval,bool selected = false) = 0;
-
+	virtual void getParentXYZValue(double &xval, double &yval, double &zval, bool selected = false) = 0;	
+	//
+	// https://github.com/zturtleman/mm3d/issues/141#issuecomment-651962335
+	// Note, MoveTool uses the new XYZ variant but it should be added to the
+	// other tools in due time.
+	//
+	inline void getParentXYValue(double &xval, double &yval, bool selected = false)
+	{
+		double z; getParentXYZValue(xval,yval,z,selected);
+	}
 	inline void getParentXYValue(int bs, int x, int y, double &xval, double &yval)
 	{
-		_bs = bs; _bx = x; _by = y; getParentXYValue(xval,yval); 
+		_bs = bs; _bx = x; _by = y; 
+		
+		double z; getParentXYZValue(xval,yval,z); 
 	}
 
 	// The getRawParentXYValue function returns the mouse coordinates
