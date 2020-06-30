@@ -4,8 +4,8 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License,or
- * (at your option)any later version.
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not,write to the Free Software
- * Foundation,Inc.,59 Temple Place-Suite 330,Boston,MA 02111-1307,
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place-Suite 330, Boston, MA 02111-1307,
  * USA.
  *
  * See the COPYING file for full license text.
@@ -585,7 +585,8 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 			double angle = rotatepoint_diff_to_angle(m_xRotStart*m_aspect,m_yRotStart);
 				
 			//if(e->modifiers()&Qt::ShiftModifier)
-			if(bs&Tool::BS_Shift) angle = rotatepoint_adjust_to_nearest(angle,15);
+			if(bs&Tool::BS_Shift) angle = 
+			rotatepoint_adjust_to_nearest(angle,bs&Tool::BS_Alt?5:15); //HACK
 
 			m_startAngle = angle;
 
@@ -791,7 +792,7 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 				
 		double angle = rotatepoint_diff_to_angle(s*m_aspect,t);
 
-		if(shift) angle = rotatepoint_adjust_to_nearest(angle,15);
+		if(shift) angle = rotatepoint_adjust_to_nearest(angle,bs&Tool::BS_Alt?5:15);
 
 		rotateSelectedVertices(angle-m_startAngle);
 

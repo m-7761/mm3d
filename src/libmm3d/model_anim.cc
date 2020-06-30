@@ -4,8 +4,8 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License,or
- * (at your option)any later version.
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not,write to the Free Software
- * Foundation,Inc.,59 Temple Place-Suite 330,Boston,MA 02111-1307,
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place-Suite 330, Boston, MA 02111-1307,
  * USA.
  *
  * See the COPYING file for full license text.
@@ -2767,12 +2767,12 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				//Note: There is no extrapolation after the final frame
 				//since older MM3D files used step mode and fixed count.
 
-				static double identity[3]; //And points? rotateSelected?
+				static double identity[2][3] = {{0,0,0},{1,1,1}};
 				dp = pp;
 				if(pos.type!=PT_Joint)
 				pp = getPositionObject(pos)->getParamsUnanimated((Interpolant2020E)i);
 				else
-				pp = identity;
+				pp = identity[i==2];
 				t = lerp?time/cmp:0;
 			}
 

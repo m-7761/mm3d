@@ -4,8 +4,8 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License,or
- * (at your option)any later version.
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not,write to the Free Software
- * Foundation,Inc.,59 Temple Place-Suite 330,Boston,MA 02111-1307,
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place-Suite 330, Boston, MA 02111-1307,
  * USA.
  *
  * See the COPYING file for full license text.
@@ -190,8 +190,8 @@ int RotateTool::mouse2()
 		double xDiff = pos[0]-coords[0];
 		double yDiff = pos[1]-coords[1];
 		double angle = rotatepoint_diff_to_angle(xDiff,yDiff);
-		if(parent->getButtons()&BS_Shift) 
-		angle = rotatepoint_adjust_to_nearest(angle,15);
+		if(parent->getButtons()&BS_Shift) angle = 
+		rotatepoint_adjust_to_nearest(angle,parent->getButtons()&Tool::BS_Alt?5:15); //HACK
 
 		m_mouse2_angle = angle;
 	}

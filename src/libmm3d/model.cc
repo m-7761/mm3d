@@ -4,8 +4,8 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License,or
- * (at your option)any later version.
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not,write to the Free Software
- * Foundation,Inc.,59 Temple Place-Suite 330,Boston,MA 02111-1307,
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place-Suite 330, Boston, MA 02111-1307,
  * USA.
  *
  * See the COPYING file for full license text.
@@ -1416,13 +1416,21 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 	auto anim = m_currentAnim, frame = 
 	e?m_currentFrame:makeCurrentAnimationFrame(); 
 	
+	Keyframe kf;
+	kf.m_isRotation = KeyType2020E(1<<d);
+	kf.m_frame = frame;
+
 	if(!e) if(skel)
 	{
+		if(!kf.m_isRotation) 
+		kf.m_isRotation = KeyAny; //I guess? 
+
 		for(auto j=m_joints.size();j-->0;)
 		{
 			if(m_joints[j]->m_selected)
-			deleteKeyframe(anim,frame,{PT_Joint,j});
+			deleteKeyframe(anim,frame,{PT_Joint,j},kf.m_isRotation);
 		}
+
 		return; //!
 	}
 	else if(m_animationMode==ANIMMODE_FRAME)
@@ -1430,7 +1438,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 		for(auto j=m_points.size();j-->0;)
 		{
 			if(m_points[j]->m_selected)
-			deleteKeyframe(anim,frame,{PT_Point,j});
+			deleteKeyframe(anim,frame,{PT_Point,j},kf.m_isRotation);
 		}
 		//return; //!
 	}
@@ -1442,9 +1450,6 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 	auto undo = !m_undoEnabled?nullptr:
 	new MU_InterpolateSelected(d,e,skel,anim,frame);
 
-	Keyframe kf;
-	kf.m_isRotation = KeyType2020E(1<<d);
-	kf.m_frame = frame;
 	Position j{skel?PT_Joint:PT_Point,0};
 	if(skel)
 	{
@@ -4245,6 +4250,7 @@ bool Model::setPositionCoords(const Position &pos, const double *coord)
 	if(pos.type==PT_Point&&m_animationMode==ANIMMODE_FRAME
 	 ||pos.type==PT_Joint&&m_animationMode==ANIMMODE_SKELETAL)
 	{
+		makeCurrentAnimationFrame();
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyTranslate,coord[0],coord[1],coord[2]);
 	}
@@ -4292,6 +4298,7 @@ bool Model::setPositionRotation(const Position &pos, const double *rot)
 	if(pos.type==PT_Point&&m_animationMode==ANIMMODE_FRAME
 	 ||pos.type==PT_Joint&&m_animationMode==ANIMMODE_SKELETAL)
 	{
+		makeCurrentAnimationFrame();
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyRotate,rot[0],rot[1],rot[2]);
 	}
@@ -4336,6 +4343,7 @@ bool Model::setPositionScale(const Position &pos, const double *scale)
 	if(pos.type==PT_Point&&m_animationMode==ANIMMODE_FRAME
 	 ||pos.type==PT_Joint&&m_animationMode==ANIMMODE_SKELETAL)
 	{
+		makeCurrentAnimationFrame();
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyScale,scale[0],scale[1],scale[2]);
 	}
@@ -4575,8 +4583,8 @@ bool Model::getPositionParams(const Position &pos, Interpolant2020E d, double pa
 	case InterpolantCoords: return getPositionCoords(pos,params);
 	case InterpolantRotation: return getPositionRotation(pos,params);
 	case InterpolantScale: return getPositionScale(pos,params);
-	default: return false;
 	}
+	return false;
 }
 bool Model::getPositionParamsUnanimated(const Position &pos, Interpolant2020E d, double params[3])const
 {
