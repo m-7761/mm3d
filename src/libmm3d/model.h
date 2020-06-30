@@ -104,6 +104,8 @@ class Model
 			AnimationMode        = 0x00002000, // Changed animation mode
 			AnimationSet		 = 0x00004000, // Changes to animation sets
 			AnimationFrame       = 0x00008000, // Changed current animation frame
+			ShowJoints           = 0x00010000, // Joints forced visible
+			ShowProjections      = 0x00020000, // Projections forced visible
 			ChangeAll			 = 0xFFFFFFFF	// All of the above
 		};
 
@@ -1244,13 +1246,25 @@ class Model
 		void setPerspectiveDrawMode(int m){ m_perspectiveDrawMode = m; };
 		int getPerspectiveDrawMode()const{ return m_perspectiveDrawMode; };
 
-		void setDrawJoints(bool o){ m_drawJoints = o; }
+		void setDrawJoints(bool o, int cb=ShowJoints)
+		{
+			if(!cb||m_drawJoints!=o)
+			{
+				m_drawJoints = o; m_changeBits|=cb;
+			}
+		}
 		bool getDrawJoints()const{ return m_drawJoints; }
 
 		void setDrawSelection(bool o){ m_drawSelection = o; }
 		bool getDrawSelection()const{ return m_drawSelection; }
 		
-		void setDrawProjections(bool o){ m_drawProjections = o; };
+		void setDrawProjections(bool o, int cb=ShowProjections)
+		{
+			if(!cb||m_drawProjections!=o)
+			{
+				m_drawProjections = o; m_changeBits|=cb;
+			}
+		};
 		bool getDrawProjections()const { return m_drawProjections; };
 
 		// Open GL needs textures allocated for each viewport that renders the textures.

@@ -117,7 +117,9 @@ void ModelViewport::updateMatrix() //NEW
 	}
 	//YUCK: Need to keep ortho matrix even for perspective.
 	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],-z);
-	m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],-m_scroll[2]);
+	//Ortho should be 0 right? Tool::addPosition is offsetting
+	//according to m_scroll[2], but it didn't always do so?
+	m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],0);
 
 	m_invMatrix = m_viewMatrix.getInverse();
 
@@ -1059,22 +1061,6 @@ void ModelViewport::mouseReleaseEvent(int bt, int bs, int x, int y)
 			Tool *tool = parent->tool;
 			tool->mouseButtonUp(bt|bs,x-m_viewportX,y-m_viewportY);
 			model->operationComplete(TRANSLATE("Tool",tool->getName(parent->tool_index)));
-
-			//REMOVE ME
-			//Getting the count is inefficient for this purpose. 
-			//Why is this even here?
-			/*???
-			if(model->getSelectedProjectionCount())
-			{
-				model->setDrawProjections(true); parent->updateView();
-			}
-			//???
-			if(model->getSelectedBoneJointCount())
-			{
-				model->setDrawJoints(true); parent->updateView();
-			}*/
-			assert(model->getDrawJoints()||!model->getSelectedBoneJointCount());
-			assert(model->getDrawProjections()||!model->getSelectedProjectionCount());
 		}
 	}
 	else

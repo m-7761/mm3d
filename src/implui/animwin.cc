@@ -92,7 +92,8 @@ struct AnimWin::Impl
 	const int &sep_animation; 
 
 	Model *model;
-	Model::AnimationModeE mode;
+	Model::AnimationModeE mode,soft_mode;
+	bool soft_mode_bones;
 	unsigned anim;
 	unsigned frame;	
 	bool &playing,autoplay;
@@ -218,6 +219,11 @@ void AnimWin::open(bool undo)
 void AnimWin::Impl::open2(bool undo)
 {	
 	bool swapping = false; //YUCK
+
+	if(!mode)
+	{
+		soft_mode_bones = model->getDrawJoints();
+	}
 
 	if(model!=win.model)
 	{
@@ -807,6 +813,15 @@ void AnimWin::Impl::refresh_item()
 
 	//set_frame(frame);
 	set_frame(model->getCurrentAnimationFrameTime());
+
+	if(mode!=soft_mode) switch(soft_mode=mode)
+	{
+	case Model::ANIMMODE_NONE:
+
+		if(soft_mode_bones) model->setDrawJoints(soft_mode_bones); break;
+
+	default: model->setDrawJoints(mode==Model::ANIMMODE_SKELETAL); break;
+	}		
 }
 
 void AnimWin::Impl::refresh_undo()

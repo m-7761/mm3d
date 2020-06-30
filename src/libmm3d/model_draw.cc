@@ -828,13 +828,19 @@ void Model::drawJoints(float a)
 {
 	const Vector face(0,1,0),up(0,0,1);
 
-	/*this doesn't belong here, and besides there's
-	//use in seeing bones while posing an animation 
-	//and the joint creation tool needs to work too
 	if(!m_drawJoints
+	/*This is confusing because the tool system can
+	//still make joints that won't be displayed.
+	//NOTE: to deal with this I've added ShowJoints
+	//and ShowProjections that let tools notify the
+	//"observers" they're forcibly displayed, and 
+	//the implui code remembers the setting in NONE
+	//animation mode and restores it, and forces it
+	//on/off in the other modes, but this allows it 
+	//to be overriden.
 	||m_animationMode!=ANIMMODE_NONE
-	&&m_animationMode!=ANIMMODE_SKELETAL)
-	return;*/
+	&&m_animationMode!=ANIMMODE_SKELETAL*/)
+	return;
 	
 	validateAnimSkel();
 

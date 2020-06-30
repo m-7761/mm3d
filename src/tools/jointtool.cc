@@ -57,6 +57,8 @@ void JointTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
+	model->setDrawJoints(true);
+
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1],true);
 

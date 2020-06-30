@@ -78,12 +78,12 @@ enum
 	id_rops_show_joints,
 	id_rops_hide_projections,
 	id_rops_show_projections,
-	id_rops_show_badtex,
 	id_rops_hide_badtex,
-	id_rops_show_lines,
+	id_rops_show_badtex,
 	id_rops_hide_lines,
-	id_rops_show_backs,
+	id_rops_show_lines,
 	id_rops_hide_backs,
+	id_rops_show_backs,
 
 	/*View menu*/
 	id_frame_all,
