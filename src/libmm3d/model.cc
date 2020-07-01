@@ -1457,7 +1457,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 	auto undo = !m_undoEnabled?nullptr:
 	new MU_InterpolateSelected(d,e,skel,anim,frame);
 
-	Position j{skel?PT_Joint:PT_Point,0};
+	Position j{skel?PT_Joint:PT_Point,-1};
 	if(skel)
 	{
 		auto jt = m_skelAnims[anim]->m_keyframes.begin();
