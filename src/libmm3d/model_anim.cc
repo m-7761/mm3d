@@ -102,8 +102,7 @@ unsigned Model::insertAnimFrame(AnimationModeE mode, unsigned anim, double time)
 		//REMINDER: HOW MU_AddFrameAnimFrame ANOTHER //???
 		//ModelUndo WON'T BE NEEDED TO FILL THE DATA.
 		setAnimFrameCount(mode,anim,count+1,frame,nullptr);
-		setAnimFrameTime(mode,anim,frame,time);
-		setCurrentAnimationFrame(frame,AT_invalidateAnim);
+		setAnimFrameTime(mode,anim,frame,time);		
 	}
 	else assert(time==cmp); return frame;
 }
@@ -1500,7 +1499,9 @@ bool Model::deleteKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 			sendUndo(undo);
 		}
 	}
-	return removeKeyframe(anim,frame,pos,isRotation);
+	//MEMORY LEAK
+	//It seems like "false" should be true when not using the "undo" system?		
+	return removeKeyframe(anim,frame,pos,isRotation,false);
 }
 
 bool Model::insertKeyframe(unsigned anim, PositionTypeE pt, Keyframe *keyframe)
@@ -1530,7 +1531,7 @@ bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 	{
 		Keyframe *kf = *it;
 		it = list.erase(it);
-		if(release) kf->release();
+		if(release) kf->release(); //MEMORY LEAK (when is this ever the case?)
 	}
 	else it++;
 	

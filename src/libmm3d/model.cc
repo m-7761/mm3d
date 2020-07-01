@@ -1263,6 +1263,7 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 			p->m_absolute.inverseTranslateVector(coord);
 			p->m_absolute.inverseRotateVector(coord);
 		}
+		makeCurrentAnimationFrame();
 		rval = -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,{PT_Joint,j},KeyTranslate,coord[0],coord[1],coord[2]);
 	}
@@ -1295,6 +1296,7 @@ bool Model::movePoint(unsigned p, double x, double y, double z)
 	}
 	else if(m_animationMode==ANIMMODE_FRAME)
 	{
+		makeCurrentAnimationFrame();
 		//return setFrameAnimPointCoords(m_currentAnim,m_currentFrame,p,x,y,z);
 		return -1!=setKeyframe(m_currentAnim,m_currentFrame,{PT_Point,p},KeyTranslate,x,y,z);
 	}
@@ -1410,11 +1412,16 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 	bool skel = am==ANIMMODE_SKELETAL;
 		
-	//TODO: Remove the frame if not keys remain. This can be
+	//TODO: Remove the frame if no keys remain. This can be
 	//done manually with the clear operation until a counter
 	//is added/managed.
-	auto anim = m_currentAnim, frame = 
-	e?m_currentFrame:makeCurrentAnimationFrame(); 
+	auto anim = m_currentAnim, frame = m_currentFrame;
+	if(!e) //Programmer error? 
+	{
+		if(m_currentTime!=getAnimFrameTime(am,anim,frame))
+		return;
+	}
+	else frame = makeCurrentAnimationFrame(); 
 	
 	Keyframe kf;
 	kf.m_isRotation = KeyType2020E(1<<d);

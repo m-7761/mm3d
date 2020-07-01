@@ -1346,7 +1346,9 @@ class Model
 		//always when inserting to the front.
 		unsigned makeCurrentAnimationFrame()
 		{
-			return insertAnimFrame(m_animationMode,m_currentAnim,m_currentTime);
+			auto cmp = insertAnimFrame(m_animationMode,m_currentAnim,m_currentTime);
+			if(cmp!=m_currentFrame) setCurrentAnimationFrame(cmp,AT_invalidateAnim);
+			return cmp;
 		}
 
 		unsigned getCurrentAnimation()const;
@@ -1471,6 +1473,7 @@ class Model
 		Interpolate2020E hasKeyframe(unsigned anim, unsigned frame,
 				Position, KeyType2020E isRotation=KeyAny)const;
 
+		//MEMORY LEAK (removeKeyframe leaks if not using undo system.)
 		bool deleteKeyframe(unsigned anim, unsigned frame, Position joint, KeyType2020E isRotation=KeyAny);
 
 		/*REFERENCE

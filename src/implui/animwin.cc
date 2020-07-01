@@ -778,8 +778,9 @@ void AnimWin::Impl::refresh_item()
 		shelf2.play.enable();
 		shelf2.loop.enable();
 
-		assert(!frame);
-		frame = 0;
+		//hitting this on deleting last animation?
+		//assert(!frame);
+		//frame = 0;
 
 		shelf1.fps.limit();
 		shelf1.frames.limit();

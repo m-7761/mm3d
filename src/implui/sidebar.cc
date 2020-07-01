@@ -686,21 +686,10 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 		menu[1].set_hidden(mask==1);
 		menu[2].set_hidden(mask==1);
 
-		if(!mask) //Keyframe without data?
-		{
-			memset(cmp,0x00,sizeof(cmp));
-		}
-		else //No data exists between frames...
-		{
-			if(model->getCurrentAnimationFrameTime()
-			!=model->getAnimFrameTime(am,anim,frame))
-			{
-				for(int i=3;i-->0;) if(cmp[i]>0)
-				{
-					cmp[i] = Model::InterpolateNone;
-				}
-			}
-		}
+		if(!mask //No frames? Not keyframe?
+		||model->getCurrentAnimationFrameTime()
+		!=model->getAnimFrameTime(am,anim,frame))
+		for(int i=3;i-->0;) cmp[i] = Model::InterpolateNone;
 		for(int i=3;i-->0;) menu[i].set_int_val(cmp[i]);	
 	}
 	else // Change model based on text field input

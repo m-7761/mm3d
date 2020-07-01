@@ -502,7 +502,7 @@ namespace
 		float32_t localScale[3]; //2020
 	};
 
-	const size_t FILE_JOINT_SIZE = 10+12;
+	const size_t FILE_JOINT_SIZE = 70+12;
 
 	struct MM3DFILE_JointVertexT
 	{
@@ -1876,6 +1876,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 						assert((oi>>16&0xFF)==Model::PT_Joint);
 						e = (Model::Interpolate2020E)(oi>>24&0xFF);
 						oi&=0xFFFF;
+
+						//HACK: This is an error, it's not a problem but it's
+						//junk in the file from an erroneous program. Log it?
+						if(e<=0||e>Model::InterpolateLerp) continue;
 					}
 
 					auto t = Model::KeyTranslate;
@@ -2143,6 +2147,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 						assert((oi>>16&0xFF)==Model::PT_Point);
 						auto e = (Model::Interpolate2020E)(oi>>24&0xFF);
 						oi&=0xFFFF;
+						//HACK: This is an error, it's not a problem but it's
+						//junk in the file from an erroneous program. Log it?
+						if(e<=0||e>Model::InterpolateLerp) continue;
 
 						auto t = Model::KeyTranslate;
 						if(~fileKf.keyframeType&1) 
