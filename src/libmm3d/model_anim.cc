@@ -1842,7 +1842,14 @@ bool Model::setCurrentAnimation(AnimationModeE m, unsigned index)
 	for(auto*ea:m_vertices) ea->_source(m);
 	for(auto*ea:m_triangles) ea->_source(m);
 	for(auto*ea:m_points) ea->_source(m);
-	for(auto*ea:m_joints) ea->_source(m);	
+	for(auto*ea:m_joints) ea->_source(m);
+
+	//SelectTool is failing to find bones? Might want to do this
+	//unconditionally, but setCurrentAnimationTime is currently
+	//required to get animation working properly (leave the time
+	//up to the user instead of setting it to 0 here.)
+	if(!m) calculateSkel();
+
 	return m!=ANIMMODE_NONE;
 }
 void Model::Vertex::_source(AnimationModeE m)
@@ -2324,6 +2331,9 @@ void Model::setNoAnimation()
 	for(auto*ea:m_triangles) ea->_source(ANIMMODE_NONE);
 	for(auto*ea:m_points) ea->_source(ANIMMODE_NONE);
 	for(auto*ea:m_joints) ea->_source(ANIMMODE_NONE);
+
+	//SelectTool is failing to find bones?
+	calculateSkel();
 
 	//Not sure what's best in this case?
 	//if(1) calculateNormals(); else m_validNormals = false;

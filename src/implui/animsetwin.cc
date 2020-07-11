@@ -432,11 +432,11 @@ void AnimSetWin::submit(int id)
 			if(j==-1) j = i;
 			model->moveAnimation(mode,i,j); //NEW
 
-			unsort(); //YUCK
-
-			table.outline(j);
-			table.add_item((new_item(j))->select());
-
+			if(!table.empty()) //YUCK: enable/disable?
+			{
+				table.outline(j);
+				table.add_item(new_item(j)->select());
+			}
 			refresh();
 		}
 		break;
@@ -596,10 +596,8 @@ void AnimSetWin::refresh()
 	else if(iN=model->getAnimCount(mode))
 	{
 		main_panel()->enable();
-		if(mode==Model::ANIMMODE_SKELETAL)
-		{
-			merge.enable(); convert.enable();
-		}
+		merge.enable(mode==Model::ANIMMODE_SKELETAL);
+		convert.enable(mode==Model::ANIMMODE_SKELETAL);
 
 		for(int i=0;i<iN;i++)
 		table.add_item(new_item(i));
