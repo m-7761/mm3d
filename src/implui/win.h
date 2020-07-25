@@ -60,6 +60,7 @@ enum
 	id_file_new,
 	id_file_open,
 	id_file_close,
+	id_file_save_prompt, //Ctrl+S
 	id_file_save,
 	id_file_save_as,
 	id_file_export,
@@ -144,6 +145,7 @@ enum
 	id_joint_select_points_of,
 	id_joint_unnassigned_verts,
 	id_joint_unnassigned_points,
+	id_joint_draw_bone,
 
 	/*Animation menu*/	
 	id_animate_settings,

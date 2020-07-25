@@ -826,7 +826,11 @@ void Model::_drawPolygons(int pass, bool mark)
 
 void Model::drawJoints(float a)
 {
-	const Vector face(0,1,0),up(0,0,1);
+	//NOTE: Both up vectors seem to work.
+	//Using Y up is easier since the bone
+	//shape identity matrix defaults to it.
+	//const Vector face(0,1,0),up(0,0,1);
+	const Vector up(0,1,0);
 
 	if(!m_drawJoints
 	/*This is confusing because the tool system can
@@ -919,51 +923,52 @@ void Model::drawJoints(float a)
 		glEnd();
 		glDisable(GL_LINE_STIPPLE);
 
-		if(skel) if(skel2)
-		{
-			glColor4f(l,0,l,a);
-		}
-		else glColor4f(0,0,l,aa);
-		
-		//Vector face(0,1,0);
-		Vector point = jvec-pvec;
-
-		double length = distance(pvec,jvec);
-
-		/*FIX ME
-		//This rolls around in the Top view.
-		//https://github.com/zturtleman/mm3d/issues/118
-		Quaternion rot;
-		rot.setRotationToPoint(face,point);	
-		//Matrix m;
-		//m.setRotationQuaternion(rot);
-		*/
-		//2020: I wasted some time trying to pass "up" to setRotationToPoint
-		//but it wasn't working out as I expected. I got it to work with a 
-		//different approach but knew all along that a Matrix is a better
-		//fit here. setRotationToPoint should be avoided/removed. 
-		Matrix rot;
-		memcpy(rot.getVector(1),&point,sizeof(point));
-		normalize3(rot.getVector(1));
-		cross_product(rot.getVector(2),up.getVector(),rot.getVector(1));		
-		normalize3(rot.getVector(2));
-		cross_product(rot.getVector(0),rot.getVector(1),rot.getVector(2));
-		normalize3(rot.getVector(0));
-		Vector v[4] = 
-		{{ 0.07, 0.10, 0.07},
-		{ -0.07, 0.10, 0.07},
-		{ -0.07, 0.10,-0.07},
-		{  0.07, 0.10,-0.07}};
-		for(int i=0;i<4;i++)
-		{
-			//v[i] = v[i]*length*m+pvec;
-			v[i] = v[i]*length*rot+pvec;
-		}
-
 		//https://github.com/zturtleman/mm3d/issues/56
 		//if(m_drawJoints==JOINTMODE_BONES)
-		if(m_drawOptions&DO_BONES)
-		{	
+		if(m_drawOptions&DO_BONES&&joint->m_bone)
+		{				
+			if(skel) if(skel2)
+			{
+				glColor4f(l,0,l,a);
+			}
+			else glColor4f(0,0,l,aa);
+		
+			//Vector face(0,1,0);
+			Vector point = jvec-pvec;
+			double length = distance(pvec,jvec);
+
+			/*FIX ME
+			//This rolls around in the Top view.
+			//https://github.com/zturtleman/mm3d/issues/118
+			Quaternion rot;
+			rot.setRotationToPoint(face,point);	
+			//Matrix m;
+			//m.setRotationQuaternion(rot);
+			*/
+			//2020: I wasted some time trying to pass "up" to setRotationToPoint
+			//but it wasn't working out as I expected. I got it to work with a 
+			//different approach but knew all along that a Matrix is a better
+			//fit here. setRotationToPoint should be avoided/removed. 
+			Matrix rot;
+			if(point[0]||point[2]) //Clashes with up?
+			{
+				memcpy(rot.getVector(1),&point,sizeof(point));
+				normalize3(rot.getVector(1));
+				cross_product(rot.getVector(2),up.getVector(),rot.getVector(1));		
+				normalize3(rot.getVector(2));
+				cross_product(rot.getVector(0),rot.getVector(1),rot.getVector(2));
+				normalize3(rot.getVector(0));
+			}
+			Vector v[4] = 
+			{{ 0.07, 0.10, 0.07},
+			{ -0.07, 0.10, 0.07},
+			{ -0.07, 0.10,-0.07},
+			{  0.07, 0.10,-0.07}};
+			for(int i=0;i<4;i++)
+			{
+				//v[i] = v[i]*length*m+pvec;
+				v[i] = v[i]*length*rot+pvec;
+			}
 			glBegin(GL_LINES);
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[0].getVector());
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[1].getVector());

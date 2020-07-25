@@ -36,7 +36,7 @@ struct DuplicateCommand : Command
 	}
 
 	//NOTE: Delete is Ctrl+Shift+D. Ctrl+F is avoided to 
-	//not accidentally hit D. Ctrl+S will save the model.
+	//not accidentally hit D. Ctrl+Alt+S saves the model.
 	virtual const char *getKeymap(int){ return "Ctrl+D"; }
 
 	virtual bool activated(int, Model *model);

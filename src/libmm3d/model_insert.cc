@@ -316,28 +316,24 @@ void Model::insertInfluence(const Position &pos, unsigned index, const Influence
 			l = &m_points[pos.index]->m_influences;
 		}
 	}
+	if(l==nullptr) return;
+			
+	assert(index<=l->size());
 
-	if(l==nullptr)
-	{
-		return;
-	}
+	if(index>l->size()) return;
 
-	infl_list::iterator it = l->begin();
+	l->insert(l->begin()+index,influence);
 
-	while(index>0)
-	{
-		index--;
-		it++;
-	}
+	calculateRemainderWeight(pos); //2020
 
-	if(it==l->end())
+	/*EXPERIMENTAL
+	if(influence.m_boneId<m_joints.size()) //2020
 	{
-		l->push_back(influence);
+		m_joints[influence.m_boneId]->_infl++;
+
+		assert(m_joints[influence.m_boneId]->_infl>=1);
 	}
-	else
-	{
-		l->insert(it,influence);
-	}
+	else assert(0);*/
 }
 
 void Model::removeInfluence(const Position &pos, unsigned index)
@@ -359,24 +355,28 @@ void Model::removeInfluence(const Position &pos, unsigned index)
 			l = &m_points[pos.index]->m_influences;
 		}
 	}
+	if(l==nullptr) return;
+	
+	assert(index<l->size());
 
-	if(l==nullptr)
+	if(index>=l->size()) return;
+
+	auto it = l->begin()+index;
+
+	unsigned bi = it->m_boneId;
+
+	l->erase(it);
+
+	calculateRemainderWeight(pos); //2020
+
+	/*EXPERIMENTAL
+	if(bi<m_joints.size()) //2020
 	{
-		return;
-	}
+		m_joints[bi]->_infl--;
 
-	infl_list::iterator it = l->begin();
-
-	while(index>0)
-	{
-		index--;
-		it++;
+		assert(m_joints[bi]->_infl>=0);
 	}
-
-	if(it!=l->end())
-	{
-		l->erase(it);
-	}
+	else assert(0);*/
 }
 
 void Model::insertPoint(unsigned index, Model::Point *point)

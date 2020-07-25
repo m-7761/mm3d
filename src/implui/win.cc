@@ -170,7 +170,12 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 {
 	if(w->subpos()) switch(k)
 	{
-	//case ' ': //UNUSED
+	case 's':
+
+		if(m&GLUT_ACTIVE_CTRL)
+		k = id_file_save_prompt;
+		else break; //break;
+
 	case 127: //Delete?
 		
 		glutSetWindow(w->glut_parent_id());

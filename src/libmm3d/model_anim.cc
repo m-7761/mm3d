@@ -2421,13 +2421,13 @@ unsigned Model::getAnimFrameCount(AnimationModeE m, unsigned anim)const
 
 unsigned Model::getAnimFrame(AnimationModeE m, unsigned anim, double t)const
 {
-	if(auto*ab=_anim(m,anim)) 					
+	if(auto*ab=_anim(m,anim)) 
 	for(auto&tt=ab->m_timetable2020;!tt.empty();)
 	{
 		auto lb = std::upper_bound(tt.begin(),tt.end(),t);
 		return unsigned(lb==tt.begin()?0:lb-tt.begin()-1);
 	}
-	return -1;
+	return 0; //return -1; //insertAnimFrame expects zero?
 }
 
 double Model::getAnimFPS(AnimationModeE m, unsigned anim)const

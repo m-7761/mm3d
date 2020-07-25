@@ -752,6 +752,9 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(joint_select_points_of,"Select Influenced Points","Joints|Select Influenced Points")); 
 	glutAddMenuEntry(E(joint_unnassigned_verts,"Select Unassigned Vertices","Joints|Select Unassigned Vertices")); 
 	glutAddMenuEntry(E(joint_unnassigned_points,"Select Unassigned Points","Joints|Select Unassigned Points")); 
+
+	glutAddMenuEntry();
+	glutAddMenuEntry(E(joint_draw_bone,"&Apply Alternative Appearance to Bone","")); 
 	}		
 		_anim_menu = glutCreateMenu(viewwin_menubarfunc);	
 
@@ -1142,7 +1145,7 @@ bool MainWin::save_work()
 	FilterManager::getInstance()->writeFile(model,filename,false);
 	if(err==Model::ERROR_NONE)
 	{
-		model->setSaved(true);
+		model->setSaved();
 		_rewrite_window_title();
 		viewwin_mru(viewwin_mruf_menu,(char*)filename);
 		return true;
@@ -1204,7 +1207,7 @@ bool MainWin::save(Model *model, bool expdir)
 			else
 			{
 				cfg = "ui_model_dir";
-				model->setSaved(true);
+				model->setSaved();
 				model->setFilename(file.c_str());
 			}
 			
@@ -1587,15 +1590,31 @@ void viewwin_menubarfunc(int id) //extern
 	viewwin()->perform_menu_action(id);
 }
 void MainWin::perform_menu_action(int id)
-{
-	viewin_menu raii;
-
+{		
 	//* marked cases are unsafe to call
 	//without glutSetWindow.
 
 	MainWin *w = this; Model *m = model;
 
-	switch(id)
+	switch(id) //these center prompts on the mouse
+	{		
+	case id_file_save_prompt:
+
+		//Ctrl+Alt+S saves without a prompt. Might want to use Ctrl+S for
+		//a tool, but many expect it to save, however Alt is used for any
+		//actions that are outside the scope of editing.
+		//Note: id_no is included so the behavior is identical to closing
+		if(id_yes==Win::InfoBox(::tr("Save over model?"),
+		m->getSaved()?
+		::tr("The model is unmodified\n""Overwrite file on disk anyway?"):
+		::tr("Model has been modified\n""Overwrite file on disk?"),
+		id_yes|id_no|id_cancel,id_cancel))
+		w->save_work(); return;
+	}
+
+	viewin_menu raii; //changes the pop-up behavior
+
+	switch(id) //these put prompts beside the mouse
 	{
 	case 127: //Delete?
 
@@ -1948,6 +1967,19 @@ void MainWin::perform_menu_action(int id)
 		extern void viewwin_influences(MainWin&,int);
 		viewwin_influences(*w,id); return;
 
+	case id_joint_draw_bone:
+
+		for(auto&ea:selection) if(ea.type==m->PT_Joint)
+		{
+			bool &b = m->getJointList()[ea.index]->m_bone;
+			b = !b;
+			#ifdef NDEBUG
+			#error need undo/redo for id_joint_draw_bone 
+			#endif
+			//m->setSaved(false); //Doesn't do anything?
+		}
+		break;
+
 	case id_animate_settings: 
 		
 		extern void animsetwin(MainWin&);
@@ -2185,7 +2217,7 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 
 	if(shift)
 	{
-		if(i<0)
+		if(i==-1)
 		{
 			i = (int)t;
 		}
@@ -2197,7 +2229,7 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 	}
 	else
 	{
-		if(i<0)
+		if(i==-1)
 		{
 			i = m->getAnimFrame(am,a,t);
 		}

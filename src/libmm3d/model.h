@@ -683,6 +683,7 @@ class Model
 			bool m_selected;
 			bool m_visible;
 			bool m_marked;
+			mutable bool m_bone; //2020 (drawJoints)
 
 			//TODO: If Euler angles are easily inverted it makes
 			//more sense to just calculate m_inv in validateSkel.
@@ -1147,7 +1148,7 @@ class Model
 		// ------------------------------------------------------------------
 
 		// Indicates if the model has changed since the last time it was saved.
-		void setSaved(bool o){ if(o) m_undoMgr->setSaved(); }
+		void setSaved(){ m_undoMgr->setSaved(); }
 		bool getSaved()const{ return m_undoMgr->isSaved(); }
 
 		//RENAME ME ("filename" is misleading.)
@@ -1906,9 +1907,8 @@ class Model
 
 		//RENAME/REMOVE ME
 		//2020: I'm hijacking this API in order to keep the geometry up-to-date.
-		static void calculateRemainderWeight(infl_list &list);
-		void calculateRemainderWeight(Vertex&);
-		void calculateRemainderWeight(Point&);
+		static void _calculateRemainderWeight(infl_list &list);
+		void calculateRemainderWeight(const Position&);
 
 		bool getBoneVector(unsigned joint, double *vec, const double *coord)const;
 

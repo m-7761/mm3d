@@ -35,34 +35,15 @@
 bool Model::setPositionBoneJoint(const Position &pos, int joint)
 {
 	removeAllPositionInfluences(pos);
-
-	if(joint>=0)
-	{
-		return addPositionInfluence(pos,joint,IT_Custom,1.0);
-	}
-	return false;
+	return addPositionInfluence(pos,joint,IT_Custom,1.0);
 }
-
 bool Model::setVertexBoneJoint(unsigned vertex, int joint)
 {
-	removeAllVertexInfluences(vertex);
-
-	if(joint>=0)
-	{
-		return addVertexInfluence(vertex,joint,IT_Custom,1.0);
-	}
-	return false;
+	return setPositionBoneJoint({PT_Vertex,vertex},joint);
 }
-
 bool Model::setPointBoneJoint(unsigned point, int joint)
 {
-	removeAllPointInfluences(point);
-
-	if(joint>=0)
-	{
-		return addPointInfluence(point,joint,IT_Custom,1.0);
-	}
-	return false;
+	return setPositionBoneJoint({PT_Point,point},joint);
 }
 
 void Model::getBoneJointVertices(int joint, int_list &rval)const
@@ -93,314 +74,133 @@ void Model::getBoneJointVertices(int joint, int_list &rval)const
 
 bool Model::addPositionInfluence(const Position &pos, unsigned joint,InfluenceTypeE type, double weight)
 {
-	switch (pos.type)
-	{
-		case PT_Vertex:
-			return addVertexInfluence(pos.index,joint,type,weight);
+	if(joint>=m_joints.size()) return false;
 
-		case PT_Point:
-			return addPointInfluence(pos.index,joint,type,weight);
+	auto *il = getPositionInfluences(pos); if(!il) return false;
 
-		default:
-			break;
-	}
-
-	return false;
-}
-
-bool Model::addVertexInfluence(unsigned vertex, unsigned joint,InfluenceTypeE type, double weight)
-{
-	if(vertex<m_vertices.size()&&joint<m_joints.size())
+	for(auto&ea:*il) if(ea.m_boneId==(int)joint)
 	{
 		m_changeBits |= AddOther;
 
-		Vertex *v = m_vertices[vertex];
-		infl_list::iterator it;
-		for(it = v->m_influences.begin(); it!=v->m_influences.end(); it++)
+		InfluenceT oldInf = ea;
+
+		ea.m_weight = weight;
+		ea.m_type = type;
+
+		InfluenceT newInf = ea;
+
+		if(m_undoEnabled)
 		{
-			if((*it).m_boneId==(int)joint)
-			{
-				InfluenceT oldInf = (*it);
-
-				(*it).m_weight = weight;
-				(*it).m_type = type;
-
-				InfluenceT newInf = (*it);
-
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_UpdatePositionInfluence;
-					undo->updatePositionInfluence({PT_Vertex,vertex},newInf,oldInf);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				calculateRemainderWeight(*v); //v->m_influences
-
-				return true;
-			}
+			auto undo = new MU_UpdatePositionInfluence;
+			undo->updatePositionInfluence(pos,newInf,oldInf);
+			sendUndo(undo,true); //IMPLEMENT ME
 		}
 
+		calculateRemainderWeight(pos);
+
+		return true;
+	}
+
+	if(il->size()<MAX_INFLUENCES)
+	{
 		InfluenceT inf;
 		inf.m_boneId = (int)joint;
 		inf.m_weight = weight;
 		inf.m_type = type;
 
-		if(v->m_influences.size()<MAX_INFLUENCES)
+		if(m_undoEnabled)
 		{
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetPositionInfluence;
-				undo->setPositionInfluence(true,{PT_Vertex,vertex},v->m_influences.size(),inf);
-				sendUndo(undo,true); //IMPLEMENT ME
-			}
+			auto undo = new MU_SetPositionInfluence;
+			undo->setPositionInfluence(true,pos,il->size(),inf);
+			sendUndo(undo,true); //IMPLEMENT ME
+		}		
 
-			v->m_influences.push_back(inf);
+		insertInfluence(pos,il->size(),inf);
 
-			calculateRemainderWeight(*v); //v->m_influences
-
-			return true;
-		}
+		return true;
 	}
 
 	return false;
 }
-
-bool Model::addPointInfluence(unsigned point, unsigned joint,InfluenceTypeE type, double weight)
+bool Model::addVertexInfluence(unsigned vertex, unsigned joint, InfluenceTypeE type, double weight)
 {
-	if(point<m_points.size()&&joint<m_joints.size())
-	{
-		m_changeBits |= AddOther;
-
-		Point *p = m_points[point];
-		infl_list::iterator it;
-		for(it = p->m_influences.begin(); it!=p->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				InfluenceT oldInf = (*it);
-
-				(*it).m_weight = weight;
-				(*it).m_type = type;
-
-				InfluenceT newInf = (*it);
-
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_UpdatePositionInfluence;
-					undo->updatePositionInfluence({PT_Point,point},newInf,oldInf);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				calculateRemainderWeight(*p); //p->m_influences
-
-				return true;
-			}
-		}
-
-		InfluenceT inf;
-		inf.m_boneId = (int)joint;
-		inf.m_weight = weight;
-		inf.m_type	= type;
-
-		if(p->m_influences.size()<MAX_INFLUENCES)
-		{
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetPositionInfluence;
-				undo->setPositionInfluence(true,{PT_Point,point},p->m_influences.size(),inf);
-				sendUndo(undo,true); //IMPLEMENT ME
-			}
-
-			p->m_influences.push_back(inf);
-
-			calculateRemainderWeight(*p); //p->m_influences
-
-			return true;
-		}
-	}
-
-	return false;
+	return addPositionInfluence({PT_Vertex,vertex},joint,type,weight);
+}
+bool Model::addPointInfluence(unsigned point, unsigned joint, InfluenceTypeE type, double weight)
+{
+	return addPositionInfluence({PT_Point,point},joint,type,weight);
 }
 
 bool Model::removePositionInfluence(const Position &pos, unsigned joint)
 {
-	switch (pos.type)
+	if(auto*il=getPositionInfluences(pos))
 	{
-		case PT_Vertex:
-			return removeVertexInfluence(pos.index,joint);
+		int index = 0; for(auto&ea:*il)
+		{
+			if(ea.m_boneId!=(int)joint)
+			{
+				index++; continue;
+			}
 
-		case PT_Point:
-			return removePointInfluence(pos.index,joint);
+			m_changeBits |= AddOther;
+			
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_SetPositionInfluence;
+				undo->setPositionInfluence(false,pos,index,ea);
+				sendUndo(undo,true); //IMPLEMENT ME
+			}
 
-		default:
-			break;
+			removeInfluence(pos,index);
+
+			return true;
+		}
 	}
-
 	return false;
 }
-
 bool Model::removeVertexInfluence(unsigned vertex, unsigned joint)
 {
-	if(vertex<m_vertices.size())
-	{
-		m_changeBits |= AddOther;
-
-		Vertex *v = m_vertices[vertex];
-		infl_list::iterator it;
-
-		int count = 0;
-		for(it = v->m_influences.begin(); it!=v->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_SetPositionInfluence;
-					undo->setPositionInfluence(false,{PT_Vertex,vertex},count,*it);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				v->m_influences.erase(it);
-
-				calculateRemainderWeight(*v); //v->m_influences
-
-				return true;
-			}
-			count++;
-		}
-	}
-
-	return false;
+	return removePositionInfluence({PT_Vertex,vertex},joint);
 }
-
 bool Model::removePointInfluence(unsigned point, unsigned joint)
 {
-	if(point<m_points.size())
-	{
-		m_changeBits |= AddOther;
-
-		Point *p = m_points[point];
-		infl_list::iterator it;
-
-		int count = 0;
-		for(it = p->m_influences.begin(); it!=p->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_SetPositionInfluence;
-					undo->setPositionInfluence(false,{PT_Point,point},count,*it);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				p->m_influences.erase(it);
-
-				calculateRemainderWeight(*p); //p->m_influences
-
-				return true;
-			}
-			count++;
-		}
-	}
-
-	return false;
+	return removePositionInfluence({PT_Point,point},joint);
 }
 
 bool Model::removeAllPositionInfluences(const Position &pos)
 {
-	switch (pos.type)
-	{
-		case PT_Vertex:
-			return removeAllVertexInfluences(pos.index);
-
-		case PT_Point:
-			return removeAllPointInfluences(pos.index);
-
-		default:
-			break;
+	if(auto*il=getPositionInfluences(pos)) if(!il->empty())
+	{		
+		while(!il->empty())
+		removePositionInfluence(pos,il->back().m_boneId);
+		return true;
 	}
-
 	return false;
 }
-
 bool Model::removeAllVertexInfluences(unsigned vertex)
 {
-	if(vertex<m_vertices.size())
-	{
-		infl_list &l = m_vertices[vertex]->m_influences;
-
-		while(!l.empty())
-		{
-			//Position pos;
-			//pos.type = PT_Vertex;
-			//pos.index = vertex;
-			//removePositionInfluence(pos,l.back().m_boneId); //???
-			removeVertexInfluence(vertex,l.back().m_boneId);
-		}
-		return true;
-	}
-
-	return false;
+	return removeAllPositionInfluences({PT_Vertex,vertex});
 }
-
 bool Model::removeAllPointInfluences(unsigned point)
 {
-	if(point<m_points.size())
-	{
-		infl_list &l = m_points[point]->m_influences;
-
-		while(!l.empty())
-		{
-			//Position pos;
-			//pos.type = PT_Point;
-			//pos.index = point;
-			//removePositionInfluence(pos,l.back().m_boneId); /???
-			removePointInfluence(point,l.back().m_boneId);
-		}
-		return true;
-	}
-
-	return false;
+	return removeAllPositionInfluences({PT_Point,point});	
 }
 
-bool Model::getPositionInfluences(const Position &pos,infl_list &l)const
+bool Model::getPositionInfluences(const Position &pos, infl_list &l)const
 {
-	switch (pos.type)
-	{
-		case PT_Vertex:
-			return getVertexInfluences(pos.index,l);
+	auto *il = getPositionInfluences(pos); if(!il) return false;
 
-		case PT_Point:
-			return getPointInfluences(pos.index,l);
-
-		default:
-			break;
-	}
-
-	return false;
+	if(il) l = *il; else l.empty(); //2020
+	
+	return !l.empty();
 }
-
-bool Model::getVertexInfluences(unsigned vertex,infl_list &l)const
+bool Model::getVertexInfluences(unsigned vertex, infl_list &l)const
 {
-	if(vertex<m_vertices.size())
-	{
-		l = m_vertices[vertex]->m_influences;
-		return true;
-	}
-
-	return false;
+	return getPositionInfluences({PT_Vertex,vertex},l);
 }
-
-bool Model::getPointInfluences(unsigned point,infl_list &l)const
+bool Model::getPointInfluences(unsigned point, infl_list &l)const
 {
-	if(point<m_points.size())
-	{
-		l = m_points[point]->m_influences;
-		return true;
-	}
-
-	return false;
+	return getPositionInfluences({PT_Point,point},l);
 }
 
 int Model::getPrimaryPositionInfluence(const Position &pos)const
@@ -417,256 +217,125 @@ int Model::getPrimaryPositionInfluence(const Position &pos)const
 
 	return inf.m_boneId;
 }
-
 int Model::getPrimaryVertexInfluence(unsigned vertex)const
 {
-	Position pos;
-	pos.type = PT_Vertex;
-	pos.index = vertex;
-
-	return getPrimaryPositionInfluence(pos);
+	return getPrimaryPositionInfluence({PT_Vertex,vertex});
 }
-
 int Model::getPrimaryPointInfluence(unsigned point)const
 {
-	Position pos;
-	pos.type = PT_Point;
-	pos.index = point;
-
-	return getPrimaryPositionInfluence(pos);
+	return getPrimaryPositionInfluence({PT_Point,point});
 }
 
 bool Model::setPositionInfluenceType(const Position &pos, unsigned int joint,InfluenceTypeE type)
 {
-	switch (pos.type)
+	if(joint>=m_joints.size()) return false;
+
+	auto *il = getPositionInfluences(pos); if(!il) return false;
+
+	for(auto&ea:*il) if(ea.m_boneId==(int)joint)
 	{
-		case PT_Vertex:
-			return setVertexInfluenceType(pos.index,joint,type);
+		if(type==ea.m_type) return true; //2020
 
-		case PT_Point:
-			return setPointInfluenceType(pos.index,joint,type);
+		m_changeBits |= AddOther; //???
 
-		default:
-			break;
+		InfluenceT oldInf = ea; ea.m_type = type;
+		InfluenceT newInf = ea;
+
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_UpdatePositionInfluence;
+			undo->updatePositionInfluence(pos,newInf,oldInf);
+			sendUndo(undo);
+		}
+
+		calculateRemainderWeight(pos);
+
+		return true;
 	}
 
 	return false;
 }
-
 bool Model::setVertexInfluenceType(unsigned vertex, unsigned int joint, InfluenceTypeE type)
 {
-	if(vertex<m_vertices.size()&&joint<m_joints.size())
-	{
-		m_changeBits |= AddOther; //???
-
-		Vertex *v = m_vertices[vertex];
-		infl_list::iterator it;
-		for(it = v->m_influences.begin(); it!=v->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				if(type==it->m_type) return true; //2020
-
-				InfluenceT oldInf = (*it);
-
-				(*it).m_type = type;
-
-				InfluenceT newInf = (*it);
-
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_UpdatePositionInfluence;
-					undo->updatePositionInfluence({PT_Vertex,vertex},newInf,oldInf);
-					sendUndo(undo);
-				}
-
-				calculateRemainderWeight(*v); //v->m_influences
-
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return setPositionInfluenceType({PT_Vertex,vertex},joint,type);
+	
 }
-
 bool Model::setPointInfluenceType(unsigned point, unsigned int joint, InfluenceTypeE type)
 {
-	if(point<m_points.size()&&joint<m_joints.size())
-	{
-		m_changeBits |= AddOther; //???
-
-		Point *p = m_points[point];
-		infl_list::iterator it;
-		for(it = p->m_influences.begin(); it!=p->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				if(type==it->m_type) return true; //2020
-
-				InfluenceT oldInf = (*it);
-
-				(*it).m_type = type;
-
-				InfluenceT newInf = (*it);
-
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_UpdatePositionInfluence;
-					undo->updatePositionInfluence({PT_Point,point},newInf,oldInf);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				calculateRemainderWeight(*p); //p->m_influences
-
-				return true;
-			}
-		}
-	}
-	return false;
+	return setPositionInfluenceType({PT_Point,point},joint,type);
 }
 
 bool Model::setPositionInfluenceWeight(const Position &pos, unsigned int joint, double weight)
 {
-	switch (pos.type)
+	if(joint>=m_joints.size()) return false;
+
+	auto *il = getPositionInfluences(pos); if(!il) return false;
+
+	for(auto&ea:*il) if(ea.m_boneId==(int)joint)
 	{
-		case PT_Vertex:
-			return setVertexInfluenceWeight(pos.index,joint,weight);
+		if(weight==ea.m_weight) return true; //2020
 
-		case PT_Point:
-			return setPointInfluenceWeight(pos.index,joint,weight);
+		m_changeBits |= AddOther;
 
-		default:
-			break;
+		InfluenceT oldInf = ea; ea.m_weight = weight;
+		InfluenceT newInf = ea;
+
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_UpdatePositionInfluence();
+			undo->updatePositionInfluence(pos,newInf,oldInf);
+			sendUndo(undo,true); //IMPLEMENT ME
+		}
+
+		calculateRemainderWeight(pos);
+
+		return true;
 	}
 
 	return false;
 }
-
 bool Model::setVertexInfluenceWeight(unsigned vertex, unsigned int joint, double weight)
 {
-	if(vertex<m_vertices.size()&&joint<m_joints.size())
-	{
-		m_changeBits |= AddOther;
-
-		Vertex *v = m_vertices[vertex];
-		infl_list::iterator it;
-		for(it = v->m_influences.begin(); it!=v->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				if(weight==it->m_weight) return true; //2020
-
-				InfluenceT oldInf = (*it);
-
-				(*it).m_weight = weight;
-
-				InfluenceT newInf = (*it);
-
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_UpdatePositionInfluence();
-					undo->updatePositionInfluence({PT_Vertex,vertex},newInf,oldInf);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				calculateRemainderWeight(*v); //v->m_influences
-
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return setPositionInfluenceWeight({PT_Vertex,vertex},joint,weight);
 }
-
 bool Model::setPointInfluenceWeight(unsigned point, unsigned int joint, double weight)
 {
-	if(point<m_points.size()&&joint<m_joints.size())
-	{
-		m_changeBits |= AddOther;
-
-		Point *p = m_points[point];
-		infl_list::iterator it;
-		for(it = p->m_influences.begin(); it!=p->m_influences.end(); it++)
-		{
-			if((*it).m_boneId==(int)joint)
-			{
-				if(weight==it->m_weight) return true; //2020
-
-				InfluenceT oldInf = (*it);
-
-				(*it).m_weight = weight;
-
-				InfluenceT newInf = (*it);
-
-				if(m_undoEnabled)
-				{
-					auto undo = new MU_UpdatePositionInfluence();
-					undo->updatePositionInfluence({PT_Point,point},newInf,oldInf);
-					sendUndo(undo,true); //IMPLEMENT ME
-				}
-
-				calculateRemainderWeight(*p); //p->m_influences
-
-				return true;
-			}
-		}
-	}
-	return false;
+	return setPositionInfluenceWeight({PT_Point,point},joint,weight);
 }
 
 double Model::calculatePositionInfluenceWeight(const Position &pos, unsigned joint)const
 {
-	switch (pos.type)
-	{
-		case PT_Vertex:
-			return calculateVertexInfluenceWeight(pos.index,joint);
-
-		case PT_Point:
-			return calculatePointInfluenceWeight(pos.index,joint);
-
-		default:
-			break;
-	}
-	return 0.0;
+	double coord[3] = { 0,0,0 };
+	getPositionCoords(pos,coord);
+	return calculateCoordInfluenceWeight(coord,joint);
 }
 double Model::calculateVertexInfluenceWeight(unsigned vertex, unsigned joint)const
 {
-	double coord[3] = { 0,0,0 };
-	getVertexCoords(vertex,coord);
-	return calculateCoordInfluenceWeight(coord,joint);
+	return calculatePositionInfluenceWeight({PT_Vertex,vertex},joint);
 }
 double Model::calculatePointInfluenceWeight(unsigned point, unsigned joint)const
 {
-	double coord[3] = { 0,0,0 };
-	getPointCoords(point,coord);
-	return calculateCoordInfluenceWeight(coord,joint);
+	return calculatePositionInfluenceWeight({PT_Point,point},joint);
 }
 double Model::calculateCoordInfluenceWeight(const double *coord, unsigned joint)const
 {
-	if(joint>=m_joints.size())
-	{
-		return 0.0;
-	}
+	if(joint>=m_joints.size()) return 0;
 
 	int bcount = m_joints.size();
 
 	int child = -1;
 	double cdist = 0.0;
-	for(int b = 0; b<bcount; b++)
+	for(int b = 0; b<bcount; b++)	
+	if(getBoneJointParent(b)==(int)joint)
 	{
-		if(getBoneJointParent(b)==(int)joint)
-		{
-			double ccoord[3];
-			getBoneJointCoords(b,ccoord);
-			double d = distance(ccoord,coord);
+		double ccoord[3];
+		getBoneJointCoords(b,ccoord);
+		double d = distance(ccoord,coord);
 
-			if(child<0||d<cdist)
-			{
-				child = b;
-				cdist = d;
-			}
+		if(child<0||d<cdist)
+		{
+			child = b;
+			cdist = d;
 		}
 	}
 
@@ -690,8 +359,7 @@ double Model::calculateCoordInfluenceWeight(const double *coord, unsigned joint)
 
 	if(child<0)
 	{
-		// no children
-		return bcos;
+		return bcos; // no children
 	}
 
 	double cvec[3] = { 0,0,0 };
@@ -714,69 +382,35 @@ double Model::calculateCoordInfluenceWeight(const double *coord, unsigned joint)
 	return bcos *ccos;
 }
 
-
 bool Model::autoSetPositionInfluences(const Position &pos, double sensitivity,bool selected)
 {
-	switch (pos.type)
+	double coord[3] = { 0,0,0 };
+	getPositionCoords(pos,coord);
+	int_list l;
+	if(autoSetCoordInfluences(coord,sensitivity,selected,l))
 	{
-		case PT_Vertex:
-			return autoSetVertexInfluences(pos.index,sensitivity,selected);
-
-		case PT_Point:
-			return autoSetPointInfluences(pos.index,sensitivity,selected);
-
-		default:
-			break;
+		removeAllPositionInfluences(pos);
+		for(int i:l)
+		{
+			double w = calculatePositionInfluenceWeight(pos,i);
+			addPositionInfluence(pos,i,Model::IT_Auto,w);
+		}
+		return true;
 	}
 	return false;
 }
 bool Model::autoSetVertexInfluences(unsigned vertex, double sensitivity, bool selected)
 {
-	double coord[3] = { 0,0,0 };
-	getVertexCoords(vertex,coord);
-	int_list l;
-	if(autoSetCoordInfluences(coord,sensitivity,selected,l))
-	{
-		removeAllVertexInfluences(vertex);
-		int_list::iterator it;
-		
-		for(it = l.begin(); it!=l.end(); it++)
-		{
-			double w = calculateVertexInfluenceWeight(vertex,*it);
-			addVertexInfluence(vertex,*it,Model::IT_Auto,w);
-		}
-		return true;
-	}
-	return false;
+	return autoSetPositionInfluences({PT_Vertex,vertex},sensitivity,selected);
 }
 bool Model::autoSetPointInfluences(unsigned point, double sensitivity, bool selected)
 {
-	double coord[3] = { 0,0,0 };
-	getPointCoords(point,coord);
-	int_list l;
-	if(autoSetCoordInfluences(coord,sensitivity,selected,l))
-	{
-		removeAllPointInfluences(point);
-		int_list::iterator it;
-		
-		for(it = l.begin(); it!=l.end(); it++)
-		{
-			double w = calculatePointInfluenceWeight(point,*it);
-			addPointInfluence(point,*it,Model::IT_Auto,w);
-		}
-		return true;
-	}
-	return false;
+	return autoSetPositionInfluences({PT_Point,point},sensitivity,selected);
 }
 
 bool Model::autoSetCoordInfluences(double *coord, double sensitivity,bool selected,int_list &infList)
 {
-	int bcount = m_joints.size();
-
-	if(bcount<=0)
-	{
-		return false;
-	}
+	int bcount = m_joints.size(); if(bcount<=0) return false;
 
 	int bestJoint = -1;
 	int bestChild = -1;
@@ -857,7 +491,7 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity,bool select
 		int parent = getBoneJointParent(bestJoint);
 		if(parent>0)
 		{
-			if(((bestDot-1.0))*sensitivity<-0.080)
+			if((bestDot-1.0)*sensitivity<-0.080)
 			{
 				infList.push_back(parent);
 			}
@@ -867,55 +501,43 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity,bool select
 	return false;
 }
 
-void Model::calculateRemainderWeight(Vertex &v)
+void Model::calculateRemainderWeight(const Position &pos)
 {
-	calculateRemainderWeight(v.m_influences);
+	auto *il = getPositionInfluences(pos); if(!il) return;
+
+	_calculateRemainderWeight(*il);
 
 	//2020: Keep coordinates up-to-date.
 	if(m_validAnim&&inSkeletalMode())
 	{
-		v._calc_influences(*this);
+		if(pos.type==PT_Vertex)
+		{
+			m_vertices[pos.index]->_calc_influences(*this);			
 
-		invalidateNormals(); //OVERKILL
+			invalidateNormals(); //OVERKILL
+		}
+		if(pos.type==PT_Point)
+		{
+			m_points[pos.index]->_calc_influences(*this);
+		}
+		else assert(0);
 	}
 }
-void Model::calculateRemainderWeight(Point &p)
+void Model::_calculateRemainderWeight(infl_list &l)
 {
-	calculateRemainderWeight(p.m_influences);
+	int	 remainders = 0; double remaining = 1;
 
-	//2020: Keep coordinates up-to-date.
-	if(m_validAnim&&inSkeletalMode())
+	for(auto&ea:l) if(ea.m_type==IT_Remainder)
 	{
-		p._calc_influences(*this);
+		remainders++;
 	}
-}
-void Model::calculateRemainderWeight(infl_list &list)
-{
-	int	 remainders = 0;
-	double remaining = 1.0;
-
-	infl_list::iterator it;
-
-	for(it = list.begin(); remaining>0&&it!=list.end(); it++)
-	{
-		if((*it).m_type==IT_Remainder)
-		{
-			remainders++;
-		}
-		else
-		{
-			remaining -= (*it).m_weight;
-		}
-	}
+	else remaining-=ea.m_weight;
 
 	if(remainders>0&&remaining>0)
 	{
-		for(it = list.begin(); it!=list.end(); it++)
+		for(auto&ea:l) if(ea.m_type==IT_Remainder)
 		{
-			if((*it).m_type==IT_Remainder)
-			{
-				(*it).m_weight = remaining/(double)remainders;
-			}
+			ea.m_weight = remaining/(double)remainders;
 		}
 	}
 }

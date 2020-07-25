@@ -133,10 +133,18 @@ extern MainWin* &viewwin(int=glutGetWindow());
 extern void viewpanel_special_func(int kb, int x, int y)
 {
 	ViewPanel &vp = viewwin()->views;
-		
+
+	int cm = glutGetModifiers();
+
 	switch(kb)
 	{
-	case -127: //Delete? 
+	case -'s': //Ctrl+S? (viewpanel_keyboard_func)
+	
+		if(cm&GLUT_ACTIVE_CTRL)
+		return vp.model.perform_menu_action(id_file_save_prompt);
+		return;
+
+	case -127: //Delete? (viewpanel_keyboard_func) 
 
 		return vp.model.perform_menu_action(127);
 
@@ -154,7 +162,7 @@ extern void viewpanel_special_func(int kb, int x, int y)
 		{
 			vp.timeline.activate();
 		}
-		else if(int shift=glutGetModifiers()&GLUT_ACTIVE_SHIFT)
+		else if(cm&GLUT_ACTIVE_SHIFT)
 		{
 			if(auto*c=vp.params.nav.last_child()) c->activate();
 		}
@@ -186,12 +194,12 @@ extern void viewpanel_special_func(int kb, int x, int y)
 		break;
 	}
 
-	int cm = glutGetModifiers();
 	vp.ports[vp.m_focus].keyPressEventUI(-kb,cm,x,y);	
 }
 static void viewpanel_keyboard_func(unsigned char kb, int x, int y)
 {
-	viewpanel_special_func(-(int)kb,x,y);
+	//_ctrl removes glutKeyboardFunc C^ codes so 13 becomes 's'.
+	viewpanel_special_func(-Win::ui::_ctrl(kb),x,y);
 }
 static void viewpanel_mouse_func(int bt, int st, int x, int y)
 {

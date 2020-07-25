@@ -1392,7 +1392,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(fileJoint.localScale[2]);
 			}
 
-			Model::Joint	 *joint = Model::Joint::get();
+			Model::Joint *joint = Model::Joint::get();
 
 			fileJoint.name[sizeof(fileJoint.name)-1] = '\0';
 
@@ -1408,7 +1408,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			if(jointFlags&MF_SELECTED)
 			joint->m_selected = true;
 			if(jointFlags&MF_HIDDEN)
-			joint->m_visible  = false;
+			joint->m_visible = false;
+			if(mm3d2020)
+			if(jointFlags&MF_VERTFREE) //2020 (draw as line?)
+			joint->m_bone = false;
 
 			modelJoints.push_back(joint);
 		}
@@ -2469,9 +2472,12 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			MM3DFILE_VertexT fileVertex;
 
 			fileVertex.flags  = 0x0000;
-			fileVertex.flags |= (modelVertices[v]->m_visible)? 0 : MF_HIDDEN;
-			fileVertex.flags |= (modelVertices[v]->m_selected)? MF_SELECTED : 0;
-			fileVertex.flags |= (modelVertices[v]->m_free)	? MF_VERTFREE : 0;
+			if(!modelVertices[v]->m_visible)
+			fileVertex.flags |= MF_HIDDEN;
+			if(modelVertices[v]->m_selected)
+			fileVertex.flags |= MF_SELECTED;
+			if(modelVertices[v]->m_free)
+			fileVertex.flags |= MF_VERTFREE;
 
 			fileVertex.coord[0] = (float32_t)modelVertices[v]->m_coord[0];
 			fileVertex.coord[1] = (float32_t)modelVertices[v]->m_coord[1];
@@ -2500,8 +2506,10 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			MM3DFILE_TriangleT fileTriangle;
 
 			fileTriangle.flags = 0x0000;
-			fileTriangle.flags |= (modelTriangles[t]->m_visible)? 0 : MF_HIDDEN;
-			fileTriangle.flags |= (modelTriangles[t]->m_selected)? MF_SELECTED : 0;
+			if(!modelTriangles[t]->m_visible)
+			fileTriangle.flags |= MF_HIDDEN;
+			if(modelTriangles[t]->m_selected)
+			fileTriangle.flags |= MF_SELECTED;
 			fileTriangle.flags = fileTriangle.flags;
 
 			fileTriangle.vertex[0] = modelTriangles[t]->m_vertexIndices[0];
@@ -2668,8 +2676,11 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			  +(grp->m_triangleIndices.size()*sizeof(uint32_t));
 
 			uint16_t flags = 0x0000;
-		//	flags |= (modelGroups[g]->m_visible)? 0 : MF_HIDDEN; //UNUSED
-			flags |= (modelGroups[g]->m_selected)? MF_SELECTED : 0;
+		//	if((modelGroups[g]->m_visible) //UNUSED
+		//	flags |= MF_HIDDEN; 
+			if(modelGroups[g]->m_selected)
+			flags |= MF_SELECTED;
+
 			uint32_t triCount = grp->m_triangleIndices.size();
 
 			m_dst->write(groupSize);
@@ -2898,8 +2909,12 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			Model::Joint *joint = modelJoints[j];
 
 			fileJoint.flags = 0x0000;
-			fileJoint.flags |= (modelJoints[j]->m_visible)? 0 : MF_HIDDEN;
-			fileJoint.flags |= (modelJoints[j]->m_selected)? MF_SELECTED : 0;
+			if(!modelJoints[j]->m_visible)
+			fileJoint.flags |= MF_HIDDEN;
+			if(modelJoints[j]->m_selected)
+			fileJoint.flags |= MF_SELECTED;
+			if(!modelJoints[j]->m_bone)
+			fileJoint.flags |= MF_VERTFREE; //2020 (draw as line?)
 
 			strncpy(fileJoint.name,joint->m_name.c_str(),sizeof(fileJoint.name));
 			utf8chrtrunc(fileJoint.name,sizeof(fileJoint.name)-1);
@@ -2983,8 +2998,10 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			MM3DFILE_PointT filePoint;
 
 			filePoint.flags = 0x0000;
-			filePoint.flags |= (model->isPointVisible(p))? 0 : MF_HIDDEN;
-			filePoint.flags |= (model->isPointSelected(p))? MF_SELECTED : 0;
+			if(!model->isPointVisible(p))
+			filePoint.flags |= MF_HIDDEN;
+			if(model->isPointSelected(p))
+			filePoint.flags |= MF_SELECTED;
 
 			strncpy(filePoint.name,model->getPointName(p),sizeof(filePoint.name));
 			utf8chrtrunc(filePoint.name,sizeof(filePoint.name)-1);

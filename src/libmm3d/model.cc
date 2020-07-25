@@ -2283,10 +2283,6 @@ void Model::undo()
 
 	if(list)
 	{
-		//2020: sendUndo is now conditional.
-		//NOTE: setSaved can't work without m_undoEnable.
-		setSaved(false);
-
 		log_debug("got atomic undo list\n");
 		setUndoEnabled(false);
 
@@ -2318,10 +2314,6 @@ void Model::redo()
 
 	if(list)
 	{
-		//2020: sendUndo is now conditional.
-		//NOTE: setSaved can't work without m_undoEnable.
-		setSaved(false);
-
 		log_debug("got atomic redo list\n");
 		setUndoEnabled(false);
 
@@ -3253,8 +3245,6 @@ void Model::sendUndo(Undo *undo, bool listCombine)
 {
 	if(!undo) return; //2020
 
-	setSaved(false);
-
 	if(m_undoEnabled)
 	{
 		//if(m_animationMode)
@@ -3277,8 +3267,7 @@ void Model::appendUndo(Undo *undo)
 	//NOTE: This is a fix for setSelectedUv.
 	//It does no good to undo the UV selection
 	//before the operation that did the selecting.
-	
-	//setSaved(false);
+
 	if(m_undoEnabled&&*m_undoMgr->getUndoOpName())
 	{
 		auto &st = m_undoMgr->getUndoStack();

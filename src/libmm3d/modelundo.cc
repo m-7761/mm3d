@@ -186,12 +186,12 @@ unsigned MU_SelectionMode::size()
 
 void MU_Select::undo(Model *model)
 {
-	SelectionDifferenceList::iterator it;
-
 	bool unselect = false; //2019
 
-	// Invert selection from our list
-	for(it = m_diff.begin(); it!=m_diff.end(); it++)
+	/*2020: should go backward in time!
+	// Invert selection from our list	
+	for(auto it=m_diff.begin();it!=m_diff.end();it++)*/
+	for(auto it=m_diff.rbegin();it!=m_diff.rend();it++)
 	{
 		if(!it->oldSelected) switch (m_mode)
 		{
@@ -250,58 +250,56 @@ void MU_Select::redo(Model *model)
 
 	bool unselect = false; //2019
 
-	// Set selection from our list
-	if(m_diff.size())
+	// Set selection from our list	
+	for(it = m_diff.begin(); it!=m_diff.end(); it++)
 	{
-		for(it = m_diff.begin(); it!=m_diff.end(); it++)
+		if(it->selected) switch (m_mode)
 		{
-			if(it->selected) switch (m_mode)
-			{
-			case Model::SelectVertices:
-				model->selectVertex(it->number);
-				break;
-			case Model::SelectTriangles:
-				model->selectTriangle(it->number);
-				break;
-			case Model::SelectGroups:
-				model->selectGroup(it->number);
-				break;
-			case Model::SelectJoints:
-				model->selectBoneJoint(it->number);
-				break;
-			case Model::SelectPoints:
-				model->selectPoint(it->number);
-				break;
-			case Model::SelectProjections:
-				model->selectProjection(it->number);
-				break;
-			case Model::SelectNone: break; //default?
-			}
-			else switch (m_mode)
-			{
-			case Model::SelectVertices:
-				model->unselectVertex(it->number);
-				break;
-			case Model::SelectTriangles:
-				unselect = true;
-				model->unselectTriangle(it->number);
-				break;
-			case Model::SelectGroups:
-				model->unselectGroup(it->number);
-				break;
-			case Model::SelectJoints:
-				model->unselectBoneJoint(it->number);
-				break;
-			case Model::SelectPoints:
-				model->unselectPoint(it->number);
-				break;
-			case Model::SelectProjections:
-				model->unselectProjection(it->number);
-				break;
-			case Model::SelectNone: break; //default?
-			}
+		case Model::SelectVertices:
+			model->selectVertex(it->number);
+			break;
+		case Model::SelectTriangles:
+			model->selectTriangle(it->number);
+			break;
+		case Model::SelectGroups:
+			model->selectGroup(it->number);
+			break;
+		case Model::SelectJoints:
+			model->selectBoneJoint(it->number);
+			break;
+		case Model::SelectPoints:
+			model->selectPoint(it->number);
+			break;
+		case Model::SelectProjections:
+			model->selectProjection(it->number);
+			break;
+		case Model::SelectNone: break; //default?
+		}
+		else switch (m_mode)
+		{
+		case Model::SelectVertices:
+			model->unselectVertex(it->number);
+			break;
+		case Model::SelectTriangles:
+			unselect = true;
+			model->unselectTriangle(it->number);
+			break;
+		case Model::SelectGroups:
+			model->unselectGroup(it->number);
+			break;
+		case Model::SelectJoints:
+			model->unselectBoneJoint(it->number);
+			break;
+		case Model::SelectPoints:
+			model->unselectPoint(it->number);
+			break;
+		case Model::SelectProjections:
+			model->unselectProjection(it->number);
+			break;
+		case Model::SelectNone: break; //default?
 		}
 	}
+	
 
 	//2019: unselectTriangle did this per triangle.
 	if(unselect) model->selectVerticesFromTriangles();
@@ -328,11 +326,8 @@ bool MU_Select::combine(Undo *u)
 		}
 		return true;
 	}
-	else
-	//*/
-	{
-		return false;
-	}
+	//*/ 
+	return false;
 }
 
 unsigned MU_Select::size()

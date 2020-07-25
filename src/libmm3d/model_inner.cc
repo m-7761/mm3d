@@ -726,6 +726,7 @@ void Model::Joint::init()
 {
 	m_selected = false;
 	m_visible  = true;
+	m_bone = true;
 
 	for(int i=0;i<3;i++) //NECESSARY?
 	{
