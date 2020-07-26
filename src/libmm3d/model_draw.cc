@@ -959,6 +959,10 @@ void Model::drawJoints(float a)
 				cross_product(rot.getVector(0),rot.getVector(1),rot.getVector(2));
 				normalize3(rot.getVector(0));
 			}
+			else if(point[1]<0)
+			{
+				rot.getVector(1)[1] = -1;
+			}
 			Vector v[4] = 
 			{{ 0.07, 0.10, 0.07},
 			{ -0.07, 0.10, 0.07},

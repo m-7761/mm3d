@@ -1957,6 +1957,8 @@ void Model::unselectAllVertices()
 
 	for(unsigned v = 0; v<m_vertices.size(); v++)
 	{
+		if(!m_vertices[v]->m_selected) continue; //2020
+
 		if(m_undoEnabled)
 		{
 			if(!undo) undo = new MU_Select(SelectVertices);
@@ -1979,6 +1981,8 @@ void Model::unselectAllTriangles()
 
 	for(unsigned t = 0; t<m_triangles.size(); t++)
 	{
+		if(!m_triangles[t]->m_selected) continue; //2020
+
 		if(m_undoEnabled)
 		{
 			if(!undo) undo = new MU_Select(SelectTriangles);
@@ -2001,6 +2005,8 @@ void Model::unselectAllGroups()
 
 	for(unsigned m = 0; m<m_groups.size(); m++)
 	{
+		if(!m_groups[m]->m_selected) continue; //2020
+
 		if(m_undoEnabled)
 		{
 			if(!undo) undo = new MU_Select(SelectGroups);
@@ -2025,19 +2031,18 @@ bool Model::unselectAllBoneJoints()
 
 	for(unsigned j = 0; j<m_joints.size(); j++)
 	{
-		if(m_joints[j]->m_selected)
+		if(!m_joints[j]->m_selected) continue; //2020
+		
+		ret = true;
+
+		if(m_undoEnabled)
 		{
-			ret = true;
+			if(!undo) undo = new MU_Select(SelectJoints);
 
-			if(m_undoEnabled)
-			{
-				if(!undo) undo = new MU_Select(SelectJoints);
-
-				undo->setSelectionDifference(j,false,true);
-			}
-
-			m_joints[j]->m_selected = false;
+			undo->setSelectionDifference(j,false,true);
 		}
+
+		m_joints[j]->m_selected = false;
 	}
 
 	sendUndo(undo,true); return ret;
