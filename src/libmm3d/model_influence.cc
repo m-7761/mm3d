@@ -516,7 +516,7 @@ void Model::calculateRemainderWeight(const Position &pos)
 
 			invalidateNormals(); //OVERKILL
 		}
-		if(pos.type==PT_Point)
+		else if(pos.type==PT_Point)
 		{
 			m_points[pos.index]->_calc_influences(*this);
 		}
