@@ -876,27 +876,26 @@ static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int
 	Widgets95::li::item *it[4] = {v.first_item()};
 	for(int i=1;i<4;i++) it[i] = it[i-1]->next();
 
-	//REMOVE ME
-	it[0]->set_text(::tr("<Mixed>","multiple types of bone joint influence"));
-	it[1]->set_text(::tr("Custom","bone joint influence"));
-	it[2]->set_text(::tr("Auto","bone joint influence"));
-	it[3]->set_text(::tr("Remainder","bone joint influence"));
-
-	if(enable)
+	int i = !type?2:type-1;
+	it[0]->id(1).set_text(::tr("Auto","bone joint influence"));
+	it[1]->id(2).set_text(::tr("Remainder","bone joint influence"));
+	it[2]->id(0).set_text(::tr("Custom","bone joint influence"));
+	it[3]->id(100).set_text(::tr("Assign 100","bone joint influence")); //2020
+	
+	if(enable&&type>=0)
 	{
+		assert(type<=2);
+
 		utf8 str = "%d"; switch(type)
 		{
-		case 0: //REMOVE ME
-				str = ::tr("<Mixed>","multiple types of bone joint influence");
+		case 1: str = ::tr("Auto: %d"); //::tr("Auto: %1").arg(weight);
 				break;
-		case 2: str = ::tr("Auto: %d"); //::tr("Auto: %1").arg(weight);
-				break;
-		case 3: str = ::tr("Rem: %d"); //::tr("Rem: %1").arg(weight);
+		case 2: str = ::tr("Rem: %d"); //::tr("Rem: %1").arg(weight);
 				break;
 		}
-		auto &ittt = it[type]->text();
+		auto &ittt = it[i]->text();
 		ittt.format(str,weight);
-		it[type]->set_text(ittt);
+		it[i]->set_text(ittt);
 	}
 	v.set_int_val(type); //v.select_id(type); 
 
@@ -937,11 +936,9 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		for(int i=1;i<Model::MAX_INFLUENCES;i++) 
 		groups[i].joint.reference(groups[0].joint);
 	}
-
-	//TODO: Remove <Mixed>
-	/*REMINDER: +1 must skip over <Mixed> in the menu. */
+		
 	// Update influence fields		
-	JointCount def = {}; def.typeIndex = Model::IT_Auto+1;
+	JointCount def = {}; def.typeIndex = Model::IT_Auto;
 	jcl.clear(); jcl.resize(bonesN,def);
 	
 	// for now just do a sum on which bone joints are used the most
@@ -958,17 +955,16 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 
 	for(int bone=0;bone<bonesN;bone++)
 	{
-		int type = -1;
-		for(int t=0;type!=0&&t<Model::IT_MAX;t++)		
+		int type = 100;
+		//2020: Why do this? It makes the UI confusing.
+		//for(int t=0;type!=0&&t<Model::IT_MAX;t++)		
+		for(int t=0;t<Model::IT_MAX;t++)		
 		if(jcl[bone].typeCount[t]>0)
 		{
-			// If type index is unset,set it to the combo box
-			// index for our type (off by one). If type index
-			// is already set,it's mixed (index 0)
-			type = type<0?t+1:0;
+			type = type==100?t:-1;
 		}
 
-		if(type>=0)
+		if(type!=100)
 		{
 			jcl[bone].typeIndex = type;
 			jcl[bone].weight = (int)lround(jcl[bone].weight/(double)jcl[bone].count);
@@ -1091,10 +1087,8 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 			}
 
 			if(!l.empty())			
-			jcl[j].weight = (int)lround(weight/(double)l.size());			
-			//TODO: Remove <Mixed>
-			/*REMINDER: +1 must skip over <Mixed> in the menu. */
-			jcl[j].typeIndex = Model::IT_Auto+1;
+			jcl[j].weight = (int)lround(weight/(double)l.size());						
+			jcl[j].typeIndex = Model::IT_Auto;
 		}		
 		model->operationComplete(::tr("Change Joint Assignment","operation complete"));
 
@@ -1122,13 +1116,11 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 	}
 	else if(c==group.v) /* Weight mode selected? */
 	{
-		Model::InfluenceTypeE type = Model::IT_Auto;
-		switch(group.v)
+		auto type = (Model::InfluenceTypeE)group.v.int_val();
+		
+		if((int)type==100)
 		{
-		case 0: //REMOVE ME
-				return; //<Mixed> // Not really a valid selection
-		case 1: type = Model::IT_Custom; break;
-		case 3: type = Model::IT_Remainder; break;
+			type = Model::IT_Custom; jcl[j].weight = 100; //NEW
 		}
 
 		log_debug("setting joint %d type to %d\n",j,(int)type); //???
@@ -1154,13 +1146,13 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 			jcl[j].weight = (int)lround(weight/(double)jcl[j].count);
 		}
 
-		jcl[j].typeIndex = type+1;
+		jcl[j].typeIndex = type;
 
 		sidebar_update_weight_v(group.v,true,jcl[j].typeIndex,jcl[j].weight);
 	}
 
 	for(int i=0;i<Model::MAX_INFLUENCES;i++)	
-	if(groups[i].v.int_val()-1==Model::IT_Remainder)
+	if(groups[i].v.int_val()==Model::IT_Remainder)
 	if(j>=0&&j<(int)model->getBoneJointCount()) //???
 	{
 		log_debug("getting remainder weight for joint %d\n",j); //???
@@ -1168,12 +1160,10 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		int count = 0; double weight = 0;
 		for(auto&i:l) if(auto*infl=model->getPositionInfluences(i))
 		{
-			const infl_list &ll = *infl;
-			infl_list::const_iterator jt,jtt;
-			for(jt=ll.begin(),jtt=ll.end();jt<jtt;jt++)
-			if(jt->m_type==Model::IT_Remainder&&j==(*jt).m_boneId)
+			for(auto&ea:*infl)
+			if(ea.m_type==Model::IT_Remainder&&j==ea.m_boneId)
 			{
-				weight+=(int)lround(jt->m_weight*100);
+				weight+=(int)lround(ea.m_weight*100);
 				count++;
 			}
 		}

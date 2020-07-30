@@ -1413,7 +1413,9 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 				setGroupTextureId(groupMap[n],materialMap[oldMat]);
 			}
 		}
-
+	}
+	//if(textures) //2020: why rope this in?
+	{
 		count = model->getProjectionCount();
 		for(n = 0; n<count; n++)
 		{
@@ -1449,16 +1451,22 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 				setTextureCoords(n+tribase,i,s,t);
 			}
 
-			int grp = model->getTriangleGroup(n);
-			if(grp>=0)
+			if(tpcount) //2020
 			{
-				addTriangleToGroup(groupMap[grp],n+tribase);
+				int prj = model->getTriangleProjection(n);
+				if(prj>=0&&(prj+(int)projbase)<tpcount)
+				{
+					setTriangleProjection(n+tribase,prj+projbase);
+				}
 			}
 
-			int prj = model->getTriangleProjection(n);
-			if(prj>=0&&(prj+(int)projbase)<tpcount)
+			if(textures) //2020
 			{
-				setTriangleProjection(n+tribase,prj+projbase);
+				int grp = model->getTriangleGroup(n);
+				if(grp>=0)
+				{
+					addTriangleToGroup(groupMap[grp],n+tribase);
+				}
 			}
 		}
 	}

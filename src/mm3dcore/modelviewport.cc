@@ -129,7 +129,8 @@ void ModelViewport::updateMatrix() //NEW
 	//matrix, but it would produce better selection results.
 	if(m_view<=Tool::ViewPerspective)
 	{
-		double s,t; //updateViewport gets these of whack.
+		//YUCK: updateViewport gets these out of whack.
+		double s,t; 
 		aspect<1?t=(s=m_zoom)/aspect:s=(t=m_zoom)*aspect;
 		m_width = s*2; m_height = t*2;
 
@@ -899,7 +900,7 @@ void ModelViewport::updateViewport(int how)
 	{
 		parent->zoomLevelChangedEvent(*this);
 	
-		//REMOVE ME (Invaliding cursor position?)
+		//REMOVE ME (Invalidating cursor position?)
 		m_unitWidth = getUnitWidth();
 		char str[80];
 		snprintf(str,sizeof(str),"Units: %g",m_unitWidth);
@@ -912,9 +913,12 @@ void ModelViewport::updateViewport(int how)
 void ModelViewport::wheelEvent(int wh, int bs, int x, int y)
 {
 	//bool rotate = (e->modifiers()&Qt::ControlModifier)!=0;
-	bool rotate = bs&Tool::BS_Ctrl&&~bs&Tool::BS_Alt;
-	if(wh>0) rotate?rotateClockwise():zoomIn();	
-	else rotate?rotateCounterClockwise():zoomOut();
+	if(bs&Tool::BS_Ctrl&&~bs&Tool::BS_Alt)
+	return wh>0?rotateClockwise():rotateCounterClockwise();
+	
+	double xDiff,yDiff;
+	getRawParentXYValue(x-m_viewportX,y-m_viewportY,xDiff,yDiff);
+	zoom(wh>0,xDiff+m_scroll[0],yDiff+m_scroll[1]);
 }
 bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 {
@@ -1002,8 +1006,7 @@ void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 		}
 	}
 
-	//NEW
-	if(!m_activeButton) return;
+	if(!m_activeButton) return; //NEW
 
 	//EXPERIMENTAL
 	//This test filters out multi-pan/rotate via shift.

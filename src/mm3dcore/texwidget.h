@@ -85,7 +85,7 @@ public:
 	virtual void updateViewport(int how=0) = 0;
 	virtual void rotateViewport(double,double,double){}
 
-	void zoomIn(),zoomOut();
+	void zoomIn(),zoomOut(),zoom(bool, double x,double y);
 
 	void setZoomLevel(double zoom);
 

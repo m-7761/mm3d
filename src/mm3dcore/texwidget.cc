@@ -102,6 +102,43 @@ void ScrollWidget::scrollRight()
 //#define VP_ZOOMSCALE 0.75
 static const double texwidgit_zoom = 0.75;
 
+//0.0001,250000.0
+const double ScrollWidget::zoom_min = 0.0001;
+const double ScrollWidget::zoom_max = 250000;
+void ScrollWidget::setZoomLevel(double z)
+{		
+	//Does this include navigation? If so it
+	//needs to block scrollUp, etc.
+	//if(!m_interactive) return;
+
+	z = std::min(std::max(z,zoom_min),zoom_max);
+
+	if(m_zoom!=z) 
+	{
+		m_zoom = z;
+		
+		//QString zoomStr;
+		//zoomStr.sprintf("%f",m_zoom);		
+		//emit zoomLevelChanged(zoomStr);
+		//emit(this,zoomLevelChanged,m_zoom);
+		updateViewport('z');
+	}
+}
+void ScrollWidget::zoom(bool in, double x, double y)
+{
+	double z = m_zoom;	
+	if(in) z*=texwidgit_zoom; else z/=texwidgit_zoom;		
+	z = std::min(std::max(z,zoom_min),zoom_max);
+	if(m_zoom!=z) 
+	{
+		double zDiff = z/m_zoom;
+
+		x-=m_scroll[0]; m_scroll[0]-=x*zDiff-x; 
+		y-=m_scroll[1]; m_scroll[1]-=y*zDiff-y;
+		
+		m_zoom = z; updateViewport('z');
+	}
+}
 void ScrollWidget::zoomIn()
 {
 	//Looks like a bug?
@@ -112,24 +149,6 @@ void ScrollWidget::zoomIn()
 void ScrollWidget::zoomOut()
 {
 	setZoomLevel(m_zoom/texwidgit_zoom);
-}
-//0.0001,250000.0
-const double ScrollWidget::zoom_min = 0.0001;
-const double ScrollWidget::zoom_max = 250000;
-void ScrollWidget::setZoomLevel(double z)
-{
-	z = std::min(std::max(z,zoom_min),zoom_max);
-
-	if(m_interactive&&m_zoom!=z)
-	{
-		m_zoom = z;
-		
-		//QString zoomStr;
-		//zoomStr.sprintf("%f",m_zoom);		
-		//emit zoomLevelChanged(zoomStr);
-		//emit(this,zoomLevelChanged,m_zoom);
-		updateViewport('z');
-	}
 }
 
 void ScrollWidget::drawOverlay(GLuint m_scrollTextures[2])
@@ -853,9 +872,10 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 	}
 }
 
-void TextureWidget::wheelEvent(int wh, int bs, int, int)
+void TextureWidget::wheelEvent(int wh, int bs, int x, int y)
 {
-	if(m_interactive) if(wh>0) zoomIn(); else zoomOut();
+	if(m_interactive) //Is navigation interaction?
+	zoom(wh>0,getWindowXCoord(x-m_x),getWindowYCoord(y-m_y));
 }
 
 bool TextureWidget::keyPressEvent(int bt, int bs, int, int)

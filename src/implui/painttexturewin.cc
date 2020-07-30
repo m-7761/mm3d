@@ -44,8 +44,8 @@ struct PaintTextureWin : Win
 	polygons(shelf1,"Polygons:"),
 	vertices(shelf1,"Vertices"),
 	shelf2(main),
-	width(shelf2,"Save Size:",'X'),width_v(width),
-	height(shelf2,"x",'Y'),height_v(height),
+	width(shelf2,"Save Size:",'X'),width_v(width,'X'),
+	height(shelf2,"x",'Y'),height_v(height,'Y'),
 	save(shelf2,"Save...",id_browse), //"Save Texture..."
 	ok(main),
 

@@ -366,9 +366,12 @@ class Model
 				double *m_angleSource;			 // Either m_vertAngles or m_kfVertAngles
 				bool  m_selected;
 				bool  m_visible;
-				bool  m_marked;
-				bool  m_marked2;
-				bool  m_userMarked;
+				mutable bool m_marked;
+				mutable bool m_marked2;
+				mutable bool m_userMarked;
+
+				mutable int m_user; //2020: associate an index with a pointer
+
 				int	m_projection;  // Index of texture projection (-1 for none)
 
 				bool propEqual(const Triangle &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
@@ -405,8 +408,8 @@ class Model
 				double *m_absSource;  // Points to m_coord or m_kfCoord for drawing
 				bool	m_selected;
 				bool	m_visible;
-				bool	m_marked;
-				bool	m_marked2;
+				mutable bool m_marked;
+				mutable bool m_marked2;
 
 				// If m_free is false,the vertex will be implicitly deleted when
 				// all faces using it are deleted
@@ -479,9 +482,9 @@ class Model
 				// angle greater than 90 will not be blended).
 				uint8_t	  m_angle;
 
-				bool		  m_selected;
-			//	bool		  m_visible; //UNUSED
-				bool		  m_marked;
+				bool m_selected;
+			//	bool m_visible; //UNUSED
+				mutable bool m_marked;
 
 				bool propEqual(const Group &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
 				bool operator==(const Group &rhs)const
@@ -682,8 +685,11 @@ class Model
 
 			bool m_selected;
 			bool m_visible;
-			bool m_marked;
-			mutable bool m_bone; //2020 (drawJoints)
+			mutable bool m_marked;
+
+			//2020 (drawJoints)
+			//TODO: Needs Undo objects. Remove it mutable status.
+			mutable bool m_bone;
 
 			//TODO: If Euler angles are easily inverted it makes
 			//more sense to just calculate m_inv in validateSkel.
@@ -743,9 +749,9 @@ class Model
 			//double *m_absSource;  // m_abs or m_kfAbs
 			//double *m_rotSource;	// m_rot or m_kfRot
 
-			bool	m_selected;
-			bool	m_visible;
-			bool	m_marked;
+			bool m_selected;
+			bool m_visible;
+			mutable bool m_marked;
 
 			// List of bone joints that move the point in skeletal animations.
 			infl_list m_influences;
@@ -791,8 +797,8 @@ class Model
 
 			double m_range[2][2];  // min/max,x/y
 
-			bool	m_selected;
-			bool	m_marked;
+			bool m_selected;
+			mutable bool m_marked;
 
 			bool propEqual(const TextureProjection &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
 			bool operator==(const TextureProjection &rhs)const
