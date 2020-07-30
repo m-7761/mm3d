@@ -915,7 +915,12 @@ void ModelViewport::wheelEvent(int wh, int bs, int x, int y)
 	//bool rotate = (e->modifiers()&Qt::ControlModifier)!=0;
 	if(bs&Tool::BS_Ctrl&&~bs&Tool::BS_Alt)
 	return wh>0?rotateClockwise():rotateCounterClockwise();
-	
+
+	//This is for BS_Shift (zoom all viewports) but covers
+	//any case out-of-bounds use case while accounting for
+	//the cursor in the main viewport
+	if(!over(x,y)) return wh>0?zoomIn():zoomOut();
+
 	double xDiff,yDiff;
 	getRawParentXYValue(x-m_viewportX,y-m_viewportY,xDiff,yDiff);
 	zoom(wh>0,xDiff+m_scroll[0],yDiff+m_scroll[1]);

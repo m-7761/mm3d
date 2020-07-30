@@ -875,7 +875,13 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 void TextureWidget::wheelEvent(int wh, int bs, int x, int y)
 {
 	if(m_interactive) //Is navigation interaction?
-	zoom(wh>0,getWindowXCoord(x-m_x),getWindowYCoord(y-m_y));
+	{
+		//ModelViewport does this and it might make sense too
+		//if an app had multiple texture views
+		if(!over(x,y)) return wh>0?zoomIn():zoomOut();
+
+		zoom(wh>0,getWindowXCoord(x-m_x),getWindowYCoord(y-m_y));
+	}
 }
 
 bool TextureWidget::keyPressEvent(int bt, int bs, int, int)

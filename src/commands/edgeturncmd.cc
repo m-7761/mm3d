@@ -75,12 +75,12 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 	auto &vl = model->getVertexList();
 	auto &tl = model->getTriangleList();
 
-	for(auto&i:triList) 
+	for(int i:triList) 
 	{	
 		tl[i]->m_user = i;
 		tl[i]->m_userMarked = false;
 	}
-	for(auto&i:triList) 
+	for(int i:triList) 
 	{	
 		auto *tri = tl[i];
 		auto &cmp1 = tri->m_vertexIndices;
@@ -180,7 +180,9 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 			model->setTriangleVertices(*it2,verts2[0],verts2[1],verts2[2]);*/
 			st e = {tri,tri2,draw1,draw2,diff1,diff2,verts1[diff1],verts2[diff2]};
 			vst.push_back(e);
+			goto break_break;
 		}
+		break_break:; //C++
 	}
 	for(auto&ea:vst) //first pass (undo)
 	{
