@@ -98,6 +98,7 @@ public:
 	ViewPanel views; SideBar sidebar; //IN Z-ORDER
 			
 	pos_list selection; //NEW
+	unsigned nselection[Model::PT_MAX];
 
 	bool playing;
 

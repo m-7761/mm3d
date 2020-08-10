@@ -85,8 +85,6 @@ void AlignWin::submit(int i)
 		align_selected(i,model,g->mult,g->value);
 
 		//Note: This is like an Apply button.
-		//https://github.com/zturtleman/mm3d/issues/90
-		//DecalManager::getInstance()->modelUpdated(model); //???
 		model->updateObservers();
 
 		model_status(model,StatusNormal,STATUSTIME_SHORT,::tr("Align %c"),i);

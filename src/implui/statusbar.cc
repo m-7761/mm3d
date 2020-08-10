@@ -147,10 +147,8 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 	}
 }
 void ViewBar::StatusBar::setStats()
-{	
-	int sn[4] = {};	
-	for(auto&i:model.selection) sn[i.type]++;
-
+{
+	auto &sn = model.nselection;
 	int d[6][2] = 
 	{
 		{m_model->getVertexCount(),sn[Model::PT_Vertex]},

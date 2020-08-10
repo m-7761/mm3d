@@ -94,7 +94,7 @@ unsigned Model::insertAnimFrame(AnimationModeE mode, unsigned anim, double time)
 	{
 		//If 0 the new frame is somewhere before the
 		//first frame and it has a nonzero timestamp.
-		frame+=time>cmp;
+		if(count) frame+=time>cmp;
 
 		//TODO: Relying on setAnimFrameCount to fill
 		//out the new vertices with the current ones.
@@ -1363,6 +1363,9 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 {	
 	AnimBase2020 *ab = _anim(anim,frame,pos); if(!ab) return -1;
 
+	//NOTE: sometime None may be read from files.
+	if(isRotation<=0||isRotation>KeyScale) return -1;
+
 	m_changeBits|=MoveOther; //2020
 
 	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",
@@ -1481,7 +1484,8 @@ bool Model::deleteKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 	KeyframeList &list = ab->m_keyframes[pos];
 	KeyframeList::iterator it = list.begin();
 	for(;it!=list.end();it++)	
-	if((*it)->m_frame==frame&&(*it)->m_isRotation&isRotation)
+	if((*it)->m_frame==frame)
+	if((*it)->m_isRotation&isRotation)
 	{
 		m_changeBits |= MoveOther; //2020
 
@@ -1527,11 +1531,19 @@ bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 
 	auto &list = ab->m_keyframes[pos];
 	for(auto it=list.begin();it!=list.end();)
-	if((*it)->m_frame==frame&&(*it)->m_isRotation&isRotation)
+	if((*it)->m_frame==frame)
 	{
-		Keyframe *kf = *it;
-		it = list.erase(it);
-		if(release) kf->release(); //MEMORY LEAK (when is this ever the case?)
+		//if bad keys aren't removed (they shouldn't be in here) callers
+		//(setAnimFrameCount) that expect removal infinite loop
+		auto r = (*it)->m_isRotation;
+		if(r<=0||r&isRotation)
+		{	
+			assert(r>0&&r<=KeyScale);
+
+			Keyframe *kf = *it;
+			it = list.erase(it);
+			if(release) kf->release(); //MEMORY LEAK (when is this ever the case?)
+		}
 	}
 	else it++;
 	
@@ -2099,12 +2111,12 @@ void Model::calculateAnim()
 		//wait until it's required (e.g. draw)
 		validateAnimSkel();
 
-		for(unsigned v = 0; v<m_vertices.size(); v++)
+		for(unsigned v=m_vertices.size();v-->0;)
 		{
 			m_vertices[v]->_calc_influences(*this);
 		}
 
-		for(unsigned p = 0; p<m_points.size(); p++)
+		for(unsigned p=m_points.size();p-->0;)
 		{
 			m_points[p]->_calc_influences(*this);
 		}

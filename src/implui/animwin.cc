@@ -420,11 +420,6 @@ void AnimWin::Impl::frames_edited(double n)
 	if(sidebar.frame.float_val()>n) set_frame(n);
 
 	if(op) model->operationComplete(::tr("Change Frame Count","operation complete"));
-
-	//https://github.com/zturtleman/mm3d/issues/90
-	//DecalManager::getInstance()->modelAnimate(model); //???
-	//win.model.views.update3dView();
-	win.model.views.updateAllViews();
 }
 
 void AnimWin::Impl::set_frame(double i)
@@ -502,7 +497,7 @@ bool AnimWin::Impl::copy(bool selected)
 			{
 				auto &cd = cp.data; for(int i=3;i-->0;)
 				{
-					auto kt = Model::KeyType2020E(i<<1);
+					auto kt = Model::KeyType2020E(1<<i);
 					//cd.e = model->getKeyframe(anim,frame,jt,kt,cd.x,cd.y,cd.z);
 					cd[i].e = model->hasKeyframe(anim,frame,jt,kt);
 				}
@@ -614,9 +609,7 @@ void AnimWin::Impl::paste(bool values)
 				auto kt = Model::KeyType2020E(i<<1);
 				model->setKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z,values?Model::InterpolateLerp:cd.e);
 			}
-		}
-
-		model->operationComplete(::tr("Paste frame","paste frame animation position,operation complete"));	
+		}	
 	}
 	else if(mode==Model::ANIMMODE_SKELETAL)
 	{
@@ -637,16 +630,14 @@ void AnimWin::Impl::paste(bool values)
 				model->setKeyframe(anim,frame,jt,kt,cd.x,cd.y,cd.z,values?Model::InterpolateLerp:cd.e);
 			}
 		}
-		model->operationComplete(::tr("Paste keyframe","Paste keyframe animation data complete"));
 	}
 	else return;
-		
-	//REMOVE ME
-	// Force refresh of joints
+
 	model->setCurrentAnimationFrame(frame,Model::AT_invalidateAnim);
-	//https://github.com/zturtleman/mm3d/issues/90
-	//DecalManager::getInstance()->modelUpdated(model); //???
-	model->updateObservers();
+
+	model->operationComplete(mode==Model::ANIMMODE_FRAME?
+	::tr("Paste frame","paste frame animation position,operation complete"):
+	::tr("Paste keyframe","Paste keyframe animation data complete"));
 }
 
 static void animwin_step(int id) //TEMPORARY
@@ -704,9 +695,6 @@ void AnimWin::Impl::play(int id)
 		autoplay = false;
 
 		model->setCurrentAnimationFrameTime(shelf2.timeline,Model::AT_invalidateAnim);
-
-		//https://github.com/zturtleman/mm3d/issues/90
-		//DecalManager::getInstance()->modelUpdated(model); //???
 		model->updateObservers();
 
 		playing = false;
@@ -752,10 +740,7 @@ bool AnimWin::Impl::step()
 		stop();
 	}
 
-	//https://github.com/zturtleman/mm3d/issues/90
-	//DecalManager::getInstance()->modelAnimate(model); //???
-	//win.model.views.update3dView();
-	win.model.views.updateAllViews();
+	model->updateObservers();
 
 	return playing;
 }

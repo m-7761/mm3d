@@ -351,8 +351,7 @@ void TextureWin::refresh_column2(int id)
 		case 3: model->setTextureEmissive(m,val); break;
 		case 4: model->setTextureShininess(m,val[0]*100); break;
 		}
-		//https://github.com/zturtleman/mm3d/issues/90
-		//DecalManager::getInstance()->modelUpdated(model); //???
+		
 		model->updateObservers();
 
 		texture.updateWidget();

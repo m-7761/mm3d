@@ -368,8 +368,6 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 			
 	auto mode = model->getAnimationMode();
 
-	int sn[4] = {};	
-	for(auto&i:model.selection) sn[i.type]++;
 	Model::Position ss = {};
 	size_t sz = model.selection.size();
 	if(1==sz) ss = model.selection[0];
@@ -426,6 +424,8 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 		break; 
 	}	
 	group.nav.set_hidden(!show);
+
+	auto &sn = model.nselection;
 
 	show = !mode&&sn[Model::PT_Projection];
 	proj.nav.set_hidden(!show);
@@ -938,7 +938,7 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 	}
 		
 	// Update influence fields		
-	JointCount def = {}; def.typeIndex = Model::IT_Auto;
+	JointCount def = {};
 	jcl.clear(); jcl.resize(bonesN,def);
 	
 	// for now just do a sum on which bone joints are used the most
@@ -1071,29 +1071,38 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 			groups[index+1].joint.set_hidden(hide);
 		}
 
-		int weight = 0; if(enable)
+		if(enable)
 		{
 			jcl[j].count = l.size();
 
-			for(auto&i:l)
+			extern int viewwin_joints100; if(viewwin_joints100)
 			{
-				double w = model->calculatePositionInfluenceWeight(i,j);
-
-				log_debug("influence = %f\n",w); //???
-
-				model->addPositionInfluence(i,j,Model::IT_Auto,w);
-
-				weight+=(int)lround(w*100);
+				for(auto&i:l)
+				model->addPositionInfluence(i,j,Model::IT_Custom,1);
+				jcl[j].weight = 100;
+				jcl[j].typeIndex = Model::IT_Custom;
 			}
+			else
+			{
+				double weight = 0; for(auto&i:l)
+				{
+					double w = model->calculatePositionInfluenceWeight(i,j);
 
-			if(!l.empty())			
-			jcl[j].weight = (int)lround(weight/(double)l.size());						
-			jcl[j].typeIndex = Model::IT_Auto;
+					//log_debug("influence = %f\n",w); //???
+
+					model->addPositionInfluence(i,j,Model::IT_Auto,w);
+
+					weight+=(int)lround(w*100);
+				}
+				assert(!l.empty());
+				if(!l.empty()) //zero divide???
+				jcl[j].weight = (int)lround(weight/l.size());
+				jcl[j].typeIndex = Model::IT_Auto;
+			}
 		}		
 		model->operationComplete(::tr("Change Joint Assignment","operation complete"));
 
-		weight = enable?jcl[j].weight:0;		
-		sidebar_update_weight_v(group.v,enable,enable?jcl[j].typeIndex:-1,weight);
+		sidebar_update_weight_v(group.v,enable,enable?jcl[j].typeIndex:-1,enable?jcl[j].weight:0);
 	}
 	else if(c==group.weight) /* Weight text edited? */
 	{
@@ -1125,7 +1134,9 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 
 		log_debug("setting joint %d type to %d\n",j,(int)type); //???
 
-		int weight = 0; for(auto&i:l)
+		double weight = type==Model::IT_Auto?0:jcl[j].weight/100.0;
+
+		for(auto&i:l)
 		{
 			model->setPositionInfluenceType(i,j,type);
 			if(type==Model::IT_Auto)
@@ -1134,16 +1145,13 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 				model->setPositionInfluenceWeight(i,j,w);
 				weight+=(int)lround(w*100);
 			}
-			else
-			{
-				model->setPositionInfluenceWeight(i,j,(double)jcl[j].weight/100);
-			}
+			else model->setPositionInfluenceWeight(i,j,weight);
 		}
 		model->operationComplete(::tr("Change Influence Type","operation complete"));
 
 		if(type==Model::IT_Auto)
 		{
-			jcl[j].weight = (int)lround(weight/(double)jcl[j].count);
+			jcl[j].weight = (int)lround(weight/jcl[j].count);
 		}
 
 		jcl[j].typeIndex = type;

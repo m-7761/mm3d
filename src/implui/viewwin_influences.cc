@@ -27,9 +27,6 @@
 #include "viewpanel.h"
 #include "model.h"
 #include "modelstatus.h"
-//#include "jointwin.h"
-//#include "autoassignjointwin.h"
-#include "log.h"
 
 struct AutoAssignJointWin : Win
 {
@@ -65,30 +62,30 @@ struct AutoAssignJointWin : Win
 
 static void viewwin_influences_jointAssignSelectedToJoint(MainWin &model)
 {
-	int_list jointList,vertList,pointList;
-	model->getSelectedBoneJoints(jointList);
-	if(jointList.empty())
+	if(!model.nselection[Model::PT_Joint])
 	return model_status(model,StatusError,STATUSTIME_LONG,
 	::tr("You must have at least one bone joint selected."));
-	model->getSelectedVertices(vertList);
-	model->getSelectedPoints(pointList);
 
-	log_debug("assigning %d vertices and %d points to joints\n",vertList.size(),pointList.size());
+	//log_debug("assigning %d vertices and %d points to joints\n",vertList.size(),pointList.size());
 	//QString str = ::tr("Assigning %1 vertices and %2 points to joints").arg(vertList.size()).arg(pointList.size());
 	//model_status(model,StatusNormal,STATUSTIME_SHORT,"%s",(const char *)str);
-	utf8 str = ::tr("Assigning %d vertices and %d points to joints");
-	model_status(model,StatusNormal,STATUSTIME_SHORT,str,vertList.size(),pointList.size());
+	model_status(model,StatusNormal,STATUSTIME_SHORT,
+	::tr("Assigning %d vertices and %d points to joints"),
+	model.nselection[Model::PT_Vertex],model.nselection[Model::PT_Point]);
 
-	for(auto j:jointList) for(auto i:vertList)
+	for(auto j:model.selection) 
 	{
-		double w = model->calculateVertexInfluenceWeight(i,j);
-		model->addVertexInfluence(i,j,Model::IT_Auto,w);
-	}
-
-	for(auto j:jointList) for(auto i:pointList)
-	{
-		double w = model->calculatePointInfluenceWeight(i,j);
-		model->addPointInfluence(i,j,Model::IT_Auto,w);
+		if(!j.type) break; //OPTIMIZING
+		if(j.type==Model::PT_Joint)
+		for(auto i:model.selection) 
+		{
+			extern int viewwin_joints100; if(!viewwin_joints100)
+			{
+				double w = model->calculatePositionInfluenceWeight(i,j);
+				model->addPositionInfluence(i,j,Model::IT_Auto,w);
+			}
+			else model->addPositionInfluence(i,j,Model::IT_Custom,1);
+		}
 	}
 
 	model->operationComplete(::tr("Assign Selected to Joint"));
@@ -96,18 +93,19 @@ static void viewwin_influences_jointAssignSelectedToJoint(MainWin &model)
 
 static void viewwin_influences_jointAutoAssignSelected(MainWin &model)
 {
-	if(model.selection.empty())
-	{
-		return model_status(model,StatusError,STATUSTIME_LONG,
-		::tr("You must have at least one vertex or point selected."));
-	}	 
-	int selected = 0!=model->getSelectedBoneJointCount();		
+	if(!model.nselection[Model::PT_Point]
+	&&!model.nselection[Model::PT_Vertex])
+	return model_status(model,StatusError,STATUSTIME_LONG,
+	::tr("You must have at least one vertex or point selected."));
+	
+	int selected = 0!=model.nselection[Model::PT_Joint];
+
 	double sensitivity = 50; 
 	if(id_ok==AutoAssignJointWin(&selected,&sensitivity).return_on_close())
 	{
 		sensitivity/=100;			
 
-		log_debug("auto-assigning %p vertices and points to joints\n",model.selection.size());
+		//log_debug("auto-assigning %p vertices and points to joints\n",model.selection.size());
 
 		for(auto&i:model.selection)
 		model->autoSetPositionInfluences(i,sensitivity,1&selected);
@@ -125,15 +123,29 @@ static void viewwin_influences_jointRemoveInfluencesFromSelected(MainWin &model)
 
 static void viewwin_influences_jointRemoveInfluenceJoint(MainWin &model)
 {
-	unsigned vcount = model->getVertexCount();
-	unsigned pcount = model->getPointCount();
-
-	int_list jointList;
-	model->getSelectedBoneJoints(jointList);
-	for(auto i:jointList)
+	if(model.nselection[Model::PT_Point]
+	||model.nselection[Model::PT_Vertex]) //2020
 	{
-		for(unsigned v=vcount;v-->0;) model->removeVertexInfluence(v,i);
-		for(unsigned p=pcount;p-->0;) model->removePointInfluence(p,i);
+		for(auto j:model.selection) 
+		{
+			if(!j.type) break; //OPTIMIZING
+			if(j.type==Model::PT_Joint)
+			for(auto i:model.selection) model->removePositionInfluence(i,j);
+		}
+	}
+	else //OLD WAY
+	{
+		unsigned vcount = model->getVertexCount();
+		unsigned pcount = model->getPointCount();
+
+		for(auto j:model.selection) 
+		{
+			if(!j.type) break; //OPTIMIZING
+			if(j.type==Model::PT_Joint)
+			for(unsigned v=vcount;v-->0;) model->removeVertexInfluence(v,j);
+			if(j.type==Model::PT_Joint)
+			for(unsigned p=pcount;p-->0;) model->removePointInfluence(p,j);
+		}
 	}
 
 	model->operationComplete(::tr("Remove Joint from Influencing"));
@@ -141,27 +153,40 @@ static void viewwin_influences_jointRemoveInfluenceJoint(MainWin &model)
 
 static void viewwin_influences_jointMakeSingleInfluence(MainWin &model)
 {
-	//FIX ME
-	//Should be selection based.
-
 	int bcount = model->getBoneJointCount();
 
-	for(unsigned v=model->getVertexCount();v-->0;)
+	if(model.nselection[Model::PT_Point]
+	||model.nselection[Model::PT_Vertex]) //2020
 	{
-		int joint = model->getPrimaryVertexInfluence(v);
-		
-		if(joint>=0) for(int b=bcount;b-->0;)
-		{
-			if(b!=joint) model->removeVertexInfluence(v,b);
+		for(auto i:model.selection) 
+		{	
+			int joint = model->getPrimaryPositionInfluence(i);
+
+			if(joint>=0) for(int b=bcount;b-->0;)
+			{
+				if(b!=joint) model->removePositionInfluence(i,b);
+			}
 		}
 	}
-	for(unsigned p=model->getPointCount();p-->0;)
+	else //OLD WAY (OPERATE OVER ENTIRE MODEL?)	
 	{
-		int joint = model->getPrimaryPointInfluence(p);
-		
-		if(joint>=0) for(int b=bcount;b-->0;)
+		for(unsigned v=model->getVertexCount();v-->0;)
 		{
-			if(b!=joint) model->removePointInfluence(p,b);
+			int joint = model->getPrimaryVertexInfluence(v);
+		
+			if(joint>=0) for(int b=bcount;b-->0;)
+			{
+				if(b!=joint) model->removeVertexInfluence(v,b);
+			}
+		}
+		for(unsigned p=model->getPointCount();p-->0;)
+		{
+			int joint = model->getPrimaryPointInfluence(p);
+		
+			if(joint>=0) for(int b=bcount;b-->0;)
+			{
+				if(b!=joint) model->removePointInfluence(p,b);
+			}
 		}
 	}
 
@@ -173,7 +198,7 @@ static void viewwin_influences_jointSelectUnassignedVertices(MainWin &model)
 	model->unselectAllVertices();
 	model->beginSelectionDifference();
 	{
-		for(unsigned v=0,vN=model->getVertexCount();v<vN;v++)
+		for(unsigned v=model->getVertexCount();v-->0;)
 		{
 			//infl_list l;
 			//model->getVertexInfluences(v,l);
@@ -190,10 +215,11 @@ static void viewwin_influences_jointSelectUnassignedVertices(MainWin &model)
 
 static void viewwin_influences_jointSelectUnassignedPoints(MainWin &model)
 {
-	model->unselectAllVertices();
-	model->beginSelectionDifference();
+	model->unselectAllPoints();
+	//2020: Assuming a small point count
+	//model->beginSelectionDifference(); 
 	{
-		for(unsigned p=0,pN=model->getPointCount();p<pN;p++)
+		for(unsigned p=model->getPointCount();p-->0;)
 		{
 			//infl_list l;
 			//model->getPointInfluences(p,l);
@@ -204,13 +230,13 @@ static void viewwin_influences_jointSelectUnassignedPoints(MainWin &model)
 			}
 		}
 	}
-	model->endSelectionDifference();
+	//model->endSelectionDifference();
 	model->operationComplete(::tr("Select Unassigned Points"));
 }
 
 static void viewwin_influences_jointSelectInfluenceJoints(MainWin &model)
 {
-	model->beginSelectionDifference();
+	//model->beginSelectionDifference(); //OVERKILL
 	{
 		for(auto&i:model.selection)
 		if(auto*infl=model->getPositionInfluences(i))
@@ -220,23 +246,25 @@ static void viewwin_influences_jointSelectInfluenceJoints(MainWin &model)
 			model->selectBoneJoint(ea.m_boneId);
 		}
 	}
-	model->endSelectionDifference();
+	//model->endSelectionDifference();
 	model->operationComplete(::tr("Select Joint Influences"));
 }
 
 static void viewwin_influences_jointSelectInfluencedVertices(MainWin &model)
 {
-	model->beginSelectionDifference();
+	model->beginSelectionDifference(); //OVERKILL?
 	{
-		int_list jointList;
-		model->getSelectedBoneJoints(jointList);
-		for(auto i:jointList)
-		for(unsigned v=0,vN=model->getVertexCount();v<vN;v++)
+		for(auto&j:model.selection) 
 		{
-			//model->getVertexInfluences(v,ilist);
-			for(auto&ea:model->getVertexInfluences(v))
+			if(!j.type) break; //OPTIMIZING
+			if(j.type==Model::PT_Joint)
+			for(unsigned v=model->getVertexCount();v-->0;)
 			{
-				if(i==ea.m_boneId) model->selectVertex(v);
+				//model->getVertexInfluences(v,ilist);
+				for(auto&ea:model->getVertexInfluences(v))
+				{
+					if(j==ea.m_boneId) model->selectVertex(v);
+				}
 			}
 		}
 	}
@@ -246,21 +274,24 @@ static void viewwin_influences_jointSelectInfluencedVertices(MainWin &model)
 
 static void viewwin_influences_jointSelectInfluencedPoints(MainWin &model)
 {
-	model->beginSelectionDifference();
+	//2020: Assuming a small point count
+	//model->beginSelectionDifference();
 	{
-		int_list jointList;
-		model->getSelectedBoneJoints(jointList);
-		for(auto i:jointList)
-		for(unsigned p=0,pN=model->getPointCount();p<pN;p++)
+		for(auto&j:model.selection) 
 		{
-			//model->getPointInfluences(p,ilist);
-			for(auto&ea:model->getPointInfluences(p))
+			if(!j.type) break; //OPTIMIZING
+			if(j.type==Model::PT_Joint)
+			for(unsigned p=model->getPointCount();p-->0;)
 			{
-				if(i==ea.m_boneId) model->selectPoint(p);
+				//model->getPointInfluences(p,ilist);
+				for(auto&ea:model->getPointInfluences(p))
+				{
+					if(j==ea.m_boneId) model->selectPoint(p);
+				}
 			}
 		}
 	}
-	model->endSelectionDifference();
+	//model->endSelectionDifference();
 	model->operationComplete(::tr("Select Influenced Points"));
 }
 

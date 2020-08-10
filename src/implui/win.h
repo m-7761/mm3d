@@ -135,6 +135,7 @@ enum
 	/*Influences menu*/
 	id_joint_settings,
 	id_joint_attach_verts,
+	id_joint_100,
 	id_joint_weight_verts,
 	id_joint_remove_bones,
 	id_joint_remove_selection,

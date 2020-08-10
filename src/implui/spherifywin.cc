@@ -146,8 +146,6 @@ void SpherifyWin::submit(int id)
 			model->movePosition(it->pos,diff[0],diff[1],diff[2]);
 		}
 
-		//https://github.com/zturtleman/mm3d/issues/90
-		//DecalManager::getInstance()->modelUpdated(model); //???
 		model->updateObservers();
 		break;	
 	}

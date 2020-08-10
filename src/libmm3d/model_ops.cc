@@ -1303,17 +1303,20 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		tri->m_vertexIndices[1]+vertbase,tri->m_vertexIndices[2]+vertbase);
 	}
 
-	count = model->m_groups.size();
-	for(n = 0; n<count; n++)
+	if(textures) //2020: Shouldn't pull this in!!
 	{
-		if(emptyGroups||!model->getGroupTriangles(n).empty())
+		count = model->m_groups.size();
+		for(n = 0; n<count; n++)
 		{
-			const char *name = model->getGroupName(n);
-			groupMap[n] = addGroup(name);
-			uint8_t val = model->getGroupSmooth(n);
-			setGroupSmooth(groupMap[n],val);
-			int mat = model->getGroupTextureId(n);
-			if(mat>=0) materialsNeeded.insert(mat);
+			if(emptyGroups||!model->getGroupTriangles(n).empty())
+			{
+				const char *name = model->getGroupName(n);
+				groupMap[n] = addGroup(name);
+				uint8_t val = model->getGroupSmooth(n);
+				setGroupSmooth(groupMap[n],val);
+				int mat = model->getGroupTextureId(n);
+				if(mat>=0) materialsNeeded.insert(mat);
+			}
 		}
 	}
 

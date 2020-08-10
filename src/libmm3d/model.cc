@@ -638,11 +638,10 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 int Model::addBoneJoint(const char *name, double x, double y, double z,
 		/*double xrot, double yrot, double zrot,*/ int parent)
 {
-	if(!name||parent>=(int)m_joints.size()) //m_animationMode
+	if(!name||parent+1>(int)m_joints.size()) //m_animationMode
 	{
 		return -1;
 	}
-	assert(parent>=-1);
 
 	m_changeBits |= AddOther;
 
@@ -669,7 +668,7 @@ int Model::addBoneJoint(const char *name, double x, double y, double z,
 	//identity case. These rotations are canceled out by the bind
 	//pose. They just add to confusion. tool.cc always makes a 
 	//joint with 0 initially.
-	if(parent>=0)
+	if(parent!=-1)
 	{
 		//NOTE: I think that this isn't even correct to begin with
 		//and only works because the rotation doesn't actually matter
@@ -693,10 +692,12 @@ int Model::addBoneJoint(const char *name, double x, double y, double z,
 	//	joint->m_rot[t] = rot[t]; 
 	}
 
+	//2020: let BS_RIGHT add a new root?
 	//m_joints.push_back(joint);
-	num = m_joints.size();
+	num = parent==-1?0:m_joints.size();
+	 
 	insertBoneJoint(num,joint);
-
+	
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_AddBoneJoint;
@@ -1235,7 +1236,7 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 			sendUndo(undo,true);
 		}
 
-		rval = relocateBoneJoint(j,x,y,z);
+		rval = relocateBoneJoint(j,x,y,z,false);
 	}
 	else if(inSkeletalMode()) //2020
 	{	
@@ -1307,7 +1308,7 @@ bool Model::movePoint(unsigned p, double x, double y, double z)
 	}
 }
 
-bool Model::relocateBoneJoint(unsigned j, double x, double y, double z)
+bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool downstream)
 {
 	if(j>=m_joints.size()) return false; //???
 	
@@ -1334,6 +1335,7 @@ bool Model::relocateBoneJoint(unsigned j, double x, double y, double z)
 	m_joints[j]->m_rel[1] += tran[1];
 	m_joints[j]->m_rel[2] += tran[2];
 
+	if(!downstream)
 	for(unsigned t = 0; t<m_joints.size(); t++)
 	{
 		if(m_joints[t]->m_parent==(signed)j)
@@ -1835,6 +1837,9 @@ void Model::rotateSelected(const Matrix &m, double *point)
 			// and invert the operation on those joints.
 			if(m_joints[j]->m_selected&&!parentJointSelected(j))
 			{
+				//HACK? Need to update m_final matrix.
+				validateAnimSkel();
+
 				m_changeBits|=MoveOther; //2020
 
 				Joint *joint = m_joints[j];

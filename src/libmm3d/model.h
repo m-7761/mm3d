@@ -194,9 +194,9 @@ class Model
 		  PT_Joint,
 		  PT_Point,
 		  PT_Projection,
-
+		  PT_MAX,
 		  //For the undo system.
-		  _OT_Background_, 
+		  _OT_Background_=PT_MAX, 
 		};
 
 		enum OperationScopeE
@@ -1918,9 +1918,6 @@ class Model
 
 		bool getBoneVector(unsigned joint, double *vec, const double *coord)const;
 
-		// No undo on this one
-		bool relocateBoneJoint(unsigned j, double x, double y, double z);
-				
 		// ------------------------------------------------------------------
 		// Point functions
 		// ------------------------------------------------------------------
@@ -2137,7 +2134,16 @@ class Model
 		// CAUTION: No longer clears keyframes in ANIMMODE_SKELETON
 		void deleteSelected();
 
-		// When changing the selection state of a lot of primitives,a difference
+		//REMOVE ME? (SEEMS VERY WORK INTENSIVE FOR VERY LITTE GAIN)
+		//SHOULD THIS BE LIMITED TO setSelectionMode?
+		//(What about selectVerticesFromTriangles?)
+		//
+		// NOTE: If combining undo objects was done on the stack this
+		// would be worse even in the hard cases, whereas when there
+		// are only a few selections this is always worse depending
+		// on how large the model is.
+		//
+		// When changing the selection state of a lot of primitives, a difference
 		// list is used to track undo information. These calls indicate when the
 		// undo information should start being tracked and when it should be
 		// completed.
@@ -2152,7 +2158,8 @@ class Model
 		//2019: This is too dangerous. Don't use it.
 		//It calls selectVerticesFromTriangles every
 		//time.
-		bool unselectTriangle(unsigned t, bool selectVerticesFromTriangles=false);
+		//2020: I've used m_faces to optimize it.
+		bool unselectTriangle(unsigned t, bool selectVerticesFromTriangles=true);
 		bool isTriangleSelected(unsigned t)const;
 
 		bool selectGroup(unsigned g);
@@ -2250,6 +2257,9 @@ class Model
 		// ==================================================================
 		// Protected methods
 		// ==================================================================
+		
+		// No undo on this one
+		bool relocateBoneJoint(unsigned j, double x, double y, double z, bool downstream);				
 
 		// ------------------------------------------------------------------
 		// Texture context methods

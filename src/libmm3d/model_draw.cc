@@ -1011,11 +1011,11 @@ void Model::drawPoints()
 	{
 		if(m_points[p]->m_visible)
 		{
-			Point *point = (m_points[p]);
+			Point *pt = m_points[p];
 
-			model_draw_drawPointOrientation(point->m_selected,scale,point->getMatrix());
+			model_draw_drawPointOrientation(pt->m_selected,scale,pt->getMatrix());
 
-			if(point->m_selected)
+			if(pt->m_selected)
 			{
 				glColor3f(0.7f,1,0);
 			}
@@ -1025,7 +1025,7 @@ void Model::drawPoints()
 			}
 
 			glBegin(GL_POINTS);
-			glVertex3dv(point->m_absSource);
+			glVertex3dv(pt->m_absSource);
 			glEnd();
 		}
 	}	

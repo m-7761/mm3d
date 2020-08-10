@@ -62,6 +62,8 @@ viewwin_geom_menu=0,viewwin_mats_menu=0,
 viewwin_infl_menu=0,viewwin_help_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
 viewwin_framelock=1,viewwin_toolbar = 0;
+extern int 
+viewwin_joints100=1;
 
 std::vector<MainWin*> viewwin_list(0); //extern
 
@@ -152,6 +154,15 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
 	//if(_transform_win) = _transform_win->modelChanged(changeBits);
 
+	if(changeBits&Model::SelectionChange)
+	{
+		model->getSelectedPositions(selection);
+		auto &sn = nselection;
+		memset(sn,0x00,sizeof(sn));
+		for(auto&i:selection) sn[i.type]++;
+		//Assuming getSelectedPositions puts vertices on back!
+		assert(!sn[Model::PT_Vertex]||!selection.back().type);
+	}
 	if(changeBits&Model::ShowJoints)
 	{
 		glutSetMenu(_rops_menu);
@@ -174,11 +185,6 @@ void MainWin::_drawingModelChanged()
 	int changeBits = _deferredModelChanged;
 	_deferredModelChanged = 0;
 	model->validateAnim();
-		
-	if(changeBits&Model::SelectionChange)
-	{
-		model->getSelectedPositions(selection);
-	}
 
 	//ViewPanel::draw calls _drawingModelChanged.
 	//There's no sense in calling updateAllViews.
@@ -386,18 +392,18 @@ static void viewwin_synthetic_hotkey(std::string &s, Command *cmd, int i)
 	utf8 ks = viewwin_key_sequence("cmd",cmd->getName(i),cmd->getKeymap(i));
 	if(*ks) s.append(1,'\t').append(ks);
 }
-static utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t, utf8 def="", bool clr=true)
+static utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t="", utf8 def="", bool clr=true)
 {
 	//utf8 ks = keycfg.get(key,*def?TRANSLATE("KeyConfig",def,t):def);
 	utf8 ks = keycfg.get(key,def);
 	if(clr) s.clear(); s+=::tr(n,t);
 	if(*ks) s.append(1,'\t').append(ks); return s.c_str();
 }
-static utf8 viewwin_menu_radio(std::string &o, bool O, utf8 key, utf8 n, utf8 t, utf8 def="")
+static utf8 viewwin_menu_radio(std::string &o, bool O, utf8 key, utf8 n, utf8 t="", utf8 def="")
 {
 	o = O?'O':'o'; o.push_back('|'); return viewwin_menu_entry(o,key,n,t,def,false);
 }
-static utf8 viewwin_menu_check(std::string &o, bool X, utf8 key, utf8 n, utf8 t, utf8 def="")
+static utf8 viewwin_menu_check(std::string &o, bool X, utf8 key, utf8 n, utf8 t="", utf8 def="")
 {
 	o = X?'X':'x'; o.push_back('|'); return viewwin_menu_entry(o,key,n,t,def,false);
 }
@@ -736,6 +742,7 @@ void MainWin::_init_menu_toolbar() //2019
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
 	glutAddMenuEntry(E(joint_settings,"Edit Joints...","Joints|Edit Joints","J")); 
+	glutAddMenuEntry(X(config.get("ui_joint_100",true),joint_100,"Assign 100","","I"));
 	glutAddMenuEntry(E(joint_attach_verts,"Assign Selected to Joint","Joints|Assign Selected to Joint","Ctrl+B"));
 	glutAddMenuEntry(E(joint_weight_verts,"Auto-Assign Selected...","Joints|Auto-Assign Selected","Shift+Ctrl+B")); 
 	glutAddMenuEntry(E(joint_remove_bones,"Remove All Influences from Selected","Joints|Remove All Influences from Selected")); 
@@ -931,7 +938,8 @@ glut_window_id(viewwin_init()),
 clipboard_mode(),
 //NOTE: Compilers (MSVC) may not like "this".
 //Makes parent/child relationships headaches.
-views(*this),sidebar(*this),playing(),
+views(*this),sidebar(*this),
+nselection(),playing(),
 _animation_win(),
 _transform_win(),
 _projection_win(),
@@ -1950,8 +1958,15 @@ void MainWin::perform_menu_action(int id)
 	/*Influences menu*/
 	case id_joint_settings: 
 		
-		extern void jointwin(MainWin&);
-		jointwin(*w); return;
+		extern void jointwin(MainWin&,int&);
+		jointwin(*w,viewwin_joints100); 
+		return;
+		
+	case id_joint_100:
+		
+		viewwin_joints100 = glutGet(glutext::GLUT_MENU_CHECKED);
+		config.set("ui_joint_100",viewwin_joints100); 
+		return;
 		
 	case id_joint_attach_verts:
 	case id_joint_weight_verts:

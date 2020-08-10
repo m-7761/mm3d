@@ -75,39 +75,24 @@ bool MU_RotateSelected::combine(Undo *u)
 
 	if(undo)
 	{
-		for(int t = 0; t<3; t++)
-		{
-			if(m_point[t]!=undo->m_point[t])
-			{
-				return false;
-			}
-		}
-
+		for(int t=3;t-->0;)
+		if(m_point[t]!=undo->m_point[t])
+		return false;
 		m_matrix = m_matrix *undo->m_matrix;
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-
 void MU_RotateSelected::setMatrixPoint(const Matrix &rhs, double *point)
 {
-	m_matrix = rhs;
-	for(int t = 0; t<3; t++)
-	{
-		m_point[t] = point[t];
-	}
+	m_matrix = rhs; for(int t=3;t-->0;) m_point[t] = point[t];
 }
-
 void MU_RotateSelected::undo(Model *model)
 {
 	log_debug("undo rotate selected\n");
 	Matrix inv = m_matrix.getInverse();
 	model->rotateSelected(inv,m_point);
 }
-
 void MU_RotateSelected::redo(Model *model)
 {
 	log_debug("undo rotate selected\n");
@@ -116,17 +101,9 @@ void MU_RotateSelected::redo(Model *model)
 
 bool MU_ApplyMatrix::combine(Undo *u)
 {
-	MU_ApplyMatrix *undo = dynamic_cast<MU_ApplyMatrix*>(u);
-
-	if(undo)
-	{
-		m_matrix = m_matrix *undo->m_matrix;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	auto undo = dynamic_cast<MU_ApplyMatrix*>(u);
+	if(undo) m_matrix = m_matrix*undo->m_matrix;
+	return undo;
 }
 
 void MU_ApplyMatrix::setMatrix(const Matrix &m,Model::OperationScopeE scope,bool animations)
@@ -167,16 +144,9 @@ void MU_SelectionMode::redo(Model *model)
 
 bool MU_SelectionMode::combine(Undo *u)
 {
-	MU_SelectionMode *undo = dynamic_cast<MU_SelectionMode*>(u);
-	if(undo)
-	{
-		m_mode = undo->m_mode;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	auto undo = dynamic_cast<MU_SelectionMode*>(u);
+	if(undo) m_mode = undo->m_mode;
+	return undo;
 }
 
 unsigned MU_SelectionMode::size()
@@ -186,21 +156,27 @@ unsigned MU_SelectionMode::size()
 
 void MU_Select::undo(Model *model)
 {
-	bool unselect = false; //2019
+	bool conv,unselect = false; //2019
+
+	//2020: I optimized unselectTriangle with the
+	//new connectivity data that should do better
+	if(m_mode==Model::SelectTriangles)	
+	conv = m_diff.size()<model->getTriangleCount()/10;
 
 	/*2020: should go backward in time!
 	// Invert selection from our list	
 	for(auto it=m_diff.begin();it!=m_diff.end();it++)*/
 	for(auto it=m_diff.rbegin();it!=m_diff.rend();it++)
 	{
-		if(!it->oldSelected) switch (m_mode)
+		if(!it->oldSelected) switch(m_mode)
 		{
 		case Model::SelectVertices:
 			model->unselectVertex(it->number);
 			break;
 		case Model::SelectTriangles:
 			unselect = true;
-			model->unselectTriangle(it->number);
+			//model->unselectTriangle(it->number,false);
+			model->unselectTriangle(it->number,conv);
 			break;
 		case Model::SelectGroups:
 			model->unselectGroup(it->number);
@@ -214,9 +190,8 @@ void MU_Select::undo(Model *model)
 		case Model::SelectProjections:
 			model->unselectProjection(it->number);
 			break;
-		case Model::SelectNone: break; //default?
 		}		
-		else switch (m_mode)
+		else switch(m_mode)
 		{
 		case Model::SelectVertices:
 			model->selectVertex(it->number);
@@ -236,80 +211,77 @@ void MU_Select::undo(Model *model)
 		case Model::SelectProjections:
 			model->selectProjection(it->number);
 			break;
-		case Model::SelectNone: break; //default?
 		}
 	}
 
-	//2019: unselectTriangle did this per triangle.
-	if(unselect) model->selectVerticesFromTriangles();
+	//2019: unselectTriangle did this per triangle
+	if(unselect&&!conv) model->selectVerticesFromTriangles();
 }
-
 void MU_Select::redo(Model *model)
 {
-	SelectionDifferenceList::iterator it;
+	bool conv,unselect = false; //2019
 
-	bool unselect = false; //2019
+	//2020: I optimized unselectTriangle with the
+	//new connectivity data that should do better
+	if(m_mode==Model::SelectTriangles)
+	conv = m_diff.size()<model->getTriangleCount()/10;
 
-	// Set selection from our list	
-	for(it = m_diff.begin(); it!=m_diff.end(); it++)
+	// Set selection from our list
+	for(auto&ea:m_diff) 
+	if(ea.selected) switch(m_mode)
 	{
-		if(it->selected) switch (m_mode)
-		{
-		case Model::SelectVertices:
-			model->selectVertex(it->number);
-			break;
-		case Model::SelectTriangles:
-			model->selectTriangle(it->number);
-			break;
-		case Model::SelectGroups:
-			model->selectGroup(it->number);
-			break;
-		case Model::SelectJoints:
-			model->selectBoneJoint(it->number);
-			break;
-		case Model::SelectPoints:
-			model->selectPoint(it->number);
-			break;
-		case Model::SelectProjections:
-			model->selectProjection(it->number);
-			break;
-		case Model::SelectNone: break; //default?
-		}
-		else switch (m_mode)
-		{
-		case Model::SelectVertices:
-			model->unselectVertex(it->number);
-			break;
-		case Model::SelectTriangles:
-			unselect = true;
-			model->unselectTriangle(it->number);
-			break;
-		case Model::SelectGroups:
-			model->unselectGroup(it->number);
-			break;
-		case Model::SelectJoints:
-			model->unselectBoneJoint(it->number);
-			break;
-		case Model::SelectPoints:
-			model->unselectPoint(it->number);
-			break;
-		case Model::SelectProjections:
-			model->unselectProjection(it->number);
-			break;
-		case Model::SelectNone: break; //default?
-		}
+	case Model::SelectVertices:
+		model->selectVertex(ea.number);
+		break;
+	case Model::SelectTriangles:
+		model->selectTriangle(ea.number);
+		break;
+	case Model::SelectGroups:
+		model->selectGroup(ea.number);
+		break;
+	case Model::SelectJoints:
+		model->selectBoneJoint(ea.number);
+		break;
+	case Model::SelectPoints:
+		model->selectPoint(ea.number);
+		break;
+	case Model::SelectProjections:
+		model->selectProjection(ea.number);
+		break;
 	}
-	
+	else switch(m_mode)
+	{
+	case Model::SelectVertices:
+		model->unselectVertex(ea.number);
+		break;
+	case Model::SelectTriangles:
+		unselect = true;
+		//model->unselectTriangle(ea.number,false);
+		model->unselectTriangle(ea.number,conv);
+		break;
+	case Model::SelectGroups:
+		model->unselectGroup(ea.number);
+		break;
+	case Model::SelectJoints:
+		model->unselectBoneJoint(ea.number);
+		break;
+	case Model::SelectPoints:
+		model->unselectPoint(ea.number);
+		break;
+	case Model::SelectProjections:
+		model->unselectProjection(ea.number);
+		break;
+	}	
 
-	//2019: unselectTriangle did this per triangle.
-	if(unselect) model->selectVerticesFromTriangles();
+	//2019: unselectTriangle did this per triangle
+	if(unselect&&!conv) model->selectVerticesFromTriangles();
 }
 
 bool MU_Select::combine(Undo *u)
 {
 	//WHY WAS THIS DIABLED?
 	//Restoring this. The selectVerticesFromTriangles
-	//fix above can't work with uncombined lists.
+	//fix above can't work with uncombined lists
 	//https://github.com/zturtleman/mm3d/issues/93
 	///*
 	MU_Select *undo = dynamic_cast<MU_Select*>(u);
@@ -317,7 +289,7 @@ bool MU_Select::combine(Undo *u)
 	{
 		//2019: m_diff here was "sorted_list" but I'm removing that
 		//since it will affect performance bad / can't think of any
-		//reason to sort.
+		//reason to sort
 
 		SelectionDifferenceList::iterator it;
 		for(it = undo->m_diff.begin(); it!=undo->m_diff.end(); it++)
@@ -1938,19 +1910,23 @@ void MU_SubdivideTriangle::addVertex(unsigned v)
 void MU_ChangeAnimState::undo(Model *model)
 {
 	log_debug("undo change anim state: old %d\n",m_oldMode);
-	//if(m_oldMode) //???
-	bool skel = m_oldMode==Model::ANIMMODE_SKELETAL;
-	_sync_animation(model,skel,m_oldAnim,m_oldFrame); //REMOVE US
-	//else model->setNoAnimation(); //???
+	if(m_oldMode)
+	{
+		bool skel = m_oldMode==Model::ANIMMODE_SKELETAL;
+		_sync_animation(model,skel,m_oldAnim,m_oldFrame); //REMOVE US
+	}
+	else model->setNoAnimation();
 }
 
 void MU_ChangeAnimState::redo(Model *model)
 {
 	log_debug("redo change anim state: new %d\n",m_newMode);
-	//if(m_newMode) //???
-	bool skel = m_newMode==Model::ANIMMODE_SKELETAL;
-	_sync_animation(model,skel,m_anim,0); //REMOVE US
-	//else model->setNoAnimation(); //???
+	if(m_newMode)
+	{
+		bool skel = m_newMode==Model::ANIMMODE_SKELETAL;
+		_sync_animation(model,skel,m_anim,0); //REMOVE US
+	}
+	else model->setNoAnimation();
 }
 
 bool MU_ChangeAnimState::combine(Undo *u)
@@ -3201,27 +3177,22 @@ void MU_AddBoneJoint::undo(Model *model)
 {
 	model->removeBoneJoint(m_jointNum);
 }
-
 void MU_AddBoneJoint::redo(Model *model)
 {
 	model->insertBoneJoint(m_jointNum,m_joint);
 }
-
 bool MU_AddBoneJoint::combine(Undo *u)
 {
 	return false;
 }
-
 void MU_AddBoneJoint::redoRelease()
 {
 	m_joint->release();
 }
-
 unsigned MU_AddBoneJoint::size()
 {
 	return sizeof(MU_AddBoneJoint)+sizeof(Model::Joint);
 }
-
 void MU_AddBoneJoint::addBoneJoint(unsigned jointNum,Model::Joint *joint)
 {
 	m_jointNum = jointNum;

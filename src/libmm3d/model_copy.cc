@@ -464,7 +464,7 @@ bool Model::duplicateSelected()
 			double coord[3],rot[3],xyz[3];
 			getPointCoordsUnanimated(p,coord);
 			getPointRotationUnanimated(p,rot);
-			getPointScaleUnanimated(p,rot);
+			getPointScaleUnanimated(p,xyz);
 
 			int np = addPoint(getPointName(p),
 			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]/*,parent*/);

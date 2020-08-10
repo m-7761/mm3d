@@ -186,6 +186,14 @@ void Model::insertBoneJoint(unsigned index, Joint *joint)
 		{
 			m_joints[j]->m_parent++;
 		}
+		 			
+		//2020: let BS_RIGHT add a new root?
+		if(index==0&&!m_joints.empty())
+		{
+			for(int i=3;i-->0;)
+			m_joints[0]->m_rel[i]-=joint->m_rel[i];
+			m_joints[0]->m_parent = 0;
+		}
 
 		// Adjust joint indices of keyframes after this joint
 		for(auto*sa:m_skelAnims)		
@@ -232,19 +240,6 @@ void Model::removeBoneJoint(unsigned index)
 
 	m_changeBits |= AddOther;
 
-	// Adjust parent relationships
-	for(size_t j=m_joints.size();j-->0;)
-	{
-		if(m_joints[j]->m_parent==(signed)index)
-		{
-			m_joints[j]->m_parent = m_joints[index]->m_parent;
-		}
-		else if(m_joints[j]->m_parent>(signed)index)
-		{
-			m_joints[j]->m_parent--;
-		}
-	}
-
 	//DUPLICATES removePoint
 	for(unsigned anim=0;anim<m_skelAnims.size();anim++) 
 	{
@@ -290,8 +285,28 @@ void Model::removeBoneJoint(unsigned index)
 	for(auto*ea:m_points) for(auto&i:ea->m_influences)
 	{
 		if(i.m_boneId>(signed)index) i.m_boneId--;
+	}				
+	
+	//2020: let BS_RIGHT add a new root?
+	if(index==0&&1!=m_joints.size())
+	{
+		for(int i=3;i-->0;) 
+		m_joints[1]->m_rel[i]+=m_joints[0]->m_rel[i];
 	}
-				
+
+	// Adjust parent relationships
+	for(size_t j=m_joints.size();j-->0;)
+	{	
+		if(m_joints[j]->m_parent==(signed)index)
+		{
+			m_joints[j]->m_parent = m_joints[index]->m_parent;
+		}
+		else if(m_joints[j]->m_parent>(signed)index)
+		{
+			m_joints[j]->m_parent--;
+		}
+	}
+
 	m_joints.erase(m_joints.begin()+index);
 
 	invalidateSkel(); //m_validJoints = false;

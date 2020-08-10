@@ -62,21 +62,25 @@ void JointTool::mouseButtonDown()
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1],true);
 
-	const Matrix &mat = parent->getParentViewMatrix();
-
 	int p = -1;
-	double pDist = DBL_MAX;
-	for(int i=model->getBoneJointCount();i-->0;)
-	{
-		double coords[4];
-		model->getBoneJointCoords(i,coords);
-		coords[3] = 1;
-		mat.apply(coords);
 
-		double dist = distance(pos[0],pos[1],coords[0],coords[1]);
-		if(dist<pDist)
+	if(Tool::BS_Right!=parent->getButtons())
+	{
+		const Matrix &mat = parent->getParentViewMatrix();
+
+		double pDist = DBL_MAX;
+		for(int i=model->getBoneJointCount();i-->0;)
 		{
-			p = i; pDist = dist;
+			double coords[4];
+			model->getBoneJointCoords(i,coords);
+			coords[3] = 1;
+			mat.apply(coords);
+
+			double dist = distance(pos[0],pos[1],coords[0],coords[1]);
+			if(dist<pDist)
+			{
+				p = i; pDist = dist;
+			}
 		}
 	}
 

@@ -1086,17 +1086,23 @@ static void glmath_EulerAnglesFromQuaternion(double vOut[3], const Quaternion &q
 
 	float test = qOut[3]*qOut[1] + qOut[0]*qOut[2]*float(H);
 
-	if(test>0.499f) //! singularity at north pole
+	//TESTING: these values are producing turbulence (86.3 degrees?)
+	//https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/jack.htm
+	//if(test>0.499f) //! singularity at north pole
+	if(test>=0.499999)
 	{
-		vOut[0] = atan2(qOut[0],qOut[3])*+2.0f;
+		//2020: I'm adding H since I observed the sign is incorrect.
+		vOut[0] = atan2(qOut[0],qOut[3])*+2*H;
 		vOut[1] = PI/2;
 		vOut[2] = 0;
 
 		return;
 	}
-	if(test<-0.499f) //! singularity at south pole
+	//if(test<-0.499f) //! singularity at south pole
+	if(test<=-0.499999)
 	{
-		vOut[0] = atan2(qOut[0],qOut[3])*-2;
+		//2020: I'm adding H since I observed the sign is incorrect.
+		vOut[0] = atan2(qOut[0],qOut[3])*-2*H;
 		vOut[1] = -PI/2;
 		vOut[2] = 0;
 

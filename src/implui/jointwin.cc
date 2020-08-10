@@ -37,9 +37,9 @@ struct JointWin : Win
 {
 	void submit(control*);
 
-	JointWin(MainWin &model)
+	JointWin(MainWin &model, int &i)
 		:
-	Win("Joints"),model(model),
+	Win("Joints"),model(model),loo(i!=0),
 	joint(main,"",id_item),
 	nav(main),
 	name(nav,"Rename",id_name),
@@ -55,7 +55,7 @@ struct JointWin : Win
 		submit(main);
 	}
 
-	MainWin &model;
+	MainWin &model; bool loo;
 
 	struct selection_group
 	{
@@ -161,10 +161,7 @@ void JointWin::submit(control *c)
 					}
 				}
 				else if(l.empty()) goto select2;
-			}
-			//https://github.com/zturtleman/mm3d/issues/90
-			//DecalManager::getInstance()->modelUpdated(model); //???
-			model->updateObservers();
+			}			
 			break;
 		}
 		case 2: //"Assign Selected to Joint"
@@ -175,10 +172,20 @@ void JointWin::submit(control *c)
 			for(auto&i:model.selection)
 			{
 				if(bt==2) model->setPositionBoneJoint(i,j);
-				if(bt==3) model->addPositionInfluence(i,j,Model::IT_Custom,1);
+				if(bt==3) if(loo)
+				{
+					//Oddly this is the old way of doing things?
+					model->addPositionInfluence(i,j,Model::IT_Custom,1);
+				}
+				else //2020 (standard way of auto-assignment elsewhere)
+				{
+					double w = model->calculatePositionInfluenceWeight(i,j);
+					model->addPositionInfluence(i,j,Model::IT_Auto,w);
+				}
 			}
 			break;
 		}}
+		model->updateObservers();
 		break;
 
 	case id_ok:
@@ -197,4 +204,4 @@ void JointWin::submit(control *c)
 	basic_submit(id);
 }
 
-extern void jointwin(MainWin &m){ JointWin(m).return_on_close(); }
+extern void jointwin(MainWin &m, int &loo){ JointWin(m,loo).return_on_close(); }

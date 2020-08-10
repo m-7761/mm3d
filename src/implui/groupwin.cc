@@ -168,9 +168,7 @@ void GroupWin::submit(int id)
 			model->setGroupTextureId(g,material);
 	
 			texture.setTexture(material); break;			
-		}
-		//https://github.com/zturtleman/mm3d/issues/90
-		//DecalManager::getInstance()->modelUpdated(model); //???
+		}		
 		model->updateObservers();
 		break;
 	}

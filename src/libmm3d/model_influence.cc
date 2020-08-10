@@ -72,8 +72,8 @@ void Model::getBoneJointVertices(int joint, int_list &rval)const
 	}
 }
 
-bool Model::addPositionInfluence(const Position &pos, unsigned joint,InfluenceTypeE type, double weight)
-{
+bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceTypeE type, double weight)
+{	
 	if(joint>=m_joints.size()) return false;
 
 	auto *il = getPositionInfluences(pos); if(!il) return false;
@@ -142,8 +142,6 @@ bool Model::removePositionInfluence(const Position &pos, unsigned joint)
 				index++; continue;
 			}
 
-			m_changeBits |= AddOther;
-			
 			if(m_undoEnabled)
 			{
 				auto undo = new MU_SetPositionInfluence;
@@ -207,13 +205,13 @@ int Model::getPrimaryPositionInfluence(const Position &pos)const
 {
 	//infl_list l;
 	//getPositionInfluences(pos,l);
-	auto infl = getPositionInfluences(pos);
-	if(!infl) return -1;
+	auto *il = getPositionInfluences(pos);
+	if(!il) return -1;
 
 	Model::InfluenceT inf;
 	inf.m_boneId = -1;
 	inf.m_weight = -1.0;
-	for(auto&ea:*infl) if(inf<ea) inf = ea;
+	for(auto&ea:*il) if(inf<ea) inf = ea;
 
 	return inf.m_boneId;
 }
