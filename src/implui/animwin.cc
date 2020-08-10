@@ -555,7 +555,7 @@ bool AnimWin::Impl::copy(bool selected)
 			{
 				auto &cd = cpt.data; for(int i=3;i-->0;)
 				{
-					auto kt = Model::KeyType2020E(i<<1);
+					auto kt = Model::KeyType2020E(1<<i);
 					//cd.e = model->getKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z);
 					cd[i].e = model->hasKeyframe(anim,frame,pt,kt);
 				}			
@@ -581,37 +581,7 @@ void AnimWin::Impl::paste(bool values)
 		
 	frame = model->makeCurrentAnimationFrame();
 
-	if(mode==Model::ANIMMODE_FRAME)
-	{
-		if(copy2.empty()&&copy3.empty())
-		{
-			//msg_error(::tr("No frame animation data to paste"));
-			model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to paste");		
-			return;
-		}
-
-		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
-		{
-			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,values?Model::InterpolateLerp:p->e);
-		}
-
-		/*for(FramePointCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
-		{
-			model->setFrameAnimPointCoords(anim,frame,p->point,p->x,p->y,p->z);
-			model->setFrameAnimPointRotation(anim,frame,p->point,p->rx,p->ry,p->rz);
-		}*/
-		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
-		{
-			Model::Position pt{Model::PT_Point,p->object};
-			for(int i=0;i<3;i++)
-			{
-				auto &cd = p->data[i];
-				auto kt = Model::KeyType2020E(i<<1);
-				model->setKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z,values?Model::InterpolateLerp:cd.e);
-			}
-		}	
-	}
-	else if(mode==Model::ANIMMODE_SKELETAL)
+	if(mode==Model::ANIMMODE_SKELETAL)
 	{
 		if(copy1.empty())
 		{
@@ -626,10 +596,43 @@ void AnimWin::Impl::paste(bool values)
 			for(int i=0;i<3;i++)
 			{
 				auto &cd = p->data[i];
-				auto kt = Model::KeyType2020E(i<<1);
-				model->setKeyframe(anim,frame,jt,kt,cd.x,cd.y,cd.z,values?Model::InterpolateLerp:cd.e);
+				auto kt = Model::KeyType2020E(1<<i);
+				model->setKeyframe(anim,frame,jt,kt,cd.x,cd.y,cd.z,
+				values&&cd.e<Model::InterpolateStep?Model::InterpolateLerp:cd.e);
 			}
 		}
+	}
+	else if(mode==Model::ANIMMODE_FRAME)
+	{
+		if(copy2.empty()&&copy3.empty())
+		{
+			//msg_error(::tr("No frame animation data to paste"));
+			model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to paste");		
+			return;
+		}
+
+		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
+		{
+			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,
+			values&&p->e<Model::InterpolateStep?Model::InterpolateLerp:p->e);
+		}
+
+		/*for(FramePointCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
+		{
+			model->setFrameAnimPointCoords(anim,frame,p->point,p->x,p->y,p->z);
+			model->setFrameAnimPointRotation(anim,frame,p->point,p->rx,p->ry,p->rz);
+		}*/
+		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
+		{
+			Model::Position pt{Model::PT_Point,p->object};
+			for(int i=0;i<3;i++)
+			{
+				auto &cd = p->data[i];
+				auto kt = Model::KeyType2020E(1<<i);
+				model->setKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z,
+				values&&cd.e<Model::InterpolateStep?Model::InterpolateLerp:cd.e);
+			}
+		}	
 	}
 	else return;
 

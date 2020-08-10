@@ -1363,7 +1363,10 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 {	
 	AnimBase2020 *ab = _anim(anim,frame,pos); if(!ab) return -1;
 
-	//NOTE: sometime None may be read from files.
+	//NEW: this saves user code from branching on this case and is analogous
+	//to vertex frame data
+	if(!interp2020) deleteKeyframe(anim,frame,pos,isRotation);
+
 	if(isRotation<=0||isRotation>KeyScale) return -1;
 
 	m_changeBits|=MoveOther; //2020
@@ -1544,6 +1547,7 @@ bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 			it = list.erase(it);
 			if(release) kf->release(); //MEMORY LEAK (when is this ever the case?)
 		}
+		else it++;
 	}
 	else it++;
 	
@@ -1965,9 +1969,10 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	//m_currentFrame = (unsigned)(frameTime/spf);
 	m_currentFrame = time?getAnimFrame(am,anim,time):0;
 	m_currentTime = time;
-
+	
 	if(calc!=AT_invalidateAnim) 
 	{
+		invalidateAnimSkel(); //NEW
 		calculateAnim();
 	}
 	else invalidateAnim();

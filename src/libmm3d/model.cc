@@ -638,7 +638,7 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 int Model::addBoneJoint(const char *name, double x, double y, double z,
 		/*double xrot, double yrot, double zrot,*/ int parent)
 {
-	if(!name||parent+1>(int)m_joints.size()) //m_animationMode
+	if(!name||(unsigned)parent+1>m_joints.size())
 	{
 		return -1;
 	}

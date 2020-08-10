@@ -1575,6 +1575,7 @@ class Model
 		// This does the first half (joints) of validate/calculateAnim but not
 		// the second half (vertex/points coordinates)
 		void validateAnimSkel()const,calculateAnimSkel();
+		void invalidateAnimSkel(){ m_validAnimJoints = false; }
 
 		void invalidateAnim();
 		void invalidateAnim(AnimationModeE,unsigned,unsigned);

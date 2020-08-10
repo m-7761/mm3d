@@ -147,6 +147,7 @@ enum
 	id_joint_unnassigned_verts,
 	id_joint_unnassigned_points,
 	id_joint_draw_bone,
+	id_joint_lock_bone,
 
 	/*Animation menu*/	
 	id_animate_settings,

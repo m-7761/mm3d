@@ -61,7 +61,8 @@ viewwin_tool_menu=0,viewwin_modl_menu=0,
 viewwin_geom_menu=0,viewwin_mats_menu=0,
 viewwin_infl_menu=0,viewwin_help_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
-viewwin_framelock=1,viewwin_toolbar = 0;
+viewwin_framelock=1,viewwin_jointlock=0,
+viewwin_toolbar = 0;
 extern int 
 viewwin_joints100=1;
 
@@ -744,24 +745,26 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(joint_settings,"Edit Joints...","Joints|Edit Joints","J")); 
 	glutAddMenuEntry(X(config.get("ui_joint_100",true),joint_100,"Assign 100","","I"));
 	glutAddMenuEntry(E(joint_attach_verts,"Assign Selected to Joint","Joints|Assign Selected to Joint","Ctrl+B"));
-	glutAddMenuEntry(E(joint_weight_verts,"Auto-Assign Selected...","Joints|Auto-Assign Selected","Shift+Ctrl+B")); 
-	glutAddMenuEntry(E(joint_remove_bones,"Remove All Influences from Selected","Joints|Remove All Influences from Selected")); 
-	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influencing","Joints|Remove Selected Joint from Influencing")); 
-	glutAddMenuEntry();
-	//FIX ME
-	//Should be selection based.
-	glutAddMenuEntry(E(joint_simplify,"Convert Multiple Influences to Single","Joints|Convert Multiple Influences to Single")); 
-	glutAddMenuEntry();
-	//FIX ME
-	//Selection model should use a mask.
+	glutAddMenuEntry(E(joint_weight_verts,"Auto-Assign Selected...","Joints|Auto-Assign Selected","Shift+Ctrl+B"));
+	glutAddMenuEntry();	
+
+		int sel = glutCreateMenu(viewwin_menubarfunc);
 	glutAddMenuEntry(E(joint_select_bones_of,"Select Joint Influences","Joints|Select Joint Influences")); 
 	glutAddMenuEntry(E(joint_select_verts_of,"Select Influenced Vertices","Joints|Select Influenced Vertices")); 	
 	glutAddMenuEntry(E(joint_select_points_of,"Select Influenced Points","Joints|Select Influenced Points")); 
 	glutAddMenuEntry(E(joint_unnassigned_verts,"Select Unassigned Vertices","Joints|Select Unassigned Vertices")); 
 	glutAddMenuEntry(E(joint_unnassigned_points,"Select Unassigned Points","Joints|Select Unassigned Points")); 
+		glutSetMenu(viewwin_infl_menu);
+		glutAddSubMenu(::tr("Select","Tool"),sel);
 
-	glutAddMenuEntry();
+	glutAddMenuEntry();	
+	glutAddMenuEntry(E(joint_remove_bones,"Remove All Influences from Selected","Joints|Remove All Influences from Selected")); 
+	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influencing","Joints|Remove Selected Joint from Influencing")); 
+	glutAddMenuEntry(E(joint_simplify,"Convert Multiple Influences to Single","Joints|Convert Multiple Influences to Single"));		
+	glutAddMenuEntry();	
 	glutAddMenuEntry(E(joint_draw_bone,"&Apply Alternative Appearance to Bone","")); 
+	//IMPLEMENT ME
+	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone &Independent of Parent","","Shift+I")); 
 	}		
 		_anim_menu = glutCreateMenu(viewwin_menubarfunc);	
 
