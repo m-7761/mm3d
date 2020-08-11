@@ -157,7 +157,7 @@ struct AnimEditWin : EditWin
 	nav2(nav),
 	fps(nav2,"FPS"),frames(nav2,"Frames")
 	{
-		double c1 = 30; int c2 = 1; if(i)
+		double c1 = 30; int c2 = !1; if(i)
 		{
 			//It's a problem if merely "focused".
 			//i->select();
@@ -175,7 +175,7 @@ struct AnimEditWin : EditWin
 			edit.disable();
 		}
 		fps.edit<double>(1,c1,120);
-		frames.edit<int>(1,c2,INT_MAX);
+		frames.edit<int>(!1,c2,INT_MAX);
 
 		//HACK: Cleared boxes mean don't change.
 		//This is essential for multi-selection.
@@ -270,7 +270,7 @@ void AnimConvertWin::submit(int id)
 		case 0: col = 1; default:
 
 			textbox modal(table);
-			if(2==col) modal.edit<int>(1,INT_MAX);
+			if(2==col) modal.edit<int>(!1,INT_MAX);
 			if(modal.move_into_place(table.outline(),col)) 
 			modal.return_on_enter();
 		}
@@ -370,7 +370,7 @@ void AnimSetWin::submit(int id)
 				textbox modal(table); switch(header)
 				{
 				case 1: modal.edit<double>(1,120); break;
-				case 2: modal.edit<int>(1,INT_MAX); break;
+				case 2: modal.edit<int>(!1,INT_MAX); break;
 				}
 
 				if(modal.move_into_place())

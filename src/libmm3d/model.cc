@@ -1464,7 +1464,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 					if(ue) undo->addVertex(cmp); 
 				
 					//HACK: Maybe this value should already be stored.
-					if(cmp==InterpolateCopy)					
+					if(cmp<=InterpolateCopy)					
 					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));
 
 					cmp = e;

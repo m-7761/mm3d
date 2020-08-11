@@ -360,6 +360,10 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 			anim = model->addAnimation(mode,name.c_str());
 			model->setCurrentAnimation(mode,anim);
 
+			//REMOVE ME
+			//The default is -1 (AnimBase2020::_time_frame)
+			model->setAnimTimeFrame(mode,anim,0);
+
 			set_frame(0);			
 			model->operationComplete(::tr("New Animation","operation complete"));			
 			open2(false);

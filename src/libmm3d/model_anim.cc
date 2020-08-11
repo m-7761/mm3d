@@ -364,7 +364,7 @@ bool Model::setAnimTimeFrame(AnimationModeE m, unsigned anim, double time)
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_SetAnimTime;
-		undo->setAnimTimeFrame(m,anim,time,ab->m_frame2020);
+		undo->setAnimTimeFrame(m,anim,time,ab->_time_frame());
 		sendUndo(undo,true);
 	}
 
@@ -903,7 +903,7 @@ int Model::splitAnimation(AnimationModeE mode, unsigned index, const char *newNa
 	ab2->m_fps = ab->m_fps;
 	ab2->m_wrap = ab->m_wrap;
 	double ft = ab->m_timetable2020[frame];
-	ab2->m_frame2020 = ab->m_frame2020-ft;
+	ab2->m_frame2020 = ab->_time_frame()-ft;
 	while(fc-->0)
 	ab2->m_timetable2020[fc] = ab->m_timetable2020[frame+fc]-ft;		
 	

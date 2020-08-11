@@ -2256,6 +2256,10 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 		{
 			t = m->getAnimFrameTime(am,a,i);
 		}
+		else if(e)
+		{
+			t = 0; //assuming new animation
+		}
 		else return -1; 
 	}
 	

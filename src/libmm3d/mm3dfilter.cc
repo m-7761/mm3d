@@ -1847,7 +1847,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(frame2020);
 				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frame2020);
 			}
-			else sparse.assign(frameCount,true);
+			else 
+			{
+				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frameCount);
+
+				sparse.assign(frameCount,true);
+			}
 
 			//NOTE: The number of frames is at most the same
 			//as the number of joints, so it might be better
@@ -1896,7 +1901,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			if(!mm3d2020) //2020: Remove unused frames to improve editing experience
 			{
-				model->setAnimTimeFrame(Model::ANIMMODE_SKELETAL,anim,frameCount);
 				for(unsigned count=frameCount,f=count;f-->0;)
 				if(!sparse[f]) 
 				model->setAnimFrameCount(Model::ANIMMODE_SKELETAL,anim,--count,f,nullptr);
@@ -1979,6 +1983,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(frame2020);
 				model->setAnimTimeFrame(Model::ANIMMODE_FRAME,anim,frame2020);
 			}
+			else model->setAnimTimeFrame(Model::ANIMMODE_FRAME,anim,frameCount);
 			
 			Model::FrameAnim *fa = modelFrameAnims[a];
 						
@@ -3226,7 +3231,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			float32_t tempf;
 			for(uint32_t f=0;f<frameCount;f++)
 			m_dst->write(tempf=sa->m_timetable2020[f]); //2020
-			m_dst->write(tempf=sa->m_frame2020); //2020
+			m_dst->write(tempf=sa->_time_frame()); //2020
 
 			unsigned ajcount = sa->m_keyframes.size();
 			assert(ajcount==model->getBoneJointCount());
@@ -3315,7 +3320,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			float32_t tempf;
 			for(uint32_t f=0;f<frameCount;f++)
 			m_dst->write(tempf=fa->m_timetable2020[f]); //2020
-			m_dst->write(tempf=fa->m_frame2020); //2020
+			m_dst->write(tempf=fa->_time_frame()); //2020
 
 			unsigned fp = fa->m_frame0;
 			size_t vcount = modelVertices.size();

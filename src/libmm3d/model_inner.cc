@@ -1053,7 +1053,7 @@ void Model::AnimBase2020::init()
 	//m_name = "Skel";
 	//m_validNormals = false;
 	m_fps = 10; //10???
-	m_frame2020 = 0;
+	m_frame2020 = -1; //0; //-1 is for loading old files
 	m_wrap = false; //true;
 
 	releaseData(); //???

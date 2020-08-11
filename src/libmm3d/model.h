@@ -841,7 +841,10 @@ class Model
 			//bool	  m_validNormals;  // Whether or not the normals have been calculated for the current animation frame
 
 			//https://github.com/zturtleman/mm3d/issues/106
-			//If 0 m_timetable2020.size is used.
+			//Usually use _time_frame() to access this 
+			//If -1 (less than 0) m_timetable2020.size is used
+			//to support older MM3D files that didn't have any
+			//timestamps
 			double m_frame2020;
 			std::vector<double> m_timetable2020;
 			
@@ -849,9 +852,11 @@ class Model
 			{
 				return m_timetable2020.size(); 
 			}
-			double _time_frame()const
+			double _time_frame()const //REMOVE ME
 			{
-				return m_frame2020?m_frame2020:_frame_count();
+				//TODO: this workaround can be retired if legacy
+				//loaders did setAnimTimeFrame(frames)
+				return m_frame2020>=0?m_frame2020:_frame_count();
 			}
 			double _frame_time(unsigned frame)const
 			{

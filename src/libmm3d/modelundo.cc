@@ -3810,7 +3810,7 @@ void MU_InterpolateSelected::_do(Model *m, bool undoing)
 			if(!undoing)
 			{
 				//HACK: Maybe this value should already be stored.
-				if(*it==Model::InterpolateCopy)
+				if(*it<=Model::InterpolateCopy)
 				{
 					m->validateAnim();
 					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));
