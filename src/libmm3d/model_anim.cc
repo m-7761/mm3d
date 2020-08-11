@@ -2010,6 +2010,11 @@ void Model::invalidateAnim(AnimationModeE a, unsigned b, unsigned c)
 		if(m_currentFrame-c<=1) invalidateAnim();
 	}
 }
+void Model::validateSkel()const
+{	
+	if(!m_validJoints) 
+	const_cast<Model*>(this)->calculateSkel();
+}
 void Model::validateAnim()const
 {
 	if(!m_validAnim)
@@ -2020,6 +2025,59 @@ void Model::validateAnimSkel()const
 	validateSkel();
 	if(!m_validAnimJoints)
 	const_cast<Model*>(this)->calculateAnimSkel();
+}
+
+void Model::calculateSkel()
+{	
+	LOG_PROFILE();
+
+	m_validJoints = true;
+
+	//if(m_animationMode) return; //REMOVE ME?
+
+	if(inSkeletalMode()) //2020
+	{
+		invalidateAnim(); //invalidateNormals?
+	}
+
+	//log_debug("validateSkel()\n"); //???
+
+	/*REMOVE ME
+	//Assuming addAnimation covers this for loaders
+	for(auto*sa:m_skelAnims)
+	sa->m_keyframes.resize(m_joints.size());*/
+
+	for(unsigned j = 0; j<m_joints.size(); j++)
+	{
+		Joint *joint = m_joints[j];
+		joint->m_relative.loadIdentity();
+		joint->m_relative.setRotation(joint->m_rot);
+		joint->m_relative.scale(joint->m_xyz);
+		joint->m_relative.setTranslation(joint->m_rel);
+
+		if(joint->m_parent>=0) // parented?
+		{
+			joint->m_absolute = joint->m_relative * m_joints[joint->m_parent]->m_absolute;
+		}
+		else joint->m_absolute = joint->m_relative;
+
+		//TODO: Is it possible to build m_inv here with relative ease?
+		//Can Euler be trivially inverted?
+		joint->m_absolute_inverse = false; //2020
+
+		//REMINDER: This matrix is going to be animated. Not sure why it's
+		//set here.
+		joint->m_final = joint->m_absolute;
+//		log_debug("\n");
+//		log_debug("Joint %d:\n",j);
+//		joint->m_final.show();
+//		log_debug("local rotation: %.2f %.2f %.2f\n",
+//				joint->m_rot[0],joint->m_rot[1],joint->m_localRotation[2]);
+//		log_debug("\n");
+
+		//NEW: For object system. Will try to refactor this at some point.
+		joint->m_absolute.getTranslation(joint->m_abs);
+	}
 }
 void Model::calculateAnimSkel()
 {
@@ -2355,64 +2413,6 @@ void Model::setNoAnimation()
 	//Not sure what's best in this case?
 	//if(1) calculateNormals(); else m_validNormals = false;
 	validateNormals();
-}
-
-void Model::validateSkel()const
-{	
-	if(!m_validJoints) 
-	const_cast<Model*>(this)->calculateSkel();
-}
-void Model::calculateSkel()
-{	
-	LOG_PROFILE();
-
-	m_validJoints = true;
-
-	//if(m_animationMode) return; //REMOVE ME?
-
-	if(inSkeletalMode()) //2020
-	{
-		invalidateAnim(); //invalidateNormals?
-	}
-
-	//log_debug("validateSkel()\n"); //???
-
-	/*REMOVE ME
-	//Assuming addAnimation covers this for loaders
-	for(auto*sa:m_skelAnims)
-	sa->m_keyframes.resize(m_joints.size());*/
-
-	for(unsigned j = 0; j<m_joints.size(); j++)
-	{
-		Joint *joint = m_joints[j];
-		joint->m_relative.loadIdentity();
-		joint->m_relative.setRotation(joint->m_rot);
-		joint->m_relative.scale(joint->m_xyz);
-		joint->m_relative.setTranslation(joint->m_rel);
-
-		if(joint->m_parent>=0) // parented?
-		{
-			joint->m_absolute = joint->m_relative * m_joints[joint->m_parent]->m_absolute;
-		}
-		else joint->m_absolute = joint->m_relative;
-
-		//TODO: Is it possible to build m_inv here with relative ease?
-		//Can Euler be trivially inverted?
-		joint->m_absolute_inverse = false; //2020
-
-		//REMINDER: This matrix is going to be animated. Not sure why it's
-		//set here.
-		joint->m_final = joint->m_absolute;
-//		log_debug("\n");
-//		log_debug("Joint %d:\n",j);
-//		joint->m_final.show();
-//		log_debug("local rotation: %.2f %.2f %.2f\n",
-//				joint->m_rot[0],joint->m_rot[1],joint->m_localRotation[2]);
-//		log_debug("\n");
-
-		//NEW: For object system. Will try to refactor this at some point.
-		joint->m_absolute.getTranslation(joint->m_abs);
-	}
 }
 
 unsigned Model::getAnimCount(AnimationModeE m)const
@@ -2795,12 +2795,9 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				//Note: There is no extrapolation after the final frame
 				//since older MM3D files used step mode and fixed count.
 
-				static double identity[2][3] = {{0,0,0},{1,1,1}};
 				dp = pp;
-				if(pos.type!=PT_Joint)
 				pp = getPositionObject(pos)->getParamsUnanimated((Interpolant2020E)i);
-				else
-				pp = identity[i==2];
+
 				t = lerp?time/cmp:0;
 			}
 

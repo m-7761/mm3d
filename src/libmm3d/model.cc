@@ -1429,121 +1429,51 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 	kf.m_isRotation = KeyType2020E(1<<d);
 	kf.m_frame = frame;
 
-	if(!e) if(skel)
-	{
-		if(!kf.m_isRotation) 
-		kf.m_isRotation = KeyAny; //I guess? 
-
-		for(auto j=m_joints.size();j-->0;)
-		{
-			if(m_joints[j]->m_selected)
-			deleteKeyframe(anim,frame,{PT_Joint,j},kf.m_isRotation);
-		}
-
-		return; //!
-	}
-	else if(m_animationMode==ANIMMODE_FRAME)
-	{
-		for(auto j=m_points.size();j-->0;)
-		{
-			if(m_points[j]->m_selected)
-			deleteKeyframe(anim,frame,{PT_Point,j},kf.m_isRotation);
-		}
-		//return; //!
-	}
-
-	validateAnim(); //setKeyframe/setFrameAnimVertexCoords/InterpolateCopy
+	if(e) validateAnim(); //setKeyframe/setFrameAnimVertexCoords/InterpolateCopy
 
 	m_changeBits|=MoveGeometry;
 
-	auto undo = !m_undoEnabled?nullptr:
-	new MU_InterpolateSelected(d,e,skel,anim,frame);
-
 	Position j{skel?PT_Joint:PT_Point,-1};
-	if(skel)
+	auto &vec = *(std::vector<Object2020*>*)(skel?(void*)&m_joints:&m_points);
+	for(auto*ea:vec)
 	{
-		auto jt = m_skelAnims[anim]->m_keyframes.begin();
-		for(auto*ea:m_joints) 
-		{
-			auto &c = *jt++; j++;
-
-			if(!ea->m_selected) continue;
-
-			unsigned i; if(c.find_sorted(&kf,i))
-			{
-				auto &cmp = c[i]->m_interp2020;
-				if(cmp!=e)
-				{
-					m_changeBits|=MoveOther;
-
-					//HACK: Maybe this value should already be stored.
-					if(cmp==InterpolateCopy)					
-					memcpy(c[i]->m_parameter,ea->getParams(d),3*sizeof(double));
-
-					if(undo) undo->addSelection(&cmp); cmp = e;
-				}
-			}
-			else if(const double*coord=ea->getParams(d))
-			{
-				setKeyframe(anim,frame,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
-			}
+		j++; if(ea->m_selected)
+		{		
+			const double *coord = ea->getParams(d);
+			setKeyframe(anim,frame,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
 		}
 	}
+
 	if(m_animationMode==ANIMMODE_FRAME)
-	{		
+	{	
+		const bool ue = m_undoEnabled;
+		MU_InterpolateSelected *undo = nullptr;
+
 		auto fa = m_frameAnims[m_currentAnim];
 		unsigned i=0, fp = fa->m_frame0+frame;
 		for(auto*ea:m_vertices) 
 		{
 			i++; if(ea->m_selected)
-			{			
+			{
 				auto vf = ea->m_frames[fp];
 				auto &cmp = vf->m_interp2020;
-				if(cmp!=e) if(vf->m_interp2020)
+				if(cmp!=e) 
 				{
-					m_changeBits|=MoveGeometry;
-
+					if(ue&&!undo)
+					undo = new MU_InterpolateSelected(e,anim,frame);
+					if(ue) undo->addVertex(cmp); 
+				
 					//HACK: Maybe this value should already be stored.
 					if(cmp==InterpolateCopy)					
-					memcpy(vf->m_coord,ea->m_absSource,3*sizeof(double));
+					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));
 
-					if(undo) undo->addSelection(&cmp); cmp = e;
-				}
-				else if(const double*coord=ea->m_absSource)
-				{
-					setFrameAnimVertexCoords(anim,frame,i,coord[0],coord[1],coord[2],e);
+					cmp = e;
 				}
 			}
 		}
-		auto jt = fa->m_keyframes.begin();
-		if(e) for(auto*ea:m_points) 
-		{
-			auto &c = *jt++; j++;
 
-			if(!ea->m_selected) continue;
-
-			if(c.find_sorted(&kf,i))
-			{
-				auto &cmp = c[i]->m_interp2020;
-				if(cmp!=e)
-				{
-					m_changeBits|=MoveOther;
-
-					//HACK: Maybe this value should already be stored.
-					if(cmp==InterpolateCopy)					
-					memcpy(c[i]->m_parameter,ea->getParams(d),3*sizeof(double));
-
-					if(undo) undo->addSelection(&cmp); cmp = e;
-				}
-			}
-			else if(const double*coord=ea->getParams(d))
-			{
-				setKeyframe(anim,frame,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
-			}
-		}
+		sendUndo(undo);
 	}
-
-	if(undo) sendUndo(undo);
 
 	invalidateAnim();
 }
@@ -4551,17 +4481,24 @@ const char *Model::getBackgroundImage(unsigned index)const
 	return getPositionName({_OT_Background_,index});
 }
 
+static const double model_identity[2][3] = {{0,0,0},{1,1,1}};
 void Model::Object2020::getParams(double abs[3], double rot[3], double xyz[3])const
 {
-	if(abs) memcpy(abs,m_absSource,sizeof(*abs)*3);
+	//joints?
+	//if(abs) memcpy(abs,m_absSource,sizeof(*abs)*3);
+	if(abs) memcpy(abs,getParams(InterpolantCoords),sizeof(*abs)*3);
 	if(rot) memcpy(rot,m_rotSource,sizeof(*rot)*3);
 	if(xyz) memcpy(xyz,m_xyzSource,sizeof(*xyz)*3);
-}
+}				
 const double *Model::Object2020::getParams(Interpolant2020E d)const
 {
+	auto *j = m_type==PT_Joint?(Joint*)this:nullptr;
+
+	if(j&&m_abs==m_absSource) return model_identity[d==InterpolantScale]; 
+
 	switch(d)
 	{
-	case InterpolantCoords: return m_absSource;
+	case InterpolantCoords: return j?j->m_kfRel:m_absSource;
 	case InterpolantRotation: return m_rotSource;
 	case InterpolantScale: return m_xyzSource;
 	default: return nullptr;
@@ -4569,31 +4506,13 @@ const double *Model::Object2020::getParams(Interpolant2020E d)const
 }
 const double *Model::Object2020::getParamsUnanimated(Interpolant2020E d)const
 {
+	if(m_type==PT_Joint) return model_identity[d==InterpolantScale]; 
+
 	switch(d)
 	{
 	case InterpolantCoords: return m_abs;
 	case InterpolantRotation: return m_rot;
 	case InterpolantScale: return m_xyz;
 	default: return nullptr;
-	}
-}
-bool Model::getPositionParams(const Position &pos, Interpolant2020E d, double params[3])const
-{
-	if(auto*o=getPositionObject(pos)) switch(d)
-	{
-	case InterpolantCoords: return getPositionCoords(pos,params);
-	case InterpolantRotation: return getPositionRotation(pos,params);
-	case InterpolantScale: return getPositionScale(pos,params);
-	}
-	return false;
-}
-bool Model::getPositionParamsUnanimated(const Position &pos, Interpolant2020E d, double params[3])const
-{
-	switch(d)
-	{
-	case InterpolantCoords: return getPositionCoordsUnanimated(pos,params);
-	case InterpolantRotation: return getPositionRotationUnanimated(pos,params);
-	case InterpolantScale: return getPositionScaleUnanimated(pos,params);
-	default: return false;
 	}
 }

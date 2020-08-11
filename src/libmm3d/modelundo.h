@@ -1707,12 +1707,14 @@ class MU_ClearMetaData : public ModelUndo
 		Model::MetaDataList m_list;
 };
 
+//NOTE: This became too complicated for keyframes so 
+//it's just an optimization for vertex animation data
 class MU_InterpolateSelected : public ModelUndo
 {
 public:
 
-	MU_InterpolateSelected(Model::Interpolant2020E,
-	Model::Interpolate2020E,bool,unsigned,unsigned);
+	MU_InterpolateSelected
+	(Model::Interpolate2020E, unsigned anim, unsigned frame);
 
 	void undo(Model *m){ _do(m,true); }
 	void redo(Model *m){ _do(m,false); }
@@ -1720,20 +1722,17 @@ public:
 
 	unsigned size();
 
-	void addSelection(Model::Interpolate2020E *e)
+	void addVertex(Model::Interpolate2020E e)
 	{
-		m_eold.push_back({e,*e});
+		m_eold.push_back(e);
 	}
 
 private:
 
-	Model::Interpolant2020E m_d;
 	Model::Interpolate2020E m_e;
-	bool m_skeletal; 
 	unsigned m_anim;
 	unsigned m_frame;
-	typedef Model::Interpolate2020E e;
-	std::vector<std::pair<e*,e>> m_eold;
+	std::vector<Model::Interpolate2020E> m_eold;
 	void _do(Model*,bool);
 };
 

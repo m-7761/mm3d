@@ -270,6 +270,13 @@ class Model
 
 			operator unsigned&(){ return index; } //2020
 			operator unsigned()const{ return index; } //2020
+
+			//I'm not sure if C++ constrains ++ via reference operators 
+			//so just to be safe...
+			Position operator++(int)
+			{
+				Position swap = *this; index++; return swap;
+			}
 		};
 		typedef std::vector<Position> pos_list;
 
@@ -623,10 +630,10 @@ class Model
 		{
 			//https://github.com/zturtleman/mm3d/issues/114
 
-			Object2020():m_abs(),
+			Object2020(PositionTypeE t):m_abs(),
 			m_absSource(m_abs),m_rot(),
 			m_rotSource(m_rot),m_xyz{1,1,1}, //C++11
-			m_xyzSource(m_xyz)
+			m_xyzSource(m_xyz),m_type(t)
 			{}
 
 			std::string m_name;
@@ -643,6 +650,11 @@ class Model
 			Matrix getMatrix()const;
 			Matrix getMatrixUnanimated()const;
 
+			bool m_selected;
+
+			PositionTypeE m_type; //getParams
+
+			//WARNING: Return relative values for keyframes
 			const double *getParams(Interpolant2020E)const;
 			const double *getParamsUnanimated(Interpolant2020E)const;
 			void getParams(double abs[3], double rot[3], double xyz[3])const;
@@ -683,7 +695,7 @@ class Model
 
 			int m_parent;  // Parent joint index (-1 for no parent)
 
-			bool m_selected;
+			//bool m_selected;
 			bool m_visible;
 			mutable bool m_marked;
 
@@ -749,7 +761,7 @@ class Model
 			//double *m_absSource;  // m_abs or m_kfAbs
 			//double *m_rotSource;	// m_rot or m_kfRot
 
-			bool m_selected;
+			//bool m_selected;
 			bool m_visible;
 			mutable bool m_marked;
 
@@ -797,7 +809,7 @@ class Model
 
 			double m_range[2][2];  // min/max,x/y
 
-			bool m_selected;
+			//bool m_selected;
 			mutable bool m_marked;
 
 			bool propEqual(const TextureProjection &rhs, int propBits = PropAll, double tolerance = 0.00001)const;
@@ -947,7 +959,10 @@ class Model
 		class BackgroundImage : public Object2020
 		{
 			public:
-				BackgroundImage(){ m_xyz[0] = 30; /*???*/ }
+				BackgroundImage():Object2020(_OT_Background_)
+				{
+					m_xyz[0] = 30; /*???*/ 
+				}
 
 				//std::string m_filename;
 				//float m_scale;      // 1.0 means 1 GL unit from the center to the edges of the image
@@ -1314,9 +1329,7 @@ class Model
 		bool getPositionRotationUnanimated(const Position &pos, double rot[3])const;
 		bool getPositionScale(const Position &pos, double scale[3])const;
 		bool getPositionScaleUnanimated(const Position &pos, double scale[3])const;		
-		bool getPositionParams(const Position &pos, Interpolant2020E, double params[3])const;
-		bool getPositionParamsUnanimated(const Position &pos, Interpolant2020E, double params[3])const;
-		
+
 		// ------------------------------------------------------------------
 		// Animation functions
 		// ------------------------------------------------------------------

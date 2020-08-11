@@ -764,6 +764,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry();	
 	glutAddMenuEntry(E(joint_draw_bone,"&Apply Alternative Appearance to Bone","")); 
 	//IMPLEMENT ME
+	//REMINDER: animation mode works differently (should they be standardized?)
 	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone &Independent of Parent","","Shift+I")); 
 	}		
 		_anim_menu = glutCreateMenu(viewwin_menubarfunc);	

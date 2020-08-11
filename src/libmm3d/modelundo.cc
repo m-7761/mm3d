@@ -3783,90 +3783,46 @@ void MU_ClearMetaData::clearMetaData(const Model::MetaDataList &list)
 
 
 MU_InterpolateSelected::MU_InterpolateSelected
-(Model::Interpolant2020E d, Model::Interpolate2020E e, bool s, unsigned a, unsigned f)
-:m_d(d),m_e(e),m_skeletal(s),m_anim(a),m_frame(f)
+(Model::Interpolate2020E e, unsigned a, unsigned f)
+:m_e(e),m_anim(a),m_frame(f)
 {}
 unsigned MU_InterpolateSelected::size()
 {
 	return sizeof(*this)+m_eold.size()*sizeof(Model::Interpolate2020E);
 }
 void MU_InterpolateSelected::_do(Model *m, bool undoing)
-{
-	auto it = m_eold.begin(), itt = m_eold.end();
-	
-	Model::Keyframe kf;
-	kf.m_isRotation = Model::KeyType2020E(1<<m_d);
-	kf.m_frame = m_frame;
-	if(m_skeletal) 
-	{	
-		auto jt = m->m_skelAnims[m_anim]->m_keyframes.begin();
-		for(auto*ea:m->m_joints) 
-		{
-			auto &c = *jt++;
+{	
+	m->m_changeBits|=Model::MoveGeometry;
 
-			if(!ea->m_selected) continue;
-
-			m->m_changeBits|=Model::MoveOther;
-
-			unsigned index;
-			if(c.find_sorted(&kf,index))
-			{
-				auto cmp = &c[index]->m_interp2020;
-				
-				if(cmp==it->first)
-				{
-					*cmp = undoing?it->second:m_e; 
-
-					it++;
-				}
-			}
-			else assert(0);
-		}
-	}
-	else
+	//NOTE: This became too complicated for keyframes so 
+	//it's just an optimization for vertex animation data
+	auto fa = m->m_frameAnims[m_anim];
+	auto fp = fa->m_frame0+m_frame;
+	auto it = m_eold.begin();
+	auto e = m_e; //optimizing
+	for(auto*ea:m->m_vertices) if(ea->m_selected)
 	{
-		auto fa = m->m_frameAnims[m_anim];
-		auto fp = fa->m_frame0+m_frame;
-		if(m_d==m->InterpolantCoords) 
-		for(auto*ea:m->m_vertices) if(ea->m_selected)
+		auto vf = ea->m_frames[fp];
+		auto &cmp = vf->m_interp2020;
+
+		if(cmp!=e)
 		{
-			m->m_changeBits|=Model::MoveGeometry;
-
-			auto *cmp = &ea->m_frames[fp]->m_interp2020;
-
-			if(cmp==it->first)
+			if(!undoing)
 			{
-				*cmp = undoing?it->second:m_e; 
-
-				it++;
-			}
-		}
-		auto jt = fa->m_keyframes.begin();
-		for(auto*ea:m->m_points) 
-		{
-			auto &c = *jt++;
-
-			if(!ea->m_selected) continue;
-
-			m->m_changeBits|=Model::MoveOther;
-
-			unsigned index;
-			if(c.find_sorted(&kf,index))
-			{
-				auto cmp = &c[index]->m_interp2020;
-
-				if(cmp==it->first)
+				//HACK: Maybe this value should already be stored.
+				if(*it==Model::InterpolateCopy)
 				{
-					*cmp = undoing?it->second:m_e; 
-
-					it++;
+					m->validateAnim();
+					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));
 				}
+
+				cmp = e;
 			}
-			else assert(0);
-		}		
+			else cmp = *it; it++;
+		}
 	}
 
-	_sync_animation(m,m_skeletal,m_anim,m_frame); //REMOVE US
+	_sync_animation(m,false,m_anim,m_frame); //REMOVE US
 }
 bool ModelUndo::_skel(Model::AnimationModeE e)
 {

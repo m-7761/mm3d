@@ -710,7 +710,7 @@ bool Model::Keyframe::propEqual(const Keyframe &rhs, int propBits, double tolera
 	return true;
 }
 
-Model::Joint::Joint()
+Model::Joint::Joint():Object2020(PT_Joint)
 {
 	s_allocated++;
 	init();
@@ -818,7 +818,7 @@ bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)co
 	return true;
 }
 
-Model::Point::Point()
+Model::Point::Point():Object2020(PT_Point)
 {
 	s_allocated++;
 	init();
@@ -921,7 +921,7 @@ bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)co
 	return true;
 }
 
-Model::TextureProjection::TextureProjection()
+Model::TextureProjection::TextureProjection():Object2020(PT_Projection)
 {
 	s_allocated++;
 	init();
