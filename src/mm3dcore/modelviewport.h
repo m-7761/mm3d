@@ -140,7 +140,7 @@ protected:
 	
 	bool updateBackground();
 	
-	void drawGridLines();
+	void drawGridLines(float a=1);
 	void drawBackground();
 	void freeBackground() //UNUSED
 	{
@@ -192,11 +192,13 @@ protected:
 
 	Parent();
 
+	bool background_grid[2];
+
 	static void initializeGL(Model*),checkGlErrors(Model*);
 
 public:
 
-	//NOTE: lock is new.
+	//NOTE: lock is new
 	void frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2)
 	{
 		for(int i=0;i<viewsN;i++) ports[i].frameArea(lock,x1,y1,z1,x2,y2,z2);
@@ -213,7 +215,7 @@ public: //slots:
 //protected:
 		
 	//NOTE: Misfit has 3x3 but for good
-	//grief that's impractical.
+	//grief that's impractical
 	enum{ portsN=3*2 };
 	ModelViewport ports[portsN];
 
@@ -264,13 +266,13 @@ public: //slots:
 	}
 	virtual const Matrix &getParentViewMatrix()const
 	{
-		if(tool->m_type==Tool::TT_SelectTool)
+		if(tool->isSelectTool()||snap_select)
 		return ports[m_focus].m_projMatrix; 
 		return ports[m_focus].m_viewMatrix; 
 	}
 	virtual const Matrix &getParentViewInverseMatrix()const
 	{
-		if(tool->m_type==Tool::TT_SelectTool)
+		if(tool->isSelectTool()||snap_select)
 		return ports[m_focus].m_unprojMatrix; 
 		return ports[m_focus].m_invMatrix; 
 	}

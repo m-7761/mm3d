@@ -145,20 +145,22 @@ bool Model::setGroupName(unsigned groupNum, const char *name)
 
 	if(groupNum>=0&&groupNum<m_groups.size()&&name)
 	{
-		if(m_undoEnabled)
+		if(name!=m_groups[groupNum]->m_name)
 		{
-			auto undo = new MU_SetGroupName;
-			undo->setGroupName(groupNum,name,m_groups[groupNum]->m_name.c_str());
-			sendUndo(undo);
-		}
+			m_changeBits|=AddOther; //2020
 
-		m_groups[groupNum]->m_name = name;
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_SetGroupName;
+				undo->setGroupName(groupNum,name,m_groups[groupNum]->m_name.c_str());
+				sendUndo(undo);
+			}
+
+			m_groups[groupNum]->m_name = name;
+		}
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void Model::setSelectedAsGroup(unsigned groupNum)

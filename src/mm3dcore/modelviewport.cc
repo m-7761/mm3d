@@ -401,9 +401,40 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 	if(!m_rendering) //animexportwin?
 	{
-		//2019: I'm moving this to after so it isn't
-		//blended behind drawLines.
-		drawGridLines();
+		/*EXPERIMENTAL
+		if(drawMode!=ViewWireframe)
+		if(drawSelections
+		&&(m_view>Tool::ViewPerspective
+		||model->getPerspectiveDrawMode()<ViewTexture))*/
+		if(drawMode!=ViewWireframe)
+		if(parent->background_grid[m_view<=Tool::ViewPerspective])
+		{
+			glDisable(GL_DEPTH_TEST);
+			glDepthMask(0);
+			glEnable(GL_BLEND);
+			{
+				drawGridLines(0.15f);
+			}
+			glDisable(GL_BLEND);
+			glDepthMask(1);
+			glEnable(GL_DEPTH_TEST);
+		}
+		
+		//Too dirty in persp/ortho views for some reason???
+		//depth buffer precision??
+		glDepthFunc(GL_LESS); 
+		//GL_LESS isn't cutting it :(
+		//And there is glPolygonOffset to overcome
+		//(Note offsetting lines is unreliable and 
+		//only works with polygons)
+		glDepthRange(0.1,1);
+		{
+			//2019: I'm moving this to after so it isn't
+			//blended behind drawLines.
+			drawGridLines(1);
+		}
+		glDepthRange(0,1);
+		glDepthFunc(GL_LEQUAL);
 	}
 		
 	if(drawSelections)
@@ -484,8 +515,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	//swapBuffers();
 }
 
-void ModelViewport::drawGridLines()
+void ModelViewport::drawGridLines(float a)
 {
+	//glColor3f(0.55f,0.55f,0.55f);
+	glColor4f(0.55f,0.55f,0.55f,a);
+
 	Model *model = parent->getModel();
 	Model::ViewportUnits &vu = model->getViewportUnits();
 
@@ -497,9 +531,7 @@ void ModelViewport::drawGridLines()
 		//double max = config.get("ui_3dgrid_count",6)*inc;
 		double max = vu.lines3d*inc;
 		double x,y,z;
-
-		glColor3f(0.55f,0.55f,0.55f);
-
+		
 		glBegin(GL_LINES);
 
 		//if(config.get("ui_3dgrid_xy",false))
@@ -541,14 +573,10 @@ void ModelViewport::drawGridLines()
 
 		glEnd();
 	}
-	else
+	else if(double uw=m_unitWidth=getUnitWidth())
 	{
-		//May be 0. 
-		m_unitWidth = getUnitWidth();
-		double uw = m_unitWidth;
-		if(uw<=0) return;
-
-		glColor3f(0.55f,0.55f,0.55f);
+		//if(uw<=0) return; //May be 0. 
+		assert(uw>0); 
 
 		glBegin(GL_LINES);
 		
@@ -660,7 +688,7 @@ void ModelViewport::drawGridLines()
 			QString text; text.sprintf("%g",uw);
 			renderText(2,this->height()-12,text,QFont("Sans",10));
 		}*/
-	}
+	} 
 }
 void ModelViewport::drawBackground()
 {	
@@ -1371,25 +1399,41 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 {	
 	zval = 0; //2020: Snapping to vertex Z component!
 
-	//TODO: Cache result in Parent::getParentXYValue?
-
 	Model *model = parent->getModel();
+	auto &vu = model->getViewportUnits();
 
 	getRawParentXYValue(bx,by,xval,yval);
 
-	double maxDist = 4.1/m_viewportWidth*m_width;
+	//This needs to be larger for selecting vertices
+	//double maxDist = 4.1/m_viewportWidth*m_width;
+	double maxDist = 6.1/m_viewportWidth*m_width;
 
-	Model::ViewportUnits &vu = model->getViewportUnits();
-
+	int snaps = vu.snap, mask = ~0; 
+	 
 	//EXPERIMENTAL
 	//Ctrl+Alt snaps animations and vertices.
 	//NOTE: Ctrl is taken by the view rotate
 	//function. Other uses of Alt causes the
 	//window menu to appear to be focused on.
-	int snaps = vu.snap; 
 	if(bs&Tool::BS_Ctrl&&bs&Tool::BS_Alt)
 	{
 		snaps = snaps?0:~0;
+	}
+
+	//EXPERIMENTAL
+	//I've modified polytool.cc and selecttool.cc 
+	//to use this back door to get feedback from 
+	//the snap system
+	if(parent->snap_select)
+	{
+		parent->snap_select = false;
+		parent->snap_vertex = -1;
+		parent->snap_object.index = -1;
+		auto m = (unsigned)parent->snap_object.type;
+		if(snaps&&m<Model::PT_MAX)
+		{
+			snaps = vu.VertexSnap; mask = 1<<m;
+		}
 	}
 
 	//if(config.get("ui_snap_vertex",false))
@@ -1397,111 +1441,141 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 	{
 		// snap to vertex
 
-		//double curDist = maxDist;
-		double curDist = maxDist*maxDist;
+		//I'm rewriting this to consider depth the most important
+		//criteria. I'm not sure how to formulate a mixed metric?
+		double curDist = maxDist;
+		double minDist = maxDist*maxDist;
+		double curDepth = -DBL_MAX;
 		int i,iN,curIndex = -1;
-		Model::PositionTypeE curType = Model::PT_Vertex;
-		const Matrix &mat = m_viewMatrix;
-		double coord[3] = { 0,0,0 };
+		Model::PositionTypeE curType = Model::PT_MAX;
+		//HACK: I'm trying to add a click model to selecttool.cc
+		//(I got the idea from polytool.cc)
+		//const Matrix &mat = m_viewMatrix;
+		const Matrix &mat = parent->getParentViewMatrix();
+		Vector coord;
 		double saveCoord[3] = { 0,0,0 };
 
 		auto f = [&](Model::PositionTypeE pt)
 		{
+			/*REFERENCE
 			mat.apply3(coord);
 			coord[0]+=mat.get(3,0);
 			coord[1]+=mat.get(3,1);
-			coord[2]+=mat.get(3,2);
+			coord[2]+=mat.get(3,2);*/
+			coord[3] = 1; mat.apply(coord);
+			//TESTING
+			//This lets a projection matrix be used to do the selection.
+			//I guess it should be a permanent feature
+			double w = coord[3]; if(1!=w) 
+			{
+				//HACK: Reject if behind Z plane
+				if(w<=0) return;
+
+				//coord.scale(1/w);
+				coord[0]/=w;
+				coord[1]/=w;
+			}
 
 			//double dist = distance(coord[0],coord[1],xval,yval);
 			double dist = pow(coord[0]-xval,2)+pow(coord[1]-yval,2);
 
+			if(dist<minDist&&coord[2]>curDepth)
 			if(dist<curDist)
 			{
 				curDist = dist;
+				curDepth = coord[2];
 				curIndex = i;
 				curType = pt;
-				saveCoord[0] = coord[0];
-				saveCoord[1] = coord[1];
+				saveCoord[0] = coord[0]*w;
+				saveCoord[1] = coord[1]*w;
 				saveCoord[2] = coord[2];
 			}
 		};
-
-		iN = model->getVertexCount();
-		for(i=0;i<iN;i++)
-		if(selected||!model->isVertexSelected(i))
+		if(mask&1<<Model::PT_Vertex)
 		{
-			model->getVertexCoords(i,coord);
+			iN = model->getVertexCount();
+			for(i=0;i<iN;i++)
+			if(selected||!model->isVertexSelected(i))
+			{
+				model->getVertexCoords(i,coord.getVector());
 
-			f(Model::PT_Vertex);
+				f(Model::PT_Vertex);
+			}
+			parent->snap_vertex = curIndex;
+		}		
+		if(mask&1<<Model::PT_Joint)
+		{
+			iN = model->getBoneJointCount();
+			for(i=0;i<iN;i++)		
+			if(selected||!model->isBoneJointSelected(i))
+			{
+				model->getBoneJointCoords(i,coord.getVector());
+
+				f(Model::PT_Joint);
+			}
 		}
-
-		iN = model->getBoneJointCount();
-		for(i=0;i<iN;i++)		
-		if(selected||!model->isBoneJointSelected(i))
+		if(mask&1<<Model::PT_Point)
 		{
-			model->getBoneJointCoords(i,coord);
+			iN = model->getPointCount();
+			for(i=0;i<iN;i++)		
+			if(selected||!model->isPointSelected(i))
+			{
+				model->getPointCoords(i,coord.getVector());
 
-			f(Model::PT_Joint);
+				f(Model::PT_Point);
+			}
 		}
-
-		iN = model->getPointCount();
-		for(i=0;i<iN;i++)		
-		if(selected||!model->isPointSelected(i))
+		if(mask&1<<Model::PT_Projection)
 		{
-			model->getPointCoords(i,coord);
+			iN = model->getProjectionCount();
+			for(i=0;i<iN;i++)
+			if(selected||!model->isProjectionSelected(i))
+			{
+				model->getProjectionCoords(i,coord.getVector());
 
-			f(Model::PT_Point);
-		}
-
-		iN = model->getProjectionCount();
-		for(i=0;i<iN;i++)
-		if(selected||!model->isProjectionSelected(i))
-		{
-			model->getProjectionCoords(i,coord);
-
-			f(Model::PT_Projection);
+				f(Model::PT_Projection);
+			}
 		}
 
 		if(curIndex>=0)
 		{
 			xval = saveCoord[0]; yval = saveCoord[1];
 			zval = saveCoord[2]; 
-			maxDist = 0;
+
+			maxDist = 0; //???
 		}
-	}
+
+		//EXPERIMENTAL
+		if(parent->snap_object.type==curType)		
+		parent->snap_object.index = curIndex;
+	}	
 
 	//if(config.get("ui_snap_grid",false))
 	if(snaps&vu.UnitSnap)
+	if(maxDist)
 	if(m_view<Tool::ViewOrtho)
 	if(m_view>Tool::ViewPerspective) //2020
 	{
 		// snap to grid
 
-		double fudge = 0.5;
-		double x = xval+m_scroll[0];
-		if(x<0) fudge = -0.5;
-
-		int mult = (int)(x/m_unitWidth+fudge);
-		double val = mult*m_unitWidth;
-
-		if(fabs(x-val)<maxDist)
+		double cmp[2];
+		double val[2];		
+		for(int i=0;i<2;i++)
 		{
-			xval = val-m_scroll[0];
+			double fudge = 0.5;
+			double x = (i?yval:xval)+m_scroll[i];
+			if(x<0) fudge = -0.5;
+
+			int mult = (int)(x/m_unitWidth+fudge);
+			val[i] = mult*m_unitWidth;
+
+			cmp[i] = fabs(x-val[i]);
 		}
-
-		fudge = 0.5;
-		double y = yval+m_scroll[1];
-		if(y<0) fudge = -0.5;
-
-		mult = (int)(y/m_unitWidth+fudge);
-		val = mult*m_unitWidth;
-
-		if(fabs(y-val)<maxDist)
-		{
-			yval = val-m_scroll[1];
-		}
+		if(cmp[0]<maxDist) xval = val[0]-m_scroll[0];
+		if(cmp[1]<maxDist) yval = val[1]-m_scroll[1];
 	}
-	
+
+	//REMOVE ME?
 	//if(!multipanning)
 	if(m_view>Tool::ViewPerspective)
 	{
@@ -1600,6 +1674,7 @@ void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double
 
 ModelViewport::Parent::Parent()
 	:
+	background_grid(),
 	ports{this,this,this,this,this,this}, //C++11
 	views1x2(),viewsM(),viewsN(),
 	m_scrollTextures(),

@@ -620,15 +620,17 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 		vi[2] = v3;
 		//m_triangles.push_back(triangle);
 		insertTriangle(num,triangle);
-		
+				
+		//NOTE: insertTriangle does this but maybe it shouldn't and
+		//neither sould this?
+		//invalidateNormals(); //OVERKILL
+
 		if(m_undoEnabled)
 		{
 			MU_AddTriangle *undo = new MU_AddTriangle();
 			undo->addTriangle(num,triangle);
 			sendUndo(undo);
 		}
-
-		//invalidateNormals(); //OVERKILL
 
 		return num;
 	}
@@ -3491,14 +3493,9 @@ bool Model::getPointAbsoluteMatrix(unsigned pointNumber,Matrix &m)const
 
 int Model::getTriangleVertex(unsigned triangleNumber, unsigned vertexIndex)const
 {
-	if(triangleNumber<m_triangles.size()&&vertexIndex<3)
-	{
-		return m_triangles[triangleNumber]->m_vertexIndices[vertexIndex];
-	}
-	else
-	{
-		return -1;
-	}
+	if(triangleNumber<m_triangles.size()&&vertexIndex<3)	
+	return m_triangles[triangleNumber]->m_vertexIndices[vertexIndex];
+	return -1;
 }
 
 bool Model::getNormal(unsigned triangleNum, unsigned vertexIndex, double *normal)const
@@ -3535,6 +3532,10 @@ bool Model::getFlatNormal(unsigned t, double *normal)const
 
 	//TODO: SHOULD PROBABLY validateNormals AND NOT CALCULATE
 	//TO BE CONSISTENT WITH getNormal.
+	//UPDATE: Nope, getNormal no longer validates, so this is
+	//useful for getting a flat-normal after addTriangle
+	//(polytool.cc must do this to avoid validation)
+	//(Should be updating normals piecemeal instead)
 	//https://github.com/zturtleman/mm3d/issues/116
 	if(m_animationMode?m_validAnimNormals:m_validNormals)
 	{
@@ -3556,8 +3557,7 @@ bool Model::getFlatNormalUnanimated(unsigned t, double *normal)const
 	
 	auto *tri = m_triangles[t];
 
-	//TODO: SHOULD PROBABLY validateNormals AND NOT CALCULATE
-	//TO BE CONSISTENT WITH getNormal.
+	//SEE getFlatNormal COMMENT
 	//https://github.com/zturtleman/mm3d/issues/116
 	if(m_validNormals)
 	{
@@ -4316,14 +4316,19 @@ bool Model::setPositionName(const Position &pos, const char *name)
 	auto *obj = getPositionObject(pos);
 	if(obj&&name&&name[0])
 	{
-		if(m_undoEnabled)
-		{			
-			auto undo = new MU_SetObjectName(pos);
-			undo->setName(name,obj->m_name.c_str());
-			sendUndo(undo);
-		}
+		if(name!=obj->m_name)
+		{
+			m_changeBits|=AddOther; //2020
 
-		obj->m_name = name;
+			if(m_undoEnabled)
+			{			
+				auto undo = new MU_SetObjectName(pos);
+				undo->setName(name,obj->m_name.c_str());
+				sendUndo(undo);
+			}
+
+			obj->m_name = name;
+		}
 		return true;
 	}
 	else return false;

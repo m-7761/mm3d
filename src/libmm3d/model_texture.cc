@@ -480,14 +480,19 @@ void Model::setTextureName(unsigned textureId, const char *name)
 
 	if(name&&textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
+		if(m_materials[textureId]->m_name!=name)
 		{
-			auto undo = new MU_SetTextureName;
-			undo->setTextureName(textureId,name,m_materials[textureId]->m_name.c_str());
-			sendUndo(undo);
-		}
+			m_changeBits|=AddOther; //2020
 
-		m_materials[textureId]->m_name = name;
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_SetTextureName;
+				undo->setTextureName(textureId,name,m_materials[textureId]->m_name.c_str());
+				sendUndo(undo);
+			}
+
+			m_materials[textureId]->m_name = name;
+		}
 	}
 }
 

@@ -458,7 +458,7 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 				//HACK: Reject if behind Z plane.
 				if(w<=0) continue;
 
-				vert.scale(1/vert[3]);
+				vert.scale(1/w);
 			}
 
 			if( m_vertices[v]->m_visible
@@ -864,7 +864,7 @@ bool Model::selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 				//HACK: Reject if behind Z plane.
 				if(w<=0) continue;
 
-				vec.scale(1/vec[3]);
+				vec.scale(1/w);
 			}
 
 			if(vec[0]>=x1&&vec[0]<=x2 
@@ -914,7 +914,7 @@ bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, 
 					//HACK: Reject if behind Z plane.
 					if(w<=0) continue;
 
-					pos.scale(1/pos[3]);
+					pos.scale(1/w);
 				}
 				viewMat.apply3(up);
 				//viewMat.apply3(seam);
@@ -2339,6 +2339,22 @@ void Model::getSelectedInterpolation(AnimationModeE am, unsigned anim, unsigned 
 			pred(e);
 		}
 	}	
+}
+
+bool Model::selectPosition(Position p, bool how)
+{
+	switch(p.type)
+	{
+	case PT_Vertex:
+		return how?selectVertex(p):unselectVertex(p); 
+	case PT_Joint:
+		return how?selectBoneJoint(p):unselectBoneJoint(p);		
+	case PT_Point:
+		return how?selectPoint(p):unselectPoint(p); 
+	case PT_Projection:
+		return how?selectProjection(p):unselectProjection(p); 
+	}
+	return false;
 }
 
 #endif // MM3D_EDIT

@@ -30,7 +30,7 @@
 
 Tool::Tool(ToolType tt, int count, const char *path)
 	:
-parent(),m_type(tt),m_args(count),m_path(path)
+parent(),m_tooltype(tt),m_args(count),m_path(path)
 {
 	s_allocated++;
 }
@@ -153,5 +153,19 @@ void Tool::makeToolCoordList
 
 		list.push_back(tc);
 	}
+}
+bool Tool::makeToolCoord(ToolCoordT &tc, Model::Position pos)
+{
+	Model *model = parent->getModel();
+	const Matrix &mat = parent->getParentViewMatrix();
+
+	tc.pos = pos;
+	if(!model->getPositionCoords(tc.pos,tc.coords))
+	return false;
+
+	mat.apply3(tc.coords);
+	tc.coords[0] += mat.get(3,0);
+	tc.coords[1] += mat.get(3,1);
+	tc.coords[2] += mat.get(3,2); return true;
 }
 

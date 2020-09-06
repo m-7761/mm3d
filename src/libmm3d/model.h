@@ -95,17 +95,18 @@ class Model
 			SelectionGroups      = 0x00000008, // Groups selection changed
 			SelectionJoints	     = 0x00000010, // Joints selection changed
 			SelectionPoints      = 0x00000020, // Points selection changed
-			SelectionProjections = 0x00000040, //2019
+			SelectionProjections = 0x00000040, // Projections selection changed
 			AddGeometry          = 0x00000100, // Added or removed objects
-			AddAnimation		 = 0x00000200, // Added or removed animations
+			AddAnimation		 = 0x00000200, // Added/moved/named/deleted animation
 			AddOther			 = 0x00000400, // Added or removed something else
 			MoveGeometry		 = 0x00000800, // Model shape changed
 			MoveOther			 = 0x00001000, // Something non-geometric was moved
 			AnimationMode        = 0x00002000, // Changed animation mode
-			AnimationSet		 = 0x00004000, // Changes to animation sets
+			AnimationSet		 = 0x00004000, // Changed current animation			
 			AnimationFrame       = 0x00008000, // Changed current animation frame
-			ShowJoints           = 0x00010000, // Joints forced visible
-			ShowProjections      = 0x00020000, // Projections forced visible
+			AnimationProperty    = 0x00010000, // Set animation times/frames/fps/wrap
+			ShowJoints           = 0x00020000, // Joints forced visible
+			ShowProjections      = 0x00040000, // Projections forced visible
 			ChangeAll			 = 0xFFFFFFFF	// All of the above
 		};
 
@@ -268,15 +269,12 @@ class Model
 
 			PositionTypeE type; unsigned index;
 
-			operator unsigned&(){ return index; } //2020
-			operator unsigned()const{ return index; } //2020
-
-			//I'm not sure if C++ constrains ++ via reference operators 
-			//so just to be safe...
-			Position operator++(int)
-			{
-				Position swap = *this; index++; return swap;
-			}
+			 //2020: I'm not sure if C++ constrains ++ via a 
+			//reference operator, so just to be safe...
+			unsigned operator++(int){ return index++; }
+			//2020
+			operator unsigned&(){ return index; } 
+			operator unsigned()const{ return index; }
 		};
 		typedef std::vector<Position> pos_list;
 
@@ -986,7 +984,7 @@ class Model
 			enum{ VertexSnap=1,UnitSnap=2 };
 
 			int snap;
-
+			
 			enum{ BinaryGrid=0,DecimalGrid,FixedGrid };
 
 			int grid;
@@ -1570,9 +1568,13 @@ class Model
 		//
 		// https://github.com/zturtleman/mm3d/issues/116
 		//
+		//NOTE: doesn't call validateNormals
 		bool getNormalUnanimated(unsigned triangleNum, unsigned vertexIndex, double *normal)const;
+		//NOTE: doesn't call validateNormals
 		bool getNormal(unsigned triangleNum, unsigned vertexIndex, double *normal)const;
+		//NOTE: doesn't depend on validateNormals
 		bool getFlatNormalUnanimated(unsigned triangleNum, double *normal)const;
+		//NOTE: doesn't depend on validateNormals
 		bool getFlatNormal(unsigned triangleNum, double *normal)const;
 
 		//CAUTION: This now uses the "source" pointers to fill out 
@@ -2196,6 +2198,8 @@ class Model
 		bool selectProjection(unsigned p);
 		bool unselectProjection(unsigned p);
 		bool isProjectionSelected(unsigned p)const;
+
+		bool selectPosition(Position, bool how=true);
 
 		// The behavior of this function changes based on the selection mode.
 		bool invertSelection();

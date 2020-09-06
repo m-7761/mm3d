@@ -66,7 +66,7 @@ public:
 		TT_SelectTool,
 	};
 
-	const ToolType m_type;	
+	const ToolType m_tooltype;	
 
 	const int m_args;
 
@@ -86,21 +86,21 @@ public:
 	// Is this a place-holder for a menu separator?
 	bool isSeparator(){ return !m_args; }
 
-	bool isNullTool(){ return m_type==TT_NullTool; }
+	bool isNullTool(){ return m_tooltype==TT_NullTool; }
 
 	//TEMPORARY
 	//This is just to use a projection matrix for with a
 	//perspective view port.
-	bool isSelectTool(){ return m_type==TT_SelectTool; }
+	bool isSelectTool(){ return m_tooltype==TT_SelectTool; }
 
 	//UNUSED
 	// Does this tool create new primitives?
-	//bool isCreation(){ return m_type==TT_Creator; }
-	bool isCreateTool(){ return m_type==TT_Creator; }
+	//bool isCreation(){ return m_tooltype==TT_Creator; }
+	bool isCreateTool(){ return m_tooltype==TT_Creator; }
 
 	//UNUSED
 	// Does this tool manipulate existing (selected primitives)?
-	//bool isManipulation(){ return m_type==TT_Manipulator; }
+	//bool isManipulation(){ return m_tooltype==TT_Manipulator; }
 		
 	// It is a good idea to override this if you implement
 	// a tool as a plugin.
@@ -213,8 +213,9 @@ protected:
 	// instead of addVertex/addPoint whenever possible
 	ToolCoordT addPosition(Model::PositionTypeE type,double,double,double,
 		const char *name=nullptr, int boneId=-1);
-	void movePosition(const Model::Position &pos,double x, double y, double z);
-	void makeToolCoordList(ToolCoordList &list,const pos_list&positions);
+	void movePosition(const Model::Position &pos, double x, double y, double z);
+	void makeToolCoordList(ToolCoordList &list, const pos_list &positions);
+	bool makeToolCoord(ToolCoordT&, Model::Position);
 };
 
 class Tool::Parent 
@@ -270,22 +271,24 @@ public:
 	// a manipulation operation on selected vertices, for update or all
 	// other start operations you would set this value to false).
 	//
-	virtual void getParentXYZValue(double &xval, double &yval, double &zval, bool selected = false) = 0;	
+	virtual void getParentXYZValue(double &xval, double &yval, double &zval, bool selected=false) = 0;	
 	//
 	// https://github.com/zturtleman/mm3d/issues/141#issuecomment-651962335
 	// Note, MoveTool uses the new XYZ variant but it should be added to the
 	// other tools in due time.
 	//
-	inline void getParentXYValue(double &xval, double &yval, bool selected = false)
+	inline void getParentXYValue(double &xval, double &yval, bool selected=false)
 	{
 		double z; getParentXYZValue(xval,yval,z,selected);
-	}
+	}	
 	inline void getParentXYValue(int bs, int x, int y, double &xval, double &yval)
 	{
 		_bs = bs; _bx = x; _by = y; 
 		
 		double z; getParentXYZValue(xval,yval,z); 
 	}
+	//this is designed to not link in case "getParentXYZValue" is intended
+	inline void getParentXYValue(double &xval, double &yval, double &zval);
 
 	// The getRawParentXYValue function returns the mouse coordinates
 	// in viewport space (as opposed to model space), X is left and
@@ -387,12 +390,18 @@ public:
 	virtual void groupParam(){}
 	virtual void updateParams() = 0;
 	virtual void removeParams() = 0;
-		
+	
+	//EXPERIMENTAL
+	//polytool.cc and selecttool.cc
+	bool snap_select;
+	Model::Position snap_object;
+	unsigned snap_vertex;
+
 	int _bs,_bx,_by;
 
 	int &getButtonX(){ return _bx; }
 	int &getButtonY(){ return _by; }
-	int &getButtons(){ return _bs; }
+	int &getButtons(){ return _bs; }	
 };
 inline void Tool::mouseButtonDown(int buttonState, int x, int y)
 {

@@ -146,18 +146,18 @@ Model *Model::copySelected()const
 		{
 			switch (getMaterialType(t))
 			{
-				case Model::Material::MATTYPE_TEXTURE:
-					{
-						Texture *tex = TextureManager::getInstance()->getTexture(getTextureFilename(t));
-						int num = m->addTexture(tex);
-						m->setTextureName(num,getTextureName(t));
-					}
-					break;
-				default:
-					log_error("Unknown material type %d in duplicate\n",getMaterialType(t));
-				case Model::Material::MATTYPE_BLANK:
-					m->addColorMaterial(getTextureName(t));
-					break;
+			case Model::Material::MATTYPE_TEXTURE:
+			{
+				Texture *tex = TextureManager::getInstance()->getTexture(getTextureFilename(t));
+				int num = m->addTexture(tex);
+				m->setTextureName(num,getTextureName(t));
+				break;
+			}			
+			default:
+				log_error("Unknown material type %d in duplicate\n",getMaterialType(t));
+			case Model::Material::MATTYPE_BLANK:
+				m->addColorMaterial(getTextureName(t));
+				break;
 			}
 
 			float c[4];

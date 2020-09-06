@@ -348,8 +348,8 @@ void AnimSetWin::submit(int id)
 			switch(int col=header)
 			{			
 			case 0: return strcmp(row1[col],row2[col])<0;
-			case 1: //return atoi(row1[col])<atoi(row2[col]);
-			case 2: return strtod(row1[2],0)<strtod(row2[2],0);
+			default: //compiler
+			return strtod(row1[col],0)<strtod(row2[col],0);
 			}
 		});
 		break;
@@ -440,8 +440,33 @@ void AnimSetWin::submit(int id)
 			refresh();
 		}
 		break;
-	}	
-	case id_up: case id_down:
+	}		
+	case id_up:
+
+		if(!table.first_item()->multisel())
+		{
+			table^[&](li::multisel ea)
+			{
+				table.insert_item(ea,ea->prev());
+				model->moveAnimation(mode,ea->id(),ea->id()-1);
+			};
+			refresh();
+		}
+		else Win::beep(); break;
+
+	case id_down:
+		
+		if(!table.last_item()->multisel())
+		{
+			table^[&](li::reverse_multisel ea)
+			{
+				table.insert_item(ea,ea->next(),behind);
+				model->moveAnimation(mode,ea->id(),ea->id()+1);
+			};
+			refresh();
+		}
+		else Win::beep(); break;
+
 	case id_delete:
 	case id_copy: case id_split: case id_join: case id_merge:
 	{
@@ -458,19 +483,6 @@ void AnimSetWin::submit(int id)
 				model->deleteAnimation(mode,ea->id()-b);
 				b++;
 				table.erase(ea);
-				break;
-
-			case id_up:
-
-				table.insert_item(ea,ea->prev());
-				break;
-
-			case id_down:
-
-				table.insert_item(ea,ea->next(),behind);
-
-				//HACK: Infinite loop condition.
-				ea->id() = ~ea->id(); ea->unselect();
 				break;
 
 			case id_copy:
@@ -551,17 +563,6 @@ void AnimSetWin::submit(int id)
 				break;
 			}
 		};
-		if(id==id_up||id==id_down)
-		{
-			a = 0; table^[&](li::allitems ea)
-			{
-				b = ea->id(); if(b<0) //HACK
-				{
-					ea->id() = b = ~b; ea->select();
-				}								
-				model->moveAnimation(mode,b,a++);
-			};
-		}
 		refresh(); break;
 	}
 	case id_convert:
@@ -572,10 +573,6 @@ void AnimSetWin::submit(int id)
 	case id_ok:
 			
 		model->operationComplete(::tr("Animation changes","operation complete"));
-	
-		//It would probably be more kosher for
-		//AnimPanel to monitor Model::Observer.
-		model.sidebar.anim_panel.refresh_list();
 		break;
 
 	case id_cancel:

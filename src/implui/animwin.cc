@@ -626,7 +626,7 @@ void AnimWin::Impl::paste(bool values)
 			model->setFrameAnimPointCoords(anim,frame,p->point,p->x,p->y,p->z);
 			model->setFrameAnimPointRotation(anim,frame,p->point,p->rx,p->ry,p->rz);
 		}*/
-		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
+		for(KeyframeCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
 		{
 			Model::Position pt{Model::PT_Point,p->object};
 			for(int i=0;i<3;i++)

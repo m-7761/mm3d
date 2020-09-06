@@ -657,6 +657,7 @@ void MainWin::_init_menu_toolbar() //2019
 		if(sm) glutSetMenu(viewwin_tool_menu);
 		if(sm) glutAddSubMenu(::tr(path,"Tool"),sm);
 
+		glutAddMenuEntry(E(tool_back,"Background Grid","","Back"));
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(tool_none,"None","","Esc"));
 		glutAddMenuEntry(E(tool_toggle,"Toggle Tool","","Tab"));
@@ -2085,6 +2086,10 @@ void viewwin_toolboxfunc(int id) //extern
 		tool = w->toolbox.getCurrentTool();
 		w->views.timeline.redraw();
 		id = 0; break;
+
+	case id_tool_back:
+
+		return w->views.back();
 	}
 	if(!tool)
 	{

@@ -134,7 +134,7 @@ public: //slots:
 
 	utf8 param_config_key(utf8);
 
-	void draw();
+	void draw(),back();
 };
 
 #endif // __VIEWPANEL_H

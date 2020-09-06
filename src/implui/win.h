@@ -113,6 +113,7 @@ enum
 	id_tool_none,
 	id_tool_toggle,
 	id_tool_recall,
+	id_tool_back,
 
 	/*Model menu*/
 	id_edit_undo,

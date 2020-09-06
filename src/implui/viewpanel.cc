@@ -278,6 +278,15 @@ static void viewpanel_wheel_func(int wheel, int delta, int x, int y)
 	}
 }
 
+void ViewPanel::back() //EXPERIMENTAL
+{
+	bool persp = ports[m_focus].getView()<=Tool::ViewPerspective;
+
+	background_grid[persp] = !background_grid[persp];
+
+	updateAllViews();
+}
+
 void ViewPanel::draw()
 {
 	//Sync with drawing.

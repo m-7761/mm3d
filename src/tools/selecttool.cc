@@ -181,7 +181,7 @@ void SelectTool::mouseButtonDown()
 	
 	if(!m_unselect&&~parent->getButtons()&BS_Shift)
 	{
-		model->unselectAll();
+		model->unselectAll(); //OVERKILL
 	}
 
 	parent->updateView();
@@ -191,6 +191,34 @@ void SelectTool::mouseButtonDown()
 }
 void SelectTool::mouseButtonUp()
 {
+	Model *model = parent->getModel();
+
+	//EXPERIMENTAL
+	if(m_x1==m_x2&&m_y1==m_y2) //2020
+	{
+		Model::PositionTypeE e; switch(m_op)
+		{
+		case Vertices: e = Model::PT_Vertex; break;	
+		case Joints: e = Model::PT_Joint; break;	
+		case Points: e = Model::PT_Point; break;
+	//	case Projections: e = Model::PT_Projection; break;
+		default: e = Model::PT_MAX;
+		}
+		if(e!=Model::PT_MAX)
+		{
+			parent->snap_select = true;
+			auto &pos = parent->snap_object;
+			pos.type = e;
+			double coords[2];
+			parent->getParentXYValue(coords[0],coords[1],true);
+			if(-1!=pos) 
+			model->selectPosition(pos,!m_unselect);
+			model_status(model,StatusNormal,STATUSTIME_SHORT,
+			TRANSLATE("Tool","Selection complete"));
+			return;
+		}
+	}
+
 	//FIX ME (BROKEN)
 	//https://github.com/zturtleman/mm3d/issues/62#issuecomment-521525933
 	/*What is this? It's blocking RemoveDecal.
@@ -204,8 +232,6 @@ void SelectTool::mouseButtonUp()
 		// We're waiting for the left button
 		if(parent->getButtons()&BS_Right) return;
 	}*/
-		
-	Model *model = parent->getModel();
 	
 	struct NormalTest : Model::SelectionTest
 	{	
@@ -237,11 +263,6 @@ void SelectTool::mouseButtonUp()
 
 	m_startX = no_draw;
 	
-	//Assuming selection change?
-	//Assuming if selection changed Model will issue change notices.
-	//parent->updateAllViews();
-	parent->updateView();
-
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Selection complete"));
 }

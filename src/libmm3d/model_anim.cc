@@ -191,14 +191,20 @@ bool Model::setAnimName(AnimationModeE m, unsigned anim, const char *name)
 {
 	if(auto*ab=_anim(m,anim))
 	{
-		if(m_undoEnabled)
+		if(name!=ab->m_name)
 		{
-			auto undo = new MU_SetAnimName;
-			undo->setName(m,anim,name,ab->m_name.c_str());
-			sendUndo(undo);
-		}
+			m_changeBits|=AddAnimation; //2020
 
-		ab->m_name = name; return true;
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_SetAnimName;
+				undo->setName(m,anim,name,ab->m_name.c_str());
+				sendUndo(undo);
+			}
+
+			ab->m_name = name; 
+		}
+		return true;
 	}
 	return false;
 }
@@ -244,6 +250,8 @@ bool Model::setAnimFrameCount(AnimationModeE m, unsigned anim, unsigned count, u
 		j = {PT_Point,m_points.size()};
 	}
 	else return false;
+
+	m_changeBits|=AnimationProperty;
 
 	auto undo = m_undoEnabled?new MU_SetAnimFrameCount:nullptr;
 
@@ -322,14 +330,20 @@ bool Model::setAnimFPS(AnimationModeE m, unsigned anim, double fps)
 {
 	if(auto*ab=_anim(m,anim))
 	{
-		if(m_undoEnabled)
+		if(ab->m_fps!=fps) 
 		{
-			auto undo = new MU_SetAnimFPS;
-			undo->setFPS(m,anim,fps,ab->m_fps);
-			sendUndo(undo,true);
-		}
+			m_changeBits|=AnimationProperty;
 
-		ab->m_fps = fps; return true;
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_SetAnimFPS;
+				undo->setFPS(m,anim,fps,ab->m_fps);
+				sendUndo(undo,true);
+			}
+
+			ab->m_fps = fps; 
+		}
+		return true;
 	}
 	return false;
 }
@@ -338,14 +352,20 @@ bool Model::setAnimWrap(AnimationModeE m, unsigned anim, bool wrap)
 {
 	if(auto*ab=_anim(m,anim))
 	{
-		if(m_undoEnabled)
+		if(ab->m_wrap!=wrap)
 		{
-			auto undo = new MU_SetAnimWrap;
-			undo->setAnimWrap(m,anim,wrap,ab->m_wrap);
-			sendUndo(undo,true);
-		}
+			m_changeBits|=AnimationProperty;
 
-		ab->m_wrap = wrap; return true;
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_SetAnimWrap;
+				undo->setAnimWrap(m,anim,wrap,ab->m_wrap);
+				sendUndo(undo,true);
+			}
+
+			ab->m_wrap = wrap;
+		}
+		return true;
 	}
 	return false;
 }
@@ -354,12 +374,16 @@ bool Model::setAnimTimeFrame(AnimationModeE m, unsigned anim, double time)
 {	
 	AnimBase2020 *ab = _anim(m,anim); if(!ab) return false;
 
+	if(ab->m_frame2020==time) return true;
+
 	size_t frames = ab->m_timetable2020.size();
 	if(frames&&time<ab->m_timetable2020.back())
 	{
 		model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","Cannot set timeframe before keyframes"));
 		return false;
 	}
+
+	m_changeBits|=AnimationProperty;
 
 	if(m_undoEnabled)
 	{
@@ -387,17 +411,18 @@ bool Model::setAnimFrameTime(AnimationModeE m, unsigned anim, unsigned frame, do
 
 	if(!ab||frame>=ab->m_timetable2020.size()) return false;
 
-	auto &cmp = ab->m_timetable2020[frame];
-	if(cmp!=time) 
+	auto &t = ab->m_timetable2020[frame]; if(t!=time) 
 	{
+		m_changeBits|=AnimationProperty;
+
 		if(m_undoEnabled)
 		{
 			auto undo = new MU_SetAnimTime;
-			undo->setAnimFrameTime(m,anim,frame,time,cmp);
+			undo->setAnimFrameTime(m,anim,frame,time,t);
 			sendUndo(undo,true);
 		}
 
-		cmp = time;			
+		t = time;			
 	
 		invalidateAnim(m,anim,frame);
 	}
@@ -1007,7 +1032,7 @@ bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 
 		bool ue = m_undoEnabled;
 		MU_MoveFrameVertex *undo;
-		for(unsigned f=0;f<fc2;f++,fp++,fd++)
+		for(int f=0;f<fc2;f++,fp++,fd++)
 		{
 			if(ue) undo = new MU_MoveFrameVertex;
 			if(ue) undo->setAnimationData(anim1,fc1+f);
@@ -1047,8 +1072,8 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 	auto ab = _anim(mode,anim2); //ab2
 	if(!aa||!ab) return false;
 
-	unsigned fc1 = aa->_frame_count();
-	unsigned fc2 = ab->_frame_count();
+	int fc1 = (unsigned)aa->_frame_count();
+	int fc2 = (unsigned)ab->_frame_count();
 
 	/*2020: Doing this interleaved.
 	if(fc1!=fc2)
@@ -1221,7 +1246,7 @@ bool Model::moveAnimation(AnimationModeE mode, unsigned oldIndex, unsigned newIn
 {
 	if(oldIndex==newIndex) return true;
 
-	switch (mode)
+	switch(mode)
 	{
 	default: return false;
 
@@ -1246,12 +1271,22 @@ bool Model::moveAnimation(AnimationModeE mode, unsigned oldIndex, unsigned newIn
 		else return false; break;
 	}
 
+	m_changeBits|=AddAnimation; //2020
+		
+	if(m_currentAnim==oldIndex&&m_animationMode==mode)
+	{
+		m_currentAnim = newIndex;
+
+		m_changeBits|=AnimationSet;
+	}
+
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_MoveAnimation;
 		undo->moveAnimation(mode,oldIndex,newIndex);
 		sendUndo(undo);
 	}
+
 	return true;
 }
 
@@ -1566,7 +1601,7 @@ void Model::insertFrameAnim(unsigned index, FrameAnim *anim)
 	if(index<=m_frameAnims.size())
 	{
 		//2019: MU_AddAnimation?
-		m_changeBits|=Model::AddAnimation;
+		m_changeBits|=AddAnimation;
 
 		/*unsigned count = 0;
 		std::vector<FrameAnim*>::iterator it;
@@ -1594,7 +1629,7 @@ void Model::removeFrameAnim(unsigned index)
 	if(index<m_frameAnims.size())
 	{
 		//2019: MU_AddAnimation?
-		m_changeBits|=Model::AddAnimation;
+		m_changeBits|=AddAnimation;
 
 		FrameAnim *fa = m_frameAnims[index];
 
@@ -1631,7 +1666,7 @@ void Model::insertSkelAnim(unsigned index, SkelAnim *anim)
 	if(index<=m_skelAnims.size())
 	{
 		//2019: MU_AddAnimation?
-		m_changeBits|=Model::AddAnimation;
+		m_changeBits|=AddAnimation;
 
 		/*unsigned count = 0;
 		std::vector<SkelAnim*>::iterator it;
@@ -1659,7 +1694,7 @@ void Model::removeSkelAnim(unsigned index)
 	if(index<m_skelAnims.size())
 	{
 		//2019: MU_AddAnimation?
-		m_changeBits|=Model::AddAnimation;
+		m_changeBits|=AddAnimation;
 
 		/*unsigned num = 0;
 		std::vector<SkelAnim*>::iterator it = m_skelAnims.begin();
