@@ -41,6 +41,11 @@
 //the view. It must correspond to gluPerspective FOV.
 static const double modelviewport_persp_factor = 2*1.2;
 
+static const double modelviewport_znear_factor = 0.1;
+static const double modelviewport_zfar_factor = 1000;
+
+static const double modelviewport_ortho_factor = 5000/32;
+
 void ModelViewport::getXY(int &x, int &y)
 {
 	parent->getXY(x,y); //circular dependency
@@ -58,15 +63,19 @@ m_background(),
 m_backgroundTexture(),
 m_rendering()
 {
-	m_zoom = 32;
-
 	m_interactive = true;
 
+	/*BOGUS
 	//https://github.com/zturtleman/mm3d/issues/97
-	//m_farOrtho = 1000000; //???
 	//m_nearOrtho = 0.001; //???
-	m_farOrtho = 5000; //???
-	m_nearOrtho = -5000; //???
+	//m_farOrtho = 1000000; //???
+	//5000 seems not good for glPolygonOffset
+	//should m_zoom be applied?
+	m_nearOrtho = -5000;
+	m_farOrtho = 5000;*/
+	m_zoom = 32;
+	m_nearOrtho = -modelviewport_ortho_factor;
+	m_farOrtho = modelviewport_ortho_factor;
 	
 	//setAutoBufferSwap(false);
 
@@ -102,7 +111,16 @@ void ModelViewport::updateMatrix() //NEW
 	{
 		m_viewMatrix.setRotationInDegrees(-m_rotX,-m_rotY,-m_rotZ);
 	}
-	else m_viewMatrix.setRotationInDegrees(m_rotX,m_rotY,m_rotZ);
+	else
+	{
+		//NOTE: Ortho views have a problem where the poles kind of
+		//switch on one axis making it do in reverse before it can
+		//straighten out. Maverick does this too. It's strange the
+		//perspective isn't plagued by this
+		//https://github.com/zturtleman/mm3d/issues/144
+
+		m_viewMatrix.setRotationInDegrees(m_rotX,m_rotY,m_rotZ);
+	}
 
 	double z = -m_scroll[2];
 	//https://github.com/zturtleman/mm3d/issues/99
@@ -136,7 +154,8 @@ void ModelViewport::updateMatrix() //NEW
 
 		//gluPerspective(45,aspect,m_zoom*0.1,m_zoom*1000);
 		const double f = 1/tan(PI/8); //45/2
-		const double znear = m_zoom*0.1, zfar = m_zoom*1000;
+		const double znear = m_zoom*modelviewport_znear_factor;
+		const double zfar = m_zoom*modelviewport_zfar_factor;
 		double proj[4][4] = {};		
 		proj[0][0] = f/aspect;
 		proj[1][1] = f;
@@ -240,12 +259,16 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		
 		if(m_view>Tool::ViewPerspective)
 		{
+			//2020: m_zoom has already been factored into
+			//m_near/farOrtho
 			glOrtho(m_scroll[0]-s,m_scroll[0]+s,
 			m_scroll[1]-t,m_scroll[1]+t,m_nearOrtho,m_farOrtho);
 		}
 		else //gluPerspective(45,aspect,m_zoom*0.002,m_zoom*2000); //GLU
 		{
-			gluPerspective(45,aspect,m_zoom*0.1,m_zoom*1000); //GLU
+			double zn = modelviewport_znear_factor;
+			double zf = modelviewport_zfar_factor;
+			gluPerspective(45,aspect,m_zoom*zn,m_zoom*zf); //GLU
 		}
 
 		m_width = s*2; m_height = t*2;
@@ -266,7 +289,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	if(m_view>=Tool::ViewOrtho
 	 ||m_view<=Tool::ViewPerspective)
 	{
-		glEnable(GL_LIGHT0);
+		//glEnable(GL_LIGHT0); //???
 		
 		viewPoint[0] = (float)m_scroll[0]; 
 		viewPoint[1] = (float)m_scroll[1]; 
@@ -304,8 +327,8 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	}
 	else
 	{
-		glDisable(GL_LIGHT0);
-		glDisable(GL_LIGHT1);
+		//glDisable(GL_LIGHT0); //???
+		//glDisable(GL_LIGHT1); //???
 
 		//https://github.com/zturtleman/mm3d/issues/97
 		viewPoint[0] = 0;
@@ -350,6 +373,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 	glColor3f(0.7f,0.7f,0.7f); //???
 
+	//2020: Intel can't do negative offset on lines because it
+	//seems to sometimes flip the sign on the lines' depth, so
+	//lines in the back jump in front of polygons in the front
+	const bool poffset = true;
+
 	int drawMode;
 	bool drawSelections = true;	
 	if(m_view<=Tool::ViewPerspective)
@@ -375,17 +403,29 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		glEnable(GL_LIGHTING);
 		glEnable(GL_LIGHT0);
 
-		if(drawSelections)
+		if(poffset&&drawSelections)
 		{
+			//GL_CULL_FACE doesn't play nice with this on my system
+			//with a light cube it shows the dark back faces along 
+			//the exterior edges
 			glEnable(GL_POLYGON_OFFSET_FILL);
-			glPolygonOffset(1,1);
+
+			//NOTE: this is what works but I'm not sure it's what the
+			//specification prescribes. I think OpenGL is just a mess
+			//in terms of how it's been implemented historically. The
+			//original Misift (or Maverick code used 1,0 as well)
+			//
+			//somtimes there's slight z-fighting with the grid with 1
+			//(with a flat polygon)
+			//glPolygonOffset(1,0);
+			glPolygonOffset(1.5,0);
 		}
 
-		//ContextT was because every view was its own OpenGL context.
+		//ContextT was because every view was its own OpenGL context
 		//model->draw(opt,static_cast<ContextT>(this),viewPoint);
 		model->draw(modelviewport_opts(drawMode),nullptr,viewPoint);
 
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		if(poffset) glDisable(GL_POLYGON_OFFSET_FILL);
 	}
 
 	glDisable(GL_LIGHTING);
@@ -393,14 +433,35 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 	if(drawSelections)
 	{
-		//TESTING
-		//Trying to create a visual cue.
+		if(!poffset)
+		{
+			//Intel uses FILL
+			glEnable(GL_POLYGON_OFFSET_FILL);
+			glEnable(GL_POLYGON_OFFSET_LINE);
+			glPolygonOffset(-1,0);
+		}
+
+		//using glPolygonOffset seems to work on the grid
+		//but I got very strange results using it on the 
+		//lines on my system. I think using it on polygons
+		//causes back-faces to bleed through along edges.
+		//With lines (negative offset) long lines far back
+		//in the model momentarily pop up in front of the
+		//polygons. It doesn't make a lot of sense, so it 
+		//could be a driver thing
+
 		model->drawLines(0.5f);
 		model->drawVertices(!parent->tool->isNullTool());
+
+		if(!poffset) glDisable(GL_POLYGON_OFFSET_FILL);
+		if(!poffset) glDisable(GL_POLYGON_OFFSET_LINE);
 	}
 
 	if(!m_rendering) //animexportwin?
 	{
+		//2019: I'm moving this to after so it isn't
+		//blended behind drawLines
+
 		/*EXPERIMENTAL
 		if(drawMode!=ViewWireframe)
 		if(drawSelections
@@ -409,28 +470,33 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		if(drawMode!=ViewWireframe)
 		if(parent->background_grid[m_view<=Tool::ViewPerspective])
 		{
+			//This is done implicitly by glDisable(GL_DEPTH_TEST)
+			//glDepthMask(0);
 			glDisable(GL_DEPTH_TEST);
-			glDepthMask(0);
 			glEnable(GL_BLEND);
 			{
 				drawGridLines(0.15f);
 			}
 			glDisable(GL_BLEND);
-			glDepthMask(1);
 			glEnable(GL_DEPTH_TEST);
+			//glDepthMask(1);
 		}
 		
-		//Too dirty in persp/ortho views for some reason???
-		//depth buffer precision??
-		glDepthFunc(GL_LESS); 
-		//GL_LESS isn't cutting it :(
-		//And there is glPolygonOffset to overcome
-		//(Note offsetting lines is unreliable and 
-		//only works with polygons)
-		glDepthRange(0.1,1);
+		//GL_LESS is intended to prefer wireframes
+		//over the grid lines		
+		glDepthFunc(GL_LESS);
+		//On my system there's often ugly artifacts
+		//like the depth-buffer is uneven, so this
+		//is designed to resolve wireframes snapped
+		//to the grid. Note, it's probably rounded
+		//up to the minimum nonzero value
+		glDepthRange(0.00001,1);
 		{
-			//2019: I'm moving this to after so it isn't
-			//blended behind drawLines.
+			//NOTE: I had a z-fighting issue due to 
+			//glPolygonOffset on my Intel system. I 
+			//finally found out it goes away if the
+			//second parameter is left t0 be 0
+
 			drawGridLines(1);
 		}
 		glDepthRange(0,1);
@@ -924,8 +990,12 @@ bool ModelViewport::updateBackground()
 
 void ModelViewport::updateViewport(int how)
 {
-	if(how=='z') //HACK
+	if(how=='z') //HACK: m_zoom changed?
 	{
+		//factoring in m_zoom improves glPolygonOffset
+		m_farOrtho = m_zoom*modelviewport_ortho_factor; 
+		m_nearOrtho = -m_farOrtho; 
+
 		parent->zoomLevelChangedEvent(*this);
 	
 		//REMOVE ME (Invalidating cursor position?)
@@ -1272,31 +1342,38 @@ void ModelViewport::rotateViewport(double rotX, double rotY, double rotZ)
 
 	double rot[3] = { m_rotX*PIOVER180,m_rotY*PIOVER180,m_rotZ*PIOVER180 };
 
-	Matrix mcur,mcurinv;
-	mcur.setRotation(rot);
-	mcurinv = mcur.getInverse();
-	mcur.inverseRotateVector(m_scroll);
 
-	Vector xvec(1,0,0,0);
-	Vector yvec(0,1,0,0);
-	Vector zvec(0,0,1,0);
+	//FIX ME: Ortho rotation is broken. Maverick
+	//is the same way
 
-	Matrix mx,my,mz; //???
+	//FIX ME: I'm positive this is not necessary!
 
-	zvec = zvec*mcurinv;
-	mz.setRotationOnAxis(zvec.getVector(),rotZ);
-	yvec = yvec*mcurinv;
-	my.setRotationOnAxis(yvec.getVector(),rotY);
-	xvec = xvec*mcurinv;
-	mx.setRotationOnAxis(xvec.getVector(),rotX);
 
-	mcur = mx*mcur;
-	mcur = my*mcur;
-	mcur = mz*mcur;
-	mcur.getRotation(rot);
-	m_rotX = rot[0]/PIOVER180;
-	m_rotY = rot[1]/PIOVER180;
-	m_rotZ = rot[2]/PIOVER180;
+		Matrix mcur,mcurinv;
+		mcur.setRotation(rot);
+		mcurinv = mcur.getInverse();
+		mcur.inverseRotateVector(m_scroll);
+
+		Vector xvec(1,0,0,0);
+		Vector yvec(0,1,0,0);
+		Vector zvec(0,0,1,0);
+
+		Matrix mx,my,mz; //???
+
+		zvec = zvec*mcurinv;
+		mz.setRotationOnAxis(zvec.getVector(),rotZ);
+		yvec = yvec*mcurinv;
+		my.setRotationOnAxis(yvec.getVector(),rotY);
+		xvec = xvec*mcurinv;
+		mx.setRotationOnAxis(xvec.getVector(),rotX);
+
+		mcur = mx*mcur;
+		mcur = my*mcur;
+		mcur = mz*mcur;
+		mcur.getRotation(rot);
+		m_rotX = rot[0]/PIOVER180;
+		m_rotY = rot[1]/PIOVER180;
+		m_rotZ = rot[2]/PIOVER180;
 
 	//m_rotY += xDiff *PIOVER180 *14.0; //???
 	//m_rotX += yDiff *PIOVER180 *14.0; //???
@@ -1317,11 +1394,13 @@ void ModelViewport::setViewState(const ViewStateT &viewState)
 	m_scroll[0] = viewState.translation[0];
 	m_scroll[1] = viewState.translation[1];
 	m_scroll[2] = viewState.translation[2];
-		
+
+	/*update m_near/farOrtho and m_unitWidth?
 	updateMatrix();
+	parent->zoomLevelChangedEvent(*this); //NEW*/
+	updateViewport('z');
 
 	parent->viewChangeEvent(*this); //NEW
-	parent->zoomLevelChangedEvent(*this); //NEW
 }
 
 void ModelViewport::viewChangeEvent(Tool::ViewE dir)
@@ -1661,15 +1740,16 @@ void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double
 	//looks better?
 	if(lock) width = std::max(width,fabs(bounds[2]));
 
-	m_zoom = std::max(width,height)/2;	
-
+	m_zoom = std::max(width,height)/2;
+	
+	/*update m_near/farOrtho and m_unitWidth?
 	//QString zoomStr;
 	//zoomStr.sprintf("%f",m_zoom);	
 	//emit zoomLevelChanged(zoomStr);
 	//emit(this,zoomLevelChanged,m_zoom);
 	parent->zoomLevelChangedEvent(*this);
-
-	updateMatrix(); //NEW
+	updateMatrix(); //NEW*/
+	updateViewport('z');
 }
 
 ModelViewport::Parent::Parent()

@@ -140,7 +140,7 @@ bool SnapCommand::activated(int arg, Model *model)
 	model->getSelectedVertices(selection);
 	if(selection.size()<2)
 	return false;
-	
+
 	int_list excludelist;
 	int_list::iterator sel_iter;
 
@@ -169,6 +169,6 @@ bool SnapCommand::activated(int arg, Model *model)
 	else*/ snap_together(model,selection);
 
 	if(arg==1/*||arg==3*/) weldSelectedVertices(model);
-
-	model->deleteOrphanedVertices(); return true;
+	
+	return true;
 }

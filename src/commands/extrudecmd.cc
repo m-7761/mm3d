@@ -76,6 +76,8 @@ bool ExtrudeImpl::extrude(Model *model, double x, double y, double z, bool make_
 		_addSide(v[0],v[2]);
 	}
 
+	const unsigned begin = model->getVertexCount(); //2020
+
 	// make extruded vertices and create a map from old vertices
 	// to new vertices
 	for(it = vertices.begin(); it!=vertices.end(); it++)
@@ -151,7 +153,9 @@ bool ExtrudeImpl::extrude(Model *model, double x, double y, double z, bool make_
 		model->selectVertex((*evit).second);
 	}
 
-	model->deleteOrphanedVertices(); return true;
+	if(!model->deleteOrphanedVertices(begin)) assert(0); //OVERKILL?
+	
+	return true;
 }
 void ExtrudeImpl::_makeFaces(Model *model, unsigned a, unsigned b)
 {

@@ -220,14 +220,7 @@ static int model_findEdgePlaneIntersection(double *ipoint, double *p1, double *p
 
 	// Distance is irrelevant,we just want to know where 
 	// the intersection is
-	if(dist>=0.0)
-	{
-		return 1;
-	}
-	else
-	{
-		return -1;
-	}
+	return dist>=0.0?1:-1;
 }
 
 Model::Model()
@@ -253,7 +246,9 @@ Model::Model()
 #ifdef MM3D_EDIT
 	,
 	  m_saved(true),
-	  m_selectionMode(SelectVertices),
+	//https://github.com/zturtleman/mm3d/issues/145
+	//m_selectionMode(SelectVertices),
+	  m_selectionMode(SelectTriangles),
 	  m_selecting(false),
 	  m_changeBits(ChangeAll),
 	  m_undoEnabled(false)
@@ -562,7 +557,7 @@ int Model::addVertex(double x, double y, double z)
 	vertex->m_coord[0] = x;
 	vertex->m_coord[1] = y;
 	vertex->m_coord[2] = z;
-	vertex->m_free = false;
+	//vertex->m_free = false;
 	m_vertices.push_back(vertex);
 
 	if(auto fp=m_vertices.front()->m_frames.size())
@@ -581,19 +576,17 @@ int Model::addVertex(double x, double y, double z)
 	return num;
 }
 
+/*REFERENCE
 void Model::setVertexFree(unsigned v,bool o)
 {
-	if(v<m_vertices.size())
-	{
-		m_vertices[v]->m_free = o;
-	}
-}
-
+	if(v<m_vertices.size()) m_vertices[v]->m_free = o;
+}*/
 bool Model::isVertexFree(unsigned v)const
 {
 	if(v<m_vertices.size())
 	{
-		return m_vertices[v]->m_free;
+		//return m_vertices[v]->m_free;
+		return m_vertices[v]->m_faces.empty();
 	}
 	return false;
 }
@@ -831,10 +824,7 @@ bool Model::getTriangleVertices(unsigned triangleNum, unsigned &vert1, unsigned 
 
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void Model::deleteVertex(unsigned vertexNum)
@@ -1006,8 +996,11 @@ void Model::deleteProjection(unsigned proj)
 	}
 }
 
-void Model::deleteOrphanedVertices()
+unsigned Model::deleteOrphanedVertices(unsigned begin, unsigned i)
 {
+	i = std::min(i,(unsigned)m_vertices.size());
+
+	/*
 	LOG_PROFILE();
 	
 	//if(m_animationMode) return; //REMOVE ME
@@ -1032,7 +1025,15 @@ void Model::deleteOrphanedVertices()
 		{
 			deleteVertex(v);
 		}
+	}*/
+	unsigned ret = 0;
+	//for(int i=m_vertices.size();i-->begin;)
+	while(i-->begin)
+	if(m_vertices[i]->m_faces.empty()) 
+	{
+		deleteVertex(i); ret++;
 	}
+	return ret; //2020
 }
 
 void Model::deleteFlattenedTriangles()
@@ -1078,11 +1079,11 @@ void Model::deleteSelected()
 		return; //!
 	}*/
 
+	//THIS CAN BE SIMPLIFIED
 	for(auto v=m_vertices.size();v-->0;)
 	{
 		m_vertices[v]->m_marked = false;
 	}
-
 	for(auto t=m_triangles.size();t-->0;)
 	{
 		if(m_triangles[t]->m_selected)
@@ -1093,16 +1094,13 @@ void Model::deleteSelected()
 			deleteTriangle(t);
 		}
 	}
-
-	for(int t = m_triangles.size()-1; t>=0; t--)
+	for(auto t=m_triangles.size();t-->0;)
 	{
 		if(m_triangles[t]->m_visible)
 		{
-			for(int v = 0; v<3; v++)
+			for(int i:m_triangles[t]->m_vertexIndices)
 			{
-				if(
-						m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_selected 
-					  &&!m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_marked)
+				if(m_vertices[i]->m_selected&&!m_vertices[i]->m_marked)
 				{
 					deleteTriangle(t);
 					break;
@@ -1110,16 +1108,15 @@ void Model::deleteSelected()
 			}
 		}
 	}
-
-	for(int v = m_vertices.size()-1; v>=0; v--)
+	for(auto v=m_vertices.size();v-->0;)
 	{
 		if(m_vertices[v]->m_selected&&!m_vertices[v]->m_marked)
 		{
 			deleteVertex(v);
 		}
 	}
-
 	deleteOrphanedVertices();
+
 	bool doJointSetup = false;
 
 	for(int j = m_joints.size()-1; j>=0; j--)
@@ -3077,7 +3074,7 @@ void Model::invertNormals(unsigned triangleNum)
 	}
 }
 
-bool Model::triangleFacesIn(unsigned triangleNum)
+bool Model::triangleFacesIn(unsigned triangleNum) 
 {
 	validateNormals();
 

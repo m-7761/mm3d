@@ -60,7 +60,7 @@ void VertexTool::mouseButtonDown()
 	parent->getParentXYValue(pos[0],pos[1],true);
 
 	m_vertex = addPosition(Model::PT_Vertex,pos[0],pos[1],0);
-	model->setVertexFree(m_vertex,true);
+	//model->setVertexFree(m_vertex,true);
 
 	model->unselectAll();
 	model->selectVertex(m_vertex);

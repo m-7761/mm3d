@@ -56,7 +56,7 @@ extern void aboutwin(int id)
 		"<head><title>MM3D-About</title></head> "
 		"<body><center><br>"
 		"<br>" //NEW
-		"<h1>Millennium Model 3D</h1><br>"
+		"<h1>Multimedia 3D</h1><br>"
 		"http://github.com/mick-p1982/mm3d<br>"
 		"http://sourceforge.net/p/daedalus-3d<br>"
 		"http://sourceforge.net/p/widgets-95<br><br>"

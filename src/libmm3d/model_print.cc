@@ -52,7 +52,8 @@ void Model::Vertex::sprint(std::string &dest)
 	sprintf(tempstr,"%c%c%c",
 			(m_visible ? 'V' : 'H'),
 			(m_selected ? 'S' : 'U'),
-			(m_free ? 'F' : 'N'));
+			//(m_free ? 'F' : 'N'));
+			(m_faces.empty() ? 'F' : 'N')); //???
 	dest += tempstr;
 
 	if(!m_influences.empty())

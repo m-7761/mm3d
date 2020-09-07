@@ -115,6 +115,10 @@ public:
 		if(m_op==Faces)
 		parent->addBool(true,&m_includeBackfacing,
 		TRANSLATE_NOOP("Param","Include Back-facing"));
+
+		//NEW: InvertSelectionCommand depends on this
+		//https://github.com/zturtleman/mm3d/issues/145
+		set_selection_mode();
 	}
 		
 	virtual void mouseButtonDown();
@@ -142,6 +146,31 @@ public:
 			virtual void draw(bool focused);	
 
 		//}m_boundingBox;
+
+	void set_selection_mode()
+	{
+		Model *model = parent->getModel();
+
+		Model::SelectionModeE sm; switch(m_op)
+		{
+		case Vertices: sm = Model::SelectVertices; break;
+		case Faces: sm = Model::SelectTriangles; break;
+		case Meshes: sm = Model::SelectConnected; break;
+		case Groups: sm = Model::SelectGroups; break;
+		case Joints: 
+		
+			model->setDrawJoints(true);
+
+			sm = Model::SelectJoints; break;
+	
+		case Points: sm = Model::SelectPoints; break;
+		case Projections: sm = Model::SelectProjections; //break;
+		
+			if(!model->getDrawProjections()) //NEW
+			model->setDrawProjections(true); break;
+		}
+		model->setSelectionMode(sm);
+	}
 };
 
 extern Tool *selecttool(){ return new SelectTool; }
@@ -150,25 +179,7 @@ void SelectTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
-	Model::SelectionModeE sm; switch(m_op)
-	{
-	case Vertices: sm = Model::SelectVertices; break;
-	case Faces: sm = Model::SelectTriangles; break;
-	case Meshes: sm = Model::SelectConnected; break;
-	case Groups: sm = Model::SelectGroups; break;
-	case Joints: 
-		
-		model->setDrawJoints(true);
-
-		sm = Model::SelectJoints; break;
-	
-	case Points: sm = Model::SelectPoints; break;
-	case Projections: sm = Model::SelectProjections; //break;
-		
-		if(!model->getDrawProjections()) //NEW
-		model->setDrawProjections(true); break;
-	}
-	model->setSelectionMode(sm); //Undo system?
+		set_selection_mode();
 
 	m_unselect = (parent->getButtons()&BS_Right)!=0;
 

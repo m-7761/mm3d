@@ -35,6 +35,8 @@ struct InvertSelectionCommand : Command
 		return TRANSLATE_NOOP("Command","Invert Selection"); 
 	}
 
+	virtual const char *getKeymap(int arg){ return "Ctrl+A"; } //TEMPORARY
+
 	virtual bool activated(int, Model*);
 };
 

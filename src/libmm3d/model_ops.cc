@@ -1581,7 +1581,7 @@ struct model_ops_SimplifyEdgeT
 };
 typedef std::list<model_ops_SimplifyEdgeT> model_ops_SimplifyEdgeList;
 
-void Model::simplifySelectedMesh()
+void Model::simplifySelectedMesh() //INSANE //OVERKILL
 {
 	validateNormals(); //2020
 
@@ -1845,8 +1845,10 @@ void Model::simplifySelectedMesh()
 									// v is now an orphan,next vertex
 									v++;
 									v = 0; // TODO let's start completely over for now
-									deleteFlattenedTriangles();
-									deleteOrphanedVertices();
+
+		deleteFlattenedTriangles(); //OVERKILL???
+		deleteOrphanedVertices(); //OVERKILL???
+
 									vcount = m_vertices.size();
 									tcount = m_triangles.size();
 

@@ -132,7 +132,7 @@ private:
 
 	friend void viewwin_toolboxfunc(int);
 	int _prev_tool,_curr_tool;
-	int _prev_mode;
+	int _prev_ortho,_prev_persp;
 	int _prev_view,_curr_view;
 	void _view(int i, void (ViewPanel::*mf)());
 };

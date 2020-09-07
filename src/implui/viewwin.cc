@@ -537,18 +537,23 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry();	
 	glutAddSubMenu(::tr("Render Options","View|Render Options"),_rops_menu);	
 	glutAddMenuEntry();
-	glutAddMenuEntry(O(0,scene_wireframe,"3D Wireframe","View|3D"));
-	glutAddMenuEntry(O(0,scene_flat,"3D Flat","View|3D"));
-	glutAddMenuEntry(O(0,scene_smooth,"3D Smooth","View|3D"));
-	glutAddMenuEntry(O(true,scene_texture,"3D Texture","View|3D"));
-	glutAddMenuEntry(O(0,scene_blend,"3D Alpha Blend","View|3D"));
-	glutAddMenuEntry();		
-	glutAddMenuEntry(O(true,model_wireframe,"Canvas Wireframe","View|Canvas","W"));
-	glutAddMenuEntry(O(0,model_flat,"Canvas Flat","View|Canvas"));
-	glutAddMenuEntry(O(0,model_smooth,"Canvas Smooth","View|Canvas"));
-	glutAddMenuEntry(O(0,model_texture,"Canvas Texture","View|Canvas"));
-	glutAddMenuEntry(O(0,model_blend,"Canvas Alpha Blend","View|Canvas"));
+		int conf = config.get("ui_ortho_drawing",0);
+		if(conf<0||conf>4) conf = 0;
+	glutAddMenuEntry(O(conf==0,ortho_wireframe,"Canvas Wireframe","View|Canvas","W"));		
+	glutAddMenuEntry(O(conf==1,ortho_flat,"Canvas Flat","View|Canvas","Alt+3"));
+	glutAddMenuEntry(O(conf==2,ortho_smooth,"Canvas Smooth","View|Canvas","Alt+4"));
+	glutAddMenuEntry(O(conf==3,ortho_texture,"Canvas Texture","View|Canvas","Alt+5"));
+	//I think I prefer Alt+F1, etc. for these, but Alt+F4 is Close on Windows?
+	glutAddMenuEntry(O(conf==4,ortho_blend,"Canvas Alpha Blend","View|Canvas","Shift+Alt+5"));
 	glutAddMenuEntry();
+		conf = config.get("ui_persp_drawing",3);
+		if(conf<0||conf>4) conf = 3;
+	glutAddMenuEntry(O(conf==0,persp_wireframe,"3D Wireframe","View|3D","Alt+6"));
+	glutAddMenuEntry(O(conf==1,persp_flat,"3D Flat","View|3D","Alt+7"));
+	glutAddMenuEntry(O(conf==2,persp_smooth,"3D Smooth","View|3D","Alt+8"));
+	glutAddMenuEntry(O(conf==3,persp_texture,"3D Texture","View|3D","Alt+9"));
+	glutAddMenuEntry(O(conf==4,persp_blend,"3D Alpha Blend","View|3D","Shift+Alt+9"));
+	glutAddMenuEntry();		
 		r = s = t = u = v = false;
 		switch(config.get("ui_viewport_count",0))
 		{
@@ -657,7 +662,7 @@ void MainWin::_init_menu_toolbar() //2019
 		if(sm) glutSetMenu(viewwin_tool_menu);
 		if(sm) glutAddSubMenu(::tr(path,"Tool"),sm);
 
-		glutAddMenuEntry(E(tool_back,"Background Grid","","Back"));
+		glutAddMenuEntry(E(tool_back,"Show Grids In Back","","Back"));
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(tool_none,"None","","Esc"));
 		glutAddMenuEntry(E(tool_toggle,"Toggle Tool","","Tab"));
@@ -671,15 +676,15 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(edit_undo,"Undo","Undo shortcut","Ctrl+Z"));
 	glutAddMenuEntry(E(edit_redo,"Redo","Redo shortcut","Ctrl+Y"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data"));
+	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+Alt+M"));
 	//SLOT(transformWindowEvent()),g_keyConfig.getKey("viewwin_model_transform"));
-	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model"));
+	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+Alt+X"));
 	//SEEMS UNNCESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Shift+Ctrl+Back"));
-	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge"));
-	glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations"));
+	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge","Ctrl+Alt+M"));
+	glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations","Ctrl+Alt+A"));
 
 		viewwin_geom_menu = glutCreateMenu(viewwin_geomenufunc);
 
@@ -738,7 +743,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(uv_editor,"Edit Texture Coordinates...","Materials|Edit Texture Coordinates","M")); //Ctrl+E
 	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection"));	
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures"));
+	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures","Ctrl+R"));
 	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture"));
 				
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
@@ -800,7 +805,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(X(false,animate_play,"Play Animation","","Pause"));
 	//REMINDER: wxWidgets doesn't support Ctrl+Pause. Windows generates a Cancel code in response.
 	glutAddMenuEntry(X(false,animate_loop,"Play Repeatedly","","Shift+Pause"));
-	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images"));	
+	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images")); //"Ctrl+Snapshot"
 	glutAddMenuEntry(E(animate_window,"Animator Window...","Animation|Animation Window","A"));
 
 		extern void animwin_enable_menu(int,int);
@@ -950,7 +955,7 @@ _transform_win(),
 _projection_win(),
 _texturecoord_win(),
 _prev_tool(3),_curr_tool(1),
-_prev_mode(id_model_texture),
+_prev_ortho(3),_prev_persp(0),
 _prev_view(),_curr_view()
 {
 	if(!model) model = new Model;
@@ -1090,6 +1095,13 @@ Model *MainWin::_swap_models(Model *swap)
 	//https://github.com/zturtleman/mm3d/issues/56
 	if(!swap) 
 	{
+		int cmp = config.get("ui_ortho_drawing",0);
+		if(cmp==_prev_ortho) _prev_ortho = 0;
+		model->setCanvasDrawMode((ModelViewport::ViewOptionsE)cmp);
+		cmp = config.get("ui_persp_drawing",3);
+		if(cmp==_prev_persp) _prev_persp = 3;
+		model->setPerspectiveDrawMode((ModelViewport::ViewOptionsE)cmp);
+
 		if(config.get("ui_render_bad_textures",true))
 		model->setDrawOption(Model::DO_BADTEX,true);
 		if(config.get("ui_render_backface_cull",false))
@@ -1831,31 +1843,37 @@ void MainWin::perform_menu_action(int id)
 	//	
 	//	w->sidebar.prop_panel.nav.open(); return;
 
-	case id_model_wireframe:
-	case id_model_flat:
-	case id_model_smooth:
-	case id_model_texture:
-	case id_model_blend:
+	case id_ortho_wireframe:
+	case id_ortho_flat:
+	case id_ortho_smooth:
+	case id_ortho_texture:
+	case id_ortho_blend:
 		
-		//Let W toggle modes.
+		id-=id_ortho_wireframe; //Let W toggle modes?
 		{
-			int curr = m->getCanvasDrawMode()+id_model_wireframe;
-			if(id==curr) std::swap(id,_prev_mode);			
-			else _prev_mode = curr;
-			glutext::glutMenuEnable(id,glutext::GLUT_MENU_CHECK);
-		}
-
-		id-=id_model_wireframe;		
+			int curr = m->getCanvasDrawMode();
+			if(id==curr) std::swap(id,_prev_ortho);
+			else _prev_ortho = curr;
+			glutext::glutMenuEnable(id_ortho_wireframe+id,glutext::GLUT_MENU_CHECK);
+		}		
+		config.set("ui_ortho_drawing",id);
 		m->setCanvasDrawMode((ModelViewport::ViewOptionsE)id);
 		break;
 	
-	case id_scene_wireframe: //id_view_prsp1
-	case id_scene_flat:
-	case id_scene_smooth:
-	case id_scene_texture:
-	case id_scene_blend:
+	case id_persp_wireframe: //id_view_prsp1
+	case id_persp_flat:
+	case id_persp_smooth:
+	case id_persp_texture:
+	case id_persp_blend:
 
-		id-=id_scene_wireframe;
+		id-=id_persp_wireframe; //Let ? toggle modes.
+		{
+			int curr = m->getPerspectiveDrawMode();
+			if(id==curr) std::swap(id,_prev_persp);			
+			else _prev_persp = curr;
+			glutext::glutMenuEnable(id_persp_wireframe+id,glutext::GLUT_MENU_CHECK);
+		}		
+		config.set("ui_persp_drawing",id);
 		m->setPerspectiveDrawMode((ModelViewport::ViewOptionsE)id);
 		break;
 

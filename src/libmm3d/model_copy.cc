@@ -101,7 +101,7 @@ Model *Model::copySelected()const
 			getVertexCoords(*lit,coords);
 			int nv = m->addVertex(coords[0],coords[1],coords[2]);
 			m->selectVertex(nv);
-			m->setVertexFree(nv,isVertexFree(*lit));
+			//m->setVertexFree(nv,isVertexFree(*lit));
 
 			vertMap[*lit] = nv;
 		}
@@ -336,7 +336,7 @@ bool Model::duplicateSelected()
 			getVertexCoords(v,coords);
 			int nv = addVertex(coords[0],coords[1],coords[2]);
 
-			if(isVertexFree(v)) setVertexFree(nv,true);
+			//if(isVertexFree(v)) setVertexFree(nv,true);
 
 			vertMap[v] = nv;
 		}

@@ -152,8 +152,8 @@ Model::Vertex::~Vertex()
 void Model::Vertex::init()
 {
 	m_selected = false;
-	m_visible  = true;
-	m_free	  = false;
+	m_visible = true;
+	//m_free = false;
 
 	m_absSource = m_coord;
 
@@ -230,9 +230,9 @@ bool Model::Vertex::propEqual(const Vertex &rhs, int propBits, double tolerance)
 		if(m_visible!=rhs.m_visible)
 			return false;
 
-	if((propBits &PropFree))
+	/*if((propBits &PropFree))
 		if(m_free!=rhs.m_free)
-			return false;
+			return false;*/
 
 	if((propBits &(PropInfluences | PropWeights))!=0)
 	{

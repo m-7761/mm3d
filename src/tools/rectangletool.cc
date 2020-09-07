@@ -49,6 +49,7 @@ struct RectangleTool : Tool
 
 		double m_x,m_y;
 
+		bool m_created; //NEW
 		ToolCoordT m_v1,m_v2,m_v3,m_v4;
 };
 
@@ -56,33 +57,41 @@ extern Tool *rectangletool(){ return new RectangleTool; }
 
 void RectangleTool::mouseButtonDown()
 {
+	m_created = false;
+
 	parent->getParentXYValue(m_x,m_y);
-
-	Model *model = parent->getModel();
-
-	//log_debug("model has %d vertices\n",model->getVertexCount()); //???
-
-	for(int i=0;i<4;i++)
-	(&m_v1)[i] = addPosition(Model::PT_Vertex,m_x,m_y,0);
-
-	//log_debug("last new vertex: %d\n",m_v4.pos.index); //???
-
-	model->addTriangle(m_v1,m_v2,m_v4);
-	model->addTriangle(m_v4,m_v3,m_v1);
-
-	model->unselectAll();
-	for(int i=0;i<4;i++)
-	model->selectVertex((&m_v1)[i]);
-	
-	model_status(model,StatusNormal,STATUSTIME_SHORT,
-	TRANSLATE("Tool","Rectangle created"));
-
-	parent->updateAllViews();
 }
 void RectangleTool::mouseButtonMove()
 {
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1]);
+
+	//Like EllipseTool?
+	if(m_x==pos[0]||m_y==pos[1]) return;
+
+	if(!m_created)
+	{
+		m_created = true;
+
+		Model *model = parent->getModel();
+
+		//log_debug("model has %d vertices\n",model->getVertexCount()); //???
+
+		for(int i=0;i<4;i++)
+		(&m_v1)[i] = addPosition(Model::PT_Vertex,m_x,m_y,0);
+
+		//log_debug("last new vertex: %d\n",m_v4.pos.index); //???
+
+		model->addTriangle(m_v1,m_v2,m_v4);
+		model->addTriangle(m_v4,m_v3,m_v1);
+
+		model->unselectAll();
+		for(int i=0;i<4;i++)
+		model->selectVertex((&m_v1)[i]);
+	
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Rectangle created"));
+	}
 
 	movePosition(m_v2.pos,m_x,pos[1],0);
 	movePosition(m_v3.pos,pos[0],m_y,0);

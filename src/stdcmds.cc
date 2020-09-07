@@ -61,7 +61,8 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 	cmdMgr->addCommand(rotatetexcmd(GEOM_FACES_MENU));
 	_(subdivide)
 	_(edgediv)_(edgeturn)
-	_(invnormal)_(faceout)
+	_(invnormal)
+	_(faceout) //INSANE //OVERKILL
 		
 	// Groups
 					

@@ -196,7 +196,7 @@ static void viewwin_influences_jointMakeSingleInfluence(MainWin &model)
 static void viewwin_influences_jointSelectUnassignedVertices(MainWin &model)
 {
 	model->unselectAllVertices();
-	model->beginSelectionDifference();
+	model->beginSelectionDifference(); //OVERKILL!
 	{
 		for(unsigned v=model->getVertexCount();v-->0;)
 		{
@@ -217,7 +217,7 @@ static void viewwin_influences_jointSelectUnassignedPoints(MainWin &model)
 {
 	model->unselectAllPoints();
 	//2020: Assuming a small point count
-	//model->beginSelectionDifference(); 
+	//model->beginSelectionDifference(); //OVERKILL! 
 	{
 		for(unsigned p=model->getPointCount();p-->0;)
 		{
@@ -236,7 +236,7 @@ static void viewwin_influences_jointSelectUnassignedPoints(MainWin &model)
 
 static void viewwin_influences_jointSelectInfluenceJoints(MainWin &model)
 {
-	//model->beginSelectionDifference(); //OVERKILL
+	//model->beginSelectionDifference(); //OVERKILL! //OVERKILL
 	{
 		for(auto&i:model.selection)
 		if(auto*infl=model->getPositionInfluences(i))
@@ -252,7 +252,7 @@ static void viewwin_influences_jointSelectInfluenceJoints(MainWin &model)
 
 static void viewwin_influences_jointSelectInfluencedVertices(MainWin &model)
 {
-	model->beginSelectionDifference(); //OVERKILL?
+	model->beginSelectionDifference(); //OVERKILL! //OVERKILL?
 	{
 		for(auto&j:model.selection) 
 		{
@@ -275,7 +275,7 @@ static void viewwin_influences_jointSelectInfluencedVertices(MainWin &model)
 static void viewwin_influences_jointSelectInfluencedPoints(MainWin &model)
 {
 	//2020: Assuming a small point count
-	//model->beginSelectionDifference();
+	//model->beginSelectionDifference(); //OVERKILL!
 	{
 		for(auto&j:model.selection) 
 		{

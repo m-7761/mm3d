@@ -524,6 +524,8 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 			}
 		}
 		glEnd();
+
+		if(colorSelected==true) glDisable(GL_LIGHT1); //2020
 	}
 
 	// Draw ungrouped triangles
@@ -588,6 +590,8 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 			}
 		}
 		glEnd();
+
+		if(colorSelected==true) glDisable(GL_LIGHT1); //2020
 	}
 
 	// Draw depth-sorted alpha blended polys last
@@ -633,10 +637,20 @@ void Model::drawLines(float a)
 	glDisable(GL_BLEND);
 
 	//CAUTION: These need a way to come out on top.
-	//glPoloygonOffset is unreliable, so the only
+	//glPolygonOffset is unreliable, so the only
 	//other technique is to do everything in 2D.
 	//glDepthFunc(GL_LEQUAL);
-	glDisable(GL_DEPTH_TEST);
+	//
+	//THIS DISABLES glDepthMask
+	//glDisable(GL_DEPTH_TEST);
+	//
+	// NOTE: this can potentially put wrong values
+	// into the depth buffer... the only alternative
+	// is to draw all of the lines normally so the
+	// depth is correct and then draw the selected
+	// lines over them :(
+	//
+	glDepthFunc(GL_ALWAYS);
 
 		//REMINDER: I TRIED DIFFERENT WAYS OF 
 		//DRAWING BACK-FACES DIFFERENTLY. AND
@@ -647,7 +661,7 @@ void Model::drawLines(float a)
 
 	//glLineWidth(1.0);
 	glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
-	glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 }
 void Model::drawVertices(float a)
@@ -662,7 +676,9 @@ void Model::drawVertices(float a)
 		//out.
 		glPointSize(5);
 		//glDepthFunc(GL_LEQUAL);
-		glDisable(GL_DEPTH_TEST);
+		//THIS DISABLES glDepthMask
+		//glDisable(GL_DEPTH_TEST);
+		glDepthFunc(GL_ALWAYS);
 		glColor3ub(255,0,0);
 		glBegin(GL_POINTS);
 		Vertex **v = m_vertices.data();
@@ -673,7 +689,7 @@ void Model::drawVertices(float a)
 		}
 		glEnd();
 		glDepthFunc(GL_LEQUAL);
-		glEnable(GL_DEPTH_TEST);
+		//glEnable(GL_DEPTH_TEST);
 		return;
 	}
 
@@ -699,7 +715,9 @@ void Model::drawVertices(float a)
 	//CAUTION: These need a way to come out on top.
 	//glPoloygonOffset is unreliable, so the only
 	//other technique is to do everything in 2D.
-	glDisable(GL_DEPTH_TEST);
+	//THIS DISABLES glDepthMask
+	//glDisable(GL_DEPTH_TEST);
+	glDepthFunc(GL_ALWAYS);
 	glPointSize(5); //4	
 	glColor3ub(255,0,0); //red
 
@@ -710,10 +728,6 @@ void Model::drawVertices(float a)
 	//Draw "free" vertices, and vertices that
 	//don't match their triangle's selections.
 	//Or, typically all the selected vertices.
-	glDepthFunc(GL_LESS);
-	glPointSize(5);
-	glColor3ub(255,0,0);
-	glDisable(GL_DEPTH_TEST);
 	bool colorSelected = true;
 	glBegin(GL_POINTS);
 	for(size_t i=m_vertices.size();i-->0;)	
@@ -726,7 +740,8 @@ void Model::drawVertices(float a)
 				glEnd();
 				glPointSize(5);
 				//glDepthFunc(GL_LEQUAL);
-				glDisable(GL_DEPTH_TEST);
+				//glDisable(GL_DEPTH_TEST);
+				glDepthFunc(GL_ALWAYS);
 				glColor3ub(255,0,0);
 				glBegin(GL_POINTS);
 				colorSelected = true;
@@ -742,8 +757,8 @@ void Model::drawVertices(float a)
 			{
 				glEnd();
 				glPointSize(3);
-				//glDepthFunc(GL_LESS);
-				glEnable(GL_DEPTH_TEST);
+				glDepthFunc(GL_LESS);
+				//glEnable(GL_DEPTH_TEST);
 				glColor3ub(255,255,255);
 				glBegin(GL_POINTS);
 				colorSelected = false;
@@ -753,7 +768,7 @@ void Model::drawVertices(float a)
 	}
 	glEnd();
 	glDepthFunc(GL_LEQUAL);
-	glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_DEPTH_TEST);
 }
 void Model::_drawPolygons(int pass, bool mark)
 {	

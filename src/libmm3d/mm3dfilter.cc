@@ -899,7 +899,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			model->addVertex(fileVert.coord[0],fileVert.coord[1],fileVert.coord[2]);			
 			if(fileVert.flags&MF_SELECTED) model->selectVertex(v);
 			if(fileVert.flags&MF_HIDDEN) model->hideVertex(v);
-			if(fileVert.flags&MF_VERTFREE) model->setVertexFree(v,true);
+			//2020: this should be implicit
+			//if(fileVert.flags&MF_VERTFREE) model->setVertexFree(v,true);
 		}
 	}
 	unsigned vcount = modelVertices.size(); //2020
@@ -2481,7 +2482,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			fileVertex.flags |= MF_HIDDEN;
 			if(modelVertices[v]->m_selected)
 			fileVertex.flags |= MF_SELECTED;
-			if(modelVertices[v]->m_free)
+			//if(modelVertices[v]->m_free)
+			if(modelVertices[v]->m_faces.empty())
 			fileVertex.flags |= MF_VERTFREE;
 
 			fileVertex.coord[0] = (float32_t)modelVertices[v]->m_coord[0];

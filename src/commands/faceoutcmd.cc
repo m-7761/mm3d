@@ -53,7 +53,7 @@ bool FaceOutCommand::activated(int arg, Model *model)
 
 	// TODO this is slow, see if we can speed it up
 	for(int ea:faces) 
-	if(model->triangleFacesIn(ea)) //FIX ME
+	if(model->triangleFacesIn(ea)) //FIX ME //INSANE //OVERKILL
 	{
 		model->invertNormals(ea);
 	}

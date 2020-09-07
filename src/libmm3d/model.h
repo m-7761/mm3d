@@ -416,9 +416,9 @@ class Model
 				mutable bool m_marked;
 				mutable bool m_marked2;
 
-				// If m_free is false,the vertex will be implicitly deleted when
+				// If m_free is false, the vertex will be implicitly deleted when
 				// all faces using it are deleted
-				bool	m_free;
+				//bool	m_free;
 				
 				// List of bone joints that move the vertex in skeletal animations.
 				infl_list m_influences;
@@ -1650,17 +1650,18 @@ class Model
 		int addVertex(double x, double y, double z);
 		int addTriangle(unsigned vert1, unsigned vert2, unsigned vert3);
 
+		//2020: this API leaves dangling references to vertices!
 		void deleteVertex(unsigned vertex);
 		void deleteTriangle(unsigned triangle);
 
 		// No undo on this one
-		void setVertexFree(unsigned v,bool o);
+		//void setVertexFree(unsigned v,bool o);
 		bool isVertexFree(unsigned v)const;
 
 		// When all faces attached to a vertex are deleted,the vertex is considered
 		// an "orphan" and deleted (unless it is a "free" vertex,see m_free in the
 		// vertex class).
-		void deleteOrphanedVertices();
+		unsigned deleteOrphanedVertices(unsigned begin=0, unsigned end=~0);
 
 		// A flattened triangle is a triangle with two or more corners that are
 		// assigned to the same vertex (this usually happens when vertices are
@@ -1677,7 +1678,7 @@ class Model
 		// can be combined into a single triangle. The simplifySelectedMesh function
 		// performs this operation to combine all faces that do not add detail to
 		// the model.
-		void simplifySelectedMesh();
+		void simplifySelectedMesh(); //INSANE //OVERKILL
 
 		bool setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3);
 		bool getTriangleVertices(unsigned triangleNum, unsigned &vert1, unsigned &vert2, unsigned &vert3)const;
@@ -2168,7 +2169,7 @@ class Model
 		// list is used to track undo information. These calls indicate when the
 		// undo information should start being tracked and when it should be
 		// completed.
-		void beginSelectionDifference();
+		void beginSelectionDifference(); //OVERKILL!
 		void endSelectionDifference();
 
 		bool selectVertex(unsigned v);
@@ -2206,7 +2207,7 @@ class Model
 
 		// Select all vertices that have the m_free property set and are not used
 		// by any triangles (this can be used to clean up unused free vertices,
-		// like a manual analog to the deleteOrphanedVertices()function).
+		// like a manual analog to the deleteOrphanedVertices() function).
 		void selectFreeVertices();
 
 		//FIX ME

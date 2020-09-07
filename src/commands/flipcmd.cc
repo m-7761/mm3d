@@ -44,6 +44,18 @@ struct FlipCommand : Command
 		}
 	}
 
+	virtual const char *getKeymap(int arg)
+	{
+		switch(arg)
+		{
+		default: assert(0);
+			//REMINDER: Windows reserves Alt+F4
+		case 0: return "Alt+F1";
+		case 1: return "Alt+F2";
+		case 2: return "Alt+F3";
+		}
+	}
+
 	virtual bool activated(int,Model*);
 };
 

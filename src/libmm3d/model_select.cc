@@ -62,7 +62,9 @@ bool Model::selectVertex(unsigned v)
 			}
 		}
 
-		return m_vertices[v]->m_selected = true;
+		m_vertices[v]->m_selected = true;
+
+		return true;
 	}
 	return false;
 }
@@ -96,7 +98,9 @@ bool Model::selectTriangle(unsigned t)
 			m_vertices[i]->m_selected = true;
 		}
 
-		return m_triangles[t]->m_selected = true;
+		m_triangles[t]->m_selected = true;
+
+		return true;
 	}
 	return false;
 }
@@ -433,7 +437,7 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 {
 	LOG_PROFILE();
 
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
@@ -482,7 +486,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 {
 	LOG_PROFILE();
 
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	unsigned i;
 	for(i = 0; i<m_vertices.size(); i++)
@@ -769,7 +773,7 @@ bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 {
 	LOG_PROFILE();
 
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	selectTrianglesInVolumeMatrix(select,viewMat,x1,y1,x2,y2,false,test);
 
@@ -784,7 +788,7 @@ bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, d
 {
 	LOG_PROFILE();
 
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
@@ -838,7 +842,7 @@ bool Model::selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 {
 	LOG_PROFILE();
 
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
@@ -886,7 +890,7 @@ bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, 
 {
 	LOG_PROFILE();
 
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
@@ -1204,7 +1208,7 @@ bool Model::selectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, do
 
 	bool selecting = m_selecting; //2020
 
-	if(!selecting) beginSelectionDifference();
+	if(!selecting) beginSelectionDifference(); //OVERKILL!
 
 	switch (m_selectionMode)
 	{
@@ -1244,7 +1248,7 @@ bool Model::unselectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, 
 
 	bool selecting = m_selecting; //2020
 
-	if(!selecting) beginSelectionDifference();
+	if(!selecting) beginSelectionDifference(); //OVERKILL!
 
 	switch (m_selectionMode)
 	{
@@ -1405,7 +1409,7 @@ bool Model::invertSelection()
 {
 	LOG_PROFILE();
 
-	beginSelectionDifference();
+	beginSelectionDifference(); //OVERKILL!
 	switch (m_selectionMode)
 	{
 		case SelectVertices:
@@ -2024,7 +2028,7 @@ bool Model::getSelectedBoundingRegion(double *x1, double *y1, double *z1, double
 void Model::unselectAllVertices()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
-	//if(m_undoEnabled) beginSelectionDifference();
+	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
 	MU_Select *undo = nullptr; //2020
 
@@ -2057,7 +2061,7 @@ void Model::unselectAllVertices()
 void Model::unselectAllTriangles()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	MU_Select *undo = nullptr; //2020
 
@@ -2090,7 +2094,7 @@ void Model::unselectAllTriangles()
 void Model::unselectAllGroups()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	MU_Select *undo = nullptr; //2020
 
@@ -2123,7 +2127,7 @@ void Model::unselectAllGroups()
 bool Model::unselectAllBoneJoints()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
-	//if(m_undoEnabled) beginSelectionDifference();
+	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
 	bool ret = false;
 
@@ -2156,7 +2160,7 @@ bool Model::unselectAllBoneJoints()
 bool Model::unselectAllPoints()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
-	//if(m_undoEnabled) beginSelectionDifference();
+	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
 	bool ret = false;
 
@@ -2190,7 +2194,7 @@ bool Model::unselectAllPoints()
 bool Model::unselectAllProjections()
 {
 	//https://github.com/zturtleman/mm3d/issues/90
-	//if(m_undoEnabled) beginSelectionDifference();
+	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
 	bool ret = false;
 
@@ -2227,7 +2231,7 @@ void Model::unselectAll()
 
 	//Joints window calls unselectAllBoneJoints independent
 	//of unslectAll so endSelectionDifference isn't called
-	//beginSelectionDifference();
+	//beginSelectionDifference(); //OVERKILL!
 
 	unselectAllVertices();
 	unselectAllTriangles();
@@ -2242,11 +2246,15 @@ void Model::unselectAll()
 
 void Model::selectFreeVertices()
 {
-	setSelectionMode(Model::SelectVertices);
-	beginSelectionDifference();
+	beginSelectionDifference(); //OVERKILL!
 
+	/*
 	//unsigned vcount = m_vertices.size();
 	//unsigned v = 0;
+
+	//WARNING! This isn't finding free vertices that aren't marked
+	//with m_free!? MM3D may (or may not) make these but external
+	//models can have them (i.e. exported MM3D files)
 
 	for(auto*ea:m_vertices)
 	{
@@ -2261,12 +2269,14 @@ void Model::selectFreeVertices()
 		m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked = false;
 		m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked = false;
 	}
-
+	*/
 	for(auto*ea:m_vertices)
 	{
+		/*
 		//2020: beginSelectionDifference doesn't work like this!
 		//ea->m_marked?selectVertex(v):unselectVertex(v);
-		ea->m_selected = ea->m_marked;
+		ea->m_selected = ea->m_marked;*/
+		if(ea->m_faces.empty()) ea->m_selected = true;
 	}
 
 	endSelectionDifference();
