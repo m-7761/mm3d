@@ -510,16 +510,15 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 		{
 			enum{ width=5 };
 			char buf[32]; 
-			int len = snprintf(buf,sizeof(buf),"%.6f",fabs(cmax[i]-cmin[i])); //-0
+			int len = snprintf(buf,sizeof(buf),"%.6f",fabs(cmax[i]-cmin[i]));
 			if(char*dp=strrchr(buf,'.'))
 			{
-				while(len>width&&buf+len>dp)
+				len = std::max<int>(width,dp-buf);
+
+				if(buf[len]=='0')
+				while(buf+len>dp&&buf[len-1]=='0')
 				{
-					dp--; len--;
-				}
-				while(buf+len>dp&&buf[len]=='0')
-				{
-					dp--; len--;
+					len--;
 				}
 				if(dp==buf+len) len--;
 			}
@@ -703,53 +702,67 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 
 void SideBar::PropPanel::group_props::change(int changeBits)
 {
-	if(0==(changeBits&(Model::AddOther|Model::SelectionFaces)))
+	if(!changeBits)
 	{
-		return; // Only change if group or selection change	
+		return; //group_props::submit?
 	}
 
-	int iN = model->getGroupCount();
-	group.menu.clear();
-	group.menu.add_item(-1,::tr("<None>"));
-	for(int i=0;i<iN;i++)
-	group.menu.add_item(i,model->getGroupName(i));	
-	group.menu.add_item(iN,::tr("<New>"));
-
-	iN = model->getTextureCount();
-	material.menu.clear();
-	material.menu.add_item(-1,::tr("<None>"));
-	for(int i=0;i<iN;i++)
-	material.menu.add_item(i,model->getTextureName(i));
-
-	iN = model->getProjectionCount();
-	projection.menu.clear();
-	projection.menu.add_item(-1,::tr("<None>"));
-	for(int i=0;i<iN;i++)	
-	projection.menu.add_item(i,model->getProjectionName(i));
-	//projection.nav.enable(iN!=0); 
-	projection.nav.set_hidden(iN==0); 
-
-	int grp = -1, prj  = -1;
-	iN = model->getTriangleCount();
-	for(int i=0;i<iN;i++)
-	if(model->isTriangleSelected(i))
+	if(changeBits&Model::AddOther) 
 	{
-		if(grp==-1)
-		{
-			grp = model->getTriangleGroup(i);
-			if(prj!=-1) break; //UNNECCESSARY
-		}
-		if(prj==-1)
-		{
-			prj = model->getTriangleProjection(i);
-			if(grp!=-1) break; //UNNECCESSARY
-		}
+		int iN = model->getGroupCount();
+		group.menu.clear();
+		group.menu.add_item(-1,::tr("<None>"));
+		for(int i=0;i<iN;i++)
+		group.menu.add_item(i,model->getGroupName(i));	
+		group.menu.add_item(iN,::tr("<New>"));
+	
+		iN = model->getTextureCount();
+		material.menu.clear();
+		material.menu.add_item(-1,::tr("<None>"));
+		for(int i=0;i<iN;i++)
+		material.menu.add_item(i,model->getTextureName(i));
+	
+		iN = model->getProjectionCount();
+		projection.menu.clear();
+		projection.menu.add_item(-1,::tr("<None>"));
+		for(int i=0;i<iN;i++)	
+		projection.menu.add_item(i,model->getProjectionName(i));
+		//projection.nav.enable(iN!=0); 
+		projection.nav.set_hidden(iN==0); 
 	}
 
-	material.nav.enable(grp!=-1);
-	group.menu.select_id(grp);		
-	material.menu.select_id(model->getGroupTextureId(grp));
-	projection.menu.select_id(prj);
+	if(changeBits&Model::SelectionFaces)
+	{
+		int grp = -2, prj  = -2;
+		int i = model->getTriangleCount();
+		while(i-->0)
+		if(model->isTriangleSelected(i))
+		{
+			if(grp!=-3)
+			if(grp==-2) //2020: treat -1 as distinct entity
+			{
+				grp = model->getTriangleGroup(i);				
+			}
+			else if(grp!=model->getTriangleGroup(i))
+			{
+				grp = -3; //2020: show nothing? (enable setting)
+			}
+			if(prj!=-3)
+			if(prj==-2) //2020: treat -1 as distinct entity
+			{
+				prj = model->getTriangleProjection(i);
+			}
+			else if(prj!=model->getTriangleProjection(i))
+			{
+				prj = -3; //2020: show nothing? (enable setting)
+			}
+		}
+
+		group.menu.select_id(grp);		
+		material.nav.enable(grp>=0);
+		material.menu.select_id(model->getGroupTextureId(grp));
+		projection.menu.select_id(prj);
+	}
 }
 void SideBar::PropPanel::group_props::submit(int id)
 {

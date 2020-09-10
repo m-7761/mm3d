@@ -528,18 +528,17 @@ void TextureCoordWin::setTextureCoordsEtc(bool setCoords)
 	{
 		enum{ width=5 };
 		char buf[32]; 
-		double dim = fabs(cmax[i]-cmin[i]); //-0
+		double dim = fabs(cmax[i]-cmin[i]);
 		dim*=i?texture.getUvHeight():texture.getUvWidth();
 		int len = snprintf(buf,sizeof(buf),"%.6f",dim); 
 		if(char*dp=strrchr(buf,'.'))
 		{
-			while(len>width&&buf+len>dp)
+			len = std::max<int>(width,dp-buf);
+
+			if(buf[len]=='0')
+			while(buf+len>dp&&buf[len-1]=='0')
 			{
-				dp--; len--;
-			}
-			while(buf+len>dp&&buf[len]=='0')
-			{
-				dp--; len--;
+				len--;
 			}
 			if(dp==buf+len) len--;
 		}

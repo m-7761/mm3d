@@ -1061,38 +1061,15 @@ Model *MainWin::_swap_models(Model *swap)
 
 	//FYI: If !swap this is what ~MainWin used
 	//to do. viewwin_close_func calls this now.
-	std::swap(swap,const_cast<Model*&>(model));		
-	views.setModel();
-	if(!model) return swap; //Closing?
-
-	//Close doesn't enable this.
-	model->setUndoEnabled(true);
-		
-	//FIX ME
-	//NEW: Since "ContextT" is not in play the textures 
-	//aren't loaded automatically by model.
-	glutSetWindow(glut_window_id);
-	//REMINDER: _projection_win/_texturecoord_win needs
-	//loadTextures for setModel.
-	model->loadTextures();
-
-	sidebar.setModel();
-	//sidebar updates animation.
-	//if(_animation_win)
-	//_animation_win->setModel();
-	if(_projection_win)
-	_projection_win->setModel();
-	if(_texturecoord_win)
-	_texturecoord_win->setModel();
-
-	//The hide-joints state isn't respected nor recorded.
-	int dj = 1==config.get("ui_draw_joints",2)?1:2;
-	if(1==dj) model->setDrawOption(Model::DO_BONES,false);
-	glutSetMenu(_rops_menu);
-	glutext::glutMenuEnable(id_rops_hide_joints+dj,glutext::GLUT_MENU_CHECK);		
-
+	std::swap(swap,const_cast<Model*&>(model));	
+	 
+	//NOTE: must initialize the viewport settings
+	//so ModelViewport::getUnitWidth isn't divide
+	//by zero and just to ensure it's initialized
+	//with meaningful values (what are defaults?)
 	//YUCK
 	//https://github.com/zturtleman/mm3d/issues/56
+	if(model)
 	if(!swap) 
 	{
 		int cmp = config.get("ui_ortho_drawing",0);
@@ -1131,6 +1108,35 @@ Model *MainWin::_swap_models(Model *swap)
 		model->setCanvasDrawMode(swap->getCanvasDrawMode());
 		model->setPerspectiveDrawMode(swap->getPerspectiveDrawMode());
 	}
+
+	views.setModel();
+	if(!model) return swap; //Closing?
+
+	//Close doesn't enable this.
+	model->setUndoEnabled(true);
+		
+	//FIX ME
+	//NEW: Since "ContextT" is not in play the textures 
+	//aren't loaded automatically by model.
+	glutSetWindow(glut_window_id);
+	//REMINDER: _projection_win/_texturecoord_win needs
+	//loadTextures for setModel.
+	model->loadTextures();
+
+	sidebar.setModel();
+	//sidebar updates animation.
+	//if(_animation_win)
+	//_animation_win->setModel();
+	if(_projection_win)
+	_projection_win->setModel();
+	if(_texturecoord_win)
+	_texturecoord_win->setModel();
+
+	//The hide-joints state isn't respected nor recorded.
+	int dj = 1==config.get("ui_draw_joints",2)?1:2;
+	if(1==dj) model->setDrawOption(Model::DO_BONES,false);
+	glutSetMenu(_rops_menu);
+	glutext::glutMenuEnable(id_rops_hide_joints+dj,glutext::GLUT_MENU_CHECK);
 		
 	_rewrite_window_title();
 

@@ -594,7 +594,6 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 void ModelViewport::drawGridLines(float a)
 {
-	//glColor3f(0.55f,0.55f,0.55f);
 	glColor4f(0.55f,0.55f,0.55f,a);
 
 	Model *model = parent->getModel();
@@ -919,8 +918,10 @@ double ModelViewport::getUnitWidth()
 		return vu.inc3d;
 	}
 
+	//zero divide? infinite loop?
+	//0.00001 is taken from viewportsettings.cc
 	//double unitWidth = config.get("ui_grid_inc",4.0);
-	double unitWidth = vu.inc;
+	double unitWidth = std::max(0.00001,vu.inc); 
 
 	double ratio;
 	int scale_min,scale_max;
