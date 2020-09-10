@@ -418,12 +418,19 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//somtimes there's slight z-fighting with the grid with 1
 			//(with a flat polygon)
 			//glPolygonOffset(1,0);
-			glPolygonOffset(1.5,0);
+			//glPolygonOffset(1.5,0); //fails forward facing polygons
+			glPolygonOffset(1,1);
 		}
 
-		//ContextT was because every view was its own OpenGL context
-		//model->draw(opt,static_cast<ContextT>(this),viewPoint);
-		model->draw(modelviewport_opts(drawMode),nullptr,viewPoint);
+		//this is to make the grid consistently in front of polygons
+		//in the six standard orther directions
+		glDepthRange(0.00001,1);
+		{
+			//ContextT was because every view was its own OpenGL context
+			//model->draw(opt,static_cast<ContextT>(this),viewPoint);
+			model->draw(modelviewport_opts(drawMode),nullptr,viewPoint);
+		}
+		glDepthRange(0,1);
 
 		if(poffset) glDisable(GL_POLYGON_OFFSET_FILL);
 	}
@@ -438,6 +445,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//Intel uses FILL
 			glEnable(GL_POLYGON_OFFSET_FILL);
 			glEnable(GL_POLYGON_OFFSET_LINE);
+			assert(0); //0 won't do, what would? 1,-1?
 			glPolygonOffset(-1,0);
 		}
 
@@ -494,8 +502,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		{
 			//NOTE: I had a z-fighting issue due to 
 			//glPolygonOffset on my Intel system. I 
-			//finally found out it goes away if the
-			//second parameter is left t0 be 0
+			//found out it goes away if the second
+			//parameter is left to be 0... but this
+			//is (actually) because 0 doesn't offset
+			//forward facing polygons! Note, Misfit
+			//(or Maverick) was using 0
 
 			drawGridLines(1);
 		}
