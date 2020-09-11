@@ -1400,7 +1400,10 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 	//NEW: this saves user code from branching on this case and is analogous
 	//to vertex frame data
-	if(!interp2020) deleteKeyframe(anim,frame,pos,isRotation);
+	if(!interp2020) 
+	{
+		deleteKeyframe(anim,frame,pos,isRotation); return -1;
+	}
 
 	if(isRotation<=0||isRotation>KeyScale) return -1;
 
