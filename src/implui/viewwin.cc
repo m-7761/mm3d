@@ -676,9 +676,9 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(edit_undo,"Undo","Undo shortcut","Ctrl+Z"));
 	glutAddMenuEntry(E(edit_redo,"Redo","Redo shortcut","Ctrl+Y"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+Alt+M"));
+	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Ctrl+Alt+D"));
 	//SLOT(transformWindowEvent()),g_keyConfig.getKey("viewwin_model_transform"));
-	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+Alt+X"));
+	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+Alt+T"));
 	//SEEMS UNNCESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
 	glutAddMenuEntry();
@@ -738,7 +738,7 @@ void MainWin::_init_menu_toolbar() //2019
 
 	glutAddMenuEntry(E(group_settings,"Edit Groups...","Materials|Edit Groups","Ctrl+G"));	
 	glutAddMenuEntry(E(material_settings,"Edit Materials...","Materials|Edit Materials","Ctrl+M"));
-	glutAddMenuEntry(E(material_cleanup,"Clean Up...","Materials|Clean Up"));
+	glutAddMenuEntry(E(material_cleanup,"Clean Up...","Materials|Clean Up","Ctrl+Delete"));
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(uv_editor,"Edit Texture Coordinates...","Materials|Edit Texture Coordinates","M")); //Ctrl+E
 	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection"));	

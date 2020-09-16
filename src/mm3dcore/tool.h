@@ -208,6 +208,10 @@ protected:
 
 	// These methods provide functionality that many tools use
 
+	//FIX ME
+	//
+	// THESE NEED TO WORK WITH HOMOGENEOUS COORDINATES (i.e. 4D vector)
+	//
 	// These functions act like addVertex and addPoint except that they
 	// work in the viewport space instead of the model space, use these
 	// instead of addVertex/addPoint whenever possible

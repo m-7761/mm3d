@@ -540,9 +540,8 @@ void TextureCoordWin::setTextureCoordsEtc(bool setCoords)
 			{
 				len--;
 			}
-			if(dp==buf+len) len--;
+			if(dp==buf+len-1) len--;
 		}
-		//while(len<width) buf[len++] = ' ';
 		dimensions.text().append(buf,len);
 		if(i==1) break;
 		dimensions.text().push_back(',');

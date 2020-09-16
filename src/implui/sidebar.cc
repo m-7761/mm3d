@@ -520,9 +520,8 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 				{
 					len--;
 				}
-				if(dp==buf+len) len--;
+				if(dp==buf+len-1) len--;
 			}
-			//while(len<width) buf[len++] = ' ';
 			dimensions.text().append(buf,len);
 			if(i==2) break;
 			dimensions.text().push_back(',');

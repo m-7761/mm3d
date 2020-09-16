@@ -983,18 +983,20 @@ void TextureWidget::updateSelectRegion(double x, double y)
 
 void TextureWidget::selectDone()
 {
-	if(m_xSel1>m_xSel2)
+	if(m_xSel1==m_xSel2) //2020
 	{
-		double temp = m_xSel2;
-		m_xSel2 = m_xSel1;
-		m_xSel1 = temp;
+		double x = 5/m_width*m_zoom;
+		m_xSel2 = m_xSel1+x; m_xSel1-=x;
 	}
-	if(m_ySel1>m_ySel2)
+	if(m_ySel1==m_ySel2) //2020
 	{
-		double temp = m_ySel2;
-		m_ySel2 = m_ySel1;
-		m_ySel1 = temp;
+		double y = 5/m_height*m_zoom;
+		m_ySel2 = m_ySel1+y; m_ySel1-=y;
 	}
+
+	if(m_xSel1>m_xSel2) std::swap(m_xSel1,m_xSel2);
+	if(m_ySel1>m_ySel2) std::swap(m_ySel1,m_ySel2);
+	
 	for(auto&ea:m_vertices)
 	if(ea.s>=m_xSel1&&ea.s<=m_xSel2 
 	 &&ea.t>=m_ySel1&&ea.t<=m_ySel2)

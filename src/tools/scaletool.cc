@@ -48,7 +48,11 @@ struct ScaleTool : Tool
 	ScaleTool():Tool(TT_Other)
 	{
 		m_proportion = m_point = 0; //config details		
-		m_translate = m_scale = true; 
+		m_translate = true;		
+
+		//It can be very annoying to accidently scale a bunch of points or joints
+		//and have to individually reset every scale component of everyone to 1
+		m_scale = false; //true; 
 	}
 
 	virtual const char *getName(int)

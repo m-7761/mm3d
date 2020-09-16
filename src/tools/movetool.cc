@@ -63,7 +63,7 @@ struct MoveTool : Tool
 	}		
 		double m_x,m_y,m_z;
 
-		bool m_allowX,m_allowY;
+		bool m_allowX,m_allowY; double m_xx,m_yy;
 };
 
 extern Tool *movetool(){ return new MoveTool; }
@@ -73,6 +73,8 @@ void MoveTool::mouseButtonDown()
 	parent->getParentXYZValue(m_x,m_y,m_z,true);
 
 	m_allowX = m_allowY = 0!=(parent->getButtons()&BS_Shift);
+
+	m_xx = m_x; m_yy = m_y; //translateSelected?	
 	
 	model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Moving selected primitives"));
@@ -84,14 +86,17 @@ void MoveTool::mouseButtonMove()
 
 	if(m_allowX||m_allowY)
 	{
-		double ax = fabs(pos[0]-m_x);
-		double ay = fabs(pos[1]-m_y);
+		if(m_allowX&&m_allowY)
+		{
+			double ax = fabs(pos[0]-m_xx); //m_x
+			double ay = fabs(pos[1]-m_yy); //m_y
 
-		if(ax>ay) m_allowY = false;
-		if(ay>ax) m_allowX = false;
+			if(ax>ay) m_allowY = false;
+			if(ay>ax) m_allowX = false;
+		}
 		
-		if(!m_allowX) pos[0] = m_x;
-		if(!m_allowY) pos[1] = m_y;
+		if(!m_allowX) pos[0] = m_xx; //m_x
+		if(!m_allowY) pos[1] = m_yy; //m_y
 	}
 
 	double v[3] = { pos[0]-m_x,pos[1]-m_y,pos[2]-m_z };

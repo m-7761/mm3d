@@ -1303,7 +1303,10 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		tri->m_vertexIndices[1]+vertbase,tri->m_vertexIndices[2]+vertbase);
 	}
 
-	if(textures) //2020: Shouldn't pull this in!!
+	//I guess groups are needed to be able to easily assign existing
+	//materials and groups to them. The "clean up" function can be
+	//used to remove them after
+	//if(textures)
 	{
 		count = model->m_groups.size();
 		for(n = 0; n<count; n++)
@@ -1463,7 +1466,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 				}
 			}
 
-			if(textures) //2020
+			//if(textures) //see above rationale
 			{
 				int grp = model->getTriangleGroup(n);
 				if(grp>=0)

@@ -1515,13 +1515,13 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 	//I've modified polytool.cc and selecttool.cc 
 	//to use this back door to get feedback from 
 	//the snap system
-	if(parent->snap_select)
+	bool ss; if(ss=parent->snap_select)
 	{
 		parent->snap_select = false;
 		parent->snap_vertex = -1;
 		parent->snap_object.index = -1;
 		auto m = (unsigned)parent->snap_object.type;
-		if(snaps&&m<Model::PT_MAX)
+		if(m<Model::PT_MAX)
 		{
 			snaps = vu.VertexSnap; mask = 1<<m;
 		}
@@ -1534,7 +1534,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 
 		//I'm rewriting this to consider depth the most important
 		//criteria. I'm not sure how to formulate a mixed metric?
-		double curDist = maxDist;
+		//double curDist = maxDist;
 		double minDist = maxDist*maxDist;
 		double curDepth = -DBL_MAX;
 		int i,iN,curIndex = -1;
@@ -1542,9 +1542,9 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		//HACK: I'm trying to add a click model to selecttool.cc
 		//(I got the idea from polytool.cc)
 		//const Matrix &mat = m_viewMatrix;
-		const Matrix &mat = parent->getParentViewMatrix();
+		const Matrix &mat = ss?m_projMatrix:parent->getParentViewMatrix();
 		Vector coord;
-		double saveCoord[3] = { 0,0,0 };
+		double saveCoord[3];
 
 		auto f = [&](Model::PositionTypeE pt)
 		{
@@ -1562,24 +1562,30 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 				//HACK: Reject if behind Z plane
 				if(w<=0) return;
 
-				//coord.scale(1/w);
-				coord[0]/=w;
-				coord[1]/=w;
+				coord.scale(1/w);
 			}
 
 			//double dist = distance(coord[0],coord[1],xval,yval);
 			double dist = pow(coord[0]-xval,2)+pow(coord[1]-yval,2);
 
-			if(dist<minDist&&coord[2]>curDepth)
-			if(dist<curDist)
+			//NOTE: If all points fall on a plane, just take first
+			//in vertex order
+			//if(dist<curDist)
+			if(dist<minDist&&coord[2]>saveCoord[2]) 
 			{
-				curDist = dist;
+				//curDist = dist;
 				curDepth = coord[2];
 				curIndex = i;
 				curType = pt;
-				saveCoord[0] = coord[0]*w;
-				saveCoord[1] = coord[1]*w;
-				saveCoord[2] = coord[2];
+				//TODO: Tool (tool.h) needs to work in homogeneous
+				//coordinates exclusively but it doesn't right now
+				if(&m_unprojMatrix==&parent->getParentViewInverseMatrix())
+				{
+					saveCoord[0] = coord[0]*w;
+					saveCoord[1] = coord[1]*w;
+					saveCoord[2] = coord[2]*w; //saveCoord[3] = w;
+				}
+				else for(int i=3;i-->0;) saveCoord[i] = coord[i];
 			}
 		};
 		if(mask&1<<Model::PT_Vertex)

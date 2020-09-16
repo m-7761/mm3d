@@ -266,13 +266,13 @@ public: //slots:
 	}
 	virtual const Matrix &getParentViewMatrix()const
 	{
-		if(tool->isSelectTool()||snap_select)
+		if(tool->isSelectTool()) //REMOVE ME
 		return ports[m_focus].m_projMatrix; 
 		return ports[m_focus].m_viewMatrix; 
 	}
 	virtual const Matrix &getParentViewInverseMatrix()const
 	{
-		if(tool->isSelectTool()||snap_select)
+		if(tool->isSelectTool()) //REMOVE ME
 		return ports[m_focus].m_unprojMatrix; 
 		return ports[m_focus].m_invMatrix; 
 	}

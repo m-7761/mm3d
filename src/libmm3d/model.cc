@@ -1495,9 +1495,16 @@ void Model::translateSelected(const double vec[3])
 
 	if(inSkeletalMode())
 	{
+		if(m_skelAnims.empty()) no_anim: //2020
+		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No animation"));
+
+		bool sel = false; //2020: Trying to move vertices?
+
 		for(Position j{PT_Joint,0};j<m_joints.size();j++)
 		if(m_joints[j]->m_selected&&!parentJointSelected(j))
 		{
+			sel = true;
+
 			//HACK? Need to update m_final matrix.
 			validateAnimSkel();
 
@@ -1522,14 +1529,21 @@ void Model::translateSelected(const double vec[3])
 			}
 			setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
 		}
+
+		if(!sel) no_sel:
+		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection (animating)"));
 	}
 	else if(m_animationMode==ANIMMODE_FRAME) 
 	{
-		if(m_frameAnims.empty()) return; //2020
+		if(m_frameAnims.empty()) goto no_anim;
+
+		bool sel = false;
 
 		for(unsigned v=0;v<m_vertices.size();v++)
 		if(m_vertices[v]->m_selected)
 		{
+			sel = true;
+
 			double coord[3];
 			interpKeyframe(ca,cf,v,coord);
 			for(int i=3;i-->0;) coord[i]+=vec[i];
@@ -1539,11 +1553,15 @@ void Model::translateSelected(const double vec[3])
 		for(Position j{PT_Point,0};j<m_points.size();j++)
 		if(m_points[j]->m_selected)
 		{
+			sel = true;
+
 			double coord[3];
 			interpKeyframe(ca,cf,j,coord,nullptr,nullptr);
 			for(int i=3;i-->0;) coord[i]+=vec[i];
 			setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
 		}
+
+		if(!sel) goto no_sel;
 	}
 	else
 	{
@@ -1641,91 +1659,104 @@ void Model::rotateSelected(const Matrix &m, double *point)
 
 	if(inSkeletalMode())
 	{
-		unsigned j = 0;
-		for(j = 0; j<m_joints.size(); j++)
+		if(m_skelAnims.empty()) no_anim: //2020
+		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No animation"));
+				
+		bool sel = false;
+
+		for(Position j{PT_Joint,0};j<m_joints.size();j++)		
+		if(m_joints[j]->m_selected)
 		{
-			if(m_joints[j]->m_selected)
+			sel = true;
+
+			//HACK? Need to update m_final matrix.
+			validateAnimSkel();
+
+			Matrix absInv; if(m_joints[j]->m_parent>=0)
 			{
-				//HACK? Need to update m_final matrix.
-				validateAnimSkel();
-
-				Matrix absInv; if(m_joints[j]->m_parent>=0)
-				{
-					Joint *parent = m_joints[m_joints[j]->m_parent];
-					absInv = m_joints[j]->m_relative * parent->m_final;
-					absInv = absInv.getInverse();
-				}
-				else absInv = m_joints[j]->getAbsoluteInverse();
-
-				Matrix cur = m_joints[j]->m_final * m * absInv;
-
-				double rot[3]; cur.getRotation(rot);
-
-				setKeyframe(ca,cf,{PT_Joint,j},KeyRotate,rot[0],rot[1],rot[2]);
-			//	setCurrentAnimationFrame(m_currentFrame);
-
-				// setKeyframe handles undo
-
-				// TODO: should I really allow multiple joints here?
-				//break;
+				Joint *parent = m_joints[m_joints[j]->m_parent];
+				absInv = m_joints[j]->m_relative * parent->m_final;
+				absInv = absInv.getInverse();
 			}
+			else absInv = m_joints[j]->getAbsoluteInverse();
+
+			Matrix cur = m_joints[j]->m_final * m * absInv;
+
+			double rot[3]; cur.getRotation(rot);
+
+			setKeyframe(ca,cf,j,KeyRotate,rot[0],rot[1],rot[2]);
+		//	setCurrentAnimationFrame(m_currentFrame);
+
+			// setKeyframe handles undo
+
+			// TODO: should I really allow multiple joints here?
+			//break;
 		}
+
+		if(!sel) no_sel:
+		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection (animating)"));
 	}
 	else if(m_animationMode==ANIMMODE_FRAME)
 	{
-		for(unsigned v = 0; v<m_vertices.size(); v++)
+		if(m_frameAnims.empty()) goto no_anim;
+
+		bool sel = false;
+
+		for(unsigned v=0;v<m_vertices.size();v++)
+		if(m_vertices[v]->m_selected)
 		{
-			if(m_vertices[v]->m_selected)
-			{
-				double coord[3];
-				interpKeyframe(ca,cf,v,coord);
+			sel = true;
 
-				coord[0] -= point[0];
-				coord[1] -= point[1];
-				coord[2] -= point[2];
+			double coord[3];
+			interpKeyframe(ca,cf,v,coord);
 
-				Vector vec(coord);
-				vec.transform(m);
+			coord[0] -= point[0];
+			coord[1] -= point[1];
+			coord[2] -= point[2];
 
-				coord[0] = vec[0];
-				coord[1] = vec[1];
-				coord[2] = vec[2];
+			Vector vec(coord);
+			vec.transform(m);
 
-				coord[0] += point[0];
-				coord[1] += point[1];
-				coord[2] += point[2];
+			coord[0] = vec[0];
+			coord[1] = vec[1];
+			coord[2] = vec[2];
 
-				setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
-			}
+			coord[0] += point[0];
+			coord[1] += point[1];
+			coord[2] += point[2];
+
+			setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
 		}
 
 		for(Position p{PT_Point,0};p<m_points.size();p++)
+		if(m_points[p]->m_selected)
 		{
-			if(m_points[p]->m_selected)
-			{
-				double coord[3],rot[3];
-				interpKeyframe(ca,cf,p,coord,rot,nullptr);
+			sel = true;
 
-				Matrix pm;
-				pm.setTranslation(
-						coord[0]-point[0],
-						coord[1]-point[1],
-						coord[2]-point[2]);
-				pm.setRotation(rot);
+			double coord[3],rot[3];
+			interpKeyframe(ca,cf,p,coord,rot,nullptr);
 
-				pm = pm *m;
+			Matrix pm;
+			pm.setTranslation(
+					coord[0]-point[0],
+					coord[1]-point[1],
+					coord[2]-point[2]);
+			pm.setRotation(rot);
 
-				pm.getTranslation(coord);
-				pm.getRotation(rot);
+			pm = pm *m;
 
-				coord[0] += point[0];
-				coord[1] += point[1];
-				coord[2] += point[2];
+			pm.getTranslation(coord);
+			pm.getRotation(rot);
 
-				setKeyframe(ca,cf,p,KeyTranslate,coord[0],coord[1],coord[2]);
-				setKeyframe(ca,cf,p,KeyRotate,rot[0],rot[1],rot[2]);
-			}
+			coord[0] += point[0];
+			coord[1] += point[1];
+			coord[2] += point[2];
+
+			setKeyframe(ca,cf,p,KeyTranslate,coord[0],coord[1],coord[2]);
+			setKeyframe(ca,cf,p,KeyRotate,rot[0],rot[1],rot[2]);
 		}
+
+		if(!sel) goto no_sel;
 	}
 	else
 	{
