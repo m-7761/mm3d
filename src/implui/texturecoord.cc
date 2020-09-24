@@ -138,6 +138,15 @@ void TextureCoordWin::modelChanged(int changeBits)
 	{		
 		if(!hidden()) openModel();
 	}
+	else if(changeBits&Model::SelectionUv&&!m_ignoreChange) //NEW
+	{
+		//I think this stopped working when generic undo/redo was
+		//removed. It's better to have a notification code anyway.
+		if(!hidden())
+		{
+			texture.restoreSelectedUv(); texture.updateWidget();
+		}
+	}
 }
 void TextureCoordWin::openModel()
 {

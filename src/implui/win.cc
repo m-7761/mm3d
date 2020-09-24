@@ -182,6 +182,8 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 		extern void viewwin_menubarfunc(int);
 		viewwin_menubarfunc(k);
 		return false;
+
+	case 'z': case 'y': goto z; //Not working?
 	}
 	else switch(k)
 	{
@@ -193,7 +195,7 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 
 		win_close(); return false;
 
-	case 'z': case 'y': //Hardcoded undo/redo.
+	case 'z': case 'y': z: //Hardcoded undo/redo.
 		
 		extern void viewwin_undo(int,bool);
 		if(m&GLUT_ACTIVE_CTRL&&!w->modal())

@@ -74,24 +74,30 @@ bool InvertSelectionCommand::activated(int arg, Model *model)
 	case Model::SelectConnected:
 
 		if(n=model->getSelectedTriangleCount())
-		model->unselectAllTriangles();
+		{
+			model->unselectAllTriangles();
+			model->unselectAllVertices(); //YUCK
+		}
 		model->unselectAllGroups(); break;
 
 	case Model::SelectGroups:
 
 		if(n=model->getSelectedGroupCount())
-		model->unselectAllGroups();
+		{
+			model->unselectAllGroups();
+			model->unselectAllVertices(); //YUCK
+		}
 		model->unselectAllTriangles(); break;
 	
 	case Model::SelectJoints:
 
 		if(n=model->getSelectedBoneJointCount())
-		model->unselectAllTriangles(); break;
+		model->unselectAllBoneJoints(); break;
 
 	case Model::SelectPoints:
 
 		if(n=model->getSelectedPointCount())
-		model->unselectAllBoneJoints(); break;
+		model->unselectAllPoints(); break;
 
 	case Model::SelectProjections:
 

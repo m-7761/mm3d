@@ -144,6 +144,12 @@ extern void viewpanel_special_func(int kb, int x, int y)
 		return vp.model.perform_menu_action(id_file_save_prompt);
 		return;
 
+	case -'z': //Not working?
+
+		if(cm&GLUT_ACTIVE_SHIFT&&cm&GLUT_ACTIVE_CTRL)
+		return vp.model.perform_menu_action(id_edit_redo);
+		return;
+
 	case -127: //Delete? (viewpanel_keyboard_func) 
 
 		return vp.model.perform_menu_action(127);

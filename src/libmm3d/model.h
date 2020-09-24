@@ -88,14 +88,14 @@ class Model
 		// about the model.
 		enum ChangeBits
 		{
-			//SelectionChange      = 0x00000001, // General selection change
-			SelectionChange      = 0x000000FF, // General selection change
-			SelectionVertices    = 0x00000002, // Vertices selection changed
-			SelectionFaces       = 0x00000004, // Faces selection changed
-			SelectionGroups      = 0x00000008, // Groups selection changed
-			SelectionJoints	     = 0x00000010, // Joints selection changed
-			SelectionPoints      = 0x00000020, // Points selection changed
-			SelectionProjections = 0x00000040, // Projections selection changed
+			SelectionChange      = 0x000000FF, // General selection change			
+			SelectionVertices    = 0x00000001, // Vertices selection changed
+			SelectionFaces       = 0x00000002, // Faces selection changed
+			SelectionGroups      = 0x00000004, // Groups selection changed
+			SelectionJoints	     = 0x00000008, // Joints selection changed
+			SelectionPoints      = 0x00000010, // Points selection changed
+			SelectionProjections = 0x00000020, // Projections selection changed
+			SelectionUv          = 0x00000040, // setSelectedUv			
 			AddGeometry          = 0x00000100, // Added or removed objects
 			AddAnimation		 = 0x00000200, // Added/moved/named/deleted animation
 			AddOther			 = 0x00000400, // Added or removed something else
@@ -2353,12 +2353,6 @@ class Model
 		// ------------------------------------------------------------------
 
 		void sendUndo(Undo *undo,bool listCombine = false);
-		//Fix for setSelectedUv.
-		//There is a sequencing problem. This adds the undo
-		//onto the back of the previous operation unless an
-		//open operation exists.
-		//https://github.com/zturtleman/mm3d/issues/90
-		void appendUndo(Undo *undo);
 
 		// ------------------------------------------------------------------
 		// Meta

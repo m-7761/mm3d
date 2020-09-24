@@ -2303,14 +2303,13 @@ void Model::setSelectedUv(const std::vector<int> &uvList)
 {
 	//Inappropriate. Nothing sees UVs.
 	//m_changeBits |= SelectionChange; //2019
+	m_changeBits |= SelectionUv; //2020
 
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_SetSelectedUv;
 		undo->setSelectedUv(uvList,m_selectedUv);
-		//https://github.com/zturtleman/mm3d/issues/90
-		//sendUndo(undo);
-		appendUndo(undo); 
+		sendUndo(undo);
 	}
 
 	m_selectedUv = uvList;

@@ -3219,21 +3219,6 @@ void Model::sendUndo(Undo *undo, bool listCombine)
 		undo->release();
 	}
 }
-void Model::appendUndo(Undo *undo)
-{
-	//NOTE: This is a fix for setSelectedUv.
-	//It does no good to undo the UV selection
-	//before the operation that did the selecting.
-
-	if(m_undoEnabled&&*m_undoMgr->getUndoOpName())
-	{
-		auto &st = m_undoMgr->getUndoStack();
-		if(!st.empty()) st.back()->push_back(undo);
-		return;
-	}
-	
-	sendUndo(undo,false);
-}
 
 /*REFERENCE
 // Show an error because the user tried to add or remove primitives while
