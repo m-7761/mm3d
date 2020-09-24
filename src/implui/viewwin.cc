@@ -143,13 +143,6 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 	//3D avoids that.
 	if(playing) changeBits&=~Model::AnimationFrame;
 
-	//Don't want to do this faster than the viewports are displayed.
-	//Plus the animation coordinates should be validated to be safe.
-	_deferredModelChanged|=changeBits;
-
-	//Do on redraw so animation data isn't calculated unnecessarily.
-	views.modelUpdatedEvent();
-
 	//REMINDER: Can't defer these because of m_ignoreChange pattern
 	if(_projection_win) _projection_win->modelChanged(changeBits);
 	if(_texturecoord_win) _texturecoord_win->modelChanged(changeBits);
@@ -180,6 +173,13 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		if(!id&&model->unselectAllProjections())
 		model->operationComplete(::tr("Hide projections"));
 	}
+	
+	//Don't want to do this faster than the viewports are displayed.
+	//Plus the animation coordinates should be validated to be safe.
+	_deferredModelChanged|=changeBits;
+
+	//Do on redraw so animation data isn't calculated unnecessarily.
+	views.modelUpdatedEvent();
 }
 void MainWin::_drawingModelChanged()
 {
@@ -676,13 +676,13 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(edit_undo,"Undo","Undo shortcut","Ctrl+Z"));
 	glutAddMenuEntry(E(edit_redo,"Redo","Redo shortcut","Ctrl+Y"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Ctrl+Alt+D"));
 	//SLOT(transformWindowEvent()),g_keyConfig.getKey("viewwin_model_transform"));
-	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+Alt+T"));
-	//SEEMS UNNCESSARY
+	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+T"));
+	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+T"));
+	//SEEMS UNNECESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Shift+Ctrl+Back"));
+	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Alt+Back"));
 	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge","Ctrl+Alt+M"));
 	glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations","Ctrl+Alt+A"));
 
@@ -943,6 +943,7 @@ static int viewwin_init()
 	return glutCreateWindow(viewwin_title);
 }
 MainWin::MainWin(Model *model):
+_deferredModelChanged(Model::ChangeAll),
 model(/*model*/),		
 glut_window_id(viewwin_init()),
 clipboard_mode(),

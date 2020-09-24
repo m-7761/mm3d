@@ -30,21 +30,78 @@
 
 struct InvertSelectionCommand : Command
 {
-	virtual const char *getName(int)
+	InvertSelectionCommand():Command(2){}
+
+	virtual const char *getName(int arg)
 	{
-		return TRANSLATE_NOOP("Command","Invert Selection"); 
+		switch(arg)
+		{
+		default: assert(0);
+		case 0: return TRANSLATE_NOOP("Command","Select All"); 
+		case 1: return TRANSLATE_NOOP("Command","Invert Selection"); 
+		}
 	}
 
-	virtual const char *getKeymap(int arg){ return "Ctrl+A"; } //TEMPORARY
+	virtual const char *getKeymap(int arg)
+	{ 
+		switch(arg)
+		{
+		default: assert(0);
+		case 0: return "Ctrl+A";
+		case 1: return "Shift+Ctrl+A"; 
+		}
+	}
 
-	virtual bool activated(int, Model*);
+	virtual bool activated(int,Model*);
 };
 
 extern Command *invertcmd(){ return new InvertSelectionCommand; }
 
 bool InvertSelectionCommand::activated(int arg, Model *model)
 {
-	model->invertSelection();
+	int n = 0; //OVERKILL
+
+	//HACK: There isn't a Model::selectAll API
+	if(!arg) switch(model->getSelectionMode()) //2020
+	{
+	case Model::SelectVertices:
+
+		if(n=model->getSelectedVertexCount())
+		model->unselectAllVertices(); break;
+
+	default:
+	case Model::SelectTriangles:
+	case Model::SelectConnected:
+
+		if(n=model->getSelectedTriangleCount())
+		model->unselectAllTriangles();
+		model->unselectAllGroups(); break;
+
+	case Model::SelectGroups:
+
+		if(n=model->getSelectedGroupCount())
+		model->unselectAllGroups();
+		model->unselectAllTriangles(); break;
+	
+	case Model::SelectJoints:
+
+		if(n=model->getSelectedBoneJointCount())
+		model->unselectAllTriangles(); break;
+
+	case Model::SelectPoints:
+
+		if(n=model->getSelectedPointCount())
+		model->unselectAllBoneJoints(); break;
+
+	case Model::SelectProjections:
+
+		if(n=model->getSelectedBoneJointCount())
+		model->unselectAllProjections(); break;
+	}
+
+	if(!n) model->invertSelection();
+
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection inverted"));
+
 	return true;
 }

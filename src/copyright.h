@@ -1,6 +1,6 @@
 
 //#define MM3D_PRODUCT "Maverick Model 3D"
-#define MM3D_PRODUCT "Millennium Model 3D"
+#define MM3D_PRODUCT "Multimedia 3D"
 
 //Copyright symbol (C) in Windows codepage 1252 is \xA9
 //#define MM3D_COPYRIGHT "Copyright \xA9 2004-2008 Kevin Worcester,Copyright \xA9 2009-2019 Zack Middleton."

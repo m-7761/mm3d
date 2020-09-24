@@ -2086,6 +2086,7 @@ class Model
 
 		unsigned getSelectedVertexCount()const;
 		unsigned getSelectedTriangleCount()const;
+		unsigned getSelectedGroupCount()const;
 		unsigned getSelectedBoneJointCount()const;
 		unsigned getSelectedPointCount()const;
 		unsigned getSelectedProjectionCount()const;

@@ -140,6 +140,10 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 
 		//TODO: Define FrameAnim::init or add m_frame0 to
 		//AnimBase2020.
+		//NOTE: There's a problem here since intially the 
+		//animation has no frames, so code that iterates
+		//starting at m_frame0 has to check for this case
+		//since it'd be too misleading to insert a dummy 
 		if(!m_vertices.empty())		
 		fa->m_frame0 = m_vertices.front()->m_frames.size();
 		else fa->m_frame0 = 0;
@@ -962,7 +966,7 @@ int Model::splitAnimation(AnimationModeE mode, unsigned index, const char *newNa
 	
 	//NOTE: setAnimTimeFrame fails if the end frames aren't first removed
 	//using setAnimFrameCount.
-	setAnimFrameCount(mode,index,frame);
+	setAnimFrameCount(mode,index,frame+1);
 	setAnimTimeFrame(mode,index,ft);
 
 	moveAnimation(mode,num,index+1); 

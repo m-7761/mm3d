@@ -1946,30 +1946,17 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool u
 	//https://github.com/zturtleman/mm3d/issues/131
 	if(global?!m_joints.empty():getSelectedBoneJointCount())
 	{
-		//HACK: m_marked and calculateSkel are to
-		//avoid recomputing inverse matrices. The
-		//better way would be to store an inverse
-		//matrix in joints
-		for(auto*ea:m_joints) ea->m_marked = false;
-		{
-			validateSkel();
+		validateSkel();
 	
-			if(!global)
+		if(!global) for(unsigned b=bcount;b-->0;)
+		{	
+			if(m_joints[b]->m_selected&&!parentJointSelected(b))
 			{
-				if(!m_joints.empty())
-				{	
-					g(*m_joints[0]);
-				}
-			}
-			else for(unsigned b=bcount;b-->0;)
-			{	
-				if(m_joints[b]->m_selected&&!parentJointSelected(b))
-				{
-					g(*m_joints[b]);
-				}		
-			}
+				g(*m_joints[b]);
+			}		
 		}
-		for(auto*ea:m_joints) ea->m_marked = false;				
+		else g(*m_joints[0]);
+		
 		//invalidateSkel(); //USE ME
 		calculateSkel(); //NOT ME
 	}
@@ -2003,7 +1990,12 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool u
 		//FIX ME
 		//What about scale? //Correct?
 		for(int i=3;i-->0;)
-		obj.m_xyz[i]*=scale[i]; 
+		{
+			//TODO: Make optional (can be annoying)
+			obj.m_xyz[i]*=scale[i]; 
+			//NEW: Correct???
+			obj.m_abs[i]*=scale[i]; 
+		}
 	};	
 
 	for(unsigned p=pcount;p-->0;)

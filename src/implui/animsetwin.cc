@@ -524,7 +524,7 @@ void AnimSetWin::submit(int id)
 					if((split=model->splitAnimation(mode,a,name.c_str(),split))<0)
 					return;
 		
-					a++; model->moveAnimation(mode,split,a); //NEW
+					a++; assert(split==a);
 
 					ea = ea->next(); //HACK
 					{

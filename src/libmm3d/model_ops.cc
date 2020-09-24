@@ -1513,6 +1513,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 			auto fp = fa->m_frame0;
 			auto fd = m_frameAnims[base+a]->m_frame0;
 			auto fc = fa->_frame_count();
+			if(fc) //OUCH
 			for(size_t v=model->m_vertices.size();v-->0;)
 			{
 				//Note, it's easier on the cache to do

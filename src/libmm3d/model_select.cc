@@ -1422,6 +1422,7 @@ bool Model::invertSelection()
 			}
 			break;
 
+		case SelectConnected: //2020
 		case SelectTriangles:
 			for(unsigned t = 0; t<m_triangles.size(); t++)
 			{
@@ -1713,6 +1714,22 @@ unsigned Model::getSelectedTriangleCount()const
 	for(unsigned v = 0; v<c; v++)
 	{
 		if(m_triangles[v]->m_selected)
+		{
+			count++;
+		}
+	}
+
+	return count;
+}
+
+unsigned Model::getSelectedGroupCount()const
+{
+	unsigned c = m_groups.size();
+	unsigned count = 0;
+
+	for(unsigned v = 0; v<c; v++)
+	{
+		if(m_groups[v]->m_selected)
 		{
 			count++;
 		}
@@ -2319,6 +2336,7 @@ void Model::getSelectedInterpolation(AnimationModeE am, unsigned anim, unsigned 
 		auto fa = (FrameAnim*)ab;
 		auto fp = fa->m_frame0+frame;
 		Interpolate2020E e[3] = {*e,InterpolateVoid,InterpolateVoid};
+		if(fa->_frame_count()) //OUCH
 		for(auto*ea:m_vertices) if(ea->m_selected)
 		{
 			 pred(&(e[0]=ea->m_frames[fp]->m_interp2020));
