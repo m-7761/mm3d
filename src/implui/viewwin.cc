@@ -531,7 +531,7 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(X(r,snap_vert,"Snap to Vertex","View|Snap to Vertex","Shift+V"));
 		//glutAddMenuEntry(X(s,snap_grid,"Grid","View|Snap to Grid","Shift+G"));
 		glutAddMenuEntry(X(s,snap_grid,"Snap to Grid","View|Snap to Grid","Shift+G"));
-		glutAddMenuEntry(E(view_settings,"Grid Settings...","View|Grid Settings"));
+		glutAddMenuEntry(E(view_settings,"Grid Settings...","View|Grid Settings","Shift+Ctrl+G"));
 	}		
 	//glutAddSubMenu(::tr("Snap To"),_snap_menu);
 	glutAddMenuEntry();	
@@ -679,10 +679,10 @@ void MainWin::_init_menu_toolbar() //2019
 	//SLOT(transformWindowEvent()),g_keyConfig.getKey("viewwin_model_transform"));
 	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+T"));
 	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+T"));
+	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Shift+Ctrl+Back"));
 	//SEEMS UNNECESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Alt+Back"));
 	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge","Ctrl+Alt+M"));
 	glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations","Ctrl+Alt+A"));
 
@@ -744,7 +744,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection"));	
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures","Ctrl+R"));
-	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture"));
+	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+R"));
 				
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
@@ -768,7 +768,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influencing","Joints|Remove Selected Joint from Influencing")); 
 	glutAddMenuEntry(E(joint_simplify,"Convert Multiple Influences to Single","Joints|Convert Multiple Influences to Single"));		
 	glutAddMenuEntry();	
-	glutAddMenuEntry(E(joint_draw_bone,"&Apply Alternative Appearance to Bone","")); 
+	glutAddMenuEntry(E(joint_draw_bone,"&Apply Alternative Appearance to Bone","","Ctrl+Alt+B")); 
 	//IMPLEMENT ME
 	//REMINDER: animation mode works differently (should they be standardized?)
 	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone &Independent of Parent","","Shift+I")); 
@@ -805,7 +805,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(X(false,animate_play,"Play Animation","","Pause"));
 	//REMINDER: wxWidgets doesn't support Ctrl+Pause. Windows generates a Cancel code in response.
 	glutAddMenuEntry(X(false,animate_loop,"Play Repeatedly","","Shift+Pause"));
-	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images")); //"Ctrl+Snapshot"
+	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images","Shift+Ctrl+Alt+A")); 
 	glutAddMenuEntry(E(animate_window,"Animator Window...","Animation|Animation Window","A"));
 
 		extern void animwin_enable_menu(int,int);
@@ -1381,6 +1381,17 @@ static W *viewwin_position_window(W *w)
 }
 void MainWin::open_texture_window()
 {
+	if(_texturecoord_win) //NEW: Toggle?
+	{
+		if(!_texturecoord_win->hidden())
+		{
+			//TODO? Probably can just hide?
+			//return _texturecoord_win->hide();
+			glutSetWindow(_texturecoord_win->glut_window_id());
+			return _texturecoord_win->submit(_texturecoord_win->ok);
+		}
+	}
+
 	if(!model->getSelectedTriangleCount())
 	{
 		//2019: Seems obtrusive?
@@ -1396,6 +1407,17 @@ void MainWin::open_texture_window()
 }
 void MainWin::open_projection_window()
 {
+	if(_projection_win) //NEW: Toggle?
+	{
+		if(!_projection_win->hidden())
+		{
+			//TODO? Probably can just hide?
+			//return _projection_win->hide();
+			glutSetWindow(_projection_win->glut_window_id());
+			return _projection_win->submit(id_ok);
+		}
+	}
+
 	if(!_projection_win)
 	{
 		_projection_win = new ProjectionWin(*this);
@@ -1404,6 +1426,17 @@ void MainWin::open_projection_window()
 }
 void MainWin::open_transform_window()
 {
+	if(_transform_win) //NEW: Toggle?
+	{
+		if(!_transform_win->hidden())
+		{
+			//TODO? Probably can just hide?
+			//return _transform_win->hide();
+			glutSetWindow(_transform_win->glut_window_id());
+			return _transform_win->submit(_transform_win->ok.ok);
+		}
+	}
+
 	if(!_transform_win)
 	{
 		_transform_win = new TransformWin(*this);
@@ -1412,6 +1445,17 @@ void MainWin::open_transform_window()
 }
 void MainWin::open_animation_system()
 {
+	if(_animation_win) //NEW: Toggle?
+	{
+		if(!_animation_win->hidden())
+		{
+			//TODO? Probably can just hide?
+			//return _animation_win->hide();
+			glutSetWindow(_animation_win->glut_window_id());
+			return _animation_win->submit(id_ok);
+		}
+	}
+
 	if(!_animation_win)
 	{
 		extern bool viewwin_menu_origin; //YUCK

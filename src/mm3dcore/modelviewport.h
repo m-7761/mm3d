@@ -247,7 +247,6 @@ public: //slots:
 		int swap = m_focus;
 		m_focus = p-ports; tool->draw(swap==m_focus);
 		m_focus = swap;
-
 	}
 
 	// Tool::Parent methods

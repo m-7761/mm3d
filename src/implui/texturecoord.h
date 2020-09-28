@@ -63,6 +63,14 @@ TextureWidget::Parent
 	virtual void getXY(int &x, int &y)
 	{
 		x = c.x(x); y = c.y(y);
+
+		//HACK: Steal focus like viewports?
+		if(c!=event.get_active())
+		if((unsigned)(x-c.x())<(unsigned)c.width())
+		if((unsigned)(y-c.y())<(unsigned)c.height())
+		{
+			c.activate();
+		}
 	}
 
 	virtual bool mousePressSignal(int)
@@ -100,7 +108,7 @@ struct TextureCoordWin : Win
 	pos(main,"Position",bi::none), //"Position"
 	u(pos,"U",'U'),
 	v(pos,"V",'V'),
-	dimensions(pos,"Dimensions"),
+	dimensions(pos,"Dimension"),
 //		void2(main), //RESTORE US?
 	map(main,"Map Scheme",id_subitem),
 	map_reset(main,"Reset Coordinates",id_subitem),
@@ -179,6 +187,8 @@ struct TextureCoordWin : Win
 	
 	void setModel();
 	void modelChanged(int changeBits);
+
+	int recall_tool[2];
 
 protected:		
 		 

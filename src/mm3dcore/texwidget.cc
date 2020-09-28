@@ -1176,37 +1176,47 @@ void TextureWidget::getCoordinates(int tri, float *s, float *t)
 
 void TextureWidget::saveSelectedUv()
 {
-	std::vector<int> selectedUv;
+	//HACK: Is it worth optimizing for undo/redo?
+	std::vector<int> _selectedUv;
+	auto *selectedUv = &m_model->getSelectedUv();
+	if(m_model->getUndoEnabled())
+	selectedUv = &_selectedUv;
+	else selectedUv->clear();
+
 	int i,iN = (unsigned)m_vertices.size();
 	for(i=0;i<iN;i++) if(m_vertices[i].selected)
 	{
-		selectedUv.push_back(i);
+		selectedUv->push_back(i);
 	}
-	m_model->setSelectedUv(selectedUv);
+	m_model->setSelectedUv(*selectedUv);
 }
 
 void TextureWidget::restoreSelectedUv()
 {		
+	if(m_vertices.empty()) return; //hidden?
+
 	//clearSelected();
 	for(auto&ea:m_vertices) ea.selected = false;
 
-	std::vector<int> selectedUv;
-	m_model->getSelectedUv(selectedUv);
+	//std::vector<int> selectedUv;
+	//m_model->getSelectedUv(selectedUv);
+	auto &selectedUv = m_model->getSelectedUv();
+
 	for(auto ea:selectedUv)
 	{
-		//NOTE: getSelectedUv IS NOT ACTUALLY PART OF THE MODEL DATA.
-		//IT JUST SAVES/RESTORES TextureWidget's STATE.
-
-		//ASSERT?
-		//https://github.com/zturtleman/mm3d/issues/90
-		//Model::appendUndo was added so this assert is
-		//not hit. But I feel if it's hit again, it may
-		//be because TextureCoordWin goes in and out of
-		//hiding. When hidden it doesn't generate these.
-
 		if((size_t)ea<m_vertices.size()) //???
-		m_vertices[ea].selected = true;
-		else{ assert(0); break; } //Happens (FIX ME)
+		{
+			m_vertices[ea].selected = true;
+		}
+		else //Shouldn't happen? (Still happening?)
+		{
+			//NOTE: To fix this I've added Model::SelectionUv and had
+			//the UV window call clearCoordinates when face selection
+			//occurs in case it's hidden. It's pretty dicey undo/redo
+			//territory (Still happening?)
+
+			assert(0); break; 
+		}
 	}
 }
 

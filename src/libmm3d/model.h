@@ -2215,8 +2215,9 @@ class Model
 		//https://github.com/zturtleman/mm3d/issues/63
 		//#ifdef MM3D_EDIT 
 		//TextureWidget API (texwidget.cc)
-		void setSelectedUv(const std::vector<int> &uvList);
-		void getSelectedUv(std::vector<int> &uvList)const;
+		void setSelectedUv(const int_list &uvList);
+		void getSelectedUv(int_list &uvList)const;
+		int_list &getSelectedUv(){ return m_selectedUv; } //2020
 		void clearSelectedUv();
 		//https://github.com/zturtleman/mm3d/issues/56
 		//ModelViewport API (modelviewport.cc)
@@ -2353,6 +2354,7 @@ class Model
 		// ------------------------------------------------------------------
 
 		void sendUndo(Undo *undo,bool listCombine = false);
+		void appendUndo(Undo *undo);
 
 		// ------------------------------------------------------------------
 		// Meta

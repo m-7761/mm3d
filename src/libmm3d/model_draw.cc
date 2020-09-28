@@ -1056,13 +1056,6 @@ void Model::drawProjections()
 	for(unsigned p=0;p<m_projections.size();p++)
 	{
 		TextureProjection *proj = m_projections[p];
-	
-		//Historically projections are hidden 
-		//in animation mode.
-		if(m_animationMode&&!proj->m_selected)
-		{
-			continue; //Best practice?
-		}
 
 		Matrix m = proj->getMatrixUnanimated();
 

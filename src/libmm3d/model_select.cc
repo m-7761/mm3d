@@ -2299,7 +2299,7 @@ void Model::selectFreeVertices()
 	endSelectionDifference();
 }
 
-void Model::setSelectedUv(const std::vector<int> &uvList)
+void Model::setSelectedUv(const int_list &uvList)
 {
 	//Inappropriate. Nothing sees UVs.
 	//m_changeBits |= SelectionChange; //2019
@@ -2309,9 +2309,15 @@ void Model::setSelectedUv(const std::vector<int> &uvList)
 	{
 		auto undo = new MU_SetSelectedUv;
 		undo->setSelectedUv(uvList,m_selectedUv);
-		sendUndo(undo);
+
+		//HACK: I can't recall if this is technically necessary
+		//now, but it's very annoying to have to undo/redo this
+		//separate from face selection.
+		//sendUndo(undo);
+		appendUndo(undo);
 	}
 
+	if(&uvList!=&m_selectedUv) //2020: optimization
 	m_selectedUv = uvList;
 }
 

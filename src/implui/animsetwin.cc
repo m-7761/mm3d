@@ -474,9 +474,11 @@ void AnimSetWin::submit(int id)
 
 		li::item *i; //id_copy/id_merge
 
+		bool beep = true;
+
 		int a = -1, b = 0; table^[&](li::multisel ea)
 		{
-			switch(id)
+			beep = false; switch(id)
 			{
 			case id_delete:
 
@@ -524,13 +526,15 @@ void AnimSetWin::submit(int id)
 					if((split=model->splitAnimation(mode,a,name.c_str(),split))<0)
 					return;
 		
+					format_item(ea);
+
 					a++; assert(split==a);
 
 					ea = ea->next(); //HACK
 					{
 						table.insert(ea,new_item(a));
 					}							
-					for(;ea;ea.item=ea->next()) //HACK: Increment the Ids.
+					for(;ea;ea.item=ea->next()) //HACK: Increment the IDs.
 					{
 						ea->id() = ++a;
 					}
@@ -541,19 +545,17 @@ void AnimSetWin::submit(int id)
 			
 				if(a==-1)
 				{
-					a = ea->id(); i = ea; 
+					a = ea->id(); i = ea; beep = true;
 				}
 				else
-				{
-					switch(id)
-					{
-					case id_join: 					
-						if(model->joinAnimations(mode,a,ea->id()+b))
-						break; return;
-					case id_merge:					
-						if(model->mergeAnimations(mode,a,ea->id()+b))
-						break; return;
-					}
+				{	
+					if(id==id_join)				
+					if(beep=!model->joinAnimations(mode,a,ea->id()+b))
+					return; //shouldn't occur
+					if(id==id_merge)
+					if(beep=!model->mergeAnimations(mode,a,ea->id()+b))
+					return; //shouldn't occur
+
 					b--;
 
 					format_item(i); //update Frames field?
@@ -563,12 +565,14 @@ void AnimSetWin::submit(int id)
 				break;
 			}
 		};
+
+		if(beep) Win::beep();
+
 		refresh(); break;
 	}
 	case id_convert:
 	{
-		AnimConvertWin(*this).return_on_close();
-		break;
+		AnimConvertWin(*this).return_on_close(); break;
 	}
 	case id_ok:
 			
@@ -577,8 +581,7 @@ void AnimSetWin::submit(int id)
 
 	case id_cancel:
 
-		model->undoCurrent();
-		break;
+		model->undoCurrent(); break;
 	}
 
 	basic_submit(id);
@@ -593,9 +596,13 @@ void AnimSetWin::refresh()
 	else if(iN=model->getAnimCount(mode))
 	{
 		main_panel()->enable();
-		merge.enable(mode==Model::ANIMMODE_SKELETAL);
-		convert.enable(mode==Model::ANIMMODE_SKELETAL);
 
+		//2020: It looks like I've implemented this in
+		//mergeAnimations but since I didn't enable it
+		//here I likely neglected to test the new code
+		//merge.enable(mode==Model::ANIMMODE_SKELETAL);
+		convert.enable(mode==Model::ANIMMODE_SKELETAL);
+		
 		for(int i=0;i<iN;i++)
 		table.add_item(new_item(i));
 

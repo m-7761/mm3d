@@ -1069,7 +1069,8 @@ bool Model::joinAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 
 bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 {
-	log_debug("merge %d anim %d+%d\n",mode,anim1,anim2);
+	//log_debug("merge %d anim %d+%d\n",mode,anim1,anim2);
+
 	if(anim1==anim2) return true;
 
 	auto aa = _anim(mode,anim1); //ab1
@@ -1103,17 +1104,27 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 
 		double st; int ii = i, jj = j;
 
-		if(s<t&&s>=0)
+		//FIX? i is looping forever???
+		if(i!=fc1&&s<t&&s>=0)
 		{
 			i++; st = s;
 		}
-		else if(t<s&&t>=0)
+		else if(j!=fc2&&t<s&&t>=0)
 		{
 			j++; st = t;
 		}
 		else if(s==t&&t>=0)
 		{
-			i++; j++; st = t;
+			if(i!=fc1) i++; 
+			if(j!=fc2) j++; st = t;
+		}
+		else if(i==fc1) //NEW: stuck at end?
+		{
+			j++; st = t; 
+		}
+		else if(j==fc2) //NEW: stuck at end?
+		{
+			i++; st = s;
 		}
 		else 
 		{
@@ -1182,6 +1193,8 @@ bool Model::mergeAnimations(AnimationModeE mode, unsigned anim1, unsigned anim2)
 		kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],e);
 	}
 
+	//WARNING: I think maybe this is untested since I
+	//didn't enable the Merge button in the UI window
 	if(fa) 
 	{	
 		int fp,fp0 = fa->m_frame0;

@@ -46,21 +46,23 @@ struct MapDirectionWin : Win
 	ok_cancel_panel ok_cancel;
 };
 
-static int texturecoord_keyboard_accel[4] = {};
+//REMOVE ME
+static int texturecoord_keyboard_accel[6] = {};
 static bool texturecoord_keyboard(Widgets95::ui *ui, int k, int m)
 {
+	enum{ n=sizeof(texturecoord_keyboard_accel)/sizeof(int) };
+
 	auto *w = (TextureCoordWin*)ui;
 
 	if((unsigned)k<256) //YUCK
 	{
-		enum{ n=5 };
 		//REMOVE ME (ELSEWHERE)
 		//NOTE: Currently not invalidating.
 		if(!texturecoord_keyboard_accel[0])
 		{  
 			utf8 kc[n] = {"tool_select_vertices",
 			"tool_move","tool_rotate","tool_scale",
-			"tool_select_faces"};
+			"tool_select_faces","recall_tool"};
 			for(int i=0;i<n;i++)
 			{
 				std::string &p = keycfg.get(kc[i]);
@@ -72,7 +74,8 @@ static bool texturecoord_keyboard(Widgets95::ui *ui, int k, int m)
 					sep = ~sep?0:sep+1;
 					if(sep!=p.size()-1)
 					{
-						//TODO: Symbol lookup?
+						//YUCK: Symbol lookup?
+						if(~p.find("SPACE")) kk = ' ';
 					}
 					else kk = tolower(p.back()); 
 
@@ -90,7 +93,7 @@ static bool texturecoord_keyboard(Widgets95::ui *ui, int k, int m)
 		int km = k|m<<8;
 		for(int i=0;i<n;i++) 
 		if(km==texturecoord_keyboard_accel[i]) 
-		{
+		{			 
 			switch(i) 
 			{
 			case 0: i = TextureWidget::MouseSelect; break;
@@ -104,7 +107,9 @@ static bool texturecoord_keyboard(Widgets95::ui *ui, int k, int m)
 				extern void viewwin_toolboxfunc(int);
 				viewwin_toolboxfunc(1); //tool_select_faces?
 				return false;
-			}			
+
+			case 5: i = w->recall_tool[0]; break;
+			}
 			w->submit(w->mouse.select_id(i));
 			return false;
 		}
@@ -136,9 +141,11 @@ void TextureCoordWin::modelChanged(int changeBits)
 	if(changeBits&Model::SelectionFaces
 	 ||changeBits&Model::MoveGeometry&&!m_ignoreChange)
 	{		
+		texture.clearCoordinates(); //NEW: sync restoreSelectedUv 
+
 		if(!hidden()) openModel();
 	}
-	else if(changeBits&Model::SelectionUv&&!m_ignoreChange) //NEW
+	if(changeBits&Model::SelectionUv&&!m_ignoreChange) //NEW
 	{
 		//I think this stopped working when generic undo/redo was
 		//removed. It's better to have a notification code anyway.
@@ -189,24 +196,18 @@ void TextureCoordWin::openModel()
 		}		
 	}
 
-	//NOTE: Some lines need to be switched around in order
-	//for this to work.
-	//https://github.com/zturtleman/mm3d/issues/91
-	//if(m_inUndo)
-	if(!model->getUndoEnabled())
-	{
-		texture.restoreSelectedUv();
-	}
-	else texture.saveSelectedUv();
-
-	setTextureCoordsEtc(false); //NEW
+	//NEW: Call operationComplete so setSelectedUv isn't open-ended
+	//and do everything else that was once done here as side-effect.
+	updateSelectionDone();
 
 	texture.updateWidget(); //REDUNDANT
 }
 
 void TextureCoordWin::init()
 {
-	m_ignoreChange = false;
+	m_ignoreChange = false; 
+
+	for(int i=1;i-->0;) recall_tool[i] = !i;
 
 	dimensions.disable();
 
@@ -263,8 +264,14 @@ void TextureCoordWin::submit(control *c)
 
 	case id_item: 
 
+		//Just to be safe?
+		if(recall_tool[1]!=(int)mouse)
+		{
+			recall_tool[0] = recall_tool[1];
+			recall_tool[1] = mouse;
+		}
 		texture.setMouseOperation
-		((Widget::MouseOperationE)mouse.int_val());
+		((Widget::MouseOperationE)recall_tool[1]);
 		texture.updateWidget();
 		break;
 
@@ -464,8 +471,11 @@ void TextureCoordWin::updateTextureCoordsDone(bool done)
 }
 void TextureCoordWin::updateSelectionDone()
 {
-	texture.saveSelectedUv();
-	operationComplete(::tr("Select texture coordinates"));
+	if(model->getUndoEnabled())
+	{
+		texture.saveSelectedUv();
+		operationComplete(::tr("Select texture coordinates"));
+	}
 
 	setTextureCoordsEtc(false); //NEW
 }
