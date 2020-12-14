@@ -72,7 +72,7 @@ struct SideBar : Win
 		row media_nav;
 		button play,loop;
 
-		rollout nav;
+		rollout nav;		
 		dropdown animation;
 		row frame_nav;
 		spinbox frame;

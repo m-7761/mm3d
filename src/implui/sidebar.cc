@@ -72,7 +72,8 @@ bool_panel(model.sidebar,model)
 	for(size_t i=sizeof(ll)/sizeof(*ll);i-->0;)
 	{
 		ll[i]->lock(ll[i]->span(),false);
-	}
+	}		
+
 	anim_panel.nav.set(config.get("ui_anim_sidebar",true));
 	bool_panel.nav.set(config.get("ui_bool_sidebar",true));
 	prop_panel.nav.set(config.get("ui_prop_sidebar",true));
@@ -114,7 +115,7 @@ void SideBar::AnimPanel::submit(control *c)
 		frame.edit(0.0); //NEW (2020)
 		extern int viewwin_tick(Win::si*,int,double&,int);
 		frame.spinner.set_tick_callback(viewwin_tick);
-
+  
 		//refresh_list(); //Won't do.
 
 		break;

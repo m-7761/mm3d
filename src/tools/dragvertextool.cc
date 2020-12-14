@@ -75,7 +75,7 @@ void DragVertexTool::mouseButtonDown()
 		const int vid = vertices.front();
 		
 		model->getVertexCoords(vid,m_coords);
-		const Matrix &mat = parent->getParentViewMatrix(); // model to viewport space		
+		const Matrix &mat = parent->getParentBestMatrix(); // model to viewport space		
 		//log_debug("vertex %d is at (%f,%f,%f)\n",vid,m_coords[0],m_coords[1],m_coords[2]); //???
 		mat.apply3x(m_coords);
 
@@ -180,7 +180,7 @@ void DragVertexTool::mouseButtonMove()
 
 		//log_debug("best sum is (%f,%f,%f)\n",best[0],best[1],best[2]); //???
 
-		parent->getParentViewInverseMatrix().apply3x(best);
+		parent->getParentBestInverseMatrix().apply3x(best);
 
 		//log_debug("best applied is (%f,%f,%f)\n",best[0],best[1],best[2]); //???
 

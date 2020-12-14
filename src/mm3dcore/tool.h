@@ -316,6 +316,14 @@ public:
 	virtual const Matrix &getParentViewInverseMatrix()const = 0;
 	virtual double _getParentZoom()const{ return 1; } //TESTING
 
+	//2020: These replace getParentViewMatrix with a better
+	//behaved matrix, that currently can depend on the tool's
+	//type. The old APIs are still the same as before but aren't
+	//used by GetXYZ, etc. and really should not be used except in
+	//very special cases.
+	virtual const Matrix &getParentBestMatrix()const = 0;
+	virtual const Matrix &getParentBestInverseMatrix()const = 0;
+
 	// Get the 3d coordinate that corresponds to an x,y mouse event
 	// value (in model space).
 	//

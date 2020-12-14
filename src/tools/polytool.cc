@@ -166,7 +166,7 @@ void PolyTool::mouseButtonDown()
 	if(3==selected.size())
 	{
 		const Matrix &viewMatrix = 
-		parent->getParentViewInverseMatrix();
+		parent->getParentBestInverseMatrix();
 		//viewMatrix.show(); //???
 
 		Vector viewNorm(0,0,1);

@@ -54,7 +54,7 @@ static void ui_drop(char **f, int n)
 	for(int i=0;i<n;i++,f++) 
 	{
 		char *url = *f;
-		if(!strncmp(url,"file://",7)) url+=7;
+		if(!strncmp(url,"file:///",8)) url+=8;
 
 		Model::ModelErrorE err = Model::ERROR_NONE;
 		Model *m = new Model;

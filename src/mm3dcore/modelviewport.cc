@@ -88,6 +88,8 @@ m_rendering()
 	//setCursor(Qt::ArrowCursor);
 }
 
+enum{ modelviewport_drawing_view=0 }; //TESTING
+
 void ModelViewport::updateMatrix() //NEW
 {
 	if(m_view<Tool::ViewOrtho
@@ -134,14 +136,22 @@ void ModelViewport::updateMatrix() //NEW
 		z-=m_zoom*modelviewport_persp_factor;
 	}
 	//YUCK: Need to keep ortho matrix even for perspective.
-	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],-z);
+	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],z);
 	//Ortho should be 0 right? Tool::addPosition is offsetting
 	//according to m_scroll[2], but it didn't always do so?
 	//https://github.com/zturtleman/mm3d/issues/141#issuecomment-651962335
 	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],-m_scroll[2]);
-	m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],0);
+		/*EXPERIMENTING
+	//Trying to go back so "eye" can be extracted from view matrix.
+	if(modelviewport_drawing_view)
+	m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],z);
+	else m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],0);
+		*/
+	m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],z);
+	m_bestMatrix = m_viewMatrix; m_bestMatrix.getMatrix()[14] = 0;
+	m_bestInverse = m_bestMatrix.getInverse();
 
-	m_invMatrix = m_viewMatrix.getInverse();
+	m_viewInverse = m_viewMatrix.getInverse();
 
 	//NEW: It's probably incorrect to apply a perspective 
 	//matrix, but it would produce better selection results.
@@ -172,12 +182,13 @@ void ModelViewport::updateMatrix() //NEW
 		proj[1][1]*=m_height/2;
 
 		//2019: This is equivalent to doing
-		//glLoadMatrix(this);
-		//glMultMatrix(lhs);
+		//glLoadMatrixd(this);
+		//glMultMatrixd(lhs);
 		//m_viewMatrix.postMultiply(*(Matrix*)proj);
-		std::swap(z,m_viewMatrix.getMatrix()[14]); 
+	//	std::swap(z,m_viewMatrix.getMatrix()[14]); //OBSOLETE
+		assert(z==m_viewMatrix.getMatrix()[14]);
 		((Matrix*)proj)->postMultiply(m_viewMatrix);
-		std::swap(z,m_viewMatrix.getMatrix()[14]); 
+	//	std::swap(z,m_viewMatrix.getMatrix()[14]); //OBSOLETE
 		//memcpy(&m_viewMatrix,proj,sizeof(proj));
 		memcpy(&m_projMatrix,proj,sizeof(proj));
 
@@ -186,7 +197,7 @@ void ModelViewport::updateMatrix() //NEW
 	else
 	{
 		m_projMatrix = m_viewMatrix;
-		m_unprojMatrix = m_invMatrix;
+		m_unprojMatrix = m_viewInverse;
 	}	
 
 	parent->updateView();
@@ -261,8 +272,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		{
 			//2020: m_zoom has already been factored into
 			//m_near/farOrtho
+			if(!modelviewport_drawing_view) //REMOVE ME
 			glOrtho(m_scroll[0]-s,m_scroll[0]+s,
 			m_scroll[1]-t,m_scroll[1]+t,m_nearOrtho,m_farOrtho);
+			else
+			glOrtho(-s,+s,-t,+t,m_nearOrtho,m_farOrtho);
 		}
 		else //gluPerspective(45,aspect,m_zoom*0.002,m_zoom*2000); //GLU
 		{
@@ -284,91 +298,99 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); //NEW
 	}	
 
-	float viewPoint[4] = { 0,0,0,1 };
-
-	if(m_view>=Tool::ViewOrtho
-	 ||m_view<=Tool::ViewPerspective)
+	if(modelviewport_drawing_view) //TESTING 
 	{
-		//glEnable(GL_LIGHT0); //???
-		
-		viewPoint[0] = (float)m_scroll[0]; 
-		viewPoint[1] = (float)m_scroll[1]; 
-		viewPoint[2] = (float)m_scroll[2]; 
-		if(m_view<=Tool::ViewPerspective)
-		{
-			//https://github.com/zturtleman/mm3d/issues/99
-			if(aspect<=1)
-			viewPoint[2]+=m_zoom*modelviewport_persp_factor/aspect;
-			else
-			viewPoint[2]+=m_zoom*modelviewport_persp_factor;
-
-			glTranslatef(-viewPoint[0],-viewPoint[1],-viewPoint[2]);
-		}
-		else 
-		{
-			viewPoint[2]+=m_zoom*2;
-
-			//https://github.com/zturtleman/mm3d/issues/97
-			//glTranslatef(0,0,-m_farOrtho/2);
-			glTranslatef(0,0,-(m_farOrtho+m_nearOrtho)/2);
-		}
-
-		glRotated(m_rotZ,0,0,1);
-		glRotated(m_rotY,0,1,0);
-		glRotated(m_rotX,1,0,0);
-
-		Matrix m; //???
-		m.setRotationInDegrees(0,0,-m_rotZ);
-		m.apply(viewPoint);
-		m.setRotationInDegrees(0,-m_rotY,0);
-		m.apply(viewPoint);
-		m.setRotationInDegrees(-m_rotX,0,0);
-		m.apply(viewPoint);
+		//NOTE: I tried using m_projMatrix by itself (above)
+		//and it didn't work... maybe OpenGL needs both???
+		glLoadMatrixd(m_viewMatrix.getMatrix());
 	}
 	else
 	{
-		//glDisable(GL_LIGHT0); //???
-		//glDisable(GL_LIGHT1); //???
-
-		//https://github.com/zturtleman/mm3d/issues/97
-		viewPoint[0] = 0;
-		viewPoint[1] = 0;
-		viewPoint[2] = (m_farOrtho+m_nearOrtho)/2; //500000;
-
-		glTranslatef(-viewPoint[0],-viewPoint[1],-viewPoint[2]);
-
-		Matrix m; //???
-		switch(m_view)
+		float _viewPoint[4] = { 0,0,0,1 };
+		if(m_view>=Tool::ViewOrtho
+		 ||m_view<=Tool::ViewPerspective)
 		{
-		case Tool::ViewFront:
-			// do nothing
-			break;
-		case Tool::ViewBack:
-			glRotatef(180,0,1,0);
-			m.setRotationInDegrees(0,-180,0);
-			break;
-		case Tool::ViewLeft:
-			glRotatef(90,0,1,0); //-90
-			m.setRotationInDegrees(0,-90,0); //90
-			break;
-		case Tool::ViewRight:
-			glRotatef(-90,0,1,0); //90
-			m.setRotationInDegrees(0,90,0); //-90
-			break;
-		case Tool::ViewTop:
-			glRotatef(90,1,0,0);
-			m.setRotationInDegrees(-90,0,0);
-			break;
-		case Tool::ViewBottom:
-			glRotatef(-90,1,0,0);
-			m.setRotationInDegrees(90,0,0);
-			break;
-		//default:
-			//log_error("Unknown ViewDirection: %d\n",m_view);
-			//swapBuffers();
-			//return;
+			//glEnable(GL_LIGHT0); //???
+		
+			_viewPoint[0] = (float)m_scroll[0]; 
+			_viewPoint[1] = (float)m_scroll[1]; 
+			_viewPoint[2] = (float)m_scroll[2]; 
+			if(m_view<=Tool::ViewPerspective)
+			{
+				//https://github.com/zturtleman/mm3d/issues/99
+				if(aspect<=1)
+				_viewPoint[2]+=m_zoom*modelviewport_persp_factor/aspect;
+				else
+				_viewPoint[2]+=m_zoom*modelviewport_persp_factor;
+
+				glTranslatef(-_viewPoint[0],-_viewPoint[1],-_viewPoint[2]);
+			}
+			else 
+			{
+				_viewPoint[2]+=m_zoom*2;
+
+				//https://github.com/zturtleman/mm3d/issues/97
+				//glTranslatef(0,0,-m_farOrtho/2);
+				glTranslatef(0,0,-(m_farOrtho+m_nearOrtho)/2);
+			}		
+
+			glRotated(m_rotZ,0,0,1);
+			glRotated(m_rotY,0,1,0);
+			glRotated(m_rotX,1,0,0);
+
+			Matrix m; //???
+			m.setRotationInDegrees(0,0,-m_rotZ);
+			m.apply3(_viewPoint);
+			m.setRotationInDegrees(0,-m_rotY,0);
+			m.apply3(_viewPoint);
+			m.setRotationInDegrees(-m_rotX,0,0);
+			m.apply3(_viewPoint);
 		}
-		m.apply(viewPoint);
+		else
+		{
+			//glDisable(GL_LIGHT0); //???
+			//glDisable(GL_LIGHT1); //???
+
+			//https://github.com/zturtleman/mm3d/issues/97
+			_viewPoint[0] = 0;
+			_viewPoint[1] = 0;
+			_viewPoint[2] = (m_farOrtho+m_nearOrtho)/2; //500000;
+
+			glTranslatef(-_viewPoint[0],-_viewPoint[1],-_viewPoint[2]);
+
+			Matrix m; //???
+			switch(m_view)
+			{
+			case Tool::ViewFront:
+				// do nothing
+				break;
+			case Tool::ViewBack:
+				glRotatef(180,0,1,0);
+				m.setRotationInDegrees(0,-180,0);
+				break;
+			case Tool::ViewLeft:
+				glRotatef(90,0,1,0); //-90
+				m.setRotationInDegrees(0,-90,0); //90
+				break;
+			case Tool::ViewRight:
+				glRotatef(-90,0,1,0); //90
+				m.setRotationInDegrees(0,90,0); //-90
+				break;
+			case Tool::ViewTop:
+				glRotatef(90,1,0,0);
+				m.setRotationInDegrees(-90,0,0);
+				break;
+			case Tool::ViewBottom:
+				glRotatef(-90,1,0,0);
+				m.setRotationInDegrees(90,0,0);
+				break;
+			//default:
+				//log_error("Unknown ViewDirection: %d\n",m_view);
+				//swapBuffers();
+				//return;
+			}
+			m.apply(_viewPoint);
+		}
 	}
 
 	glColor3f(0.7f,0.7f,0.7f); //???
@@ -415,7 +437,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//in terms of how it's been implemented historically. The
 			//original Misift (or Maverick code used 1,0 as well)
 			//
-			//somtimes there's slight z-fighting with the grid with 1
+			//Somtimes there's slight z-fighting with the grid with 1
 			//(with a flat polygon)
 			//glPolygonOffset(1,0);
 			//glPolygonOffset(1.5,0); //fails forward facing polygons
@@ -427,8 +449,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		glDepthRange(0.00001,1);
 		{
 			//ContextT was because every view was its own OpenGL context
-			//model->draw(opt,static_cast<ContextT>(this),viewPoint);
-			model->draw(modelviewport_opts(drawMode),nullptr,viewPoint);
+			//model->draw(opt,static_cast<ContextT>(this),_viewPoint);
+			//model->draw(modelviewport_opts(drawMode),nullptr,_viewPoint);
+			double *eye = m_viewInverse.getVector(3);
+			float vp[3] = {(float)eye[0],(float)eye[1],(float)eye[2]};			
+			model->draw(modelviewport_opts(drawMode),nullptr,vp);
 		}
 		glDepthRange(0,1);
 
@@ -449,14 +474,14 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			glPolygonOffset(-1,0);
 		}
 
-		//using glPolygonOffset seems to work on the grid
+		//Using glPolygonOffset seems to work on the grid
 		//but I got very strange results using it on the 
 		//lines on my system. I think using it on polygons
 		//causes back-faces to bleed through along edges.
 		//With lines (negative offset) long lines far back
 		//in the model momentarily pop up in front of the
 		//polygons. It doesn't make a lot of sense, so it 
-		//could be a driver thing
+		//could be a driver thing.
 
 		model->drawLines(0.5f);
 		model->drawVertices(!parent->tool->isNullTool());
@@ -491,14 +516,15 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		}
 		
 		//GL_LESS is intended to prefer wireframes
-		//over the grid lines		
+		//over the grid lines
 		glDepthFunc(GL_LESS);
 		//On my system there's often ugly artifacts
 		//like the depth-buffer is uneven, so this
 		//is designed to resolve wireframes snapped
 		//to the grid. Note, it's probably rounded
 		//up to the minimum nonzero value
-		glDepthRange(0.00001,1);
+		if(drawSelections)
+		glDepthRange(0.00001,1);		
 		{
 			//NOTE: I had a z-fighting issue due to 
 			//glPolygonOffset on my Intel system. I 
@@ -508,7 +534,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//forward facing polygons! Note, Misfit
 			//(or Maverick) was using 0
 
-			drawGridLines(1);
+			drawGridLines(1,!drawSelections);
 		}
 		glDepthRange(0,1);
 		glDepthFunc(GL_LEQUAL);
@@ -592,7 +618,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	//swapBuffers();
 }
 
-void ModelViewport::drawGridLines(float a)
+void ModelViewport::drawGridLines(float a, bool offset3d)
 {
 	glColor4f(0.55f,0.55f,0.55f,a);
 
@@ -601,7 +627,36 @@ void ModelViewport::drawGridLines(float a)
 
 	if(m_view<=Tool::ViewPerspective
 	 ||m_view>=Tool::ViewOrtho)
-	{
+	{		
+		if(!vu.xyz3d) return;
+
+		//NOTE: Artifacts remain in perspective
+		//views with lines & selection disabled.		
+		double os = 0, dp[3] = {0,0,1};
+		if(offset3d) m_viewInverse.apply3(dp);
+		//float *eye = _viewPoint; //REMOVE ME
+		double *eye = m_viewInverse.getVector(3);		
+		auto osf = [&](double x, bool test)
+		{
+			//HARDWARE SENSITIVE?
+			//I think I noticed a zoom level
+			//that seemed to work well
+			static const double oss = 0.005; //1/200
+
+			//This breaks down under scrolling.
+			//double f = m_zoom*(x>0?-oss:oss);
+			double f = m_zoom*(test?-oss:oss);
+			x = 1-fabs(x);
+
+			//1-osr wasn't based on anything really
+			//for some reason small viewports break
+			//down (hardware sensitive) and similar
+			//artifacts sometimes show up. It helps
+			//to increase the right term's factor
+			//os = x>0.99998f?0:f*osr+(1-osr)*f*sqrt(x);
+			os = x>0.99998f?0:f*0.1+(1.5)*f*sqrt(x);
+		};
+
 		//double inc = config.get("ui_3dgrid_inc",4.0);
 		double inc = vu.inc3d;
 		//double max = config.get("ui_3dgrid_count",6)*inc;
@@ -613,37 +668,43 @@ void ModelViewport::drawGridLines(float a)
 		//if(config.get("ui_3dgrid_xy",false))
 		if(vu.xyz3d&4)
 		{
+			if(offset3d) osf(dp[2],eye[2]>0);
+
 			for(x=-max;x<=max;x+=inc)
 			{
-				glVertex3d(x,-max,0); glVertex3d(x,+max,0);
+				glVertex3d(x,-max,os); glVertex3d(x,+max,os);
 			}
 			for(y=-max;y<=max;y+=inc)
 			{
-				glVertex3d(-max,y,0); glVertex3d(+max,y,0);
+				glVertex3d(-max,y,os); glVertex3d(+max,y,os);
 			}
 		}
 		//if(config.get("ui_3dgrid_xz",true))
 		if(vu.xyz3d&2)
 		{
+			if(offset3d) osf(dp[1],eye[1]>0);
+
 			for(x=-max;x<=max;x+=inc)
 			{
-				glVertex3d(x,0,-max); glVertex3d(x,0,+max);
+				glVertex3d(x,os,-max); glVertex3d(x,os,+max);
 			}
 			for(z=-max;z<=max;z+=inc)
 			{
-				glVertex3d(-max,0,z); glVertex3d(+max,0,z);
+				glVertex3d(-max,os,z); glVertex3d(+max,os,z);
 			}
 		}
 		//if(config.get("ui_3dgrid_yz",false))
 		if(vu.xyz3d&1)
 		{
+			if(offset3d) osf(dp[0],eye[0]>0);
+
 			for(y=-max;y<=max;y+=inc)
 			{
-				glVertex3d(0,y,-max); glVertex3d(0,y,+max);
+				glVertex3d(os,y,-max); glVertex3d(os,y,+max);
 			}
 			for(z=-max;z<=max;z+=inc)
 			{
-				glVertex3d(0,-max,z); glVertex3d(0,+max,z);
+				glVertex3d(os,-max,z); glVertex3d(os,+max,z);
 			}
 		}
 
@@ -1358,7 +1419,7 @@ void ModelViewport::rotateViewport(double rotX, double rotY, double rotZ)
 	//FIX ME: Ortho rotation is broken. Maverick
 	//is the same way
 
-	//FIX ME: I'm positive this is not necessary!
+	//FIX ME: I'm positive this isn't necessary!
 
 
 		Matrix mcur,mcurinv;
@@ -1431,7 +1492,7 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 		m.setRotationInDegrees(-m_rotX,0,0);
 		m.apply3(m_scroll);
 	}
-	else m_invMatrix.apply3(m_scroll); //FIX ME: Try to stabilize?
+	else m_viewInverse.apply3(m_scroll); //FIX ME: Try to stabilize?
 
 	log_debug("center point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
 
@@ -1579,7 +1640,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 				curType = pt;
 				//TODO: Tool (tool.h) needs to work in homogeneous
 				//coordinates exclusively but it doesn't right now
-				if(&m_unprojMatrix==&parent->getParentViewInverseMatrix())
+				if(&m_unprojMatrix==&parent->getParentBestInverseMatrix())
 				{
 					saveCoord[0] = coord[0]*w;
 					saveCoord[1] = coord[1]*w;
@@ -1681,7 +1742,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		pos[0] = xval;
 		pos[1] = yval;
 		pos[2] = zval;
-		m_invMatrix.apply(pos);
+		m_viewInverse.apply(pos);
 		for(int i=0;i<3;i++) 
 		if(fabs(pos[i])<0.000001) pos[i] = 0;
 
@@ -1883,7 +1944,9 @@ void ModelViewport::Parent::getXYZ(double *xx, double *yy, double *zz)
 	ModelViewport &mvp = ports[m_focus];
 	Vector vec;
 	getRawParentXYValue(vec[0],vec[1]);
-	mvp.m_invMatrix.apply(vec);
+	//2020: I'm not positive this is better, but it feels more correct?
+	//mvp.m_bestInverse.apply(vec);
+	getParentBestInverseMatrix().apply(vec);
 	*xx = vec[0]; *yy = vec[1]; *zz = vec[2];
 }
 

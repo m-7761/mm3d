@@ -185,7 +185,7 @@ int RotateTool::mouse2()
 		double coords[4];
 		memcpy(coords,m_rotatePoint,sizeof(coords));
 		coords[3] = 1; //???
-		parent->getParentViewMatrix().apply(coords);
+		parent->getParentBestMatrix().apply(coords);
 
 		double xDiff = pos[0]-coords[0];
 		double yDiff = pos[1]-coords[1];
@@ -207,7 +207,7 @@ int RotateTool::mouse2()
 		m_rotatePoint.y = pos[1];
 		m_rotatePoint.z = 0;
 		m_rotatePoint.w = 1; //???
-		parent->getParentViewInverseMatrix().apply(m_rotatePoint); 
+		parent->getParentBestInverseMatrix().apply(m_rotatePoint);
 		parent->updateParams();
 	}
 
@@ -243,7 +243,7 @@ void RotateTool::mouseButtonMove()
 	if(1==mouse2())
 	{
 		double vec[3] = { 0,0,1 };
-		parent->getParentViewInverseMatrix().apply3(vec);
+		parent->getParentBestInverseMatrix().apply3(vec);
 		Matrix m;
 		m.setRotationOnAxis(vec,m_mouse2_angle-angle);
 

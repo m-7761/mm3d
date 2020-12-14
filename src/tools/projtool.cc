@@ -89,7 +89,7 @@ void ProjTool::mouseButtonDown()
 	parent->getParentXYValue(pos[0],pos[1],true);
 	pos[2] = 0;
 	pos[3] = 1;
-	const Matrix &m = parent->getParentViewInverseMatrix();
+	const Matrix &m = parent->getParentBestInverseMatrix();	
 	m.apply(pos);
 	for(int i=0;i<3;i++) m_orig[i] = pos[i];
 
@@ -121,7 +121,7 @@ void ProjTool::mouseButtonDown()
 	model->setProjectionScale(m_proj,1); //???
 	*/
 	double rot[3];
-	parent->getParentViewInverseMatrix().getRotation(rot);
+	parent->getParentBestInverseMatrix().getRotation(rot);
 	model->setProjectionRotation(m_proj,rot); 
 
 	// Assign selected faces to projection
@@ -167,7 +167,7 @@ void ProjTool::mouseButtonMove()
 	parent->getParentXYValue(pos[0],pos[1]);
 	pos[2] = 0;
 	pos[3] = 1;
-	parent->getParentViewInverseMatrix().apply(pos);
+	parent->getParentBestInverseMatrix().apply(pos);
 	pos[0]-=m_orig[0];
 	pos[1]-=m_orig[1];
 	pos[2]-=m_orig[2];
@@ -189,7 +189,7 @@ void ProjTool::mouseButtonMove()
 	//making the (front/identity) projection upside down.
 	Matrix m; m.setRotation({0,0,-PI/2+angle});	
 	//HACK: Don't call applyProjection twice?
-	(m*parent->getParentViewInverseMatrix()).getRotation
+	(m*parent->getParentBestInverseMatrix()).getRotation
 	(model->getPositionObject({Model::PT_Projection,m_proj})->m_rot);
 	//REMINDER: Does applyProjection indirectly.
 	model->setProjectionScale(m_proj,mag3(pos));

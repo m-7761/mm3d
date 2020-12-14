@@ -140,7 +140,7 @@ protected:
 	
 	bool updateBackground();
 	
-	void drawGridLines(float a=1);
+	void drawGridLines(float a=1, bool offset3d=false);
 	void drawBackground();
 	void freeBackground() //UNUSED
 	{
@@ -159,8 +159,14 @@ protected:
 	//2019: m_projMatrix do perspective correct selection.
 	//Ideally this matrix would be used by all tools, but
 	//other tools must use the ortho matrix for right now.
-	Matrix m_viewMatrix,m_invMatrix;
+	Matrix m_viewMatrix,m_viewInverse;
 	Matrix m_projMatrix,m_unprojMatrix;
+	//2020: These are the same as m_viewMatrix except the
+	//scrolling along Z is zeroed out so they behave well
+	//in free-rotation modes. I think in the future they
+	//should be able to be arbitrary construction planes.
+	//See getParentBestMatrix/getParentBestInverseMatrix.
+	Matrix m_bestMatrix,m_bestInverse;
 
 	double m_rotX;
 	double m_rotY;
@@ -265,15 +271,23 @@ public: //slots:
 	}
 	virtual const Matrix &getParentViewMatrix()const
 	{
-		if(tool->isSelectTool()) //REMOVE ME
-		return ports[m_focus].m_projMatrix; 
 		return ports[m_focus].m_viewMatrix; 
 	}
 	virtual const Matrix &getParentViewInverseMatrix()const
 	{
+		return ports[m_focus].m_viewInverse; 
+	}
+	virtual const Matrix &getParentBestMatrix()const
+	{
+		if(tool->isSelectTool()) //REMOVE ME
+		return ports[m_focus].m_projMatrix; 
+		return ports[m_focus].m_bestMatrix; 
+	}
+	virtual const Matrix &getParentBestInverseMatrix()const
+	{
 		if(tool->isSelectTool()) //REMOVE ME
 		return ports[m_focus].m_unprojMatrix; 
-		return ports[m_focus].m_invMatrix; 
+		return ports[m_focus].m_bestInverse; 
 	}
 	virtual double _getParentZoom()const //TESTING
 	{

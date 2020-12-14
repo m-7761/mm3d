@@ -66,14 +66,14 @@ void JointTool::mouseButtonDown()
 
 	if(Tool::BS_Right!=parent->getButtons())
 	{
-		const Matrix &mat = parent->getParentViewMatrix();
+		const Matrix &mat = parent->getParentBestMatrix();
 
 		double pDist = DBL_MAX;
 		for(int i=model->getBoneJointCount();i-->0;)
 		{
 			double coords[4];
 			model->getBoneJointCoords(i,coords);
-			coords[3] = 1;
+			coords[3] = 1;			
 			mat.apply(coords);
 
 			double dist = distance(pos[0],pos[1],coords[0],coords[1]);

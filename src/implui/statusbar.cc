@@ -194,5 +194,3 @@ void ViewBar::StatusBar::setStats()
 	}
 	st.pop_back(); stats.repack();
 }
-
-

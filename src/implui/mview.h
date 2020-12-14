@@ -133,17 +133,35 @@ struct ViewBar::ModelView
 };
 struct ViewBar::StatusBar : StatusObject
 {
+	enum{ hiding=1, underscoring=0 };
+
 	StatusBar(ViewBar &bar)
 		:
 	model(bar.model),
 	m_queueDisplay(),
 	nav(bar.exterior_row,bi::sunken),
-	text(nav,""),stats(nav,"")
+	text(nav,""),
+	flags(nav),	
+	_vert_snap(flags,"Vs",id_snap_vert),
+	_grid_snap(flags,"Gs",id_snap_grid),
+	_interlock(flags,"Ex",id_frame_lock),
+	_100(flags,"100",id_joint_100),
+	_clipboard(flags,"Ins",id_animate_insert),	
+	_keys_snap(flags,"Scr",id_animate_snap),
+	_sanim_mode(flags,"Sam",id_animate_mode_1),
+	_fanim_mode(flags,"Fam",id_animate_mode_2),
+	stats(nav,"")
 	{
 		nav.expand();
+		//There's extra space when there's just
+		//one flag that I don't understand.
+		//(Using 2 letter codes cancels it out.)
+		//nav.space(1);
+		nav.space(20);
 		text.expand();
 		text.title(true); //EXPERIMENTAL
 		stats.ralign(); _curstats[0][0] = -1;
+		flags.ralign().space(0,underscoring,0);
 	}
 	~StatusBar();
 
@@ -151,6 +169,59 @@ struct ViewBar::StatusBar : StatusObject
 
 	row nav;
 	textbox text;
+	row flags;
+	struct Flag:titlebar
+	{
+		/*would like to be able to click but it's
+		//really complicated to coordinate with 
+		//the window menu state
+		//virtual bool mouse_down_handler(int,int)
+		{
+			((ViewBar*)ui())->model.perform_menu_action(id());
+			return false;
+		}*/
+
+		Flag(row &r, utf8 c, int i):titlebar(r,c)
+		{
+			id(i); 
+			
+			if(hiding) 
+			{
+				set_hidden();
+
+				if(underscoring) name().insert(0,1,'&');
+			}
+		}
+
+		void underscore(bool _)
+		{
+			int_val() = _;
+
+			if(hiding)
+			{
+				set_hidden(!_);
+			}
+			else //assuming underscoring
+			{
+				auto &l = name();
+				bool cmp = '&'==l[0];
+				if(_==cmp) return;
+				if(_) l.insert(0,1,'&');
+				if(!_) l.erase(0,1);
+				//Ouch! This pattern doesn't work.
+				//set_name(l);
+				repack();
+			}
+		}
+
+	}_vert_snap, //V
+	_grid_snap, //G
+	_interlock, //E
+	_100, //1 //I
+	_clipboard, //C
+	_keys_snap, //K (Scroll Lock)
+	_sanim_mode, //S (skeleton mode)
+	_fanim_mode; //F ("frame" mode)
 	titlebar stats;
 
 	// StatusObject methods

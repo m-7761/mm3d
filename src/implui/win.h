@@ -165,11 +165,15 @@ enum
 	id_animate_loop,
 	id_animate_snap,
 	id_animate_insert,
+	id_animate_mode_1,
+	id_animate_mode_2,
+	id_animate_mode_3,
 	
 	/*Help menu*/
 	id_help,  //wxOSX needs to be Help.
 	id_about,  //wxOSX needs to be About.
 	id_license,
+	id_unscale,
 };
 
 struct Win : Widgets95::ui

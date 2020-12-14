@@ -42,9 +42,8 @@ double x, double y, double z, const char *name, int boneId)
 {	
 	Model *model = parent->getModel();
 
-	//Matrix m = parent->getParentViewInverseMatrix();
-	const Matrix &m = parent->getParentViewInverseMatrix();
-	double tranVec[4] = { x,y,z,1 };
+	const Matrix &m = parent->getParentBestInverseMatrix();
+	double tranVec[4] = { x,y,z,1 };	
 	m.apply(tranVec);
 
 	Model::Position pos;
@@ -105,8 +104,7 @@ double x, double y, double z, const char *name, int boneId)
 void Tool::movePosition
 (const Model::Position &pos,double x, double y, double z)
 {
-	//Matrix m = parent->getParentViewInverseMatrix();
-	const Matrix &m = parent->getParentViewInverseMatrix();
+	const Matrix &m = parent->getParentBestInverseMatrix();
 
 	double tranVec[3] = { x,y,z };
 
@@ -137,7 +135,7 @@ void Tool::makeToolCoordList
 (ToolCoordList &list, const pos_list &positions)
 {
 	Model *model = parent->getModel();
-	const Matrix &mat = parent->getParentViewMatrix();
+	const Matrix &mat = parent->getParentBestMatrix();
 
 	ToolCoordT tc;
 	pos_list::const_iterator it;
@@ -157,7 +155,7 @@ void Tool::makeToolCoordList
 bool Tool::makeToolCoord(ToolCoordT &tc, Model::Position pos)
 {
 	Model *model = parent->getModel();
-	const Matrix &mat = parent->getParentViewMatrix();
+	const Matrix &mat = parent->getParentBestMatrix();
 
 	tc.pos = pos;
 	if(!model->getPositionCoords(tc.pos,tc.coords))

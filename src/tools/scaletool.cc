@@ -310,7 +310,7 @@ void ScaleTool::mouseButtonMove()
 		{
 			Matrix m;
 			double v[3] = {xper,yper,sp3d?xper:1}; 
-			parent->getParentViewInverseMatrix().apply3(v);
+			parent->getParentBestInverseMatrix().apply3(v);
 			for(auto&ea:v) 
 			ea = fabs(ea); //apply3 can be negative.
 			for(auto&ea:m_objList)

@@ -103,7 +103,7 @@ void MoveTool::mouseButtonMove()
 
 	m_x = pos[0]; m_y = pos[1]; m_z = pos[2];
 
-	parent->getParentViewInverseMatrix().apply3(v);
+	parent->getParentBestInverseMatrix().apply3(v);
 
 	/*Matrix m; //???
 	m.set(3,0,v[0]);

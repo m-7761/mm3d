@@ -243,34 +243,51 @@ void SelectTool::mouseButtonUp()
 		// We're waiting for the left button
 		if(parent->getButtons()&BS_Right) return;
 	}*/
-	
-	struct NormalTest : Model::SelectionTest
+		
+	struct BackFaceTest : Model::SelectionTest
 	{	
-		double plane[3];
+		double cmp[3];
+		const Model::Vertex *const *vl;
 		virtual bool shouldSelect(void *element)
-		{
-			auto tri = (Model::Triangle*)element;
-			double dp = 0;
-			for(int i=0;i<3;i++) dp+=plane[i]*tri->m_flatSource[i];
+		{			
+			auto tri = (Model::Triangle*)element;			
+			double dp = 0; if(vl) //Perspective accurate?
+			{
+				double *v = vl[tri->m_vertexIndices[0]]->m_absSource;
+				for(int i=0;i<3;i++) dp+=(cmp[i]-v[i])*tri->m_flatSource[i];
+			}
+			else for(int i=0;i<3;i++) dp+=cmp[i]*tri->m_flatSource[i];			
 			return dp>0;
 		}
 
-	}ntest; //UNTESTED
+	}ntest;
 	Model::SelectionTest *test = nullptr;	
 	if(m_op==Faces&&!m_includeBackfacing)
 	{	
-		test = &ntest; //UNTESTED
-		ntest.plane[0] = 0;
-		ntest.plane[1] = 0;
-		ntest.plane[2] = 1;
-		parent->getParentViewInverseMatrix().apply3(ntest.plane);
+		test = &ntest;
+		if(parent->getView()<=ViewPerspective) //2020: new way
+		{
+			//NOTE: getParentBestInverseMatrix is a projected matrix.
+			const double *eye = parent->getParentViewInverseMatrix().getVector(3);
+			memcpy(ntest.cmp,eye,sizeof(ntest.cmp));
+
+			ntest.vl = model->getVertexList().data();			
+		}
+		else //old way (fewer operations in orthographic modes)
+		{
+			ntest.vl = nullptr; //HACK: Use orthographic mode.
+			ntest.cmp[0] = 0;
+			ntest.cmp[1] = 0;
+			ntest.cmp[2] = 1;
+			parent->getParentViewInverseMatrix().apply3(ntest.cmp);
+		}			
 	}
 
 	auto mf = m_unselect? //FIX ME
 	&Model::unselectInVolumeMatrix:&Model::selectInVolumeMatrix;
 	
 	parent->getRawParentXYValue(m_x2,m_y2);
-	(model->*mf)(parent->getParentViewMatrix(),m_x1,m_y1,m_x2,m_y2,test);
+	(model->*mf)(parent->getParentBestMatrix(),m_x1,m_y1,m_x2,m_y2,test);
 
 	m_startX = no_draw;
 	
@@ -308,7 +325,7 @@ void SelectTool::draw(bool focused)
 		else if(0) return;
 	}
 	
-	const Matrix &inv = parent->getParentViewInverseMatrix();
+	const Matrix &inv = parent->getParentBestInverseMatrix();
 	for(int i=0;i<4;i++) inv.apply(p[i]);
 
 	glEnable(GL_COLOR_LOGIC_OP);

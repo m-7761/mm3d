@@ -128,7 +128,8 @@ private:
 	//These menus have state.
 	//NOTE: It's pointless to separate them as long
 	//as the global "config" file holds their state.
-	int _view_menu,_rops_menu,_anim_menu,_menubar;
+	//NOTE: ~MainWin destroys &_view_menu-&_menubar.
+	int _view_menu,_rops_menu,_anim_menu,_anim_menu2,_menubar;
 
 	friend void viewwin_toolboxfunc(int);
 	int _prev_tool,_curr_tool;

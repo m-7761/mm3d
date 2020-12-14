@@ -61,7 +61,7 @@ viewwin_tool_menu=0,viewwin_modl_menu=0,
 viewwin_geom_menu=0,viewwin_mats_menu=0,
 viewwin_infl_menu=0,viewwin_help_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
-viewwin_framelock=1,viewwin_jointlock=0,
+viewwin_jointlock=0,
 viewwin_toolbar = 0;
 extern int 
 viewwin_joints100=1;
@@ -447,13 +447,9 @@ void MainWin::_init_menu_toolbar() //2019
 	//Will wxWidgets detection ignore the ellipsis?
 	glutAddMenuEntry(E(file_prefs,"&Preferences...","")); //wxOSX requires this.
 	glutext::glutMenuEnable(id_file_prefs,0); //UNIMPLEMENTED
-	glutAddMenuEntry();		
-	//TODO: Ctrl+Q, Alt+F4
-	utf8 quit = "Ctrl+Alt+Q";
-	#ifdef WIN32
-	quit = "Alt+F4";
-	#endif
-	glutAddMenuEntry(E(file_quit,"&Quit","File|Quit",quit));
+	glutAddMenuEntry();
+	//REMINDER: Alt+F4 closes a window according to the system menu.
+	glutAddMenuEntry(E(file_quit,"&Quit","File|Quit","Ctrl+Alt+Q"));
 	}	
 
 	if(!viewwin_view_menu) //static menu (NEW)
@@ -472,6 +468,8 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(E(view_flip,"Bottom on Top","View|Viewports","Shift+Q"));
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(view_init,"Restore to Normal","","Shift+Esc"));
+
+		//views.status._interlock.underscore(true); //inverting sense
 	}
 		bool r,s,t,u,v;
 				
@@ -509,7 +507,7 @@ void MainWin::_init_menu_toolbar() //2019
 			
 		glutAddMenuEntry();
 
-			r = !config.get("ui_render_backface_cull",false);
+			r = config.get("ui_render_backfaces",false);
 			s = !r;	
 			glutAddMenuEntry(O(s,rops_hide_backs,"Hide Back-facing Triangles","View|Hide Back-facing Triangles","Shift+F")); 
 			glutAddMenuEntry(O(r,rops_show_backs,"Draw Back-facing Triangles","View|Draw Back-facing Triangles"));
@@ -532,6 +530,9 @@ void MainWin::_init_menu_toolbar() //2019
 		//glutAddMenuEntry(X(s,snap_grid,"Grid","View|Snap to Grid","Shift+G"));
 		glutAddMenuEntry(X(s,snap_grid,"Snap to Grid","View|Snap to Grid","Shift+G"));
 		glutAddMenuEntry(E(view_settings,"Grid Settings...","View|Grid Settings","Shift+Ctrl+G"));
+
+		views.status._vert_snap.underscore(r);
+		views.status._grid_snap.underscore(s);
 	}		
 	//glutAddSubMenu(::tr("Snap To"),_snap_menu);
 	glutAddMenuEntry();	
@@ -749,7 +750,10 @@ void MainWin::_init_menu_toolbar() //2019
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
 	glutAddMenuEntry(E(joint_settings,"Edit Joints...","Joints|Edit Joints","J")); 
-	glutAddMenuEntry(X(config.get("ui_joint_100",true),joint_100,"Assign 100","","I"));
+		r = config.get("ui_joint_100",true);
+	glutAddMenuEntry(X(r,joint_100,"Assign 100","","I"));
+		views.status._100.underscore(r);
+		
 	glutAddMenuEntry(E(joint_attach_verts,"Assign Selected to Joint","Joints|Assign Selected to Joint","Ctrl+B"));
 	glutAddMenuEntry(E(joint_weight_verts,"Auto-Assign Selected...","Joints|Auto-Assign Selected","Shift+Ctrl+B"));
 	glutAddMenuEntry();	
@@ -773,17 +777,24 @@ void MainWin::_init_menu_toolbar() //2019
 	//REMINDER: animation mode works differently (should they be standardized?)
 	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone &Independent of Parent","","Shift+I")); 
 	}		
+
+	int _anim_menu2 = glutCreateMenu(viewwin_menubarfunc);
+	{
+		//Fix me: Need to use wxTRANSLATE somehow to translate Scroll_lock?
+		//https://forums.wxwidgets.org/viewtopic.php?f=1&t=46722
+		glutAddMenuEntry(X(true,animate_snap,"Snap to Keyframe","","Scroll_lock")); //wxMSW (accelcmn.cpp)
+	
+		//views.status._keys_snap.underscore(true); //inverting sense
+
+		glutAddMenuEntry();
+		glutAddMenuEntry(O(false,animate_mode_1,"Skeletal Animation Mode","","Shift+Scroll_lock")); //wxMSW (accelcmn.cpp)
+		//Ctrl+Scroll_lock is system interpreted as Break like Ctrl+Pause
+		glutAddMenuEntry(O(false,animate_mode_2,"Frame Animation Mode","","Alt+Scroll_lock")); //wxMSW (accelcmn.cpp)
+		glutAddMenuEntry(O(true,animate_mode_3,"Unlocked (Allow Both)","","Shift+Alt+Scroll_lock")); //wxMSW (accelcmn.cpp)
+	}
 		_anim_menu = glutCreateMenu(viewwin_menubarfunc);	
 
-	//I intend to remove these two.
-	//glutAddMenuEntry(::tr("Start Animation Mode","Animation|Start Animation Mode"),id_anim_open);
-	//glutAddMenuEntry(::tr("Stop Animation Mode","Animation|Stop Animation Mode"),id_anim_close);	
-	//glutAddMenuEntry();
-	//SLOT(animSetWindowEvent()),g_keyConfig.getKey("viewwin_anim_animation_sets"));
-	glutAddMenuEntry(E(animate_settings,"Animation Sets...","Animation|Animation Sets","Shift+A"));		
-	//Fix me: Need to use wxTRANSLATE somehow to translate Scroll_lock?
-	//https://forums.wxwidgets.org/viewtopic.php?f=1&t=46722
-	glutAddMenuEntry(X(true,animate_snap,"Scroll Lock","","Scroll_lock")); //wxMSW (accelcmn.cpp)
+	glutAddSubMenu(::tr("Scroll Lock"),_anim_menu2);	
 	glutAddMenuEntry();
 	glutAddMenuEntry(X(false,animate_insert,"Clipboard Mode","","Insert"));
 	//glutAddMenuEntry(E(animate_copy_all,"Copy Animation Frame","Animation|Copy Animation Frame"));
@@ -805,6 +816,8 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(X(false,animate_play,"Play Animation","","Pause"));
 	//REMINDER: wxWidgets doesn't support Ctrl+Pause. Windows generates a Cancel code in response.
 	glutAddMenuEntry(X(false,animate_loop,"Play Repeatedly","","Shift+Pause"));
+	glutAddMenuEntry();
+	glutAddMenuEntry(E(animate_settings,"Animation Sets...","Animation|Animation Sets","Shift+A"));	
 	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images","Shift+Ctrl+Alt+A")); 
 	glutAddMenuEntry(E(animate_window,"Animator Window...","Animation|Animation Window","A"));
 
@@ -823,6 +836,8 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(help,"&Contents","Help|Contents","F1"));	
 	glutAddMenuEntry(::tr("&License","Help|License"),id_license);		
 	glutAddMenuEntry(::tr("&About","Help|About"),id_about);
+	glutAddMenuEntry();
+	glutAddMenuEntry(E(unscale,"&Unscale","","Alt+1"));	
 	}
 		
 	_menubar = glutCreateMenu(viewwin_menubarfunc);
@@ -1082,7 +1097,7 @@ Model *MainWin::_swap_models(Model *swap)
 
 		if(config.get("ui_render_bad_textures",true))
 		model->setDrawOption(Model::DO_BADTEX,true);
-		if(config.get("ui_render_backface_cull",false))
+		if(!config.get("ui_render_backfaces",false))
 		model->setDrawOption(Model::DO_BACKFACECULL,true);
 		if(config.get("ui_render_3d_selections",false))
 		model->setDrawSelection(true);	
@@ -1397,7 +1412,7 @@ void MainWin::open_texture_window()
 		//2019: Seems obtrusive?
 		//msg_info(::tr("You must select faces first.\nUse the 'Select Faces' tool.","Notice that user must have faces selected to open 'edit texture coordinates' window"));
 		//return;
-		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Must select faces"));
+		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Select faces to edit"));
 	}
 	if(!_texturecoord_win)
 	{
@@ -1747,8 +1762,12 @@ void MainWin::perform_menu_action(int id)
 				MainWin::save(tmp,true); delete tmp;
 			}
 		}
-		else model_status(m,StatusError,STATUSTIME_LONG,
-		::tr("You must have at least 1 face, joint, or point selected to Export Selected"));
+		else 
+		{
+			model_status(m,StatusError,STATUSTIME_LONG,
+			//::tr("You must have at least 1 face, joint, or point selected to Export Selected"));
+			::tr("Select faces, joints, or points to export"));
+		}
 		return;
 
 	//case id_file_run_script:
@@ -1860,7 +1879,7 @@ void MainWin::perform_menu_action(int id)
 			id = !id;
 			glutext::glutMenuEnable(id_rops_hide_backs+id,glutext::GLUT_MENU_CHECK);
 		}
-		config.set("ui_render_backface_cull",id);
+		config.set("ui_render_backfaces",id);
 		//NEW
 		m->setDrawOption(Model::DO_BACKFACECULL,!id);
 		break;
@@ -1872,22 +1891,38 @@ void MainWin::perform_menu_action(int id)
 		w->frame(id==id_frame_all);
 		return;
 
-	case id_frame_lock: //EXPERIMENTAL
-
+	case id_frame_lock:
+	
 		viewwin_interlock = glutGet(glutext::GLUT_MENU_CHECKED);
-		return;
 
+		for(auto&ea:viewwin_list) //inverting sense
+		ea->views.status._interlock.underscore(0==viewwin_interlock);
+
+		return;
+	
 	case id_animate_snap:
-		
-		viewwin_framelock = glutGet(glutext::GLUT_MENU_CHECKED);
+	
+		//inverting sense
+		w->views.status._keys_snap.underscore(0==glutGet(glutext::GLUT_MENU_CHECKED));
+
 		return;
 
+	case id_animate_mode_1: case id_animate_mode_2: case id_animate_mode_3:
+	
+		w->views.status._sanim_mode.underscore(id==id_animate_mode_1);
+		w->views.status._fanim_mode.underscore(id==id_animate_mode_2);
+
+		return;
+	
 	case id_animate_insert:
 
 		const_cast<int&>(clipboard_mode) = glutGet(glutext::GLUT_MENU_CHECKED);
+		//I'm assuming this isn't a global state, but it's really hard to follow!!
+		w->views.status._clipboard.underscore(clipboard_mode!=0);
 		extern void animwin_enable_menu(int,int);
-		animwin_enable_menu(m->getAnimationMode()?_anim_menu:-_anim_menu,clipboard_mode);
-		viewwin_status_func();
+		animwin_enable_menu(m->getAnimationMode()?_anim_menu:-_anim_menu,clipboard_mode);		
+		//animwin_enable_menu calls this immediately (guess best not to do twice?)
+		//viewwin_status_func();
 		return;
 
 	//case id_view_props: //REMOVING
@@ -1950,7 +1985,7 @@ void MainWin::perform_menu_action(int id)
 	case id_snap_grid: //*
 	case id_snap_vert: //*
 	{
-		int x = glutGet(glutext::GLUT_MENU_CHECKED);
+		bool x = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
 
 		config.set(id==id_snap_grid?"ui_snap_grid":"ui_snap_vertex",x);
 		
@@ -1959,6 +1994,9 @@ void MainWin::perform_menu_action(int id)
 		int y = id==id_snap_grid?vu.UnitSnap:vu.VertexSnap;
 
 		if(x) vu.snap|=y; else vu.snap&=~y; 
+
+		if(id==id_snap_vert) w->views.status._vert_snap.underscore(x);
+		if(id==id_snap_grid) w->views.status._grid_snap.underscore(x);
 
 		return;
 	}
@@ -2039,7 +2077,8 @@ void MainWin::perform_menu_action(int id)
 	case id_joint_100:
 		
 		viewwin_joints100 = glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("ui_joint_100",viewwin_joints100); 
+		config.set("ui_joint_100",viewwin_joints100);
+		for(auto&ea:viewwin_list) ea->views.status._100.underscore(viewwin_joints100!=0);
 		return;
 		
 	case id_joint_attach_verts:
@@ -2104,7 +2143,19 @@ void MainWin::perform_menu_action(int id)
 
 		extern void aboutwin(int); 
 		aboutwin(id); return;
-	}
+
+	case id_unscale:
+	{
+		int n = 0;
+		double lll[3] = {1,1,1};
+		for(auto i:w->selection) 		
+		if(i.type!=Model::PT_Vertex) 
+		if(m->setPositionScale(i,lll)) n++;		
+		if(n) m->operationComplete("Unscale");
+		else model_status(m,StatusError,STATUSTIME_LONG,
+		::tr("Select at least 1 joint, point, or projection to return scale to 1,1,1"));
+		return;
+	}}
 
 	views.modelUpdatedEvent(); //HACK //???
 }
@@ -2281,10 +2332,11 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 		shift = (cm&GLUT_ACTIVE_SHIFT)!=0;
 		if(!shift)
 		{
-			bool lock = viewwin_framelock!=0;
+			bool snap = //viewwin_framesnap!=0; //inverting sense
+			!((ViewBar*)c->ui())->model.views.status._keys_snap.int_val()!=0;
 			if((cm&GLUT_ACTIVE_CTRL)!=0) 
-			lock = !lock;
-			if(!lock) return -1;
+			snap = !snap;
+			if(!snap) return -1;
 		}
 	}
 
