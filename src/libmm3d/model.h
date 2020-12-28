@@ -1786,9 +1786,9 @@ class Model
 		void booleanOperation(BooleanOpE op,
 				int_list &listA,int_list &listB);
 
-		Model *copySelected()const;
+		Model *copySelected(bool animated=false)const;
 
-		bool duplicateSelected(); //2020 (dupcmd)
+		bool duplicateSelected(bool animated=false); //2020 (dupcmd)
 
 		// A BSP tree is calculated for triangles that have textures with an alpha
 		// channel (transparency). It is used to determine in what order triangles

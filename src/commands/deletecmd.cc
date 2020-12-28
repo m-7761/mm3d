@@ -41,7 +41,7 @@ struct DeleteCommand : Command
 	//NOTE: Duplicate is Ctrl+D. These two may be grouped in
 	//the Geometry menu. Other D functions are Subdivide and
 	//Edge Divide.
-	virtual const char *getKeymap(int){ return "Shift+Ctrl+D"; }	
+	virtual const char *getKeymap(int){ return "Ctrl+Alt+D"; }	
 
 	virtual bool activated(int, Model *model);
 };

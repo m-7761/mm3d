@@ -34,45 +34,80 @@
 #include "misc.h"
 
 struct CopyCommand : Command
-{
-	virtual const char *getName(int)
+{	   
+	CopyCommand():Command(3){}
+
+	virtual const char *getName(int arg)
 	{
-		return TRANSLATE_NOOP("Command","Copy Selected to Clipboard"); 
+		switch(arg)
+		{
+		default: assert(0);
+		case 0: return TRANSLATE_NOOP("Command","Copy Animated"); 
+		case 1: return TRANSLATE_NOOP("Command","Copy to Clipboard"); 
+		case 2: return TRANSLATE_NOOP("Command","Paste from Clipboard");
+		}
 	}
 
-	virtual const char *getKeymap(int){ return "Ctrl+C"; }
+	virtual const char *getKeymap(int arg)
+	{
+		switch(arg)
+		{
+		default: assert(0);
+		case 0: return "Shift+Ctrl+C";
+		case 1: return "Ctrl+C"; 
+		case 2: return "Ctrl+V";
+		}
+	}
 
 	virtual bool activated(int,Model*);
 };
 
 extern Command *copycmd(){ return new CopyCommand; }
 
-bool CopyCommand::activated(int, Model *model)
+bool CopyCommand::activated(int arg, Model *model)
 {
-	//FIX ME
-	if(!model->getSelectedTriangleCount()
-	 &&!model->getSelectedBoneJointCount()
-	 &&!model->getSelectedPointCount()
-	 &&!model->getSelectedProjectionCount())
-	{
-		model_status(model,StatusError,STATUSTIME_LONG,
-		TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Copy"));
-		return false;
-	}
-
-	Model *m = model->copySelected();
-	if(!m) return false; //???
-
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives copied"));
 	std::string clipfile = getMm3dHomeDirectory();
 
 	clipfile += "/clipboard";
 	mkpath(clipfile.c_str()/*,0755*/);
 	clipfile += "/clipboard.mm3d";
 
-	FilterManager::getInstance()->writeFile(m,clipfile.c_str(),FilterManager::WO_ModelNoPrompt);
+	if(arg==2) //pastecommand.cc
+	{
+		Model *merge = new Model;
+		if(auto err=FilterManager::getInstance()->readFile(merge,clipfile.c_str()))
+		{
+			if(Model::operationFailed(err))
+			msg_error("%s:\n%s",clipfile.c_str(),modelErrStr(err,merge));
+			delete merge; 
+			return false;
+		}
+		model->mergeModels(merge,true,Model::AM_NONE,false);
+		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Paste complete"));
+		delete merge;
+	}
+	else
+	{
+		//FIX ME
+		if(!model->getSelectedTriangleCount()
+		 &&!model->getSelectedBoneJointCount()
+		 &&!model->getSelectedPointCount()
+		 &&!model->getSelectedProjectionCount())
+		{
+			model_status(model,StatusError,STATUSTIME_LONG,
+			TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Copy"));
+			return false;
+		}
 
-	delete m;
+		Model *m = model->copySelected(arg==0);
+		if(!m) return false; //???
+
+		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives copied"));
+	
+		FilterManager::getInstance()->writeFile(m,clipfile.c_str(),FilterManager::WO_ModelNoPrompt);
+
+		delete m;
+	}
 
 	return true;
 }

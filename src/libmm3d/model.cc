@@ -1473,6 +1473,7 @@ void Model::translateSelected(const double vec[3])
 	if(!vec[0]&&!vec[1]&&!vec[2]) return; //2020
 
 	bool skel = inSkeletalMode();
+	bool fram = inFrameAnimMode();
 	
 	bool sel = false; if(inAnimationMode())
 	{
@@ -1513,10 +1514,12 @@ void Model::translateSelected(const double vec[3])
 				}
 				setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
 			}
+			//2021: Not allowing to (double) rotate joints and other data at
+			//same time.
+			if(sel) return;
 		}
-		//2021: Not allowing to rotate joints and frame data at the
-		//same time.
-		if(!sel&&inFrameAnimMode())
+		
+		if(fram)
 		{
 			for(unsigned v=0;v<m_vertices.size();v++)
 			if(m_vertices[v]->m_selected)
@@ -1581,89 +1584,100 @@ void Model::translateSelected(const double vec[3])
 				}
 				setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
 			}
-		}
-		
-		if(sel) return;		
+		}	
 	}
 	//else //Enabling modeling in animation mode.
 	{
-		bool verts = false;
-		for(auto*v:m_vertices) if(v->m_selected)
+		if(!fram)
 		{
-			sel = true;
+			bool verts = false;
 
-			if(skel&&!v->m_influences.empty())
+			for(auto*v:m_vertices) if(v->m_selected)
 			{
-				validateAnim(); //Need real m_kfCoord? _resample?
-				double coord[3+1];
-				for(int i=3;i-->0;)
-				coord[i] = v->m_kfCoord[i]+vec[i];
-				coord[3] = 1;
-				_skel_xform_abs(-1,v->m_influences,*(Vector*)coord);
-				for(int i=3;i-->0;) v->m_coord[i] = coord[i];
+				sel = true;
+
+				if(skel&&!v->m_influences.empty())
+				{
+					validateAnim(); //Need real m_kfCoord? _resample?
+					double coord[3+1];
+					for(int i=3;i-->0;)
+					coord[i] = v->m_kfCoord[i]+vec[i];
+					coord[3] = 1;
+					_skel_xform_abs(-1,v->m_influences,*(Vector*)coord);
+					for(int i=3;i-->0;) v->m_coord[i] = coord[i];
+				}
+				else for(int i=3;i-->0;) v->m_coord[i]+=vec[i];
+
+				verts = true;
 			}
-			else for(int i=3;i-->0;) v->m_coord[i]+=vec[i];
-
-			verts = true;
-		}
-		if(verts)
-		{
-			//m_changeBits |= MoveGeometry;
-			invalidateNormals(); //OVERKILL
-		}
-
-		for(unsigned j=0;j<m_joints.size();j++) 		
-		if(m_joints[j]->m_selected)
-		{
-			sel = true;
-
-			invalidateSkel(); //2020
-
-			m_changeBits |= MoveOther; //2020
-
-			double tran[3] = {vec[0],vec[1],vec[2]};
-			//REMINDER: inverseRotateVector should scale.
-			if(int p=m_joints[j]->m_parent>=0)
-			m_joints[m_joints[j]->m_parent]->m_absolute.inverseRotateVector(tran);
-			for(int i=3;i-->0;)
-			m_joints[j]->m_rel[i]+=tran[i];
-
-			for(size_t t=0;t<m_joints.size();t++)									
-			if(j==(unsigned)m_joints[t]->m_parent)
+			if(verts)
 			{
+				//m_changeBits |= MoveGeometry;
+				invalidateNormals(); //OVERKILL
+			}
+		}
+
+		if(!skel)
+		{
+			for(unsigned j=0;j<m_joints.size();j++) 		
+			if(m_joints[j]->m_selected)
+			{
+				sel = true;
+
+				invalidateSkel(); //2020
+
+				m_changeBits |= MoveOther; //2020
+
+				double tran[3] = {vec[0],vec[1],vec[2]};
 				//REMINDER: inverseRotateVector should scale.
-				double tran2[3] = {vec[0],vec[1],vec[2]};
-				m_joints[j]->m_absolute.inverseRotateVector(tran2);
-
-				for(;t<m_joints.size();t++)
-				if(m_joints[t]->m_parent==(signed)j)
+				if(int p=m_joints[j]->m_parent>=0)
+				m_joints[m_joints[j]->m_parent]->m_absolute.inverseRotateVector(tran);
 				for(int i=3;i-->0;)
-				m_joints[t]->m_rel[i]-=tran2[i]; 
+				m_joints[j]->m_rel[i]+=tran[i];
+
+				for(size_t t=0;t<m_joints.size();t++)									
+				if(j==(unsigned)m_joints[t]->m_parent)
+				{
+					//REMINDER: inverseRotateVector should scale.
+					double tran2[3] = {vec[0],vec[1],vec[2]};
+					m_joints[j]->m_absolute.inverseRotateVector(tran2);
+
+					for(;t<m_joints.size();t++)
+					if(m_joints[t]->m_parent==(signed)j)
+					for(int i=3;i-->0;)
+					m_joints[t]->m_rel[i]-=tran2[i]; 
 						
-				break;
-			}
-		}		
-
-		for(auto*p:m_points) if(p->m_selected)
-		{
-			sel = true;
-
-			m_changeBits |= MoveOther; //2020
-
-			if(skel&&!p->m_influences.empty())
-			{
-				validateAnim(); //Need real m_kfAbs? _resample?
-				double coord[3+1];
-				for(int i=3;i-->0;)
-				coord[i] = p->m_kfAbs[i]+vec[i];
-				coord[3] = 1;
-				_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
-				for(int i=3;i-->0;) p->m_abs[i] = coord[i];
-			}
-			else for(int i=3;i-->0;) p->m_abs[i]+=vec[i];
+					break;
+				}
+			}		
 		}
 
-		for(unsigned p = 0; p<m_projections.size(); p++)
+		if(!fram)
+		{
+			for(auto*p:m_points) if(p->m_selected)
+			{
+				sel = true;
+
+				m_changeBits |= MoveOther; //2020
+
+				if(skel&&!p->m_influences.empty())
+				{
+					validateAnim(); //Need real m_kfAbs? _resample?
+					double coord[3+1];
+					for(int i=3;i-->0;)
+					coord[i] = p->m_kfAbs[i]+vec[i];
+					coord[3] = 1;
+					_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
+					for(int i=3;i-->0;) p->m_abs[i] = coord[i];
+				}
+				else for(int i=3;i-->0;) p->m_abs[i]+=vec[i];
+			}
+		}
+
+			if(skel&&sel) invalidateAnim();
+
+
+		for(unsigned p=0;p<m_projections.size();p++)
 		{
 			if(m_projections[p]->m_selected)
 			{
@@ -1685,8 +1699,6 @@ void Model::translateSelected(const double vec[3])
 			undo->setVector(vec);
 			sendUndo(undo,true);
 		}
-
-		if(skel&&sel) invalidateAnim();
 	}
 
 	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
@@ -1697,6 +1709,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 	//LOG_PROFILE(); //???
 
 	bool skel = inSkeletalMode();
+	bool fram = inFrameAnimMode();
 
 	bool sel = false; if(inAnimationMode())
 	{
@@ -1736,10 +1749,12 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				// TODO: should I really allow multiple joints here?
 				//break;
 			}
+			//2021: Not allowing to (double) rotate joints and other data at
+			//same time.
+			if(sel) return;
 		}
-		//2021: Not allowing to rotate joints and frame data at the
-		//same time.
-		if(!sel&&inFrameAnimMode())
+
+		if(fram)
 		{
 			for(unsigned v=0;v<m_vertices.size();v++)
 			if(m_vertices[v]->m_selected)
@@ -1806,73 +1821,78 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				setKeyframe(ca,cf,p,KeyRotate,rot[0],rot[1],rot[2]);
 			}
 		}
-		if(sel) return;		
 	}
 	//else //Enabling modeling in animation mode.
 	{
-		bool verts = false;
-		for(auto*v:m_vertices) if(v->m_selected)
+		if(!fram)
 		{
-			verts = sel = true; 
+			bool verts = false;
+			for(auto*v:m_vertices) if(v->m_selected)
+			{
+				verts = sel = true; 
 
-			bool infl = skel&&!v->m_influences.empty();
+				bool infl = skel&&!v->m_influences.empty();
 
-			if(infl) validateAnim(); //Need real m_kfCoord? _resample?
+				if(infl) validateAnim(); //Need real m_kfCoord? _resample?
 
-			Vector coord(infl?v->m_kfCoord:v->m_coord);
-			for(int i=3;i-->0;) coord[i]-=point[i];
-			coord.transform(m);
-			for(int i=3;i-->0;) coord[i]+=point[i];
-			if(infl) _skel_xform_abs(-1,v->m_influences,coord);
-			for(int i=3;i-->0;)
-			v->m_coord[i] = coord[i];
-		}
-		if(verts)
-		{
-			//m_changeBits |= MoveGeometry;
-			invalidateNormals(); //OVERKILL
+				Vector coord(infl?v->m_kfCoord:v->m_coord);
+				for(int i=3;i-->0;) coord[i]-=point[i];
+				coord.transform(m);
+				for(int i=3;i-->0;) coord[i]+=point[i];
+				if(infl) _skel_xform_abs(-1,v->m_influences,coord);
+				for(int i=3;i-->0;)
+				v->m_coord[i] = coord[i];
+			}
+			if(verts)
+			{
+				//m_changeBits |= MoveGeometry;
+				invalidateNormals(); //OVERKILL
+			}
 		}
 		
 		//NOTE: qm is just in case m is not affine.
 		Matrix pm,qm;
 
-		for(unsigned j = 0; j<m_joints.size(); j++)
+		if(!skel)
 		{
-			// NOTE: This code assumes that if a bone joint is rotated,
-			// all children are rotated with it. That may not be what
-			// the user expects. To prevent this I would have to find
-			// unselected joints whose direct parent was selected
-			// and invert the operation on those joints.
-			if(m_joints[j]->m_selected&&!parentJointSelected(j))
+			for(unsigned j = 0; j<m_joints.size(); j++)
 			{
-				sel = true;
-
-				//HACK? Need to update m_final matrix.
-				validateAnimSkel();
-
-				m_changeBits|=MoveOther; //2020
-
-				Joint *joint = m_joints[j];
-
-				Matrix &hack = joint->m_absolute;
-				double swap[3];
-				hack.getTranslation(swap);
+				// NOTE: This code assumes that if a bone joint is rotated,
+				// all children are rotated with it. That may not be what
+				// the user expects. To prevent this I would have to find
+				// unselected joints whose direct parent was selected
+				// and invert the operation on those joints.
+				if(m_joints[j]->m_selected&&!parentJointSelected(j))
 				{
-					for(int i=3;i-->0;) hack.getVector(3)[i]-=point[i];
-					qm = hack * m;
-					for(int i=3;i-->0;) qm.getVector(3)[i]+=point[i];
+					sel = true;
+
+					//HACK? Need to update m_final matrix.
+					validateAnimSkel();
+
+					m_changeBits|=MoveOther; //2020
+
+					Joint *joint = m_joints[j];
+
+					Matrix &hack = joint->m_absolute;
+					double swap[3];
+					hack.getTranslation(swap);
+					{
+						for(int i=3;i-->0;) hack.getVector(3)[i]-=point[i];
+						qm = hack * m;
+						for(int i=3;i-->0;) qm.getVector(3)[i]+=point[i];
+					}
+					hack.setTranslation(swap);
+
+					if(joint->m_parent>=0)
+					qm = qm * m_joints[joint->m_parent]->getAbsoluteInverse();
+
+					//WARNING! Assuming m isn't a scale matrix.				
+					qm.normalizeRotation();
+					qm.getRotation(joint->m_rot);
+					qm.getTranslation(joint->m_rel);
+
+					invalidateSkel(); //2020
 				}
-				hack.setTranslation(swap);
-
-				if(joint->m_parent>=0)
-				qm = qm * m_joints[joint->m_parent]->getAbsoluteInverse();
-
-				//WARNING! Assuming m isn't a scale matrix.				
-				qm.normalizeRotation();
-				qm.getRotation(joint->m_rot);
-				qm.getTranslation(joint->m_rel);
-
-				invalidateSkel(); //2020
 			}
 		}
 
@@ -1894,44 +1914,50 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			obj.m_abs[2] += point[2];
 		};
 
-		for(auto*p:m_points) if(p->m_selected)
+		if(!fram)
 		{
-			sel = true;
-
-			m_changeBits|=MoveOther; //2020
-
-			if(skel&&!p->m_influences.empty())
-			{
-				validateAnim(); //Need real m_kfAbs? _resample?
-
-				Matrix pm;
-				double *coord = pm.getVector(3);
-				for(int i=3;i-->0;) 
-				coord[i] = p->m_kfAbs[i]-point[i];				
-				//pm.setTranslation(coord[0],coord[1],coord[2]);
-				pm.setRotation(p->m_kfRot);
-				pm = pm * m;
-				//pm.getTranslation(coord);
-				for(int i=3;i-->0;) coord[i]+=point[i];				
-				_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
-				_skel_xform_rot(-1,p->m_influences,pm);
-				pm.getRotation(p->m_rot);
-				for(int i=3;i-->0;) p->m_abs[i] = coord[i];
-			}
-			else f(*p);
-		}
-
-		for(unsigned r = 0; r<m_projections.size(); r++)
-		{
-			if(m_projections[r]->m_selected)
+			for(auto*p:m_points) if(p->m_selected)
 			{
 				sel = true;
 
 				m_changeBits|=MoveOther; //2020
 
-				f(*m_projections[r]);				
+				if(skel&&!p->m_influences.empty())
+				{
+					validateAnim(); //Need real m_kfAbs? _resample?
 
-				applyProjection(r);
+					Matrix pm;
+					double *coord = pm.getVector(3);
+					for(int i=3;i-->0;) 
+					coord[i] = p->m_kfAbs[i]-point[i];				
+					//pm.setTranslation(coord[0],coord[1],coord[2]);
+					pm.setRotation(p->m_kfRot);
+					pm = pm * m;
+					//pm.getTranslation(coord);
+					for(int i=3;i-->0;) coord[i]+=point[i];				
+					_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
+					_skel_xform_rot(-1,p->m_influences,pm);
+					pm.getRotation(p->m_rot);
+					for(int i=3;i-->0;) p->m_abs[i] = coord[i];
+				}
+				else f(*p);
+			}
+		}
+
+			if(skel&&sel) invalidateAnim();
+
+
+		for(unsigned p=0;p<m_projections.size();p++)
+		{
+			if(m_projections[p]->m_selected)
+			{
+				sel = true;
+
+				m_changeBits|=MoveOther; //2020
+
+				f(*m_projections[p]);				
+
+				applyProjection(p);
 			}
 		}
 
@@ -1941,8 +1967,6 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			undo->setMatrixPoint(m,point);
 			sendUndo(undo,true);
 		}
-
-		if(skel&&sel) invalidateAnim();
 	}
 
 	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));

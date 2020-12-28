@@ -112,7 +112,8 @@ extern void viewwin_status_func(int st=0)
 	}
 	void *l = cb?glutext::GLUT_MENU_ENABLE:0;
 	glutext::glutMenuEnable(0,l); //Copy
-	glutext::glutMenuEnable(1,l); //Paste
+	glutext::glutMenuEnable(1,l); //Copy Animation Data
+	glutext::glutMenuEnable(2,l); //Paste
 	glutext::glutMenuEnable(viewwin_deletecmd,l); //Delete
 }
 

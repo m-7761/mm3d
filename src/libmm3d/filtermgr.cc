@@ -162,7 +162,7 @@ Model::ModelErrorE FilterManager::writeFile(Model *model, const char *filename, 
 			if(wo==WO_ModelNoPrompt) o->setOptionsFromModel(model);
 			
 			bool doWrite = true;
-			if(f!=nullptr&&o!=nullptr&&wo!=WO_ModelNoPrompt)
+			if(f!=nullptr&&wo!=WO_ModelNoPrompt)
 			{
 				doWrite = f(model,o);
 			}
@@ -177,9 +177,17 @@ Model::ModelErrorE FilterManager::writeFile(Model *model, const char *filename, 
 				
 				auto swap = model->makeRestorePoint();
 
-				//2020: Filters shouldn't have to do this.
-				//model->validateNormals();
-				if(swap.mode) model->setNoAnimation();				
+				if(o->setNoAnimation())
+				{
+					//2020: Filters shouldn't have to do this.
+					//model->validateNormals();				
+					if(swap.mode) model->setNoAnimation();
+				}
+				else //2021: Capture animation pose? E.g. OBJ.
+				{
+					model->validateAnim();
+					model->validateNormals();					
+				}
 
 				err = ea->writeFile(model,filename,*o);
 

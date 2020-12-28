@@ -30,14 +30,27 @@
 
 struct DuplicateCommand : Command
 {
-	virtual const char *getName(int)
+	DuplicateCommand():Command(2){}
+
+	virtual const char *getName(int arg)
 	{
-		return TRANSLATE_NOOP("Command","Duplicate"); 
+		switch(arg)
+		{
+		default: assert(0);
+		case 0: return TRANSLATE_NOOP("Command","Duplicate"); 
+		case 1: return TRANSLATE_NOOP("Command","Duplicate Animated"); 
+		}
 	}
 
-	//NOTE: Delete is Ctrl+Shift+D. Ctrl+F is avoided to 
-	//not accidentally hit D. Ctrl+Alt+S saves the model.
-	virtual const char *getKeymap(int){ return "Ctrl+D"; }
+	virtual const char *getKeymap(int arg)
+	{
+		switch(arg)
+		{
+		default: assert(0);
+		case 0: return "Ctrl+D"; 
+		case 1: return "Shift+Ctrl+D"; 
+		}
+	}
 
 	virtual bool activated(int, Model *model);
 };
@@ -46,7 +59,7 @@ extern Command *dupcmd(){ return new DuplicateCommand; }
 
 bool DuplicateCommand::activated(int arg, Model *model)
 {
-	if(!model->duplicateSelected())
+	if(!model->duplicateSelected(arg==1))
 	{
 		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","You must have at least 1 face,joint,or point selected to Duplicate"));
 		return false;

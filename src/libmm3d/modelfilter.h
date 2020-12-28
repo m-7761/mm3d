@@ -65,6 +65,10 @@ public:
 			assert(dynamic_cast<T*>(this)); return (T*)this;
 		}
 
+		//2021: Only non-animated formats should set this to
+		//false, e.g. OBJ, in order to capture a posed model.
+		virtual bool setNoAnimation(){ return true; }
+
 	protected:
 
 		virtual ~Options(); // Use release() instead
@@ -264,6 +268,8 @@ public:
 	int m_places = 6;
 	int m_texPlaces = 6;
 	int m_normalPlaces = 6;
+
+	virtual bool setNoAnimation(){ return false; } 
 };
 
 #endif // __MODELFILTER_H

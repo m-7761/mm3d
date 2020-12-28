@@ -82,6 +82,8 @@ bool Model::_anim_check(bool report)
 {
 	if(m_currentAnim>=m_anims.size())
 	{
+		assert(0);
+
 		if(report) model_status(this,
 		StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","Programmer error: No animation"));
 	}

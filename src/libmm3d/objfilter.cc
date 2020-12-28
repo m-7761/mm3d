@@ -252,114 +252,112 @@ bool ObjFilter::writeStripped(const char *fmt,...)
 	size_t d = 0;
 	size_t len = strlen(line);
 
-	while(s<len)
+	while(s<len) switch(state)
 	{
-		switch (state)
+	case OFWS_Token:
+
+		line2[d] = line[s];
+		if(isspace(line2[d]))
 		{
-			case OFWS_Token:
-				line2[d] = line[s];
-				if(isspace(line2[d]))
+			state = OFWS_Whitespace;
+		}
+		s++; d++; break;
+
+	case OFWS_Whitespace:
+
+		line2[d] = line[s];
+		if(!isspace(line2[d]))
+		{
+			if(isdigit(line2[d])||line2[d]=='-')
+			{
+				state = OFWS_Number;
+			}
+			else
+			{
+				state = OFWS_Token;
+			}
+		}
+		s++; d++; break;
+
+	case OFWS_Number:
+
+		line2[d] = line[s];
+		if(!isdigit(line2[d]))
+		{
+			if(line2[d]=='.')
+			{
+				state = OFWS_Decimal;
+			}
+			else if(isspace(line2[d]))
+			{
+				state = OFWS_Whitespace;
+			}
+			else
+			{
+				state = OFWS_Token;
+			}
+		}
+		s++; d++; break;
+
+	case OFWS_Decimal:
+
+		line2[d] = line[s];
+		if(isdigit(line2[d]))
+		{
+			state = OFWS_AfterDecimal;
+		}
+		else if(isspace(line2[d]))
+		{
+			state = OFWS_Whitespace;
+		}
+		else
+		{
+			state = OFWS_Token;
+		}
+		//INTENTIONAL???
+		//https://github.com/zturtleman/mm3d/issues/152
+		//s++; d++;
+		s++; d++; break; //2021
+
+	case OFWS_AfterDecimal:
+
+		if(isdigit(line[s]))
+		{
+			if(line[s]=='0')
+			{
+				size_t bak = s;
+
+				while(line[s]=='0')
+				{
+					s++;
+				}
+
+				if(isspace(line[s])||line[s]=='\0')
 				{
 					state = OFWS_Whitespace;
 				}
-				s++;
-				d++;
-				break;
-			case OFWS_Whitespace:
-				line2[d] = line[s];
-				if(!isspace(line2[d]))
-				{
-					if(isdigit(line2[d])||line2[d]=='-')
-					{
-						state = OFWS_Number;
-					}
-					else
-					{
-						state = OFWS_Token;
-					}
-				}
-				s++;
-				d++;
-				break;
-			case OFWS_Number:
-				line2[d] = line[s];
-				if(!isdigit(line2[d]))
-				{
-					if(line2[d]=='.')
-					{
-						state = OFWS_Decimal;
-					}
-					else if(isspace(line2[d]))
-					{
-						state = OFWS_Whitespace;
-					}
-					else
-					{
-						state = OFWS_Token;
-					}
-				}
-				s++;
-				d++;
-				break;
-			case OFWS_Decimal:
-				line2[d] = line[s];
-				if(isdigit(line2[d]))
-				{
-					state = OFWS_AfterDecimal;
-				}
 				else
 				{
-					if(isspace(line2[d]))
-					{
-						state = OFWS_Whitespace;
-					}
-					else
-					{
-						state = OFWS_Token;
-					}
+					s = bak;
 				}
-				s++;
-				d++;
-			case OFWS_AfterDecimal:
-				if(isdigit(line[s]))
-				{
-					if(line[s]=='0')
-					{
-						size_t bak = s;
-
-						while(line[s]=='0')
-						{
-							s++;
-						}
-
-						if(isspace(line[s])||line[s]=='\0')
-						{
-							state = OFWS_Whitespace;
-						}
-						else
-						{
-							s = bak;
-						}
-					}
-					line2[d] = line[s];
-				}
-				else
-				{
-					line2[d] = line[s];
-					if(isspace(line2[d]))
-					{
-						state = OFWS_Whitespace;
-					}
-					else
-					{
-						state = OFWS_Token;
-					}
-				}
-				s++;
-				d++;
-				break;
+			}
+			line2[d] = line[s];
 		}
+		else
+		{
+			line2[d] = line[s];
+			if(isspace(line2[d]))
+			{
+				state = OFWS_Whitespace;
+			}
+			else
+			{
+				state = OFWS_Token;
+			}
+		}
+		s++; d++; break;
 	}
+	
 	line2[d] = '\0';
 
 	m_dst->writePrintf("%s\r\n",line2);
@@ -370,7 +368,6 @@ bool ObjFilter::writeStripped(const char *fmt,...)
 bool ObjFilter::writeHeader()
 {
 	writeLine("# Wavefront OBJ file");
-
 	writeLine("# Exported by MM3D %s",VERSION); //Maverick Model 3D
 
 	time_t tval;

@@ -34,8 +34,10 @@ typedef std::unordered_map<int,int> model_copy_int_map;
 #include "log.h"
 #include "texmgr.h"
 
-Model *Model::copySelected()const
+Model *Model::copySelected(bool animated)const
 {
+	if(animated) validateAnim();
+
 	Model *m = new Model;
 
 	int_list tri;
@@ -97,8 +99,12 @@ Model *Model::copySelected()const
 		log_debug("Copying %d vertices\n",vert.size());
 		for(lit = vert.begin(); lit!=vert.end(); lit++)
 		{
-			double coords[3];
-			getVertexCoords(*lit,coords);
+			double coords[3]; if(animated)
+			{
+				getVertexCoords(*lit,coords);
+			}
+			else getVertexCoordsUnanimated(*lit,coords);
+
 			int nv = m->addVertex(coords[0],coords[1],coords[2]);
 			m->selectVertex(nv);
 			//m->setVertexFree(nv,isVertexFree(*lit));
@@ -216,9 +222,18 @@ Model *Model::copySelected()const
 		for(lit = points.begin(); lit!=points.end(); lit++)
 		{
 			double coord[3],rot[3],xyz[3];
-			getPointCoordsUnanimated(*lit,coord);
-			getPointRotationUnanimated(*lit,rot);
-			getPointScaleUnanimated(*lit,xyz);
+			if(animated)
+			{
+				getPointCoords(*lit,coord);
+				getPointRotation(*lit,rot);
+				getPointScale(*lit,xyz);				
+			}
+			else
+			{
+				getPointCoordsUnanimated(*lit,coord);
+				getPointRotationUnanimated(*lit,rot);
+				getPointScaleUnanimated(*lit,xyz);				
+			}
 
 			int np = m->addPoint(getPointName(*lit),
 			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]);
@@ -233,7 +248,7 @@ Model *Model::copySelected()const
 	{
 		// Copy joints
 		log_debug("Copying %d joints\n",joints.size());
-		for(lit = joints.begin(); lit!=joints.end(); lit++)
+		for(lit=joints.begin();lit!=joints.end();lit++)
 		{
 			int parent = getBoneJointParent(*lit);
 
@@ -243,19 +258,23 @@ Model *Model::copySelected()const
 			{
 				parent = jointMap[parent];
 			}
-			else
-			{
-				if(m->getBoneJointCount()>0)
-					parent = 0;
-				else
-					parent = -1;
-			}
+			else parent = m->getBoneJointCount()>0?0:-1;
 
 			//TODO: Why not just copy the matrix by value?
 			double coord[3],rot[3],xyz[3];
-			getBoneJointCoordsUnanimated(*lit,coord);
-			getBoneJointRotationUnanimated(*lit,rot); //2020
-			getBoneJointScaleUnanimated(*lit,xyz);
+
+			if(animated)
+			{
+				getBoneJointCoords(*lit,coord);
+				getBoneJointRotation(*lit,rot); //2020
+				getBoneJointScale(*lit,xyz);
+			}
+			else
+			{
+				getBoneJointCoordsUnanimated(*lit,coord);
+				getBoneJointRotationUnanimated(*lit,rot); //2020
+				getBoneJointScaleUnanimated(*lit,xyz);
+			}
 
 			int nj = m->addBoneJoint(getBoneJointName(*lit),
 			coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
@@ -265,50 +284,34 @@ Model *Model::copySelected()const
 			m->selectBoneJoint(nj);
 		}
 
-		for(model_copy_int_map::iterator it = vertMap.begin();
-				it!=vertMap.end(); ++it)
-		{
-			//infl_list il;
-			//getVertexInfluences(it->first,il);
-			const infl_list &il = getVertexInfluences(it->first);
-
-			for(infl_list::const_iterator iit = il.begin(); iit!=il.end(); ++iit)
+		for(auto it=vertMap.begin();it!=vertMap.end();it++)
+		{	
+			for(auto&ea:getVertexInfluences(it->first))
 			{
-				if(isBoneJointSelected(iit->m_boneId))
-				{
-					m->addVertexInfluence(it->second,jointMap[iit->m_boneId],
-							iit->m_type,iit->m_weight);
-				}
+				if(isBoneJointSelected(ea.m_boneId))
+				m->addVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 
-		for(model_copy_int_map::iterator it = pointMap.begin();
-				it!=pointMap.end(); ++it)
+		for(auto it=pointMap.begin();it!=pointMap.end();it++)
 		{
-			//infl_list il;
-			//getPointInfluences(it->first,il);
-			const infl_list &il = getPointInfluences(it->first);
-
-			for(infl_list::const_iterator iit = il.begin(); iit!=il.end(); ++iit)
+			for(auto&ea:getPointInfluences(it->first))
 			{
-				if(isBoneJointSelected(iit->m_boneId))
-				{
-					m->addPointInfluence(it->second,jointMap[iit->m_boneId],
-							iit->m_type,iit->m_weight);
-				}
+				if(isBoneJointSelected(ea.m_boneId))
+				m->addVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 	}
 
 	// TODO what about animations?
 
-	m->calculateSkel(); m->calculateNormals();
-
-	return m;
+	m->calculateSkel(); m->calculateNormals(); return m;
 }
 
-bool Model::duplicateSelected()
+bool Model::duplicateSelected(bool animated)
 {
+	if(animated) validateAnim();
+
 	//2020: this code comes from the body of dupcmd.cc
 	
 	//2020: I added this code to phase these containers out but most
@@ -332,8 +335,12 @@ bool Model::duplicateSelected()
 		{
 			if(!m_vertices[v]->m_selected) continue;
 
-			double coords[3];
-			getVertexCoords(v,coords);
+			double coords[3]; if(animated)
+			{
+				getVertexCoords(v,coords);
+			}
+			else getVertexCoordsUnanimated(v,coords);
+
 			int nv = addVertex(coords[0],coords[1],coords[2]);
 
 			//if(isVertexFree(v)) setVertexFree(nv,true);
@@ -416,11 +423,18 @@ bool Model::duplicateSelected()
 				parent = 0;
 			}
 
-			double coord[3],rot[3],xyz[3];
-			//double rot[3] = { 0,0,0 }; //UNUSED
-			getBoneJointCoords(j,coord);
-			getBoneJointRotationUnanimated(j,rot); //2020
-			getBoneJointScaleUnanimated(j,xyz);
+			double coord[3],rot[3],xyz[3]; if(animated)
+			{
+				getBoneJointCoords(j,coord);
+				getBoneJointRotation(j,rot); //2020
+				getBoneJointScale(j,xyz);
+			}
+			else
+			{
+				getBoneJointCoordsUnanimated(j,coord);
+				getBoneJointRotationUnanimated(j,rot); //2020
+				getBoneJointScaleUnanimated(j,xyz);
+			}
 
 			int nj = addBoneJoint(getBoneJointName(j),
 			coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
@@ -461,10 +475,18 @@ bool Model::duplicateSelected()
 				parent = jointMap[parent];
 			}*/
 
-			double coord[3],rot[3],xyz[3];
-			getPointCoordsUnanimated(p,coord);
-			getPointRotationUnanimated(p,rot);
-			getPointScaleUnanimated(p,xyz);
+			double coord[3],rot[3],xyz[3]; if(animated)
+			{
+				getPointCoords(p,coord);
+				getPointRotation(p,rot);
+				getPointScale(p,xyz);
+			}
+			else
+			{
+				getPointCoordsUnanimated(p,coord);
+				getPointRotationUnanimated(p,rot);
+				getPointScaleUnanimated(p,xyz);
+			}
 
 			int np = addPoint(getPointName(p),
 			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]/*,parent*/);

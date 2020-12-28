@@ -36,7 +36,7 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 	#define _(x) \
 	extern Command *x##cmd(); cmdMgr->addCommand(x##cmd());
 
-	_(copy)_(paste)
+	_(copy)//_(paste)
 
 	cmdMgr->addSeparator();
 
