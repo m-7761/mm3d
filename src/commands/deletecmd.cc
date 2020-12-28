@@ -30,6 +30,9 @@
 
 struct DeleteCommand : Command
 {	
+	DeleteCommand():Command(1,
+	TRANSLATE_NOOP("Command","Edit")){}
+
 	virtual const char *getName(int)
 	{
 		return TRANSLATE_NOOP("Command","Delete"); 

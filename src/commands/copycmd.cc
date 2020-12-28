@@ -35,7 +35,8 @@
 
 struct CopyCommand : Command
 {	   
-	CopyCommand():Command(3){}
+	CopyCommand():Command(3,
+	TRANSLATE_NOOP("Command","Edit")){}
 
 	virtual const char *getName(int arg)
 	{

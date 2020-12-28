@@ -904,34 +904,7 @@ void Model::deleteBoneJoint(unsigned joint)
 	{
 		//NOTE: This triggers validateSkel on the way out.
 		//(It calls invalidateSkel.)
-		setBoneJointParent(j,new_parent);
-
-		auto jt = m_joints[j];
-
-		//2021: It's not necessary to reuse m_absolute 
-		//here and it's misleading some since the goal
-		//here is to compute a new m_relative.
-		auto &mm = jt->m_absolute;
-
-		//https://github.com/zturtleman/mm3d/issues/132
-		if(new_parent>=0)
-		mm = mm * m_joints[new_parent]->getAbsoluteInverse();
-
-		//TODO: Matrix::decompose or something?
-		bool scale = false;
-		mm.getScale(jt->m_xyz); //2021
-		{
-			for(int i=3;i-->0;)	
-			if(fabs(1-jt->m_xyz[i])>0.00000001)
-			{
-				scale = true;
-			}
-			else jt->m_xyz[i] = 1;
-
-			if(scale) mm.normalizeRotation();
-		}
-		mm.getRotation(jt->m_rot);
-		mm.getTranslation(jt->m_rel);
+		setBoneJointParent(j,new_parent,false);
 	}	
 
 	Joint *swap = m_joints[joint];
@@ -3372,22 +3345,61 @@ Model::FormatData *Model::getFormatDataByFormat(const char *format, unsigned ind
 	return nullptr;
 }
 
-bool Model::setBoneJointParent(unsigned joint, int parent)
+bool Model::setBoneJointParent(unsigned joint, int parent, bool validate)
 {
 	if(joint<m_joints.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetJointParent;
-			undo->setJointParent(joint,parent,m_joints[joint]->m_parent);
-			sendUndo(undo);
-		}
+		if(parent==m_joints[parent]->m_parent)
+		return true;
 
-		m_joints[joint]->m_parent = parent;
+		if(validate) validateSkel();
 
-		invalidateSkel(); return true;
+		//2021: It's not necessary to reuse m_absolute 
+		//here and it's misleading some since the goal
+		//here is to compute a new m_relative.
+		auto &m = m_joints[joint]->m_absolute;
+
+		//https://github.com/zturtleman/mm3d/issues/132
+		if(parent>=0)
+		m = m * m_joints[parent]->getAbsoluteInverse();
+
+		parentBoneJoint(joint,parent,m);
+
+		if(validate) validateSkel(); 
+		
+		return true;
 	}
 	return false;
+}
+void Model::parentBoneJoint(unsigned index, int parent, Matrix &m)
+{
+	auto jt = m_joints[index];
+
+	if(m_undoEnabled) //WARNING! m MODIFIED BELOW!
+	{
+		auto undo = new MU_SetJointParent(index,parent,m,jt);
+		sendUndo(undo);
+	}
+
+	m_changeBits |= MoveOther|AddGeometry;
+
+	jt->m_parent = parent; 
+
+	//TODO: Matrix::decompose or something?
+	bool scale = false;
+	m.getScale(jt->m_xyz); //2021
+	{
+		for(int i=3;i-->0;)	
+		if(fabs(1-jt->m_xyz[i])>0.000005)
+		{
+			scale = true;
+		}
+		else jt->m_xyz[i] = 1;
+
+		if(scale) m.normalizeRotation(); //MODIFYING!
+	}
+	m.getRotation(jt->m_rot);
+	m.getTranslation(jt->m_rel); invalidateSkel(); 
 }
 
 int Model::getBoneJointParent(unsigned j)const

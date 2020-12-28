@@ -58,7 +58,8 @@ static int
 viewwin_mruf_menu=0,viewwin_mrus_menu=0,
 viewwin_file_menu=0,viewwin_view_menu=0,
 viewwin_tool_menu=0,viewwin_modl_menu=0,
-viewwin_geom_menu=0,viewwin_mats_menu=0,
+viewwin_geom_menu=0,viewwin_edit_menu=0,
+viewwin_mats_menu=0,
 viewwin_infl_menu=0,viewwin_help_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
 viewwin_jointlock=0,
@@ -103,7 +104,7 @@ extern void viewwin_status_func(int st=0)
 		return; //Mouse wheel event?
 	}
 
-	glutSetMenu(viewwin_geom_menu);
+	glutSetMenu(viewwin_edit_menu);
 	
 	int cb = w->clipboard_mode;
 	if(!cb&&!w->model->inAnimationMode())
@@ -724,6 +725,8 @@ void MainWin::_init_menu_toolbar() //2019
 			utf8 p = cmd->getPath(); 
 			if(p!=path)
 			{					
+				if(!viewwin_edit_menu) viewwin_edit_menu = sm;
+
 				if(sm) glutSetMenu(viewwin_geom_menu);
 				if(sm) glutAddSubMenu(::tr(path,"Command"),sm);
 			}
@@ -830,8 +833,10 @@ void MainWin::_init_menu_toolbar() //2019
 	//glutAddMenuEntry(E(animate_paste_selection,"Paste Selected Keyframes","Animation|Paste Animation Frame"));
 	glutAddMenuEntry(E(animate_paste,"Paste","","Ctrl+V"));
 	glutAddMenuEntry(E(animate_paste_v,"Paste Intermediate Values","","Shift+Ctrl+V"));
-	//glutAddMenuEntry(E(animate_clear,"Clear Animation Frame","Animation|Clear Animation Frame"));
-	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Shift+Ctrl+D"));
+	//2021: I'm trying to use Shift+Ctrl+D for "Duplicate Animated". Alt is a little hard to input but
+	//maybe that's okay for Delete? (Although undo/redo makes it harmless.)
+	//glutAddMenuEntry(E(animate_delete,"Delete Frame","","Shift+Ctrl+D"));
+	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+Alt+D"));
 	//Look like no-op to me. See viewwin.h notes?
 	//https://github.com/zturtleman/mm3d/issues/65#issuecomment-522878969
 	glutAddMenuEntry();	

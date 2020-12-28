@@ -108,7 +108,7 @@ unsigned Model::insertAnimFrame(unsigned anim, double time)
 		if(count) 
 		{			
 			//2021: I'm worried about m_fps conversion.
-			if(fabs(time-cmp)<0.00000001) return frame;
+			if(fabs(time-cmp)<=0.000005) return frame;
 
 			frame+=time>cmp;
 		}
@@ -1868,7 +1868,7 @@ void Model::Point::_resample(Model &model, unsigned pt)
 	if(1&am&&!m_influences.empty())
 	{
 		//NOTE: Historically this was done with matrices.
-		//Component-wise would probably be an improvment.
+		//Componentwise would probably be an improvement.
 		Matrix mm = 2&am?getMatrix():getMatrixUnanimated();
 		if(model._skel_xform_mat(1,m_influences,mm))
 		{
@@ -1876,7 +1876,7 @@ void Model::Point::_resample(Model &model, unsigned pt)
 			{
 				m_kfAbs[i] = mm.getVector(3)[i];
 				m_kfXyz[i] = normalize3(mm.getVector(i));		
-				if(fabs(1-m_kfXyz[i])<0.000001)
+				if(fabs(1-m_kfXyz[i])<=0.000005)
 				{
 					m_kfXyz[i] = 1;
 				}
@@ -1921,7 +1921,7 @@ bool Model::_skel_xform_rot(int inv, infl_list &l, Matrix &io)
 	auto mf = inv==-1?&Joint::getSkinverseMatrix:&Joint::getSkinMatrix;
 
 	//NOTE: Historically this was done with matrices.
-	//Component-wise would probably be an improvment.
+	//Componentwise would probably be an improvement.
 	bool nonzero = false;
 	double axis[3][3] = {}, total = 0; 
 	Matrix m;
@@ -1947,7 +1947,7 @@ bool Model::_skel_xform_mat(int inv, infl_list &l, Matrix &io)
 	auto mf = inv==-1?&Joint::getSkinverseMatrix:&Joint::getSkinMatrix;
 
 	//NOTE: Historically this was done with matrices.
-	//Component-wise would probably be an improvment.
+	//Componentwise would probably be an improvement.
 	bool nonzero = false;
 	double axis[3+1][3] = {}, total = 0; 
 	Matrix m;
@@ -1962,7 +1962,7 @@ bool Model::_skel_xform_mat(int inv, infl_list &l, Matrix &io)
 	}
 	if(total)
 	{		
-		//NOTE! Not renormalizing (Caller is responisble, I'm not
+		//NOTE! Not renormalizing (Caller is responsible, I'm not
 		//even sure, it's required... doing this with matrices is
 		//unorthodox.)
 		total = 1/total;

@@ -1749,7 +1749,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		pos[2] = zval;
 		m_viewInverse.apply(pos);
 		for(int i=0;i<3;i++) 
-		if(fabs(pos[i])<0.000001) pos[i] = 0;
+		if(fabs(pos[i])<=0.000005) pos[i] = 0;
 
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
 		"Units: %g  (%g,%g,%g)",m_unitWidth,pos[0],pos[1],pos[2]);
@@ -1764,13 +1764,6 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2)
 {
 	if(lock) //2019
-	//FIX ME
-	//This needs more thought if ortho/persp views are
-	//to be locked. I think probably everything should
-	//be locked always unless the Home function should
-	//apply to one viewport.
-	//if(m_view<Tool::ViewOrtho
-	// &&m_view>Tool::ViewPerspective)
 	{
 		//HACK: This is just avoiding locking if 
 		//there is less than two 2D views. 

@@ -30,7 +30,8 @@
 
 struct DuplicateCommand : Command
 {
-	DuplicateCommand():Command(2){}
+	DuplicateCommand():Command(2,
+	TRANSLATE_NOOP("Command","Edit")){}
 
 	virtual const char *getName(int arg)
 	{

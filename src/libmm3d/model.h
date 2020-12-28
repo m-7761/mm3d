@@ -2015,7 +2015,7 @@ class Model
 		bool autoSetCoordInfluences(double *coord, double sensitivity,bool selected,int_list &infList);
 
 		bool setBoneJointName(unsigned joint, const char *name);
-		bool setBoneJointParent(unsigned joint, int parent = -1);
+		bool setBoneJointParent(unsigned joint, int parent=-1, bool validate=true);
 
 		bool setBoneJointCoords(unsigned j, const double *abs);
 		bool setBoneJointScale(unsigned point, const double *scale);
@@ -2153,6 +2153,7 @@ class Model
 
 		void insertBoneJoint(unsigned index,Joint *joint);
 		void removeBoneJoint(unsigned index);
+		void parentBoneJoint(unsigned index, int parent, Matrix &mutated); //2021
 
 		void insertInfluence(const Position &pos, unsigned index, const InfluenceT &influence);
 		void removeInfluence(const Position &pos, unsigned index);

@@ -2741,19 +2741,11 @@ unsigned MU_DeleteAnimation::size()
 
 void MU_SetJointParent::undo(Model *model)
 {
-	model->setBoneJointParent(m_joint,m_oldParent);
+	model->parentBoneJoint(m_joint,m_old,(Matrix)m_undo); //copy
 }
-
 void MU_SetJointParent::redo(Model *model)
 {
-	model->setBoneJointParent(m_joint,m_newParent);
-}
-
-void MU_SetJointParent::setJointParent(unsigned joint, int newParent, int oldParent)
-{
-	m_joint = joint;
-	m_newParent = newParent;
-	m_oldParent = oldParent;
+	model->parentBoneJoint(m_joint,m_new,(Matrix)m_redo); //copy
 }
 
 void MU_SetProjectionRange::undo(Model *model)
@@ -2761,13 +2753,11 @@ void MU_SetProjectionRange::undo(Model *model)
 	model->setProjectionRange(m_proj,
 			m_oldRange[0],m_oldRange[1],m_oldRange[2],m_oldRange[3]);
 }
-
 void MU_SetProjectionRange::redo(Model *model)
 {
 	model->setProjectionRange(m_proj,
 			m_newRange[0],m_newRange[1],m_newRange[2],m_newRange[3]);
 }
-
 void MU_SetProjectionRange::setProjectionRange(const unsigned &proj,
 		double newXMin, double newYMin, double newXMax, double newYMax,
 		double oldXMin, double oldYMin, double oldXMax, double oldYMax)

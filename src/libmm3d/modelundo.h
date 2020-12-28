@@ -1338,12 +1338,15 @@ class MU_SetJointParent : public ModelUndo
 
 		unsigned size(){ return sizeof(MU_SetJointParent); };
 
-		void setJointParent(unsigned joint, int newParent, int oldParent);
+		MU_SetJointParent(unsigned joint, int newParent, Matrix &redo, Model::Joint *old)
+		:m_joint(joint),m_new(newParent)
+		,m_old(old->m_parent),m_redo(redo),m_undo(old->m_relative)
+		{}
 
 	protected:
 		unsigned m_joint;
-		int m_newParent;
-		int m_oldParent;
+		int m_new,m_old;
+		Matrix m_undo,m_redo; //2021
 };
 
 class MU_SetProjectionRange : public ModelUndo

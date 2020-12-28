@@ -36,7 +36,11 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 	#define _(x) \
 	extern Command *x##cmd(); cmdMgr->addCommand(x##cmd());
 
-	_(copy)//_(paste)
+	_(copy)
+	cmdMgr->addSeparator();
+	_(delete)_(dup)
+	cmdMgr->addSeparator();
+	_(invert)
 
 	cmdMgr->addSeparator();
 
@@ -83,10 +87,8 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 	cmdMgr->addSeparator();
 
 	_(hide)_(flip)_(flatten)
-		
-	_(dup)_(delete) //Ctrl+D and Ctrl+Shift+D
-		
-	_(extrude)_(invert) //Invert Selection?
+				
+	_(extrude)
 
 	#undef _
 }

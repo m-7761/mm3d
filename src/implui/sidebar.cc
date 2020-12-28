@@ -261,8 +261,8 @@ void SideBar::BoolPanel::submit(control *c)
 			}
 			model->booleanOperation(e,al,bl);
 			model->operationComplete(str);
+
 			init();
-			//model.views.modelUpdatedEvent(); //???
 		}
 		else 
 		{
@@ -339,11 +339,15 @@ void SideBar::PropPanel::submit(control *c)
 
 	case 't': 
 
-		stop(); interp.change(0,c); break;
+		stop();
+		interp.change(0,c); break;
 
 	case -id_projection_settings:
 
-		if(c>proj.props_base::nav) return proj.change();
+		if(c>proj.props_base::nav)
+		{
+			proj.change(); break;
+		}
 		//break;
 
 	case -id_group_settings: 
@@ -355,14 +359,22 @@ void SideBar::PropPanel::submit(control *c)
 	case id_material_settings: 
 	case id_projection_settings:
 
-		return model.perform_menu_action(id);
+		model.perform_menu_action(id);
+		break;
 
 	case '0': case '1': case '2': case '3':
 	
-		stop(); infl.submit(c); break;
-	}		
+		stop(); 
+		infl.submit(c); break;
 
-	//model.views.modelUpdatedEvent(); //???
+	case id_up: //2021
+
+		stop();
+		for(unsigned i:model.selection)
+		model->setBoneJointParent(i,infl.parent_joint);
+		model->operationComplete(::tr("Reparent","operation complete"));
+		break;	
+	}
 }
 
 	///// PROPERTIES //// PROPERTIES //// PROPERTIES ////
@@ -452,7 +464,24 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	show = sn[Model::PT_Vertex]||sn[Model::PT_Point];
 	else show = false;
 	infl.nav.set_hidden(!show);
-	if(show) infl.change(changeBits);
+	bool show2 = sz&&sz==sn[Model::PT_Joint];
+	infl.parent_joint.set_hidden(!show2);
+	if(show||show2||changeBits&Model::AddOther)
+	{
+		infl.change(changeBits);	
+	}
+	if(show2) //2021
+	{
+		//Note, this is for joints, not influences.
+		int cmp = -2;
+		for(int i:model.selection)
+		{
+			int p = model->getJointList()[i]->m_parent;
+			if(p!=cmp)
+			cmp = cmp==-2?p:-3;
+		}
+		infl.parent_joint.select_id(cmp);
+	}
 }
 
 void SideBar::PropPanel::name_props::change(int changeBits)
@@ -940,23 +969,24 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 	//Why was this? I've changed model_influence.cc to
 	//recalculate positions as the weights are changed.
 	//bool enable = !model->inAnimationMode();
-	bool enable = true;
+	//bool enable = true;
 
-	//FIX ME
-	//Don't rebuild this list if unchanged.
+	if(changeBits&Model::AddOther)
+	{
+		//2021: This is actually for Joints instead of
+		//influences.
+		parent_joint.clear();
+		parent_joint.add_item(-1,::tr("<None>"));
+		for(int i=0;i<bonesN;i++)
+		parent_joint.add_item(i,model->getBoneJointName(i));
+	}	
 	for(int i=0;i<Model::MAX_INFLUENCES;i++) 
 	{
 		groups[i].joint.clear();
-		groups[i].joint.enable(enable);
-		groups[i].weight.disable(); 
-	}
-	if(enable) //NEW
-	{
-		groups[0].joint.add_item(-1,::tr("<None>"));
-		for(int i=0;i<bonesN;i++)
-		groups[0].joint.add_item(i,model->getBoneJointName(i));
-		for(int i=1;i<Model::MAX_INFLUENCES;i++) 
-		groups[i].joint.reference(groups[0].joint);
+		//groups[i].joint.enable(enable);
+		groups[i].weight.disable();	
+		//if(enable) //NEW
+		groups[i].joint.reference(parent_joint);
 	}
 		
 	// Update influence fields		
@@ -1026,8 +1056,9 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 
 		jcl[bone].inList = true;
 
-		if(!enable) //NEW
-		groups[i].joint.add_item(bone,model->getBoneJointName(bone));
+		//REMOVE ME (will crash)
+		//if(!enable) //NEW 
+		//groups[i].joint.add_item(bone,model->getBoneJointName(bone));
 		groups[i].joint.select_id(bone);
 		groups[i].prev_joint = bone;
 

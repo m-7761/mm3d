@@ -308,11 +308,14 @@ struct SideBar : Win
 			infl_props(PropPanel &p)
 				:
 			props_base(p),
-			i0(nav,'0'),i1(nav,'1'),i2(nav,'2'),i3(nav,'3')
+			i0(nav,'0'),i1(nav,'1'),i2(nav,'2'),i3(nav,'3'),
+			parent_joint(p.nav,"Parent",id_up)
 			{
 				//i0.joint.place(bottom).name("Joint");
 				//i0.weight.place(bottom).name("Weight");
 				nav.name("Joints");
+
+				parent_joint.place(bottom).expand();
 			}
 
 			struct index_group
@@ -347,6 +350,10 @@ struct SideBar : Win
 			int weight;
 			};
 			std::vector<JointCount> jcl;
+
+			//2021: This is actually for Joints instead of
+			//influences.
+			dropdown parent_joint; 
 		};
 
 		rollout nav;

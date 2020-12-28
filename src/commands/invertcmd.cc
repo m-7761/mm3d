@@ -30,7 +30,8 @@
 
 struct InvertSelectionCommand : Command
 {
-	InvertSelectionCommand():Command(2){}
+	InvertSelectionCommand():Command(2,
+	TRANSLATE_NOOP("Command","Edit")){}
 
 	virtual const char *getName(int arg)
 	{
