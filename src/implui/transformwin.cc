@@ -145,7 +145,7 @@ void TransformWin::applyMatrix(const Matrix &m, utf8 action)
 	if(warnNoUndo(undoable))
 	{
 		auto e = scope&1?Model::OS_Global:Model::OS_Selected;
-		model->applyMatrix(m,e,true,undoable);
+		model->applyMatrix(m,e,undoable);
 		model->operationComplete(action);
 	}
 }

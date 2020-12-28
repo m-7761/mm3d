@@ -67,9 +67,10 @@ void IqePrompt::submit(int id)
 		c.set(iqe->m_savePointsAnim);
 		d.set(iqe->m_saveSkeleton);
 		e.set(iqe->m_saveAnimations);
-		for(int i=0,iN=model->getAnimCount(Model::ANIMMODE_SKELETAL);i<iN;i++)
+		for(int i=0,iN=model->getAnimationCount();i<iN;i++)		
+		if(Model::ANIMMODE_SKELETAL&model->getAnimType(i))
 		{
-			auto *ii = new multisel_item(i,model->getAnimName(Model::ANIMMODE_SKELETAL,i));
+			auto *ii = new multisel_item(i,model->getAnimName(i));
 			animation.add_item(ii->select());
 		}
 		break;

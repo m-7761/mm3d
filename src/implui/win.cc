@@ -388,6 +388,7 @@ void EditWin::submit(control *c)
 	{
 	case id_init:
 
+		//2021: AnimEditWin no longer using EditWin.
 		//NOTE: This was calibrated for AnimEditWin.
 		//Assuming relatively short wrapped message.
 		msg.title().expand();
@@ -618,8 +619,10 @@ void ScrollWidget::setCursorUI(int dir)
 
 struct MessageWin : Win //UNFINISHED
 {	
-	static bool enter(ui *w, int key, int m)
+	static bool enter(ui *u, int key, int m)
 	{
+		auto w = (MessageWin*)u;
+
 		switch(tolower(key))
 		{
 		case '\r':
@@ -628,19 +631,19 @@ struct MessageWin : Win //UNFINISHED
 			return false;
 
 		case 'o': //HACK: Assuming English mnemonics.
-		case 'k':
+		case 'k': key = id_ok; break;
 		case 'y': key = id_yes; break;
 		case 'n': key = id_no; break;
 		case 27: //Esc
 		case 'c':
 			if(~m&2) key = id_cancel; 
-			else ((MessageWin*)w)->msg.key_in('c',m);
+			else w->msg.key_in('c',m);
 			break; 
 		default: return true;
 		}
 		if(m&GLUT_ACTIVE_ALT)
 		w->main->find(key)->activate();		
-		else ((MessageWin*)w)->basic_submit(key);
+		else w->basic_submit(key);
 		return false;
 	}
 

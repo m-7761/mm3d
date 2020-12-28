@@ -385,14 +385,21 @@ const char *scriptif_textureGetFilename(Model *model, unsigned textureId)
 // Animation
 //-----------------------------------------------------------------------------
 
-bool scriptif_setAnimByIndex(Model *model,Model::AnimationModeE mode, unsigned anim)
+bool scriptif_setAnimByIndex(Model *model, Model::AnimationModeE mode, unsigned anim)
 {
-	return model->setCurrentAnimation(mode,anim);
+	return model->setCurrentAnimation(anim,mode);
 }
 
-bool scriptif_setAnimByName(Model *model,Model::AnimationModeE mode, const char *name)
+bool scriptif_setAnimByName(Model *model, Model::AnimationModeE mode, const char *name)
 {
-	return model->setCurrentAnimation(mode,name);
+	int i = -1; for(auto*ea:model->getAnimationList())
+	{
+		i++; if(ea->_type==mode&&ea->m_name==name)
+		{
+			return model->setCurrentAnimation(i);
+		}
+	}
+	return false;
 }
 
 void scriptif_animSetFrame(Model *model, unsigned frame)
@@ -414,8 +421,8 @@ int scriptif_modelCreateAnimation(Model *model,Model::AnimationModeE mode,
 
 	if(index>=0)
 	{
-		model->setAnimFrameCount(mode,index,frameCount);
-		model->setAnimFPS(mode,index,fps);
+		model->setAnimFrameCount(model->getAnim(mode,index),frameCount);
+		model->setAnimFPS(model->getAnim(mode,index),fps);
 	}
 
 	return index;
@@ -423,41 +430,41 @@ int scriptif_modelCreateAnimation(Model *model,Model::AnimationModeE mode,
 
 int scriptif_animGetCount(Model *model,Model::AnimationModeE mode)
 {
-	return model->getAnimCount(mode);
+	return model->getAnimationCount(mode);
 }
 
 const char *scriptif_animGetName(Model *model,Model::AnimationModeE mode, unsigned animIndex)
 {
-	return model->getAnimName(mode,animIndex);
+	return model->getAnimName(model->getAnim(mode,animIndex));
 }
 
 int scriptif_animGetFrameCount(Model *model,Model::AnimationModeE mode, unsigned animIndex)
 {
-	return model->getAnimFrameCount(mode,animIndex);
+	return model->getAnimFrameCount(model->getAnim(mode,animIndex));
 }
 
 void scriptif_animSetName(Model *model,Model::AnimationModeE mode,
 		unsigned animIndex, const char *name)
 {
-	model->setAnimName(mode,animIndex,name);
+	model->setAnimName(model->getAnim(mode,animIndex),name);
 }
 
 void scriptif_animSetFrameCount(Model *model,Model::AnimationModeE mode,
 		unsigned animIndex, unsigned frameCount)
 {
-	model->setAnimFrameCount(mode,animIndex,frameCount);
+	model->setAnimFrameCount(model->getAnim(mode,animIndex),frameCount);
 }
 
 void scriptif_animSetFPS(Model *model,Model::AnimationModeE mode,
 		unsigned animIndex, double fps)
 {
-	model->setAnimFPS(mode,animIndex,fps);
+	model->setAnimFPS(model->getAnim(mode,animIndex),fps);
 }
 
 void scriptif_animClearFrame(Model *model,Model::AnimationModeE mode,
 		unsigned animIndex, unsigned frame)
 {
-	model->deleteAnimFrame(mode,animIndex,frame);
+	model->deleteAnimFrame(model->getAnim(mode,animIndex),frame);
 }
 
 void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
@@ -511,27 +518,27 @@ void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
 
 void scriptif_animMove(Model *model,Model::AnimationModeE mode, unsigned animIndex1, unsigned animIndex2)
 {
-	model->moveAnimation(mode,animIndex1,animIndex2);
+	model->moveAnimation(model->getAnim(mode,animIndex1),model->getAnim(mode,animIndex2));
 }
 
 int scriptif_animCopy(Model *model,Model::AnimationModeE mode, unsigned animIndex, const char *name)
 {
-	return model->copyAnimation(mode,animIndex,name);
+	return model->copyAnimation(model->getAnim(mode,animIndex),name);
 }
 
 int scriptif_animSplit(Model *model,Model::AnimationModeE mode, unsigned animIndex, const char *name, unsigned frame)
 {
-	return model->splitAnimation(mode,animIndex,name,frame);
+	return model->splitAnimation(model->getAnim(mode,animIndex),name,frame);
 }
 
 void scriptif_animJoin(Model *model,Model::AnimationModeE mode, unsigned anim1, unsigned anim2)
 {
-	model->joinAnimations(mode,anim1,anim2);
+	model->joinAnimations(model->getAnim(mode,anim1),model->getAnim(mode,anim2));
 }
 
 int scriptif_animConvertToFrame(Model *model,Model::AnimationModeE mode, unsigned animIndex, const char *newName, unsigned frameCount, Model::Interpolate2020E how)
 {
-	return model->convertAnimToFrame(mode,animIndex,newName,frameCount,how);
+	return model->convertAnimToFrame(model->getAnim(mode,animIndex),newName,frameCount,how);
 }
 
 // Skeletal Animation

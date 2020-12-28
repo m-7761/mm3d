@@ -102,7 +102,7 @@ void MergeWin::submit(control *c)
 			Matrix mat;
 			mat.setRotation(rot);
 			mat.setTranslation(trans);
-			merge->applyMatrix(mat,Model::OS_Global,true,true);
+			merge->applyMatrix(mat,Model::OS_Global,true);
 			break;
 		}
 		model->mergeModels(merge,texture,mode,true/*,trans,rot*/);

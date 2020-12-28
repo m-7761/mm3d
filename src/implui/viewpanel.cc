@@ -166,20 +166,26 @@ extern void viewpanel_special_func(int kb, int x, int y)
 
 		if(vp.tool->isNullTool())
 		{
+			if(vp.timeline.range())
 			vp.timeline.activate();
+			else goto beep;
 		}
 		else if(cm&GLUT_ACTIVE_SHIFT)
 		{
 			if(auto*c=vp.params.nav.last_child()) c->activate();
+			else goto beep;
 		}
 		else if(auto*c=vp.params.nav.first_child()) c->activate();
+		else beep:Win::event.beep();
 		return;
 
 	case GLUT_KEY_F3:
-
-		vp.model.sidebar.prop_panel.pos.x.activate();
+	{
+		auto &p = vp.model.sidebar.prop_panel;
+		if(!p.nav) p.nav.set().execute_callback(); 
+		p.pos.x.activate();
 		return;
-
+	}
 	case GLUT_KEY_F4:
 
 		glutSetWindow((&vp.bar1)[vp.m_focus>=vp.viewsM].glut_window_id());
@@ -653,6 +659,14 @@ void ViewPanel::zoomLevelChangedEvent(ModelViewport &mvp)
 void ViewPanel::rearrange(int how)
 {	
 	bool flip = how==2; assert(how==1||flip);
+
+	//HACK: A bug sets the zoom to 32.0 (default) when
+	//there's just 1 view ... or rather there others 
+	//haven't been initialized.
+	if(viewsN==1||viewsN==2&&how==(views1x2?1:2))
+	{
+		return Win::event.beep();
+	}
 
 	ModelViewport::ViewStateT swap[portsN];
 	for(int i=0,j=viewsM;i<viewsM;i++,j++)

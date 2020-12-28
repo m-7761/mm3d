@@ -282,7 +282,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 
 bool Model::unselectGroup(unsigned m)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(m>=0&&m<m_groups.size()
 	&&m_groups[m]->m_selected) //2019
@@ -435,7 +435,7 @@ bool Model::isProjectionSelected(unsigned p)const
 
 bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
 
@@ -484,7 +484,7 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 
 bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,bool connected,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
 
@@ -771,7 +771,7 @@ next_triangle:
 
 bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
 
@@ -786,7 +786,7 @@ bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 
 bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
 
@@ -840,7 +840,7 @@ bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, d
 
 bool Model::selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
 
@@ -888,7 +888,7 @@ bool Model::selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 
 bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
 
@@ -1204,7 +1204,7 @@ bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, 
 
 bool Model::selectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	bool selecting = m_selecting; //2020
 
@@ -1244,7 +1244,7 @@ bool Model::selectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, do
 
 bool Model::unselectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	bool selecting = m_selecting; //2020
 
@@ -1284,7 +1284,7 @@ bool Model::unselectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, 
 
 void Model::selectVerticesFromTriangles()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//2019: Trying to cover all bases.
 	//NOTE: MU_Select calls this to unselect triangles on undo/redo.
@@ -1310,7 +1310,7 @@ void Model::selectVerticesFromTriangles()
 
 void Model::selectTrianglesFromGroups()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	unselectAllTriangles();
 
@@ -1336,7 +1336,7 @@ void Model::selectTrianglesFromGroups()
 
 void Model::selectTrianglesFromVertices(bool all)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	unselectAllTriangles();
 
@@ -1382,7 +1382,7 @@ void Model::selectTrianglesFromVertices(bool all)
 
 void Model::selectGroupsFromTriangles(bool all)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	unselectAllGroups();
 
@@ -1407,7 +1407,7 @@ void Model::selectGroupsFromTriangles(bool all)
 
 bool Model::invertSelection()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	beginSelectionDifference(); //OVERKILL!
 	switch (m_selectionMode)
@@ -1466,7 +1466,7 @@ bool Model::invertSelection()
 
 void Model::beginSelectionDifference()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(!m_selecting)
 	{
@@ -1537,7 +1537,7 @@ void Model::endSelectionDifference()
 {	
 	if(!m_selecting) return; //2020
 
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 	
 	m_selecting = false;
 
@@ -2244,7 +2244,7 @@ bool Model::unselectAllProjections()
 
 void Model::unselectAll()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//Joints window calls unselectAllBoneJoints independent
 	//of unslectAll so endSelectionDifference isn't called
@@ -2331,17 +2331,17 @@ void Model::clearSelectedUv()
 	std::vector<int> empty; setSelectedUv(empty);
 }
 
-void Model::getSelectedInterpolation(AnimationModeE am, unsigned anim, unsigned frame, Get3<Interpolate2020E> pred)
+void Model::getSelectedInterpolation(unsigned anim, unsigned frame, Get3<Interpolate2020E> pred)
 {
-	auto ab = _anim(am,anim); if(!ab) return;
+	auto ab = _anim(anim); if(!ab) return;
 
-	//REMINDER: vertices are filled in first!
-	if(am==ANIMMODE_FRAME)
+	//REMINDER: Vertices are filled in first!
+
+	if(~ab->m_frame0) //ANIMMODE_FRAME
 	{
-		auto fa = (FrameAnim*)ab;
-		auto fp = fa->m_frame0+frame;
+		auto fp = ab->m_frame0+frame;
 		Interpolate2020E e[3] = {*e,InterpolateVoid,InterpolateVoid};
-		if(fa->_frame_count()) //OUCH
+		if(ab->_frame_count()) //OUCH
 		for(auto*ea:m_vertices) if(ea->m_selected)
 		{
 			 pred(&(e[0]=ea->m_frames[fp]->m_interp2020));
@@ -2351,16 +2351,13 @@ void Model::getSelectedInterpolation(AnimationModeE am, unsigned anim, unsigned 
 	{
 		Keyframe cmp;
 		cmp.m_frame = frame;
-		int o = 0; 
-		for(auto&c:ab->m_keyframes)
+		for(auto&ea:ab->m_keyframes)
 		{
-			if(am==ANIMMODE_SKELETAL)
-			{
-				if(!m_joints[o++]->m_selected) continue;
-			}
-			else if(!m_points[o++]->m_selected) continue;
+			auto o = getPositionObject(ea.first);
+			assert(o);
+			if(!o||!o->m_selected) continue;
 
-			auto er = std::equal_range(c.begin(),c.end(),&cmp,
+			auto er = std::equal_range(ea.second.begin(),ea.second.end(),&cmp,
 			[](Keyframe *a, Keyframe *b)->bool{ return a->m_frame<b->m_frame; });
 
 			Interpolate2020E e[3] = {};

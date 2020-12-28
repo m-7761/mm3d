@@ -116,11 +116,9 @@ Model::ModelErrorE FilterManager::readFile(Model *model, const char *filename)
 			//if(ea->canRead()) //???
 			{
 				model->setUndoEnabled(false);
-//				model->forceAddOrDelete(true);
 
 				rval = ea->readFile(model,filename);
 
-//				model->forceAddOrDelete(false);
 				model->setUndoEnabled(true);
 				model->clearUndo();
 
@@ -176,24 +174,18 @@ Model::ModelErrorE FilterManager::writeFile(Model *model, const char *filename, 
 				//2020: Adding for frame animation changes
 				//required to generate surface normal data.
 				bool undo = model->setUndoEnabled(false);
-				auto mode = model->getAnimationMode();
-				int anim = model->getCurrentAnimation();
-				double t = model->getCurrentAnimationTime();
+				
+				auto swap = model->makeRestorePoint();
 
 				//2020: Filters shouldn't have to do this.
 				//model->validateNormals();
-				if(anim) model->setNoAnimation();				
+				if(swap.mode) model->setNoAnimation();				
 
 				err = ea->writeFile(model,filename,*o);
 
 				//HACK: Restore animation state if need be.
-				if(mode!=model->getAnimationMode()
-				||anim!=model->getCurrentAnimation()
-				||t!=model->getCurrentAnimationTime())
-				{
-					model->setCurrentAnimation(mode,anim);
-					model->setCurrentAnimationTime(t);
-				}
+				if(swap.mode) model->setCurrentAnimation(swap);
+
 				model->setUndoEnabled(undo);
 
 				m_factory.closeAll();

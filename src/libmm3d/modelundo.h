@@ -33,6 +33,7 @@
 class ModelUndo : public Undo
 {
 	public:
+
 		ModelUndo(){ s_allocated++; };
 		virtual ~ModelUndo(){ s_allocated--; };
 		
@@ -40,12 +41,6 @@ class ModelUndo : public Undo
 		virtual void redo(Model *)= 0;
 
 		static int s_allocated;
-
-protected:
-
-	//REMOVE US
-	static bool _skel(Model::AnimationModeE);
-	static void _sync_animation(Model*,bool,unsigned,unsigned);
 };
 
 class MU_TranslateSelected : public ModelUndo
@@ -80,7 +75,7 @@ class MU_RotateSelected : public ModelUndo
 
 		unsigned size(){ return sizeof(MU_RotateSelected); };
 
-		void setMatrixPoint(const Matrix &rhs, double *point);
+		void setMatrixPoint(const Matrix &rhs, const double point[3]);
 		Matrix getMatrix()const { return m_matrix; };
 
 	private:
@@ -99,13 +94,12 @@ class MU_ApplyMatrix : public ModelUndo
 
 		unsigned size(){ return sizeof(MU_ApplyMatrix); };
 
-		void setMatrix(const Matrix &mat,Model::OperationScopeE scope,bool animations);
+		void setMatrix(const Matrix &mat,Model::OperationScopeE scope);
 		Matrix getMatrix()const { return m_matrix; };
 
 	private:
 		Matrix m_matrix;
 		Model::OperationScopeE m_scope;
-		bool m_animations;
 };
 
 class MU_SelectionMode : public ModelUndo
@@ -278,7 +272,7 @@ class MU_MovePrimitive : public ModelUndo
 			};
 		} MovePrimitiveT;
 
-		//TODO: use unsorted_map for this.
+		//TODO: Use unsorted_map/Position.
 		typedef sorted_list<MovePrimitiveT> MovePrimitiveList;
 
 		MovePrimitiveList m_objects;
@@ -297,7 +291,7 @@ public:
 
 	unsigned size();
 
-	enum Vec{ Pos=0,Rot,Scale };
+	enum Vec{ Abs=0,Rot,Scale,Rel };
 
 	void setXYZ(Model*, double object[3], const double xyz[3]);
 
@@ -889,33 +883,28 @@ class MU_ChangeAnimState : public ModelUndo
 
 		unsigned size();
 
-		//void setState(Model::AnimationModeE newMode,Model::AnimationModeE oldMode, unsigned anim, unsigned frame);
-		void setState(Model::AnimationModeE oldMode, int oldAnim, int oldFrame, Model &newInfo);
+		MU_ChangeAnimState(const Model::RestorePoint &old, Model &newInfo)
+		:m_old(old),m_new(newInfo.makeRestorePoint()){}
 
 	protected:
 
-		Model::AnimationModeE m_newMode;
-		Model::AnimationModeE m_oldMode;
-		unsigned m_anim;
-		//unsigned m_frame;
-		int m_oldAnim,m_oldFrame; //2019
+		Model::RestorePoint m_old,m_new;
 };
 
 class MU_SetAnimName : public ModelUndo
 {
 	public:
 
-		void undo(Model *);
-		void redo(Model *);
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 		unsigned size();
 
-		void setName(Model::AnimationModeE mode, unsigned animNum, const char *newName, const char *oldName);
+		void setName(unsigned animNum, const char *newName, const char *oldName);
 
 	private:
 
-		Model::AnimationModeE m_mode;
 		unsigned m_animNum;
 		std::string	m_newName;
 		std::string	m_oldName;
@@ -934,7 +923,7 @@ class MU_SetAnimFrameCount : public ModelUndo
 
 		unsigned size();
 
-		void setAnimFrameCount(Model::AnimationModeE m, unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where);
+		void setAnimFrameCount(unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where);
 
 		void removeTimeTable(const std::vector<double> &tt)
 		{
@@ -946,7 +935,6 @@ class MU_SetAnimFrameCount : public ModelUndo
 
 	private:
 
-		Model::AnimationModeE m_mode;
 		unsigned m_animNum;
 		unsigned m_newCount;
 		unsigned m_oldCount;		
@@ -960,17 +948,16 @@ class MU_SetAnimFPS : public ModelUndo
 {
 	public:
 
-		void undo(Model *);
-		void redo(Model *);
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 		unsigned size();
 
-		void setFPS(Model::AnimationModeE mode, unsigned animNum, double newFps, double oldFps);
+		void setFPS(unsigned animNum, double newFps, double oldFps);
 
 	private:
 
-		Model::AnimationModeE m_mode;
 		unsigned m_animNum;
 		double	m_newFPS;
 		double	m_oldFPS;
@@ -979,18 +966,17 @@ class MU_SetAnimFPS : public ModelUndo
 class MU_SetAnimWrap : public ModelUndo
 {
 	public:
+		
+		void undo(Model*),redo(Model*);
 
-		void undo(Model *);
-		void redo(Model *);
 		bool combine(Undo *);
 
 		unsigned size(){ return sizeof(MU_SetAnimWrap); }
 
-		void setAnimWrap(Model::AnimationModeE mode, unsigned animNum,bool newLoop,bool oldLoop);
+		void setAnimWrap(unsigned animNum,bool newLoop,bool oldLoop);
 
 	private:
 
-		Model::AnimationModeE m_mode;
 		unsigned m_animNum;
 		bool	m_newLoop;
 		bool	m_oldLoop;
@@ -1001,21 +987,20 @@ class MU_SetAnimTime : public ModelUndo
 {
 	public:
 
-		void undo(Model *);
-		void redo(Model *);
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 		unsigned size(){ return sizeof(MU_SetAnimTime); }
 
-		void setAnimFrameTime(Model::AnimationModeE mode, unsigned animNum, unsigned frame, double newTime, double oldTime);
-		void setAnimTimeFrame(Model::AnimationModeE mode, unsigned animNum, double newTime, double oldTime)
+		void setAnimFrameTime(unsigned animNum, unsigned frame, double newTime, double oldTime);
+		void setAnimTimeFrame(unsigned animNum, double newTime, double oldTime)
 		{
-			setAnimFrameTime(mode,animNum,INT_MAX,newTime,oldTime);
+			setAnimFrameTime(animNum,INT_MAX,newTime,oldTime);
 		}
 
 	private:
 
-		Model::AnimationModeE m_mode;
 		unsigned m_animNum;
 		unsigned m_animFrame;
 		double	m_newTime;
@@ -1026,27 +1011,28 @@ class MU_SetObjectKeyframe : public ModelUndo
 {
 	protected:
 
-		void undo(Model*,bool skel);
-		void redo(Model*,bool skel);
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 	public:
 
 		unsigned size();
 
-		void setAnimationData(unsigned anim, unsigned frame, Model::KeyType2020E isRotation);
+		MU_SetObjectKeyframe(unsigned anim, unsigned frame, Model::KeyType2020E isRotation)
+		:m_anim(anim),m_frame(frame),m_isRotation(isRotation)
+		{}
 
-		void addKeyframe(int j, bool isNew,
+		void addKeyframe(Model::Position j, bool isNew,
 			double x, double y, double z, Model::Interpolate2020E e,
 				double oldx, double oldy, double oldz, Model::Interpolate2020E olde);
 
 	private:
 
-		typedef struct _SetKeyframe_t
+		struct SetKeyFrameT : Model::Position
 		{
-			//REMINDER: Could use Position but what if FrameAnim
-			//were permitted to animate joints?
-			int number;
+			using Position::operator=; //C++
+
 			bool isNew;
 			double x;
 			double y;
@@ -1055,45 +1041,21 @@ class MU_SetObjectKeyframe : public ModelUndo
 			double oldy;
 			double oldz;
 			Model::Interpolate2020E e,olde;
-
-			bool operator<(const struct _SetKeyframe_t &rhs)const
-			{
-				return (this->number<rhs.number);
-			};
-			bool operator== (const struct _SetKeyframe_t &rhs)const
-			{
-				return (this->number==rhs.number);
-			};
-		} SetKeyFrameT;
+		};
 		typedef sorted_list<SetKeyFrameT> SetKeyframeList;
 
 		SetKeyframeList m_keyframes;
 		unsigned m_anim;
 		unsigned m_frame;
 		Model::KeyType2020E m_isRotation;
-		Model::Interpolate2020E m_interp2020;
-};
-class MU_SetJointKeyframe : public MU_SetObjectKeyframe
-{
-	//TEMPORARY FIX
-	void undo(Model*m){ MU_SetObjectKeyframe::undo(m,true); }
-	void redo(Model*m){ MU_SetObjectKeyframe::redo(m,true); }	
-	bool combine(Undo*);
-};
-class MU_SetPointKeyframe : public MU_SetObjectKeyframe
-{
-	//TEMPORARY FIX
-	void undo(Model*m){ MU_SetObjectKeyframe::undo(m,false); }
-	void redo(Model*m){ MU_SetObjectKeyframe::undo(m,false); }	
-	bool combine(Undo*);
 };
 
 class MU_DeleteObjectKeyframe : public ModelUndo
 {
 	protected:
 
-		void undo(Model*,bool skel);
-		void redo(Model*,bool skel);
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 	public:
@@ -1102,28 +1064,16 @@ class MU_DeleteObjectKeyframe : public ModelUndo
 
 		unsigned size();
 
-		void setAnimationData(unsigned anim);
+		MU_DeleteObjectKeyframe(unsigned anim, unsigned frame)
+		:m_anim(anim),m_frame(frame){}
+
 		void deleteKeyframe(Model::Keyframe *keyframe);
 
 	private:
 		typedef std::vector<Model::Keyframe*> DeleteKeyframeList;
 
 		DeleteKeyframeList m_list;
-		unsigned			  m_anim;
-};
-class MU_DeleteJointKeyframe : public MU_DeleteObjectKeyframe
-{
-	//TEMPORARY FIX
-	void undo(Model*m){ MU_DeleteObjectKeyframe::undo(m,true); }
-	void redo(Model*m){ MU_DeleteObjectKeyframe::undo(m,true); }	
-	bool combine(Undo*);
-};
-class MU_DeletePointKeyframe : public MU_DeleteObjectKeyframe
-{
-	//TEMPORARY FIX
-	void undo(Model*m){ MU_DeleteObjectKeyframe::undo(m,false); }
-	void redo(Model*m){ MU_DeleteObjectKeyframe::undo(m,false); }	
-	bool combine(Undo*);
+		unsigned m_anim,m_frame;
 };
 
 class MU_SetObjectName : public ModelUndo
@@ -1171,13 +1121,14 @@ class MU_MoveFrameVertex : public ModelUndo
 {
 	public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+		void undo(Model*),redo(Model*);
+
+		bool combine(Undo*);
 
 		unsigned size();
 
-		void setAnimationData(unsigned anim, unsigned frame);
+		MU_MoveFrameVertex(unsigned anim, unsigned frame)
+		:m_anim(anim),m_frame(frame){}
 
 		void addVertex(int v, double x, double y, double z,
 		Model::Interpolate2020E e, Model::FrameAnimVertex *old, bool sort=true);
@@ -1197,11 +1148,11 @@ class MU_MoveFrameVertex : public ModelUndo
 
 			bool operator<(const MoveFrameVertexT &rhs)const
 			{
-				return (this->number<rhs.number);
+				return number<rhs.number;
 			};
-			bool operator== (const MoveFrameVertexT &rhs)const
+			bool operator==(const MoveFrameVertexT &rhs)const
 			{
-				return (this->number==rhs.number);
+				return number==rhs.number;
 			};
 		};
 		typedef sorted_list<MoveFrameVertexT> MoveFrameVertexList;
@@ -1213,76 +1164,6 @@ class MU_MoveFrameVertex : public ModelUndo
 		
 		void addVertex(MoveFrameVertexT&); //2020
 };
-
-/*REFERENCE
-class MU_MoveFramePoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setAnimationData(unsigned anim, unsigned frame);
-
-		struct Point //2020
-		{
-			//FIX ME (BECOMING INEFFICIENT)
-			double p[3], r[3], s[3]; Model::Interpolate2020E e[3];
-
-			Point(){} //C2280
-
-			Point(const Model::FrameAnimPoint &cp)
-			{
-				for(int i=0;i<3;i++)
-				{
-					p[i] = cp.m_abs[i]; 
-					r[i] = cp.m_rot[i]; 
-					s[i] = cp.m_xyz[i];
-					e[i] = cp.m_interp2020[i];
-				}
-			}
-
-			void setPoint(double px, double py, double pz, Model::Interpolate2020E pi)
-			{
-				p[0] = px; p[1] = py; p[2] = pz; e[0] = pi;
-			}
-			void setPointRotation(double rx, double ry, double rz, Model::Interpolate2020E pi)
-			{
-				r[0] = rx; r[1] = ry; r[2] = rz; e[1] = pi;
-			}
-			void setPointScale(double sx, double sy, double sz, Model::Interpolate2020E pi)
-			{
-				s[0] = sx; s[1] = sy; s[2] = sz; e[2] = pi;
-			}			
-		};
-
-		void addPoint(int p, const Point &move, const Point &old);
-
-	private:
-
-		struct MoveFramePointT
-		{
-			int number;
-			Point p, oldp;
-
-			bool operator<(const struct MoveFramePointT &rhs)const
-			{
-				return (this->number<rhs.number);
-			};
-			bool operator== (const struct MoveFramePointT &rhs)const
-			{
-				return (this->number==rhs.number);
-			};
-		};
-		typedef sorted_list<MoveFramePointT> MoveFramePointList;
-
-		MoveFramePointList  m_points;
-		unsigned				m_anim;
-		unsigned				m_frame;
-};*/
 
 class MU_SetPositionInfluence : public ModelUndo
 {
@@ -1403,51 +1284,46 @@ class MU_SetTriangleProjection : public ModelUndo
 class MU_AddAnimation : public ModelUndo
 {
 	public:
-		MU_AddAnimation():m_skelAnim(),m_frameAnim()
-		{}
 
-		void undo(Model *);
-		void redo(Model *);
+		MU_AddAnimation(unsigned a, Model::Animation *p)
+		:m_anim(a),m_animp(p){}
+
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 		void redoRelease();
 
 		unsigned size();
 
-		void addAnimation(const unsigned &anim,Model::SkelAnim  *skelanim );
-		void addAnimation(const unsigned &anim,Model::FrameAnim *frameanim);
-
 	private:
 		
 		unsigned m_anim;
-		Model::SkelAnim  *m_skelAnim;
-		Model::FrameAnim *m_frameAnim;
+		Model::Animation *m_animp;
 };
 
 class MU_DeleteAnimation : public ModelUndo
 {
 	public:
-		MU_DeleteAnimation():m_skelAnim(),m_frameAnim()
-		{}
 
-		void undo(Model *);
-		void redo(Model *);
+		MU_DeleteAnimation(unsigned a, Model::Animation *p, bool dataOnly=false)
+		:m_anim(a),m_animp(p),m_dataOnly(dataOnly){}
+
+		void undo(Model*),redo(Model*);
+
 		bool combine(Undo *);
 
 		void undoRelease();
 
 		unsigned size();
 
-		void deleteAnimation(const unsigned &anim,Model::SkelAnim  *skelanim );
-		void deleteAnimation(const unsigned &anim,Model::FrameAnim *frameanim);
-
 		Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
 
 	private:
 		
 		unsigned m_anim;
-		Model::SkelAnim *m_skelAnim;
-		Model::FrameAnim *m_frameAnim;
+		Model::Animation *m_animp;
+		bool m_dataOnly;
 
 		Model::FrameAnimData m_vertices;
 };
@@ -1563,19 +1439,19 @@ class MU_MoveAnimation : public ModelUndo
 {
 	public:
 
+		MU_MoveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff=0)
+		:m_oldIndex(oldIndex),m_newIndex(newIndex),m_typeDiff(typeDiff)
+		{}
+
 		void undo(Model *);
 		void redo(Model *);
 		bool combine(Undo *);
 
 		unsigned size();
 
-		void moveAnimation(const Model::AnimationModeE &mode, const unsigned &oldIndex, const unsigned &newIndex);
-
 	private:
 
-		Model::AnimationModeE m_mode;
-		unsigned m_oldIndex;
-		unsigned m_newIndex;
+		unsigned m_oldIndex,m_newIndex; int m_typeDiff;
 };
 
 /*
@@ -1714,7 +1590,8 @@ class MU_InterpolateSelected : public ModelUndo
 public:
 
 	MU_InterpolateSelected
-	(Model::Interpolate2020E, unsigned anim, unsigned frame);
+	(Model::Interpolate2020E e, unsigned anim, unsigned frame)
+	:m_e(e),m_anim(anim),m_frame(frame){}
 
 	void undo(Model *m){ _do(m,true); }
 	void redo(Model *m){ _do(m,false); }
@@ -1733,6 +1610,8 @@ private:
 	unsigned m_anim;
 	unsigned m_frame;
 	std::vector<Model::Interpolate2020E> m_eold;
+
+	//NOTE: Had synchronized animation (AnimRP needed?)
 	void _do(Model*,bool);
 };
 

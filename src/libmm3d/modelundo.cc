@@ -83,7 +83,7 @@ bool MU_RotateSelected::combine(Undo *u)
 	}
 	return false;
 }
-void MU_RotateSelected::setMatrixPoint(const Matrix &rhs, double *point)
+void MU_RotateSelected::setMatrixPoint(const Matrix &rhs, const double point[3])
 {
 	m_matrix = rhs; for(int t=3;t-->0;) m_point[t] = point[t];
 }
@@ -101,16 +101,19 @@ void MU_RotateSelected::redo(Model *model)
 
 bool MU_ApplyMatrix::combine(Undo *u)
 {
-	auto undo = dynamic_cast<MU_ApplyMatrix*>(u);
-	if(undo) m_matrix = m_matrix*undo->m_matrix;
-	return undo;
+	if(auto undo=dynamic_cast<MU_ApplyMatrix*>(u))
+	{
+		if(undo->m_scope==m_scope)
+		{
+			m_matrix = m_matrix*undo->m_matrix; return true;
+		}
+	}
+	return false;
 }
 
-void MU_ApplyMatrix::setMatrix(const Matrix &m,Model::OperationScopeE scope,bool animations)
+void MU_ApplyMatrix::setMatrix(const Matrix &m, Model::OperationScopeE scope)
 {
-	m_matrix = m;
-	m_scope = scope;
-	m_animations = animations;
+	m_matrix = m; m_scope = scope;
 }
 
 void MU_ApplyMatrix::undo(Model *model)
@@ -120,12 +123,12 @@ void MU_ApplyMatrix::undo(Model *model)
 
 	m = m_matrix.getInverse();
 
-	model->applyMatrix(m,m_scope,m_animations,true);
+	model->applyMatrix(m,m_scope,true);
 }
 
 void MU_ApplyMatrix::redo(Model *model)
 {
-	model->applyMatrix(m_matrix,m_scope,m_animations,true);
+	model->applyMatrix(m_matrix,m_scope,true);
 }
 
 void MU_SelectionMode::undo(Model *model)
@@ -144,9 +147,11 @@ void MU_SelectionMode::redo(Model *model)
 
 bool MU_SelectionMode::combine(Undo *u)
 {
-	auto undo = dynamic_cast<MU_SelectionMode*>(u);
-	if(undo) m_mode = undo->m_mode;
-	return undo;
+	if(auto undo=dynamic_cast<MU_SelectionMode*>(u))
+	{
+		m_mode = undo->m_mode; return true;
+	}
+	return false;
 }
 
 unsigned MU_SelectionMode::size()
@@ -699,26 +704,20 @@ void MU_SetObjectXYZ::_call_setter(Model *model, double *xyz)
 {
 	switch(vec)
 	{
-	case Pos: model->setPositionCoords(pos,xyz); break;
+	case Abs: model->setPositionCoords(pos,xyz); break;
 	case Rot: model->setPositionRotation(pos,xyz); break;
 	case Scale: model->setPositionScale(pos,xyz); break;
+	case Rel: model->setBoneJointTranslation(pos,xyz); break;
 	}
 }
 bool MU_SetObjectXYZ::combine(Undo *u)
 {
 	MU_SetObjectXYZ *undo = dynamic_cast<MU_SetObjectXYZ*>(u);
-
 	if(undo&&undo->pos==pos&&undo->vec==vec)
 	{
-		memcpy(v,undo->v,sizeof(v));
-
-		return true;
+		memcpy(v,undo->v,sizeof(v)); return true;
 	}
-	else
-	{
-		//log_debug("couldn't point translation\n"); //???
-		return false;
-	}
+	return false;
 }
 unsigned MU_SetObjectXYZ::size()
 {
@@ -728,13 +727,14 @@ void MU_SetObjectXYZ::setXYZ(Model *m, double object[3], const double xyz[3])
 {
 	auto o = m->getPositionObject(pos);
 	assert(o);
-	if(o->m_abs==object) vec = Pos;
+	if(o->m_abs==object) vec = Abs;
 	else if(o->m_rot==object) vec = Rot;
 	else if(o->m_xyz==object) vec = Scale;	
+	else if(pos.type==Model::PT_Joint
+	&&((Model::Joint*)o)->m_rel==object) vec = Rel;	
 	else assert(0);
 
 	memcpy(v,xyz,sizeof(v)); memcpy(vold,object,sizeof(v));	
-
 }
 
 void MU_SetTexture::undo(Model *model)
@@ -1892,14 +1892,7 @@ unsigned MU_SubdivideTriangle::size()
 
 void MU_SubdivideTriangle::subdivide(unsigned a, unsigned b, unsigned c, unsigned d)
 {
-	SubdivideTriangleT st;
-
-	st.a = a;
-	st.b = b;
-	st.c = c;
-	st.d = d;
-
-	m_list.push_back(st);
+	m_list.push_back({a,b,c,d});
 }
 
 void MU_SubdivideTriangle::addVertex(unsigned v)
@@ -1909,67 +1902,29 @@ void MU_SubdivideTriangle::addVertex(unsigned v)
 
 void MU_ChangeAnimState::undo(Model *model)
 {
-	log_debug("undo change anim state: old %d\n",m_oldMode);
-	if(m_oldMode)
-	{
-		bool skel = m_oldMode==Model::ANIMMODE_SKELETAL;
-		_sync_animation(model,skel,m_oldAnim,m_oldFrame); //REMOVE US
-	}
-	else model->setNoAnimation();
+	model->setCurrentAnimation(m_old);
 }
-
 void MU_ChangeAnimState::redo(Model *model)
 {
-	log_debug("redo change anim state: new %d\n",m_newMode);
-	if(m_newMode)
-	{
-		bool skel = m_newMode==Model::ANIMMODE_SKELETAL;
-		_sync_animation(model,skel,m_anim,0); //REMOVE US
-	}
-	else model->setNoAnimation();
+	model->setCurrentAnimation(m_new);
 }
-
 bool MU_ChangeAnimState::combine(Undo *u)
 {
 	return false;
 }
-
 unsigned MU_ChangeAnimState::size()
 {
 	return sizeof(MU_ChangeAnimState);
 }
 
-//void MU_ChangeAnimState::setState(Model::AnimationModeE newMode,Model::AnimationModeE oldMode, unsigned anim, unsigned frame)
-void MU_ChangeAnimState::setState(Model::AnimationModeE oldMode, int oldAnim, int oldFrame, Model &cp)
-{
-	//m_newMode = newMode;
-	m_newMode = cp.getAnimationMode();
-	m_oldMode = oldMode;
-	//m_anim = anim;
-	m_anim = cp.getCurrentAnimation();
-	m_oldAnim = oldAnim;
-	//m_frame = frame;
-	m_oldFrame = oldFrame;
-
-	log_debug("ChangeAnimState undo info: old = %d,new = %d\n",m_oldMode,m_newMode);
-}
-
 void MU_SetAnimName::undo(Model *model)
 {
-	model->setAnimName(m_mode,m_animNum,m_oldName.c_str());
-	if((model->getAnimationMode()!=Model::ANIMMODE_NONE&&model->getAnimationMode()!=m_mode)||(model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_oldName.c_str());
-	}
+	model->setAnimName(m_animNum,m_oldName.c_str());
 }
 
 void MU_SetAnimName::redo(Model *model)
 {
-	model->setAnimName(m_mode,m_animNum,m_newName.c_str());
-	if((model->getAnimationMode()!=Model::ANIMMODE_NONE&&model->getAnimationMode()!=m_mode)||(model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_newName.c_str());
-	}
+	model->setAnimName(m_animNum,m_newName.c_str());
 }
 
 bool MU_SetAnimName::combine(Undo *u)
@@ -1982,9 +1937,8 @@ unsigned MU_SetAnimName::size()
 	return sizeof(MU_SetAnimName);
 }
 
-void MU_SetAnimName::setName(Model::AnimationModeE mode, unsigned animNum, const char *newName, const char *oldName)
+void MU_SetAnimName::setName(unsigned animNum, const char *newName, const char *oldName)
 {
-	m_mode		 = mode;
 	m_animNum	 = animNum;
 	m_newName	 = newName;
 	m_oldName	 = oldName;
@@ -1992,21 +1946,18 @@ void MU_SetAnimName::setName(Model::AnimationModeE mode, unsigned animNum, const
 
 void MU_SetAnimFrameCount::undo(Model *model)
 {
-	model->setAnimFrameCount(m_mode,m_animNum,m_oldCount,m_where,&m_vertices);
+	model->setAnimFrameCount(m_animNum,m_oldCount,m_where,&m_vertices);
 
 	if(!m_timetable.empty())
 	{
-		Model::AnimBase2020 *ab;
-		if(m_mode==Model::ANIMMODE_SKELETAL)
-		ab = model->m_skelAnims[m_animNum];
-		else ab = model->m_frameAnims[m_animNum];
+		Model::Animation *ab = model->m_anims[m_animNum];
 
 		std::copy(m_timetable.begin(),m_timetable.end(),ab->m_timetable2020.begin()+m_where);
 	}
 }
 void MU_SetAnimFrameCount::redo(Model *model)
 {
-	model->setAnimFrameCount(m_mode,m_animNum,m_newCount,m_where,&m_vertices);
+	model->setAnimFrameCount(m_animNum,m_newCount,m_where,&m_vertices);
 }
 bool MU_SetAnimFrameCount::combine(Undo *u)
 {
@@ -2043,9 +1994,8 @@ unsigned MU_SetAnimFrameCount::size()
 
 	return sz+sizeof(MU_SetAnimFrameCount);
 }
-void MU_SetAnimFrameCount::setAnimFrameCount(Model::AnimationModeE mode, unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where)
+void MU_SetAnimFrameCount::setAnimFrameCount(unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where)
 {
-	m_mode		 = mode;
 	m_animNum	 = animNum;
 	m_newCount	= newCount;
 	m_oldCount	= oldCount;
@@ -2054,35 +2004,23 @@ void MU_SetAnimFrameCount::setAnimFrameCount(Model::AnimationModeE mode, unsigne
 
 void MU_SetAnimFPS::undo(Model *model)
 {
-	model->setAnimFPS(m_mode,m_animNum,m_oldFPS);
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE&&(model->getAnimationMode()!=m_mode||model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_animNum);
-	}
+	model->setAnimFPS(m_animNum,m_oldFPS);
 }
 
 void MU_SetAnimFPS::redo(Model *model)
 {
-	model->setAnimFPS(m_mode,m_animNum,m_newFPS);
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE&&(model->getAnimationMode()!=m_mode||model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_animNum);
-	}
+	model->setAnimFPS(m_animNum,m_newFPS);
 }
 
 bool MU_SetAnimFPS::combine(Undo *u)
 {
 	MU_SetAnimFPS *undo = dynamic_cast<MU_SetAnimFPS*>(u);
 
-	if(undo&&undo->m_mode==m_mode&&undo->m_animNum==m_animNum)
+	if(undo&&undo->m_animNum==m_animNum)
 	{
-		m_newFPS = undo->m_newFPS;
-		return true;
+		m_newFPS = undo->m_newFPS; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetAnimFPS::size()
@@ -2090,9 +2028,8 @@ unsigned MU_SetAnimFPS::size()
 	return sizeof(MU_SetAnimFPS);
 }
 
-void MU_SetAnimFPS::setFPS(Model::AnimationModeE mode, unsigned animNum, double newFps, double oldFps)
+void MU_SetAnimFPS::setFPS(unsigned animNum, double newFps, double oldFps)
 {
-	m_mode		 = mode;
 	m_animNum	 = animNum;
 	m_newFPS	  = newFps;
 	m_oldFPS	  = oldFps;
@@ -2100,41 +2037,24 @@ void MU_SetAnimFPS::setFPS(Model::AnimationModeE mode, unsigned animNum, double 
 
 void MU_SetAnimWrap::undo(Model *model)
 {
-	model->setAnimWrap(m_mode,m_animNum,m_oldLoop);
-
-	//REMOVE ME
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE&&(model->getAnimationMode()!=m_mode||model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_animNum); //???
-	}
+	model->setAnimWrap(m_animNum,m_oldLoop);
 }
 void MU_SetAnimWrap::redo(Model *model)
 {
-	model->setAnimWrap(m_mode,m_animNum,m_newLoop);
-
-	//REMOVE ME
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE&&(model->getAnimationMode()!=m_mode||model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_animNum); //???
-	}
+	model->setAnimWrap(m_animNum,m_newLoop);
 }
 bool MU_SetAnimWrap::combine(Undo *u)
 {
 	MU_SetAnimWrap *undo = dynamic_cast<MU_SetAnimWrap*>(u);
 
-	if(undo&&undo->m_mode==m_mode&&undo->m_animNum==m_animNum)
+	if(undo&&undo->m_animNum==m_animNum)
 	{
-		m_newLoop = undo->m_newLoop;
-		return true;
+		m_newLoop = undo->m_newLoop; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-void MU_SetAnimWrap::setAnimWrap(Model::AnimationModeE mode, unsigned animNum,bool newLoop,bool oldLoop)
+void MU_SetAnimWrap::setAnimWrap(unsigned animNum,bool newLoop,bool oldLoop)
 {
-	m_mode		 = mode;
 	m_animNum	 = animNum;
 	m_newLoop	 = newLoop;
 	m_oldLoop	 = oldLoop;
@@ -2143,102 +2063,63 @@ void MU_SetAnimWrap::setAnimWrap(Model::AnimationModeE mode, unsigned animNum,bo
 void MU_SetAnimTime::undo(Model *model)
 {
 	if(m_animFrame==INT_MAX)
-	model->setAnimTimeFrame(m_mode,m_animNum,m_oldTime);
+	model->setAnimTimeFrame(m_animNum,m_oldTime);
 	else
-	model->setAnimFrameTime(m_mode,m_animNum,m_animFrame,m_oldTime);
-
-	/*REMOVE ME
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE&&(model->getAnimationMode()!=m_mode||model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_animNum); //???
-	}*/
+	model->setAnimFrameTime(m_animNum,m_animFrame,m_oldTime);
 }
 void MU_SetAnimTime::redo(Model *model)
 {
 	if(m_animFrame==INT_MAX)
-	model->setAnimTimeFrame(m_mode,m_animNum,m_newTime);
+	model->setAnimTimeFrame(m_animNum,m_newTime);
 	else
-	model->setAnimFrameTime(m_mode,m_animNum,m_animFrame,m_newTime);
-
-	/*REMOVE ME
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE&&(model->getAnimationMode()!=m_mode||model->getCurrentAnimation()!=m_animNum))
-	{
-		model->setCurrentAnimation(m_mode,m_animNum); //???
-	}*/
+	model->setAnimFrameTime(m_animNum,m_animFrame,m_newTime);
 }
 bool MU_SetAnimTime::combine(Undo *u)
 {
 	MU_SetAnimTime *undo = dynamic_cast<MU_SetAnimTime*>(u);
 
-	if(undo&&undo->m_mode==m_mode&&undo->m_animNum==m_animNum&&m_animFrame==undo->m_animFrame)
+	if(undo&&undo->m_animNum==m_animNum&&m_animFrame==undo->m_animFrame)
 	{
-		m_newTime = undo->m_newTime;
-		return true;
+		m_newTime = undo->m_newTime; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-void MU_SetAnimTime::setAnimFrameTime(Model::AnimationModeE mode, 
-unsigned animNum, unsigned frame, double newTime, double oldTime)
+void MU_SetAnimTime::setAnimFrameTime(unsigned animNum, unsigned frame, double newTime, double oldTime)
 {
-	m_mode		 = mode;
 	m_animNum	 = animNum; m_animFrame = frame;
 	m_newTime	 = newTime;
 	m_oldTime	 = oldTime;
 }
 
-void MU_SetObjectKeyframe::undo(Model *model, bool skel)
+void MU_SetObjectKeyframe::undo(Model *model)
 {
-	SetKeyframeList::iterator it;
-
-	for(it = m_keyframes.begin(); it!=m_keyframes.end(); it++)
+	for(auto&ea:m_keyframes)
 	{
-		Model::Position pos;
-		pos.type = skel?Model::PT_Joint:Model::PT_Point; 
-		pos.index = it->number;
-
-		if(it->isNew)
+		if(ea.isNew)
 		{
-			log_debug("undoing new keyframe\n"); //???
+			//log_debug("undoing new keyframe\n"); //???
 			
-			model->removeKeyframe(m_anim,m_frame,pos,m_isRotation,true);			
+			model->removeKeyframe(m_anim,m_frame,ea,m_isRotation,true);			
 		}
 		else
 		{
-			log_debug("undoing existing keyframe\n"); //???
+			//log_debug("undoing existing keyframe\n"); //???
 			
-			model->setKeyframe(m_anim,m_frame,pos,m_isRotation,it->oldx,it->oldy,it->oldz,it->olde);			
+			model->setKeyframe(m_anim,m_frame,ea,m_isRotation,ea.oldx,ea.oldy,ea.oldz,ea.olde);			
 		}
 	}
 
-	_sync_animation(model,skel,m_anim,m_frame); //REMOVE US
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }
 
-void MU_SetObjectKeyframe::redo(Model *model, bool skel)
+void MU_SetObjectKeyframe::redo(Model *model)
 {
-	SetKeyframeList::iterator it;
+	for(auto&ea:m_keyframes)
+	model->setKeyframe(m_anim,m_frame,ea,m_isRotation,ea.x,ea.y,ea.z,ea.e);
 
-	for(it = m_keyframes.begin(); it!=m_keyframes.end(); it++)
-	{
-		Model::Position pos;
-		pos.type = skel?Model::PT_Joint:Model::PT_Point; 
-		pos.index = it->number;
-
-		model->setKeyframe(m_anim,m_frame,pos,m_isRotation,it->x,it->y,it->z,it->e);		
-	}
-
-	_sync_animation(model,skel,m_anim,m_frame); //REMOVE US
-}
-
-bool MU_SetJointKeyframe::combine(Undo *u)
-{
-	return MU_SetObjectKeyframe::combine(dynamic_cast<MU_SetJointKeyframe*>(u));
-}
-bool MU_SetPointKeyframe::combine(Undo *u)
-{
-	return MU_SetObjectKeyframe::combine(dynamic_cast<MU_SetPointKeyframe*>(u));
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }
 bool MU_SetObjectKeyframe::combine(Undo *u)
 {
@@ -2246,41 +2127,23 @@ bool MU_SetObjectKeyframe::combine(Undo *u)
 
 	if(undo&&undo->m_anim==m_anim&&undo->m_frame==m_frame&&m_isRotation==undo->m_isRotation)
 	{
-		SetKeyframeList::iterator it;
-
-		for(it = undo->m_keyframes.begin(); it!=undo->m_keyframes.end(); it++)
-		{
-			addKeyframe(it->number,it->isNew,it->x,it->y,it->z,it->e,
-					it->oldx,it->oldy,it->oldz,it->olde);
-		}
-
+		for(auto&ea:m_keyframes)
+		addKeyframe(ea,ea.isNew,ea.x,ea.y,ea.z,ea.e,ea.oldx,ea.oldy,ea.oldz,ea.olde);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-
 unsigned MU_SetObjectKeyframe::size()
 {
 	return sizeof(MU_SetObjectKeyframe)+m_keyframes.size()*sizeof(SetKeyFrameT);
 }
-
-void MU_SetObjectKeyframe::setAnimationData(unsigned anim, unsigned frame, Model::KeyType2020E isRotation)
-{
-	m_anim		 = anim;
-	m_frame		= frame;
-	m_isRotation = isRotation;
-}
-
-void MU_SetObjectKeyframe::addKeyframe(int j,bool isNew, 
+void MU_SetObjectKeyframe::addKeyframe(Model::Position j,bool isNew, 
 	double x, double y, double z, Model::Interpolate2020E e,
 		double oldx, double oldy, double oldz, Model::Interpolate2020E olde)
 {
 	unsigned index = 0;
-	SetKeyFrameT mv;
-	mv.number = j;
+	//SetKeyFrameT mv = j;
+	SetKeyFrameT mv; mv = j; //C++
 
 	// Modify a joint we already have
 	if(m_keyframes.find_sorted(mv,index))
@@ -2304,68 +2167,30 @@ void MU_SetObjectKeyframe::addKeyframe(int j,bool isNew,
 	m_keyframes.insert_sorted(mv);
 }
 
-void MU_DeleteObjectKeyframe::undo(Model *model, bool skel)
+void MU_DeleteObjectKeyframe::undo(Model *model)
 {
-	log_debug("undo delete keyframe\n");
-	DeleteKeyframeList::reverse_iterator it;
+	for(auto*ea:m_list) model->insertKeyframe(m_anim,ea);
 
-	unsigned frame = 0;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->insertKeyframe(m_anim,skel?Model::PT_Joint:Model::PT_Point,*it);
-		
-		frame = (*it)->m_frame;
-	}
-
-	_sync_animation(model,skel,m_anim,frame); //REMOVE US
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }
-
-void MU_DeleteObjectKeyframe::redo(Model *model, bool skel)
+void MU_DeleteObjectKeyframe::redo(Model *model)
 {
-	DeleteKeyframeList::iterator it;
+	for(auto*ea:m_list) model->removeKeyframe(m_anim,ea);
 
-	unsigned frame = 0;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		Model::Position pos;
-		pos.type = skel?Model::PT_Joint:Model::PT_Point; 
-		pos.index = (*it)->m_objectIndex;
-		model->removeKeyframe(m_anim,(*it)->m_frame,pos,(*it)->m_isRotation);
-
-		frame = (*it)->m_frame;
-	}
-
-	_sync_animation(model,skel,m_anim,frame); //REMOVE US
-}
-
-bool MU_DeleteJointKeyframe::combine(Undo *u)
-{
-	return MU_DeleteObjectKeyframe::combine(dynamic_cast<MU_DeleteJointKeyframe*>(u));
-}
-bool MU_DeletePointKeyframe::combine(Undo *u)
-{
-	return MU_DeleteObjectKeyframe::combine(dynamic_cast<MU_DeletePointKeyframe*>(u));
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }
 bool MU_DeleteObjectKeyframe::combine(Undo *u)
 {
 	MU_DeleteObjectKeyframe *undo = dynamic_cast<MU_DeleteObjectKeyframe*>(u);
 
-	if(undo&&m_anim==undo->m_anim)
+	if(undo&&m_anim==undo->m_anim&&m_frame==undo->m_frame)
 	{
-		DeleteKeyframeList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			deleteKeyframe(*it);
-		}
-
-		return true;
+		for(auto*ea:undo->m_list) deleteKeyframe(ea); return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-
 void MU_DeleteObjectKeyframe::undoRelease()
 {
 	DeleteKeyframeList::iterator it;
@@ -2374,15 +2199,9 @@ void MU_DeleteObjectKeyframe::undoRelease()
 		(*it)->release();
 	}
 }
-
 unsigned MU_DeleteObjectKeyframe::size()
 {
 	return sizeof(MU_DeleteObjectKeyframe)+m_list.size()*sizeof(Model::Keyframe);
-}
-
-void MU_DeleteObjectKeyframe::setAnimationData(unsigned anim)
-{
-	m_anim = anim;
 }
 
 void MU_DeleteObjectKeyframe::deleteKeyframe(Model::Keyframe *keyframe)
@@ -2448,60 +2267,37 @@ void MU_MoveFrameVertex::undo(Model *model)
 	MoveFrameVertexList::iterator it;
 
 	// Modify a vertex we already have
-	for(it = m_vertices.begin(); it!=m_vertices.end(); it++)
-	{
-		model->setQuickFrameAnimVertexCoords(m_anim,m_frame,it->number,it->oldx,it->oldy,it->oldz,it->olde);
-	}
+	for(auto&ea:m_vertices)
+	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.oldx,ea.oldy,ea.oldz,ea.olde);	
 
-	_sync_animation(model,false,m_anim,m_frame); //REMOVE US
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }
-
 void MU_MoveFrameVertex::redo(Model *model)
 {
 	MoveFrameVertexList::iterator it;
 
 	// Modify a vertex we already have
-	for(it = m_vertices.begin(); it!=m_vertices.end(); it++)
-	{
-		model->setQuickFrameAnimVertexCoords(m_anim,m_frame,it->number,it->x,it->y,it->z,it->e);
-	}
+	for(auto&ea:m_vertices)
+	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.x,ea.y,ea.z,ea.e);
 
-	_sync_animation(model,false,m_anim,m_frame); //REMOVE US
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }
-
 bool MU_MoveFrameVertex::combine(Undo *u)
 {
 	MU_MoveFrameVertex *undo = dynamic_cast<MU_MoveFrameVertex*>(u);
 
-	//if(undo)
 	if(undo&&undo->m_frame==m_frame&&undo->m_anim==m_anim)	
 	{
-		MoveFrameVertexList::iterator it;
-
-		for(it = undo->m_vertices.begin(); it!=undo->m_vertices.end(); it++)
-		{
-			addVertex(*it);
-		}
-
-		return true;
+		for(auto&ea:undo->m_vertices) addVertex(ea); return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-
 unsigned MU_MoveFrameVertex::size()
 {
 	return sizeof(MU_MoveFrameVertex)+m_vertices.size()*sizeof(MoveFrameVertexT);
 }
-
-void MU_MoveFrameVertex::setAnimationData(unsigned anim, unsigned frame)
-{
-	m_anim = anim;
-	m_frame = frame;
-}
-
 void MU_MoveFrameVertex::addVertex(int v, double x, double y, double z, 
 		Model::Interpolate2020E e, Model::FrameAnimVertex *old, bool sort)
 {
@@ -2535,84 +2331,6 @@ void MU_MoveFrameVertex::addVertex(MoveFrameVertexT &mv)
 		m_vertices.insert_sorted(mv);
 	}
 }
-
-/*
-void MU_MoveFramePoint::undo(Model *model)
-{
-	MoveFramePointList::iterator it;
-
-	for(it = m_points.begin(); it!=m_points.end(); it++)
-	{
-		//FIX ME: Scale?
-		Point &o = it->oldp;
-		model->setQuickFrameAnimPoint(m_anim,m_frame,it->number,
-		o.p[0],o.p[1],o.p[2],o.r[0],o.r[1],o.r[2],o.e);
-	}
-	
-	_sync_animation(model,false,m_anim,m_frame); //REMOVE US
-}
-void MU_MoveFramePoint::redo(Model *model)
-{
-	MoveFramePointList::iterator it;
-
-	for(it = m_points.begin(); it!=m_points.end(); it++)
-	{
-		//FIX ME: Scale?
-		Point &p = it->p;
-		model->setQuickFrameAnimPoint(m_anim,m_frame,it->number,
-		p.p[0],p.p[1],p.p[2],p.r[0],p.r[1],p.r[2],p.e);
-	}
-
-	_sync_animation(model,false,m_anim,m_frame); //REMOVE US
-}
-bool MU_MoveFramePoint::combine(Undo *u)
-{
-	MU_MoveFramePoint *undo = dynamic_cast<MU_MoveFramePoint*>(u);
-
-	//if(undo)
-	if(undo&&undo->m_frame==m_frame&&undo->m_anim==m_anim)	
-	{
-		MoveFramePointList::iterator it;
-
-		for(it = undo->m_points.begin(); it!=undo->m_points.end(); it++)
-		{
-			addPoint(it->number,it->p,it->oldp);
-		}
-
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-unsigned MU_MoveFramePoint::size()
-{
-	return sizeof(MU_MoveFramePoint)+m_points.size()*sizeof(MoveFramePointT);
-}
-void MU_MoveFramePoint::setAnimationData(unsigned anim, unsigned frame)
-{
-	m_anim = anim;
-	m_frame = frame;
-}
-void MU_MoveFramePoint::addPoint(int p, const Point &move, const Point &old)
-{
-	unsigned index;
-	MoveFramePointT mv;
-	mv.number = p;
-	
-	// Modify a point we already have
-	if(m_points.find_sorted(mv,index))
-	{
-		m_points[index].p = move;
-		return;
-	}
-	
-	// Not found, add new point information
-	mv.p = move;
-	mv.oldp = old;
-	m_points.insert_sorted(mv);
-}*/
 
 void MU_SetPositionInfluence::undo(Model *model)
 {
@@ -2893,74 +2611,33 @@ void MU_SetTriangleProjection::setTriangleProjection(const unsigned &triangle,
 
 void MU_AddAnimation::undo(Model *model)
 {
-	if(m_skelAnim)
-	{
-		model->removeSkelAnim(m_anim);
-		unsigned num = (m_anim<model->getAnimCount(Model::ANIMMODE_SKELETAL))? m_anim : m_anim-1;
-
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_SKELETAL,num);
-		}
-	}
-	if(m_frameAnim)
-	{
-		model->removeFrameAnim(m_anim);
-		unsigned num = (m_anim<model->getAnimCount(Model::ANIMMODE_FRAME))? m_anim : m_anim-1;
-
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_FRAME,num);
-		}
-	}
+	model->removeAnimation(m_anim);
 }
-
 void MU_AddAnimation::redo(Model *model)
 {
-	if(m_skelAnim)
-	{
-		model->insertSkelAnim(m_anim,m_skelAnim);
-
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_SKELETAL,m_anim);
-		}
-	}
-	if(m_frameAnim)
-	{
-		model->insertFrameAnim(m_anim,m_frameAnim);
-
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_FRAME,m_anim);
-		}
-	}
+	model->insertAnimation(m_anim,m_animp);
 }
-
 bool MU_AddAnimation::combine(Undo *u)
 {
 	return false;
 }
-
 void MU_AddAnimation::redoRelease()
 {
 	log_debug("releasing animation in redo\n");
-	if(m_skelAnim)
-	{
-		m_skelAnim->release();
-	}
-	if(m_frameAnim)
-	{
-		m_frameAnim->release();
-	}
+	
+	if(m_animp) m_animp->release();
 }
-
 unsigned MU_AddAnimation::size()
 {
-	unsigned frameAnimSize = (m_frameAnim)? sizeof(m_frameAnim): 0;
-	unsigned frame = 0;
-	unsigned skelAnimSize = (m_skelAnim)? sizeof(m_skelAnim): 0;
+		//REMINDER: Consider MU_DeleteAnimation::size.
 
+	return sizeof(*this); //2021
+
+		/*2021: sizeof(void*) ???
+//	unsigned frameAnimSize = (m_frameAnim)? sizeof(m_frameAnim): 0;
+//	unsigned frame = 0;
+//	unsigned skelAnimSize = (m_skelAnim)? sizeof(m_skelAnim): 0;*/
+	
 	//FIX ME
 	//I give up for now:
 	//https://github.com/zturtleman/mm3d/issues/128
@@ -2990,141 +2667,76 @@ unsigned MU_AddAnimation::size()
 		skelAnimSize += jointCount *sizeof(Model::KeyframeList);
 	}*/
 
-	return sizeof(MU_AddAnimation)+frameAnimSize+skelAnimSize;
-}
-
-void MU_AddAnimation::addAnimation(const unsigned &anim,Model::SkelAnim *skelanim)
-{
-	m_anim		= anim;
-	m_skelAnim  = skelanim;
-	m_frameAnim = nullptr;
-}
-
-void MU_AddAnimation::addAnimation(const unsigned &anim,Model::FrameAnim *frameanim)
-{
-	m_anim		= anim;
-	m_skelAnim  = nullptr;
-	m_frameAnim = frameanim;
+//	return sizeof(MU_AddAnimation)+frameAnimSize+skelAnimSize;
 }
 
 void MU_DeleteAnimation::undo(Model *model)
 {
-	if(m_skelAnim)
-	{
-		model->insertSkelAnim(m_anim,m_skelAnim);
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_SKELETAL,m_anim);
-		}
-	}
-	if(auto fa=m_frameAnim)
-	{
-		model->insertFrameAnim(m_anim,fa);
-		//2020: This restores FrameAnimVertex data to m_vertices.
-		model->insertFrameAnimData(fa->m_frame0,fa->_frame_count(),&m_vertices,fa);
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_FRAME,m_anim);
-		}
-	}
-}
+	if(!m_dataOnly) model->insertAnimation(m_anim,m_animp);
 
+	model->insertFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),&m_vertices,m_animp);
+}
 void MU_DeleteAnimation::redo(Model *model)
 {
-	if(m_skelAnim)
-	{
-		model->removeSkelAnim(m_anim);
-		unsigned num = (m_anim<model->getAnimCount(Model::ANIMMODE_SKELETAL))? m_anim : m_anim-1;
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_SKELETAL,num);
-		}
-	}
-	if(auto fa=m_frameAnim)
-	{
-		//2020: This removes FrameAnimVertex data from m_vertices.
-		model->removeFrameAnimData(fa->m_frame0,fa->_frame_count(),nullptr);
-		model->removeFrameAnim(m_anim);
+	model->removeFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),nullptr);
 
-		unsigned num = (m_anim<model->getAnimCount(Model::ANIMMODE_FRAME))? m_anim : m_anim-1;
-		if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-		{
-			model->setCurrentAnimation(Model::ANIMMODE_FRAME,num);
-		}
-	}
+	if(!m_dataOnly) model->removeAnimation(m_anim);
 }
-
 bool MU_DeleteAnimation::combine(Undo *u)
 {
 	return false;
 }
-
 void MU_DeleteAnimation::undoRelease()
 {
 	//log_debug("releasing animation in undo\n");
-	if(m_skelAnim)
-	{
-		m_skelAnim->release();
-	}
-	if(m_frameAnim)
-	{
-		m_frameAnim->release();
-		
-		for(auto*ea:m_vertices) ea->release();
-	}
-}
 
+	if(m_animp) m_animp->release();
+	
+	for(auto*ea:m_vertices) ea->release();
+}
 unsigned MU_DeleteAnimation::size()
 {
-	unsigned frameAnimSize = (m_frameAnim)? sizeof(m_frameAnim): 0;
-	unsigned frame = 0;
+		//REMINDER: Consider MU_AddAnimation::size.
 
-	Model::AnimBase2020 *ab = m_skelAnim;
-	if(m_frameAnim)
+		/*2021: sizeof(void*) ???
+	unsigned frameAnimSize = (m_frameAnim)? sizeof(m_frameAnim): 0;*/
+	unsigned sz = sizeof(*this);
+	//unsigned frame = 0;
+
+	//Model::Animation *ab = m_skelAnim;
+	Model::Animation *ab = m_animp;
+	//if(m_frameAnim)
+	if(ab->_type&2)
 	{
-		ab = m_frameAnim;
+		//ab = m_frameAnim;
 
-		unsigned count = m_frameAnim->_frame_count();
+		unsigned count = ab->_frame_count();
 		/*
 		for(frame = 0; frame<count; frame++)
 		{
 			Model::FrameAnimVertexList *vertexList = &m_frameAnim->m_frameData[frame]->m_frameVertices;
-			frameAnimSize += sizeof(Model::FrameAnimVertexList)+vertexList->size()*sizeof(Model::FrameAnimVertex);
+			sz += sizeof(Model::FrameAnimVertexList)+vertexList->size()*sizeof(Model::FrameAnimVertex);
 			Model::FrameAnimPointList *pointList = &m_frameAnim->m_frameData[frame]->m_framePoints;
-			frameAnimSize += sizeof(Model::FrameAnimPointList)+pointList->size()*sizeof(Model::FrameAnimPoint);
+			sz += sizeof(Model::FrameAnimPointList)+pointList->size()*sizeof(Model::FrameAnimPoint);
 		}*/
-		frameAnimSize+=count*m_vertices.size()*sizeof(Model::FrameAnimVertex);
+		sz+=count*m_vertices.size()*sizeof(Model::FrameAnimVertex);
 	}
 
-	unsigned skelAnimSize = (m_skelAnim)? sizeof(m_skelAnim): 0;
+		/*2021: sizeof(void*) ???
+	unsigned skelAnimSize = (m_skelAnim)? sizeof(m_skelAnim): 0;*/
 
-	if(ab) //m_skelAnim
+	if(!m_dataOnly) if(ab) //m_skelAnim
 	{
-		unsigned jointCount = ab->m_keyframes.size();
-		for(unsigned j = 0; j<jointCount; j++)
-		{
-			Model::KeyframeList &list = ab->m_keyframes[j];
-			skelAnimSize += sizeof(list)+list.size()*sizeof(*list.data());
+		unsigned objectCount = ab->m_keyframes.size();
+		for(auto&list:ab->m_keyframes)
+		{	
+			sz+=sizeof(list)+list.second.size()*sizeof(*list.second.data());
 		}
 		//skelAnimSize += jointCount *sizeof(Model::JointKeyframeList); //???
-		skelAnimSize += jointCount *sizeof(Model::KeyframeList);
+		sz+=objectCount*sizeof(Model::KeyframeList);
 	}
 
-	return sizeof(MU_DeleteAnimation)+frameAnimSize+skelAnimSize;
-}
-
-void MU_DeleteAnimation::deleteAnimation(const unsigned &anim,Model::SkelAnim *skelanim)
-{
-	m_anim		= anim;
-	m_skelAnim  = skelanim;
-	m_frameAnim = nullptr;
-}
-
-void MU_DeleteAnimation::deleteAnimation(const unsigned &anim,Model::FrameAnim *frameanim)
-{
-	m_anim		= anim;
-	m_skelAnim  = nullptr;
-	m_frameAnim = frameanim;
+	return sz; //return sizeof(MU_DeleteAnimation)+frameAnimSize+skelAnimSize;
 }
 
 void MU_SetJointParent::undo(Model *model)
@@ -3533,32 +3145,19 @@ void MU_SetGroupName::setGroupName(unsigned groupNum, const char *newName, const
 
 void MU_MoveAnimation::undo(Model *model)
 {
-	model->moveAnimation(m_mode,m_newIndex,m_oldIndex);
+	model->_moveAnimation(m_newIndex,m_oldIndex,-m_typeDiff);
 }
-
 void MU_MoveAnimation::redo(Model *model)
 {
-	model->moveAnimation(m_mode,m_oldIndex,m_newIndex);
+	model->_moveAnimation(m_oldIndex,m_newIndex,+m_typeDiff);
 }
-
 bool MU_MoveAnimation::combine(Undo *u)
 {
 	return false;
 }
-
 unsigned MU_MoveAnimation::size()
 {
 	return sizeof(MU_MoveAnimation);
-}
-
-void MU_MoveAnimation::moveAnimation(const Model::AnimationModeE &mode,
-		const unsigned &oldIndex, const unsigned &newIndex)
-{
-	log_debug("moved animation from %d to %d\n",oldIndex,newIndex);
-
-	m_mode	  = mode;
-	m_oldIndex = oldIndex;
-	m_newIndex = newIndex;
 }
 
 /*
@@ -3781,26 +3380,22 @@ void MU_ClearMetaData::clearMetaData(const Model::MetaDataList &list)
 	m_list = list;
 }
 
-
-MU_InterpolateSelected::MU_InterpolateSelected
-(Model::Interpolate2020E e, unsigned a, unsigned f)
-:m_e(e),m_anim(a),m_frame(f)
-{}
 unsigned MU_InterpolateSelected::size()
 {
 	return sizeof(*this)+m_eold.size()*sizeof(Model::Interpolate2020E);
 }
-void MU_InterpolateSelected::_do(Model *m, bool undoing)
+void MU_InterpolateSelected::_do(Model *model, bool undoing)
 {	
-	m->m_changeBits|=Model::MoveGeometry;
+	model->m_changeBits|=Model::MoveGeometry;
 
 	//NOTE: This became too complicated for keyframes so 
 	//it's just an optimization for vertex animation data
-	auto fa = m->m_frameAnims[m_anim];
+	auto fa = model->m_anims[m_anim];
 	auto fp = fa->m_frame0+m_frame;
 	auto it = m_eold.begin();
 	auto e = m_e; //optimizing
-	for(auto*ea:m->m_vertices) if(ea->m_selected)
+	int v = -1;
+	for(auto*ea:model->m_vertices) if(v++,ea->m_selected)
 	{
 		auto vf = ea->m_frames[fp];
 		auto &cmp = vf->m_interp2020;
@@ -3812,8 +3407,11 @@ void MU_InterpolateSelected::_do(Model *m, bool undoing)
 				//HACK: Maybe this value should already be stored.
 				if(*it<=Model::InterpolateCopy)
 				{
-					m->validateAnim();
-					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));
+					/*I think this can be better now.
+					assert(m_anim==model->getCurrentAnimation()); //2021
+					model->validateAnim();
+					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));*/
+					model->interpKeyframe(m_anim,m_frame,v,vf->m_coord);
 				}
 
 				cmp = e;
@@ -3822,17 +3420,6 @@ void MU_InterpolateSelected::_do(Model *m, bool undoing)
 		}
 	}
 
-	_sync_animation(m,false,m_anim,m_frame); //REMOVE US
-}
-bool ModelUndo::_skel(Model::AnimationModeE e)
-{
-	return e==Model::ANIMMODE_SKELETAL; 
-}
-void ModelUndo::_sync_animation(Model *m, bool skel, unsigned anim, unsigned frame)
-{
-	//if(m->getAnimationMode()!=m->ANIMMODE_NONE) //???
-	{
-		m->setCurrentAnimation(skel?m->ANIMMODE_SKELETAL:m->ANIMMODE_FRAME,anim);
-		m->setCurrentAnimationFrame(frame,m->AT_invalidateAnim);
-	}
+	if(m_anim==model->getCurrentAnimation()) 
+	model->setCurrentAnimationFrame(m_frame);
 }

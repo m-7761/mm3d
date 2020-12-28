@@ -66,13 +66,7 @@ extern Command *rotatetexcmd(const char *menu)
   
 bool RotateTextureCommand::activated(int arg, Model *model)
 {
-	//FIX ME
-	if(model->getAnimationMode()!=Model::ANIMMODE_NONE)
-	return false;
-	
-	int_list tris;
-	int_list::iterator it;
-	model->getSelectedTriangles(tris);
+	int_list tris; model->getSelectedTriangles(tris);
 	if(tris.empty())
 	{
 		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Must select faces"));
@@ -81,43 +75,40 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 
 	if(getPath()==GEOM_FACES_MENU)
 	{
-		float s,t,oldS,oldT;
-		for(it = tris.begin(); it!=tris.end(); it++)
+		float s,t,oldS,oldT; for(int i:tris)
 		{
-			model->getTextureCoords(*it,2,oldS,oldT);
+			model->getTextureCoords(i,2,oldS,oldT);
 
-			model->getTextureCoords(*it,1,s,t);
-			model->setTextureCoords(*it,2,s,t);
+			model->getTextureCoords(i,1,s,t);
+			model->setTextureCoords(i,2,s,t);
 
-			model->getTextureCoords(*it,0,s,t);
-			model->setTextureCoords(*it,1,s,t);
+			model->getTextureCoords(i,0,s,t);
+			model->setTextureCoords(i,1,s,t);
 
-			model->setTextureCoords(*it,0,oldS,oldT);
+			model->setTextureCoords(i,0,oldS,oldT);
 		}
 	}
 	else if(getPath()==GEOM_GROUP_MENU)
 	{
-		float s,t,temp;
-		for(it = tris.begin(); it!=tris.end(); it++)
+		float s,t,temp; for(int i:tris)
 		{
-			model->getTextureCoords(*it,0,s,t);
+			model->getTextureCoords(i,0,s,t);
 			temp = s;
 			s = 0.5-(t-0.5);
 			t = temp;
-			model->setTextureCoords(*it,0,s,t);
+			model->setTextureCoords(i,0,s,t);
 
-			model->getTextureCoords(*it,1,s,t);
+			model->getTextureCoords(i,1,s,t);
 			temp = s;
 			s = 0.5-(t-0.5);
 			t = temp;
-			model->setTextureCoords(*it,1,s,t);
+			model->setTextureCoords(i,1,s,t);
 
-			model->getTextureCoords(*it,2,s,t);
+			model->getTextureCoords(i,2,s,t);
 			temp = s;
 			s = 0.5-(t-0.5);
 			t = temp;
-			model->setTextureCoords(*it,2,s,t);
-
+			model->setTextureCoords(i,2,s,t);
 		}	
 	}
 	else
@@ -125,6 +116,6 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 		assert(0); return false;
 	}
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Texture coordinates rotated"));
-	return true;		
+	return true;
 }
 

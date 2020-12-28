@@ -236,7 +236,8 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 			// See mesh.h for details.
 			mesh_create_list(meshes,model);
 
-			std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+			//std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+			auto &modelMaterials = *(Model::_MaterialList*)&model->getMaterialList();
 
 			MeshList::iterator mlit;
 
@@ -357,10 +358,10 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 		for(it = m_options->m_animations.begin(); it!=m_options->m_animations.end(); it++)
 		{
 			unsigned anim = *it;
-			const char *animName = model->getAnimName(Model::ANIMMODE_SKELETAL,anim);
-			float fps = model->getAnimFPS(Model::ANIMMODE_SKELETAL,anim);
-			unsigned frameCount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,anim);
-			bool loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,anim);
+			const char *animName = model->getAnimName(anim);
+			float fps = model->getAnimFPS(anim);
+			unsigned frameCount = model->getAnimFrameCount(anim);
+			bool loop = model->getAnimWrap(anim);
 
 			if(frameCount==0)
 			{

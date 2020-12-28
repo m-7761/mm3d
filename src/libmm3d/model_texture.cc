@@ -39,7 +39,7 @@ int Model::s_glTextures = 0;
 
 bool Model::loadTextures(ContextT context)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	DrawingContext *drawContext = nullptr;
 	if(context)
@@ -157,9 +157,7 @@ bool Model::loadTextures(ContextT context)
 
 int Model::addTexture(Texture *tex)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return -1; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	m_changeBits |= AddOther;
 
@@ -210,9 +208,7 @@ int Model::addTexture(Texture *tex)
 
 int Model::addColorMaterial(const char *name)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return -1; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(name==nullptr) return -1;
 
@@ -256,9 +252,7 @@ int Model::addColorMaterial(const char *name)
 
 void Model::deleteTexture(unsigned textureNum)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	for(unsigned g = 0; g<m_groups.size(); g++)
 	{
@@ -284,8 +278,6 @@ void Model::deleteTexture(unsigned textureNum)
 
 bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	log_debug("assigning texture %d to group %d\n",textureId,groupNumber);
 
 	m_changeBits |= AddOther;
@@ -313,8 +305,6 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 
 bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, float s, float t)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	https://github.com/zturtleman/mm3d/issues/90
 	m_changeBits |= MoveGeometry;
 
@@ -346,8 +336,6 @@ bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, floa
 
 bool Model::setTextureAmbient(unsigned textureId, const float *ambient)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	if(ambient&&textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
@@ -373,8 +361,6 @@ bool Model::setTextureAmbient(unsigned textureId, const float *ambient)
 
 bool Model::setTextureDiffuse(unsigned textureId, const float *diffuse)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	if(diffuse&&textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
@@ -400,8 +386,6 @@ bool Model::setTextureDiffuse(unsigned textureId, const float *diffuse)
 
 bool Model::setTextureSpecular(unsigned textureId, const float *specular)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	if(specular&&textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
@@ -427,8 +411,6 @@ bool Model::setTextureSpecular(unsigned textureId, const float *specular)
 
 bool Model::setTextureEmissive(unsigned textureId, const float *emissive)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	if(emissive&&textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
@@ -454,8 +436,6 @@ bool Model::setTextureEmissive(unsigned textureId, const float *emissive)
 
 bool Model::setTextureShininess(unsigned textureId, float shininess)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	if(textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
@@ -476,8 +456,6 @@ bool Model::setTextureShininess(unsigned textureId, float shininess)
 
 void Model::setTextureName(unsigned textureId, const char *name)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	if(name&&textureId<m_materials.size())
 	{
 		if(m_materials[textureId]->m_name!=name)
@@ -498,8 +476,6 @@ void Model::setTextureName(unsigned textureId, const char *name)
 
 void Model::setMaterialTexture(unsigned textureId,Texture *tex)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	if(tex==nullptr)
 	{
 		removeMaterialTexture(textureId);
@@ -523,25 +499,21 @@ void Model::setMaterialTexture(unsigned textureId,Texture *tex)
 
 void Model::removeMaterialTexture(unsigned textureId)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	if(textureId<m_materials.size())
+	if(m_materials[textureId]->m_type==Material::MATTYPE_TEXTURE)
 	{
-		if(m_materials[textureId]->m_type==Material::MATTYPE_TEXTURE)
+		if(m_undoEnabled)
 		{
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetMaterialTexture;
-				undo->setMaterialTexture(textureId,nullptr,m_materials[textureId]->m_textureData);
-				sendUndo(undo,true);
-			}
-
-			m_materials[textureId]->m_textureData = nullptr;
-			m_materials[textureId]->m_filename = "";
-			m_materials[textureId]->m_type = Material::MATTYPE_BLANK;
-
-			invalidateTextures(); //OVERKILL
+			auto undo = new MU_SetMaterialTexture;
+			undo->setMaterialTexture(textureId,nullptr,m_materials[textureId]->m_textureData);
+			sendUndo(undo,true);
 		}
+
+		m_materials[textureId]->m_textureData = nullptr;
+		m_materials[textureId]->m_filename = "";
+		m_materials[textureId]->m_type = Material::MATTYPE_BLANK;
+
+		invalidateTextures(); //OVERKILL
 	}
 }
 
@@ -583,7 +555,7 @@ bool Model::setTextureTClamp(unsigned textureId,bool clamp)
 
 void Model::noTexture(unsigned id)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	for(unsigned t = 0; t<m_groups.size(); t++)
 	{

@@ -34,11 +34,7 @@
 
 int Model::addGroup(const char *name)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return -1; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return -1; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	m_changeBits |= AddOther;
 
@@ -67,11 +63,7 @@ int Model::addGroup(const char *name)
 
 void Model::deleteGroup(unsigned groupNum)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return -1; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(m_undoEnabled)
 	{
@@ -85,8 +77,6 @@ void Model::deleteGroup(unsigned groupNum)
 
 bool Model::setGroupSmooth(unsigned groupNum, uint8_t smooth)
 {
-//	if(m_animationMode) return false; //REMOVE ME
-
 	if(groupNum<m_groups.size())
 	{
 		if(smooth!=m_groups[groupNum]->m_smooth) //2020
@@ -113,8 +103,6 @@ bool Model::setGroupSmooth(unsigned groupNum, uint8_t smooth)
 
 bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 {
-//	if(m_animationMode) return false; //REMOVE ME
-
 	if(groupNum<m_groups.size())
 	{
 		if(angle!=m_groups[groupNum]->m_angle) //2020
@@ -141,8 +129,6 @@ bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 
 bool Model::setGroupName(unsigned groupNum, const char *name)
 {
-//	if(m_animationMode) return false; //REMOVE ME
-
 	if(groupNum>=0&&groupNum<m_groups.size()&&name)
 	{
 		if(name!=m_groups[groupNum]->m_name)
@@ -165,9 +151,7 @@ bool Model::setGroupName(unsigned groupNum, const char *name)
 
 void Model::setSelectedAsGroup(unsigned groupNum)
 {
-	LOG_PROFILE();
-
-//	if(m_animationMode) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	m_changeBits |= AddOther;
 
@@ -214,10 +198,8 @@ void Model::setSelectedAsGroup(unsigned groupNum)
 
 void Model::addSelectedToGroup(unsigned groupNum)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
-//	if(m_animationMode) return; //REMOVE ME
-	
 	m_changeBits |= AddOther;
 
 	invalidateNormals(); //OVERKILL
@@ -244,9 +226,7 @@ void Model::addSelectedToGroup(unsigned groupNum)
 
 void Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 {
-	LOG_PROFILE();
-
-//	if(m_animationMode) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	m_changeBits |= AddOther;
 
@@ -280,8 +260,6 @@ void Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 
 void Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 {
-//	if(m_animationMode) return; //REMOVE ME
-	
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{	
 		auto &c = m_groups[groupNum]->m_triangleIndices;

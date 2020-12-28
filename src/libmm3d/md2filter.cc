@@ -587,7 +587,8 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 	TextureManager *texmgr = TextureManager::getInstance();
 	bool haveSkin = false;
 
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	//std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	auto &modelMaterials = *(Model::_MaterialList*)&model->getMaterialList();
 
 	log_debug("Skin data:\n");
 	for(i = 0; i<numSkins; i++)
@@ -842,7 +843,8 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 		
 	auto &modelVertices = model->getVertexList();
 	auto &modelTriangles = model->getTriangleList();
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	//std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+	auto &modelMaterials = *(Model::_MaterialList*)&model->getMaterialList();
 
 	unsigned numStrips = 0;
 	unsigned numFans	= 0;
@@ -913,21 +915,21 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 
 	frameSize = (4 *numVertices)+40;
 
-	unsigned i;
-
-	unsigned animCount = model->getAnimCount(Model::ANIMMODE_FRAME);
-	for(i = 0; i<animCount; i++)
+	unsigned i,animCount = 
+	model->getAnimationCount(Model::ANIMMODE_FRAME);
+	for(i=0;i<animCount;i++)
+	if(model->getAnimType(i)&Model::ANIMMODE_FRAME)
 	{
-		numFrames += model->getAnimFrameCount(Model::ANIMMODE_FRAME,i);
+		numFrames+=model->getAnimFrameCount(i);
 	}
 	if(numFrames==0)
 	{
 		numFrames = 1;
 		noAnim = true;
 	}
-	if(animCount==0)
+	//if(animCount==0)
 	{
-		animCount = 1;
+	//	animCount = 1;
 	}
 
 	if(!modelMaterials.empty()&&modelMaterials[0]->m_textureData)
@@ -1036,12 +1038,15 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	std::vector<float> vecNormals(3*numVertices);
 	float *avgNormals = vecNormals.data();
 
-	for(unsigned anim=0;anim<animCount;anim++)
+	unsigned anim = noAnim?animCount:0;
+	if(noAnim) goto noAnim; //2021
+	for(;anim<animCount;anim++)
+	if(model->getAnimType(anim)&Model::ANIMMODE_FRAME) noAnim:
 	{
 		// Heh... oops
 		//model->calculateFrameNormals(anim);
 
-		std::string animname = noAnim ? "Frame" : model->getAnimName(Model::ANIMMODE_FRAME,anim);
+		std::string animname = noAnim ? "Frame" : model->getAnimName(anim);
 
 		// Check for animation name ending with a number
 		size_t len = strlen(animname.c_str());
@@ -1055,10 +1060,10 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 
 		if(!noAnim) //2020: Generate normals.
 		{
-			model->setCurrentAnimation(Model::ANIMMODE_FRAME,anim);
+			model->setCurrentAnimation(anim);
 		}
 		
-		unsigned aFrameCount = model->getAnimFrameCount(Model::ANIMMODE_FRAME,anim);
+		unsigned aFrameCount = model->getAnimFrameCount(anim);
 		if(noAnim||0==aFrameCount)
 		{
 			aFrameCount = 1;
@@ -1254,17 +1259,16 @@ int Md2Filter::addNeededAnimFrame(Model *model, const char *name)
 	{
 		m_lastAnimFrame = temp;
 		m_lastAnimIndex = model->addAnimation(Model::ANIMMODE_FRAME,temp);
-		model->setAnimFPS(Model::ANIMMODE_FRAME,m_lastAnimIndex,10.0);
+		model->setAnimFPS(m_lastAnimIndex,10.0);
 		m_animFrame = 0;
 	}
 	else
 	{
 		m_animFrame++;
 	}
-	model->setAnimFrameCount(Model::ANIMMODE_FRAME,m_lastAnimIndex,m_animFrame+1);
+	model->setAnimFrameCount(m_lastAnimIndex,m_animFrame+1);
 
-	free(temp);
-	return m_lastAnimIndex;
+	free(temp); return m_lastAnimIndex;
 }
 
 extern ModelFilter *md2filter(ModelFilter::PromptF f)

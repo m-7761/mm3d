@@ -29,7 +29,6 @@
 
 void Model::insertVertex(unsigned index, Model::Vertex *vertex)
 {
-	//if(m_animationMode) return; //REMOVE ME
 	invalidateAnim(); vertex->_source(m_animationMode); //OVERKILL
 
 	m_changeBits |= AddGeometry;
@@ -64,8 +63,6 @@ void Model::insertVertex(unsigned index, Model::Vertex *vertex)
 
 void Model::removeVertex(unsigned index)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddGeometry;
 
 	invalidateNormals(); //OVERKILL
@@ -97,7 +94,6 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 	if(index>m_triangles.size())
 	return log_error("insertTriangle(%d)index out of range\n",index);
 
-	//if(m_animationMode) return; //REMOVE ME
 	invalidateAnim(); triangle->_source(m_animationMode); //OVERKILL
 
 	m_changeBits |= AddGeometry;
@@ -121,8 +117,6 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 
 void Model::removeTriangle(unsigned index)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	if(index<m_triangles.size())
 	{		
 		m_changeBits |= AddGeometry;
@@ -148,8 +142,6 @@ void Model::insertGroup(unsigned index,Model::Group *group)
 	if(index>m_groups.size())
 	return log_error("insertGroup(%d)index out of range\n",index); 
 
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddOther;
 
 	m_groups.insert(m_groups.begin()+index,group);
@@ -157,8 +149,6 @@ void Model::insertGroup(unsigned index,Model::Group *group)
 
 void Model::removeGroup(unsigned index)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddOther;
 
 	if(index<m_groups.size())
@@ -173,7 +163,6 @@ void Model::insertBoneJoint(unsigned index, Joint *joint)
 	if(index>m_joints.size())
 	return log_error("insertBoneJoint(%d)index out of range\n",index);
 
-	//if(m_animationMode) return; //REMOVE ME?
 	invalidateAnim(); joint->_source(m_animationMode);
 	
 	m_changeBits |= AddOther;
@@ -196,11 +185,15 @@ void Model::insertBoneJoint(unsigned index, Joint *joint)
 		}
 
 		// Adjust joint indices of keyframes after this joint
-		for(auto*sa:m_skelAnims)		
-		for(unsigned j=index;j<sa->m_keyframes.size();j++)
-		for(unsigned k=0;k<sa->m_keyframes[j].size();k++)
+		for(auto*sa:m_anims) if(1&sa->_type)
 		{
-			sa->m_keyframes[j][k]->m_objectIndex++;
+			for(auto&ea:sa->m_keyframes)			
+			if(ea.first.type==PT_Joint)
+			if(ea.first.index<=index)
+			for(auto*kf:ea.second)
+			{
+				kf->m_objectIndex++;
+			}
 		}
 	
 		// Adjust vertex assignments
@@ -219,20 +212,11 @@ void Model::insertBoneJoint(unsigned index, Joint *joint)
 	}
 	else m_joints.push_back(joint);
 
-	// Insert joint into keyframe list
-	for(auto*sa:m_skelAnims)
-	{
-		//log_debug("inserted keyframe list for joint %d\n",j); //???
-		sa->m_keyframes.insert(sa->m_keyframes.begin()+index,KeyframeList());
-	}
-
 	invalidateSkel(); //m_validJoints = false;
 }
 
 void Model::removeBoneJoint(unsigned index)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	if(index>=m_joints.size())
 	return log_error("removeBoneJoint(%d)index out of range\n",index);
 
@@ -241,36 +225,43 @@ void Model::removeBoneJoint(unsigned index)
 	m_changeBits |= AddOther;
 
 	//DUPLICATES removePoint
-	for(unsigned anim=0;anim<m_skelAnims.size();anim++) 
+	int anim = -1;
+	for(auto*sa:m_anims) if(anim++,1&sa->_type) //ANIMMODE_SKELETAL
 	{
-		auto sa = m_skelAnims[anim];
+		Position pos = {PT_Joint,index};
+
+		auto it = sa->m_keyframes.find(pos);
 
 		// Adjust skeletal animations
-		if(index<sa->m_keyframes.size())
+		if(it!=sa->m_keyframes.end())
 		{
 			// Delete joint keyframes
-			for(auto&kf=sa->m_keyframes[index];!kf.empty();)
+			while(!it->second.empty())
 			{
 				//log_debug("deleting keyframe %d for joint %d\n",index,joint); //???
 
-				deleteKeyframe(anim,kf.back()->m_frame,{PT_Joint,index});
+				//Could use removeKeyframe/MU_DeleteObjectKeyframe here
+				//but probably better to improve the undo system itself.
+				deleteKeyframe(anim,it->second.back()->m_frame,pos);
 			}
 				
 			// Remove joint from keyframe list
 			{
 				//log_debug("removed keyframe list for joint %d\n",index); //???
-						
-				sa->m_keyframes.erase(sa->m_keyframes.begin()+index);
+				
+				//NOTE: This is no longer strictly required.
+				sa->m_keyframes.erase(pos);
 			}
 		}
-		else assert(index<sa->m_keyframes.size()); //2020
 
 		// Adjust joint indices of keyframes after this joint
-		for(unsigned j=index;j<sa->m_keyframes.size();j++)
 		{
-			for(size_t i=sa->m_keyframes[j].size();i-->0;)
+			for(auto&ea:sa->m_keyframes)			
+			if(ea.first.type==PT_Joint)
+			if(ea.first.index<=index)
+			for(auto*kf:ea.second)
 			{
-				sa->m_keyframes[j][i]->m_objectIndex--;
+				kf->m_objectIndex--;
 			}
 		}
 	}
@@ -399,19 +390,11 @@ void Model::insertPoint(unsigned index, Model::Point *point)
 	if(index>m_points.size())
 	return log_error("insertPoint(%d)index out of range\n",index);
 
-	//if(m_animationMode) return; //REMOVE ME
 	invalidateAnim(); point->_source(m_animationMode);
 
 	m_changeBits |= AddOther;
 
 	m_points.insert(m_points.begin()+index,point);
-
-	// Insert point into keyframe list
-	for(auto*fa:m_frameAnims)
-	{
-		//log_debug("inserted keyframe list for point %d\n",j); //???
-		fa->m_keyframes.insert(fa->m_keyframes.begin()+index,KeyframeList());
-	}
 }
 
 void Model::removePoint(unsigned index)
@@ -421,41 +404,46 @@ void Model::removePoint(unsigned index)
 
 	//log_debug("removePoint(%d)\n",index);
 
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddOther;
 	
-	//DUPLICATES removeJoint
-	for(unsigned anim=0;anim<m_frameAnims.size();anim++) 
+	//DUPLICATES removeBoneJoint
+	int anim = -1;
+	for(auto*fa:m_anims) if(anim++,2&fa->_type) //ANIMMODE_FRAME
 	{
-		auto fa = m_frameAnims[anim];
+		Position pos = {PT_Point,index};
+
+		auto it = fa->m_keyframes.find(pos);
 
 		// Adjust skeletal animations
-		if(index<fa->m_keyframes.size())
+		if(it!=fa->m_keyframes.end())
 		{
 			// Delete joint keyframes
-			for(auto&kf=fa->m_keyframes[index];!kf.empty();)
+			while(!it->second.empty())
 			{
 				//log_debug("deleting keyframe %d for joint %d\n",index,joint); //???
 
-				deleteKeyframe(anim,kf.back()->m_frame,{PT_Point,index});
+				//Could use removeKeyframe/MU_DeleteObjectKeyframe here
+				//but probably better to improve the undo system itself.
+				deleteKeyframe(anim,it->second.back()->m_frame,pos);
 			}
 				
 			// Remove joint from keyframe list
 			{
 				//log_debug("removed keyframe list for joint %d\n",index); //???
 						
-				fa->m_keyframes.erase(fa->m_keyframes.begin()+index);
+				//NOTE: This is no longer strictly required.
+				fa->m_keyframes.erase(pos);
 			}
 		}
-		else assert(index<fa->m_keyframes.size()); //2020
 
 		// Adjust joint indices of keyframes after this joint
-		for(unsigned j=index;j<fa->m_keyframes.size();j++)
 		{
-			for(size_t i=fa->m_keyframes[j].size();i-->0;)
+			for(auto&ea:fa->m_keyframes)			
+			if(ea.first.type==PT_Point)
+			if(ea.first.index<=index)
+			for(auto*kf:ea.second)
 			{
-				fa->m_keyframes[j][i]->m_objectIndex--;
+				kf->m_objectIndex--;
 			}
 		}
 	}
@@ -467,8 +455,6 @@ void Model::insertProjection(unsigned index, Model::TextureProjection *proj)
 {
 	if(index>m_projections.size())
 	return log_error("insertProjection(%d)index out of range\n",index);
-
-	//if(m_animationMode) return; //REMOVE ME
 
 	m_changeBits |= AddOther;
 
@@ -485,8 +471,6 @@ void Model::removeProjection(unsigned proj)
 {
 	log_debug("removeProjection(%d)\n",proj);
 
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddOther;
 
 	if(proj<m_projections.size())
@@ -502,8 +486,6 @@ void Model::insertTexture(unsigned index, Model::Material *texture)
 	if(index>m_materials.size())
 	return log_error("insertTexture(%d)index out of range\n",index);
 
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddOther;
 
 	m_materials.insert(m_materials.begin()+index,texture);
@@ -513,8 +495,6 @@ void Model::insertTexture(unsigned index, Model::Material *texture)
 
 void Model::removeTexture(unsigned index)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	m_changeBits |= AddOther;
 
 	if(index<m_materials.size())

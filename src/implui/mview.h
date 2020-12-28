@@ -133,8 +133,6 @@ struct ViewBar::ModelView
 };
 struct ViewBar::StatusBar : StatusObject
 {
-	enum{ hiding=1, underscoring=0 };
-
 	StatusBar(ViewBar &bar)
 		:
 	model(bar.model),
@@ -145,7 +143,7 @@ struct ViewBar::StatusBar : StatusObject
 	_vert_snap(flags,"Vs",id_snap_vert),
 	_grid_snap(flags,"Gs",id_snap_grid),
 	_interlock(flags,"Ex",id_frame_lock),
-	_100(flags,"100",id_joint_100),
+	_100(flags,"Wt",id_joint_100),
 	_clipboard(flags,"Ins",id_animate_insert),	
 	_keys_snap(flags,"Scr",id_animate_snap),
 	_sanim_mode(flags,"Sam",id_animate_mode_1),
@@ -161,7 +159,7 @@ struct ViewBar::StatusBar : StatusObject
 		text.expand();
 		text.title(true); //EXPERIMENTAL
 		stats.ralign(); _curstats[0][0] = -1;
-		flags.ralign().space(0,underscoring,0);
+		flags.ralign().space(0,/*underscoring*/0,0);
 	}
 	~StatusBar();
 
@@ -172,56 +170,35 @@ struct ViewBar::StatusBar : StatusObject
 	row flags;
 	struct Flag:titlebar
 	{
-		/*would like to be able to click but it's
-		//really complicated to coordinate with 
-		//the window menu state
-		//virtual bool mouse_down_handler(int,int)
-		{
-			((ViewBar*)ui())->model.perform_menu_action(id());
-			return false;
-		}*/
-
 		Flag(row &r, utf8 c, int i):titlebar(r,c)
 		{
-			id(i); 
-			
-			if(hiding) 
+			id(i); //if(hiding) 
 			{
 				set_hidden();
 
-				if(underscoring) name().insert(0,1,'&');
+				//if(underscoring) _name.insert(0,1,'&');
 			}
 		}
 
 		void underscore(bool _)
 		{
-			int_val() = _;
-
-			if(hiding)
+			int_val() = _; /*if(!hiding) //underscoring?
 			{
-				set_hidden(!_);
+				if(_==('&'==_name[0])) return;
+				if(_) _name.insert(0,1,'&');
+				else _name.erase(0,1); repack();
 			}
-			else //assuming underscoring
-			{
-				auto &l = name();
-				bool cmp = '&'==l[0];
-				if(_==cmp) return;
-				if(_) l.insert(0,1,'&');
-				if(!_) l.erase(0,1);
-				//Ouch! This pattern doesn't work.
-				//set_name(l);
-				repack();
-			}
+			else*/ set_hidden(!_);
 		}
 
-	}_vert_snap, //V
-	_grid_snap, //G
-	_interlock, //E
-	_100, //1 //I
-	_clipboard, //C
-	_keys_snap, //K (Scroll Lock)
-	_sanim_mode, //S (skeleton mode)
-	_fanim_mode; //F ("frame" mode)
+	}_vert_snap, //Vs
+	_grid_snap, //Gs
+	_interlock, //Ex (invertd)
+	_100, //1 //Wt (inverted)
+	_clipboard, //Cb
+	_keys_snap, //Scr (inverted)
+	_sanim_mode, //Sam
+	_fanim_mode; //Fam
 	titlebar stats;
 
 	// StatusObject methods

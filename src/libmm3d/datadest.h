@@ -89,14 +89,20 @@ class DataDest
 		DataDest();
 		virtual ~DataDest();
 
-		enum EndiannessE {
+		/*enum EndiannessE //UNUSED
+		{
 			LittleEndian,	// Intel byte order,low-order byte first (default)
 			BigEndian,		// Network byte order,high-order byte first
 		};
-
 		// Endianness of the input data.
-		void setEndianness(EndiannessE e);
-		EndiannessE getEndianness(){ return m_endian; }
+		void setEndianness(EndiannessE e); //UNUSED
+		EndiannessE getEndianness(){ return m_endian; } //UNUSED*/
+		template<class T> static void swapEndianness(T &val) //2021
+		{
+			for(int i=sizeof(T);i-->0;)
+			std::swap(*(char*)&val,((char*)&val)[sizeof(T)-i]);
+		}
+		void swapEndianness(){ m_swap = !m_swap; } //2021 (UNUSED)
 
 		// Perform any cleanup when done writing.
 		void close(){ internalClose(); }
@@ -154,6 +160,7 @@ class DataDest
 		bool write(int32_t val);
 		bool write(uint32_t val);
 		bool write(float32_t val);
+		template<class T> bool _write(T&); //2021
 
 		// An error occured,either atFileLimit()is true,or getErrno()
 		// is not 0.
@@ -177,7 +184,7 @@ class DataDest
 			MAX_PRINTF_SIZE = 2<<13 //16*1024 //2^14
 		};
 
-		EndiannessE m_endian;
+		//EndiannessE m_endian; //UNUSED
 		size_t m_fileSize;
 		size_t m_fileSizeLimit;
 		bool m_hasLimit;
@@ -191,13 +198,14 @@ class DataDest
 		//char m_strbuf[MAX_PRINTF_SIZE];
 		std::vector<char> m_vpfbuf;
 
+		/*REMOVE ME? (USE ME?)
 		typedef uint16_t (*EndianFunction16T)(uint16_t);
 		typedef uint32_t (*EndianFunction32T)(uint32_t);
 		typedef float (*EndianFunctionFlT)(float);
-
 		EndianFunction16T m_endfunc16;
 		EndianFunction32T m_endfunc32;
-		EndianFunctionFlT m_endfuncfl;
+		EndianFunctionFlT m_endfuncfl;*/
+		bool m_swap;
 };
 
 class DestCloser

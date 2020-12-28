@@ -108,12 +108,12 @@ static std::string getAppBundlePath()
 	std::string endsWith = ".app/Contents/MacOS";
 
 	// Check if executable is not in an app bundle
-	if(path.length()<endsWith.length()
-	  ||path.compare(path.length()-endsWith.length(),endsWith.length(),endsWith)!=0){
+	if(path.size()<endsWith.size()
+	  ||path.compare(path.size()-endsWith.size(),endsWith.size(),endsWith)!=0){
 		return "";
 	}
 
-	return path.substr(0,path.length()-endsWith.length()+strlen(".app"));
+	return path.substr(0,path.size()-endsWith.size()+strlen(".app"));
 }
 
 #endif // __APPLE__
@@ -133,7 +133,7 @@ void init_sysconf()
 #ifdef WIN32 
 	std::string path = getExecutablePath();
 
-	if(path.length()==0)
+	if(path.size()==0)
 	{
 		// Fall back to current directory
 
@@ -175,7 +175,7 @@ void init_sysconf()
 
 	std::string appPath = getAppBundlePath();
 
-	if(appPath.length()>0){
+	if(appPath.size()>0){
 		s_docDir			  = appPath+"/Contents/SharedSupport/mm3d/doc/html";
 		s_i18nDir			 = appPath+"/Contents/SharedSupport/mm3d/i18n";
 		s_sharedPluginDir  = appPath+"/Contents/PlugIns/mm3d";

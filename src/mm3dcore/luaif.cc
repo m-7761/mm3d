@@ -724,6 +724,10 @@ static Model::AnimationModeE _stringToAnimationMode(const char *str)
 	{
 		return Model::ANIMMODE_FRAME;
 	}
+	else if(PORT_strcasecmp(str,"complex")==0) //2021?
+	{
+		return Model::ANIMMODE;
+	}
 	else
 	{
 		log_error("Unknown animation type %s",str);

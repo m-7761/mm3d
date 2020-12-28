@@ -248,8 +248,8 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 	auto &modelVertices = model->getVertexList();
 	auto &modelTriangles = model->getTriangleList();
 	auto &modelGroups = model->getGroupList();
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
-	std::vector<Model::Joint*>	 &modelJoints	 = getJointList(model);
+	auto &modelMaterials = model->getMaterialList();
+	auto &modelJoints = model->getJointList();
 
 	unsigned fileLength = m_src->getFileSize();
 
@@ -489,7 +489,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		// Get absolute path for alpha map
 		texturePath = material.m_alphamap;
 
-		if(texturePath.length()>0)
+		if(texturePath.size()>0)
 		{
 			texturePath = fixAbsolutePath(modelPath.c_str(),texturePath.c_str());
 			texturePath = getAbsolutePath(modelPath.c_str(),texturePath.c_str());
@@ -497,7 +497,8 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 		mat->m_alphaFilename = texturePath;
 
-		modelMaterials.push_back(mat);
+		//FIX ME
+		(*(Model::_MaterialList*)&modelMaterials).push_back(mat);
 	}
 
 	float32_t fps = 0;
@@ -513,8 +514,8 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 	if(numFrames>0)
 	{
 		model->addAnimation(Model::ANIMMODE_SKELETAL,"Keyframe");
-		model->setAnimFPS(Model::ANIMMODE_SKELETAL,0,fps);
-		model->setAnimFrameCount(Model::ANIMMODE_SKELETAL,0,numFrames);
+		model->setAnimFPS(0,fps);
+		model->setAnimFrameCount(0,numFrames);
 	}
 
 	uint16_t numJoints = 0;
@@ -586,15 +587,10 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 			}
 		}
 
-		modelJoints.push_back(Model::Joint::get());
-
-		for(int i = 0; i<3; i++)
-		{
-			modelJoints[t]->m_rot[i] = joint.m_rotation[i];
-			modelJoints[t]->m_rel[i] = joint.m_translation[i];
-		}
-		modelJoints[t]->m_parent = parentIndex;
-		modelJoints[t]->m_name	= joint.m_name;
+		auto *fp = joint.m_translation;
+		model->addBoneJoint(joint.m_name,fp[0],fp[1],fp[2],parentIndex);
+		double rot[3] = { fp[0],fp[1],fp[2] };
+		model->setBoneJointRotation(t,rot);
 
 		uint16_t numRotationKeyframes	 = joint.m_numRotationKeyframes;
 		uint16_t numTranslationKeyframes = joint.m_numTranslationKeyframes;
@@ -691,7 +687,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filename, Options &o)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(model->getVertexCount()>USHRT_MAX){
 		model->setFilterSpecificError(TRANSLATE("LowLevel","Too many vertexes for MS3D export (max 65,536)."));
@@ -773,9 +769,9 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 
 	auto &modelVertices = model->getVertexList();
 	auto &modelTriangles = model->getTriangleList();
-	auto &&modelGroups = model->getGroupList();
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
-	std::vector<Model::Joint*>	 &modelJoints	 = getJointList(model);
+	auto &modelGroups = model->getGroupList();
+	auto &modelMaterials = model->getMaterialList();
+	auto &modelJoints = model->getJointList();
 
 	m_dst->writeBytes(MAGIC_NUMBER,strlen(MAGIC_NUMBER));
 	int32_t version = 4;
@@ -938,7 +934,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 
 	for(t = 0; t<numMaterials; t++)
 	{
-		Model::Material *mmat = modelMaterials[t];
+		auto *mmat = modelMaterials[t];
 		MS3DMaterial mat;
 
 		snprintf(mat.m_name,sizeof(mat.m_name),
@@ -994,24 +990,20 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		m_dst->writeBytes(mat.m_alphamap,sizeof(mat.m_alphamap));
 	}
 
-	float32_t fps = 30.0f;
-	if(model->getAnimCount(Model::ANIMMODE_SKELETAL)>0)
-	{
-		fps = model->getAnimFPS(Model::ANIMMODE_SKELETAL,0);
-	}
-	if(fps<=0.0)
-	{
-		fps = 30.0f;
-	}
-
 	float32_t currentTime = 1.0;
 	int32_t numFrames = 0;
 
-	unsigned animcount = model->getAnimCount(Model::ANIMMODE_SKELETAL);
+	float32_t fps = 0;
+	//unsigned animcount = model->getAnimationCount(Model::ANIMMODE_SKELETAL);
+	unsigned animcount = model->getAnimationCount();
 	for(unsigned anim = 0; anim<animcount; anim++)
+	if(model->getAnimType(anim)&Model::ANIMMODE_SKELETAL) //2021
 	{
-		numFrames += model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,anim);
+		if(!fps) fps = model->getAnimFPS(anim);
+
+		numFrames += model->getAnimFrameCount(anim);
 	}
+	if(!fps) fps = 30;
 
 	double spf = 1.0/fps;
 
@@ -1024,7 +1016,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 
 	for(Model::Position t{Model::PT_Joint,0};t<numJoints;t++)
 	{
-		Model::Joint *mjoint = modelJoints[t];
+		auto *mjoint = modelJoints[t];
 		MS3DJoint joint;
 
 		snprintf(joint.m_name,sizeof(joint.m_name),
@@ -1048,7 +1040,6 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 			joint.m_translation[i] = mjoint->m_rel[i];
 		}
 
-		unsigned animcount = model->getAnimCount(Model::ANIMMODE_SKELETAL);
 		unsigned framecount = 0;
 		unsigned prevcount = 0;
 		bool loop;
@@ -1064,8 +1055,9 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		double z = 0;
 
 		for(a = 0; a<animcount; a++)
+		if(model->getAnimType(a)&Model::ANIMMODE_SKELETAL) //2021
 		{
-			framecount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,a);
+			framecount = model->getAnimFrameCount(a);
 
 			for(f = 0; f<framecount; f++)
 			{
@@ -1104,9 +1096,10 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		// Rotation keyframes
 		prevcount = 0;
 		for(a = 0; a<animcount; a++)
+		if(model->getAnimType(a)&Model::ANIMMODE_SKELETAL) //2021
 		{
-			framecount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,a);
-			loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,a);
+			framecount = model->getAnimFrameCount(a);
+			loop = model->getAnimWrap(a);
 
 			// force keyframes at beginning and end of animation
 			for(f=0;f<framecount;f++)				
@@ -1143,9 +1136,10 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		// Translation keyframes
 		prevcount = 0;
 		for(a = 0; a<animcount; a++)
+		if(model->getAnimType(a)&Model::ANIMMODE_SKELETAL) //2021
 		{
-			framecount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,a);
-			loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,a);
+			framecount = model->getAnimFrameCount(a);
+			loop = model->getAnimWrap(a);
 
 			// force keyframes at beginning and end of animation
 			for(f=0;f<framecount;f++)

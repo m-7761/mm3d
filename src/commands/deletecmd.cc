@@ -50,14 +50,17 @@ extern Command *deletecmd(){ return new DeleteCommand; }
 
 bool DeleteCommand::activated(int arg,Model *model)
 {
-	//if(!model->getAnimationMode())
-	if(model->getAnimCount(Model::ANIMMODE_SKELETAL)
+	/*2021: Is this nececessary? Could print a message inside deleteSelected?
+	//if(!model->inAnimationMode())
+	//if(model->getAnimationCount(Model::ANIMMODE_SKELETAL)
+	if(model->getAnimationCount()!=model->getAnimCount(Model::ANIMMODE_FRAME)
 	 &&model->getSelectedBoneJointCount())
 	{
 		if('Y'!=msg_warning_prompt
-		(TRANSLATE("Command","Deleting joints may destroy skeletal animations\nDo you wish to continue?"),"yN"))
+		//(TRANSLATE("Command","Deleting joints may destroy skeletal animations\nDo you wish to continue?"),"yN"))
+		(TRANSLATE("Command","Deleting joints may affect skeletal animations\nDo you wish to continue?"),"yN"))
 		return false;
-	}
+	}*/
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Primitives deleted"));
 	model->deleteSelected();

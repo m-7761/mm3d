@@ -142,21 +142,39 @@ void SideBar::AnimPanel::refresh_list()
 	dropdown *r = animation.reference();
 	if(!r) r = &animation;
 
-	sep_animation = model->getAnimCount(Model::ANIMMODE_SKELETAL);
-	new_animation = model->getAnimCount(Model::ANIMMODE_FRAME);
-	new_animation+=sep_animation;
+	//sep_animation = model->getAnimationCount(Model::ANIMMODE_SKELETAL);
+	//new_animation = model->getAnimationCount(Model::ANIMMODE_FRAME);
+	new_animation = model->getAnimationCount();
+	//new_animation+=sep_animation;
+
+	enum{ z=2 }; //TODO: Let i18n/l10n disable this.
 
 	r->clear();
-	r->add_item(-1,"<None>"); //2019
-	for(int i=0;i<sep_animation;i++)
-	r->add_item(i,model->getAnimName(Model::ANIMMODE_SKELETAL,i));
-	for(int i=sep_animation;i<new_animation;i++)
-	r->add_item(i,model->getAnimName(Model::ANIMMODE_FRAME,i-sep_animation));
+	r->add_item(-1,::tr("<None>"));
+	auto ins = r->first_item(); //<None>
+	auto sep = Model::ANIMMODE_NONE,cmp=sep; 
+	for(int i=0;i<new_animation;i++,sep=cmp)
+	{
+		//HACK: cmp==z is because I've moved Frame
+		//to be in front of Skeletal in the UI just
+		//because the layout looks nicer.
+		cmp = model->getAnimType(i); 
+		if(cmp!=sep&&sep)
+		{
+			auto it = new li::item;
+			if(cmp==z) r->insert_item(it,ins,li::behind);
+			else r->add_item(it);
+		}
+		auto it = new li::item(i,model->getAnimName(i));
+		if(cmp==z) r->insert_item(it,ins,li::behind);
+		if(cmp==z) ins = it;
+		else r->add_item(it);
+	}
 	r->add_item(new_animation,::tr("<New Animation>"));
 
 	auto m = model->getAnimationMode();
 	int a = model->getCurrentAnimation();
-	if(m==Model::ANIMMODE_FRAME) a+=sep_animation;
+	//if(m==Model::ANIMMODE_FRAME) a+=sep_animation;
 	
 	if(r!=&animation)
 	{
@@ -415,15 +433,11 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	interp.nav.set_hidden(!show);
 	if(show) interp.change(changeBits);
 
-	show = false;
-	int trisN = model->getTriangleCount();
-	for(int i=0;i<trisN;i++)
-	if(model->isTriangleSelected(i)) //FIX ME
+	show = !model.fselection.empty();
+	if(show||changeBits&Model::AddOther)
 	{
-		show = true;
 		group.change(changeBits);
-		break; 
-	}	
+	}		
 	group.nav.set_hidden(!show);
 
 	auto &sn = model.nselection;
@@ -481,7 +495,7 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 		for(auto&i:model.selection)
 		{
 			if(i.type==Model::PT_Projection
-			&&model->getAnimationMode())
+			&&model->inAnimationMode())
 			continue; 
 
 			double coords[3];
@@ -649,18 +663,19 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 {	
 	if(changeBits) // Update coordinates in text fields
 	{
+		int sel = 0, am = model->getAnimationMode();
+		if(am&1) sel|=Model::SelectionJoints;
+		if(am&2) sel|=Model::SelectionVertices|Model::SelectionPoints;
+
 		if(0==(changeBits&
 		(Model::MoveGeometry
 		|Model::MoveOther
 		|Model::AnimationMode
-		|Model::AnimationFrame
-		|(model->inSkeletalMode()?Model::SelectionJoints
-		:Model::SelectionVertices|Model::SelectionPoints)))) 
+		|Model::AnimationFrame|sel))) 
 		{
 			return;
 		}
 
-		auto am = model->getAnimationMode();
 		int anim = model->getCurrentAnimation();
 		int frame = model->getCurrentAnimationFrame();		
 		
@@ -668,7 +683,7 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 		Model::Interpolate2020E cmp[3] = {keep,keep,keep};
 		int mask = 0;
 		model->getSelectedInterpolation
-		(am,anim,frame,[&](const Model::Interpolate2020E e[3])
+		(anim,frame,[&](const Model::Interpolate2020E e[3])
 		{
 			int i = e[1]==Model::InterpolateVoid?1:3;
 			mask|=i;
@@ -687,7 +702,7 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 
 		if(!mask //No frames? Not keyframe?
 		||model->getCurrentAnimationFrameTime()
-		!=model->getAnimFrameTime(am,anim,frame))
+		!=model->getAnimFrameTime(anim,frame))
 		for(int i=3;i-->0;) cmp[i] = Model::InterpolateNone;
 		for(int i=3;i-->0;) menu[i].set_int_val(cmp[i]);	
 	}
@@ -734,9 +749,7 @@ void SideBar::PropPanel::group_props::change(int changeBits)
 	if(changeBits&Model::SelectionFaces)
 	{
 		int grp = -2, prj  = -2;
-		int i = model->getTriangleCount();
-		while(i-->0)
-		if(model->isTriangleSelected(i))
+		for(int i:model.fselection)
 		{
 			if(grp!=-3)
 			if(grp==-2) //2020: treat -1 as distinct entity
@@ -760,7 +773,7 @@ void SideBar::PropPanel::group_props::change(int changeBits)
 
 		group.menu.select_id(grp);		
 		material.nav.enable(grp>=0);
-		material.menu.select_id(model->getGroupTextureId(grp));
+		material.menu.select_id(grp==-3?-2:model->getGroupTextureId(grp));
 		projection.menu.select_id(prj);
 	}
 }
@@ -779,9 +792,7 @@ void SideBar::PropPanel::group_props::submit(int id)
 	{
 		int p = projection.menu;
 
-		int iN = model->getTriangleCount();
-		for(int i=0;i<iN;i++)		
-		if(model->isTriangleSelected(i))
+		for(int i:model.fselection)
 		{
 			model->setTriangleProjection(i,p);
 		}
@@ -800,9 +811,7 @@ void SideBar::PropPanel::group_props::submit(int id)
 		if(g==-1)
 		{
 			material.nav.disable();
-			iN = model->getTriangleCount();
-			for(int i=0;i<iN;i++)		
-			if(model->isTriangleSelected(i))
+			for(int i:model.fselection)
 			{
 				g = model->getTriangleGroup(i);
 				if(g>=0)
@@ -930,7 +939,7 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 
 	//Why was this? I've changed model_influence.cc to
 	//recalculate positions as the weights are changed.
-	//bool enable = !model->getAnimationMode();
+	//bool enable = !model->inAnimationMode();
 	bool enable = true;
 
 	//FIX ME

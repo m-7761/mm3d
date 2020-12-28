@@ -155,24 +155,29 @@ void AnimExportWin::submit(int id)
 		//i = config.get("ui_animexport_?",1);
 		duration.mult.select_id(1);
 	
-		size_t scount = model->getAnimCount(Model::ANIMMODE_SKELETAL);
-		size_t fcount = model->getAnimCount(Model::ANIMMODE_FRAME);
+		size_t scount = model->getAnimationCount(Model::ANIMMODE_SKELETAL);
+		size_t fcount = model->getAnimationCount(Model::ANIMMODE_FRAME);
 		bool labelAnims = scount&&fcount;
 
-		std::string name;
-		for(size_t i=0;i<scount;i++,name.clear())
+		std::string name; int id = 0;
+		for(size_t i=0;i<scount;i++,id++,name.clear())
 		{
 			if(labelAnims) 
-			name = ::tr("Skeletal-","Skeletal Animation prefix");
-			name+=model->getAnimName(Model::ANIMMODE_SKELETAL,i);
-			source.animation.add_item((int)i,name);
+			name = ::tr("Skeletal-","Skeleton Animation prefix");
+			name+=model->getAnimName(id);
+			source.animation.add_item(id,name);
 		}
-		for(size_t i=0;i<fcount;i++,name.clear())
+		for(size_t i=0;i<fcount;i++,id++,name.clear())
 		{
 			if(labelAnims) 
 			name = ::tr("Frame-","Frame Animation prefix");
-			name+=model->getAnimName(Model::ANIMMODE_FRAME,i);
-			source.animation.add_item((int)(scount+i),name);
+			name+=model->getAnimName(id);
+			source.animation.add_item(id,name);
+		}
+		size_t xcount = model->getAnimationCount(Model::ANIMMODE);
+		for(size_t i=0;i<xcount;i++,id++)
+		{
+			source.animation.add_item(id,model->getAnimName(id));
 		}
 
 		const char *filename = model->getFilename();
@@ -218,22 +223,14 @@ void AnimExportWin::submit(int id)
 			return msg_warning(::tr("Output directory does not exist."));
 		}
 
-		auto swap = model->getAnimationMode();
-		int swap2 = model->getCurrentAnimation();
-		double swap3 = model->getCurrentAnimationTime();
+		auto swap = model->makeRestorePoint();
 
 		//https://gcc.gnu.org/bugzilla/show_bug.cgi?id=92338
 		ModelViewport &mvp = vp->ports[(int)source.viewport];
-						 
-		auto mode = Model::ANIMMODE_SKELETAL;
+		
 		int a = source.animation;
-		if((size_t)a>=model->getAnimCount(mode))
-		{
-			a-=(int)model->getAnimCount(mode);
-			mode = Model::ANIMMODE_FRAME;
-		}
 
-		double fps = model->getAnimFPS(mode,a);
+		double fps = model->getAnimFPS(a);
 		double spf = 1/fps;
 		double tm, dur = 0;
 		double outfps = output.framerate;
@@ -246,7 +243,7 @@ void AnimExportWin::submit(int id)
 		else //???
 		{
 			dur = duration.iterations;		
-			dur*=spf*model->getAnimTimeFrame(mode,a);
+			dur*=spf*model->getAnimTimeFrame(a);
 		}
 
 		FileBox file;
@@ -270,7 +267,7 @@ void AnimExportWin::submit(int id)
 
 		bool enable = 
 		model->setUndoEnabled(false);
-		model->setCurrentAnimation(mode,a);
+		model->setCurrentAnimation(a);
 		
 		const char *saveFormat = "gif";
 		file = output.directory.text();
@@ -337,8 +334,7 @@ void AnimExportWin::submit(int id)
 
 		glutext::glutDestroyImageList(il);
 
-		model->setCurrentAnimation(swap,swap2); //model->setNoAnimation();
-		model->setCurrentAnimationTime(swap3);
+		model->setCurrentAnimation(swap);
 	
 		model->setUndoEnabled(enable);
 
@@ -350,8 +346,7 @@ void AnimExportWin::submit(int id)
 
 extern void animexportwin(Model *model, ViewPanel *vp)
 {
-	if(!model->getAnimCount(Model::ANIMMODE_SKELETAL)
-	 &&!model->getAnimCount(Model::ANIMMODE_FRAME)) //FIX ME
+	if(!model->getAnimationCount())
 	{
 		msg_error(::tr("This model does not have any animations"));
 	}

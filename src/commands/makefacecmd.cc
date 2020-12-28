@@ -48,34 +48,24 @@ extern Command *makefacecmd(){ return new MakeFaceCommand; }
 
 bool MakeFaceCommand::activated(int, Model *model)
 {
-	if(model->getAnimationMode()==Model::ANIMMODE_NONE)
+	int_list verts;
+	model->getSelectedVertices(verts);
+	if(verts.size()==3)
 	{
-		int_list verts;
-		model->getSelectedVertices(verts);
-		if(verts.size()==3)
-		{
-			model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Face created"));
-			int v1,v2,v3;
-			int_list::iterator it = verts.begin();
+		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Face created"));
+		int v1,v2,v3;
+		int_list::iterator it = verts.begin();
 
-			v1 = *it;
-			it++;
-			v2 = *it;
-			it++;
-			v3 = *it;
+		v1 = *it++; v2 = *it++; v3 = *it;
 
-			int tri = model->addTriangle(v1,v2,v3);
+		int tri = model->addTriangle(v1,v2,v3);
 
-			//2019: If winding is back-face it will be invisible, and may need to be flipped.
-			model->selectTriangle(tri); 
+		//2019: If winding is back-face it will be invisible, and may need to be flipped.
+		model->selectTriangle(tri); 
 
-			return true;
-		}
-		else
-		{
-			model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Must select exactly 3 vertices"));
-		}
-	}
+		return true;
+	}	
+	model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Must select exactly 3 vertices"));
 	return false;
 }
 

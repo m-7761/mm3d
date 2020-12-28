@@ -307,12 +307,6 @@ Model::~Model()
 		m_materials.pop_back();
 	}
 
-	while(!m_skelAnims.empty())
-	{
-		m_skelAnims.back()->release();
-		m_skelAnims.pop_back();
-	}
-
 	while(!m_joints.empty())
 	{
 		m_joints.back()->release();
@@ -331,10 +325,10 @@ Model::~Model()
 		m_projections.pop_back();
 	}
 
-	while(!m_frameAnims.empty())
+	while(!m_anims.empty())
 	{
-		m_frameAnims.back()->release();
-		m_frameAnims.pop_back();
+		m_anims.back()->release();
+		m_anims.pop_back();
 	}
 
 #ifdef MM3D_EDIT
@@ -420,7 +414,7 @@ std::string Model::popError()
 	return rval;
 }
 
-#ifdef MM3D_EDIT
+#ifdef MM3D_EDIT //???
 
 void Model::updateObservers(bool remove_me)
 {
@@ -473,7 +467,7 @@ void Model::setUndoCountLimit(unsigned countLimit)
 
 bool Model::isVertexVisible(unsigned v)const
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(v<m_vertices.size())
 	{
@@ -487,7 +481,7 @@ bool Model::isVertexVisible(unsigned v)const
 
 bool Model::isTriangleVisible(unsigned v)const
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(v<m_triangles.size())
 	{
@@ -502,7 +496,7 @@ bool Model::isTriangleVisible(unsigned v)const
 /*UNUSED
 bool Model::isGroupVisible(unsigned v)const
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(v<m_groups.size())
 	{
@@ -516,7 +510,7 @@ bool Model::isGroupVisible(unsigned v)const
 
 bool Model::isBoneJointVisible(unsigned j)const
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(j<m_joints.size())
 	{
@@ -530,7 +524,7 @@ bool Model::isBoneJointVisible(unsigned j)const
 
 bool Model::isPointVisible(unsigned p)const
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(p<m_points.size())
 	{
@@ -544,10 +538,6 @@ bool Model::isPointVisible(unsigned p)const
 
 int Model::addVertex(double x, double y, double z)
 {
-	//if(m_animationMode) return -1; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return -1; //REMOVE ME
-
 	int num = m_vertices.size();
 
 	m_changeBits |= AddGeometry;
@@ -593,10 +583,6 @@ bool Model::isVertexFree(unsigned v)const
 
 int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 {
-	//if(m_animationMode) return -1; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return -1; //REMOVE ME
-
 	//m_changeBits |= AddGeometry;
 
 	auto &vs = m_vertices;
@@ -633,7 +619,8 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 int Model::addBoneJoint(const char *name, double x, double y, double z,
 		/*double xrot, double yrot, double zrot,*/ int parent)
 {
-	if(!name||(unsigned)parent+1>m_joints.size())
+	//if(!name||parent>=(int)m_joints.size())
+	if(!name||(unsigned)parent+1>m_joints.size()) //TODO? Disallow ""?
 	{
 		return -1;
 	}
@@ -669,16 +656,25 @@ int Model::addBoneJoint(const char *name, double x, double y, double z,
 		//and only works because the rotation doesn't actually matter
 		//since it's all relative.
 
-		m_joints[parent]->m_absolute.inverseTranslateVector(trans);
-		m_joints[parent]->m_absolute.inverseRotateVector(trans);
-		/*
-		Matrix &minv = m_joints[parent]->getAbsoluteInverse();
-		Matrix mr;
-		mr.setRotation(rot);
-		mr = mr * minv;
-		mr.getRotation(rot);
-		minv.getRotation(rot);
-		*/
+		validateSkel(); //2021
+
+		if(0) //Old way (can't nest C comments.)
+		{
+			m_joints[parent]->m_absolute.inverseTranslateVector(trans);
+			m_joints[parent]->m_absolute.inverseRotateVector(trans);
+			/*
+			Matrix &minv = m_joints[parent]->getAbsoluteInverse();
+			Matrix mr;
+			mr.setRotation(rot);
+			mr = mr * minv;
+			mr.getRotation(rot);
+			minv.getRotation(rot);
+			*/
+		}
+		else //2021: This should include scaling. (It's untested.)
+		{
+			m_joints[parent]->getAbsoluteInverse().apply3x(trans);
+		}
 	}
 
 	for(int t = 0; t<3; t++)
@@ -706,9 +702,7 @@ int Model::addBoneJoint(const char *name, double x, double y, double z,
 int Model::addPoint(const char *name, double x, double y, double z,
 		double xrot, double yrot, double zrot)
 {
-	if(!name) return -1; //m_animationMode
-
-	//if(displayFrameAnimPrimitiveError()) return -1; //REMOVE ME
+	if(!name) return -1; //TODO? Disallow ""?
 
 	m_changeBits |= AddOther;
 
@@ -744,8 +738,6 @@ int Model::addPoint(const char *name, double x, double y, double z,
 
 int Model::addProjection(const char *name, int type, double x, double y, double z)
 {
-	//if(m_animationMode) return -1; //REMOVE ME
-
 	if(name==nullptr) return -1;
 
 	m_changeBits |= AddOther;
@@ -782,8 +774,6 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 
 bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
 	auto &vs = m_vertices;
 	unsigned vsz = m_vertices.size();
 	if(triangleNum<m_triangles.size()&&vert1<vsz&&vert2<vsz&&vert3<vsz)
@@ -829,11 +819,7 @@ bool Model::getTriangleVertices(unsigned triangleNum, unsigned &vert1, unsigned 
 
 void Model::deleteVertex(unsigned vertexNum)
 {
-	LOG_PROFILE();
-	
-	//if(m_animationMode) return; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(vertexNum>=m_vertices.size()) return;
 
@@ -851,11 +837,7 @@ void Model::deleteVertex(unsigned vertexNum)
 
 void Model::deleteTriangle(unsigned triangleNum)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(triangleNum>=m_triangles.size()) return;
 
@@ -913,51 +895,67 @@ void Model::deleteBoneJoint(unsigned joint)
 	}
 	while(parent>=0&&m_joints[parent]->m_selected); //???
 	*/
-	int parent = m_joints[joint]->m_parent; //Assuming???
+	int new_parent = m_joints[joint]->m_parent;
 		
-	for(unsigned j = 0; j<count; j++)
+	validateSkel(); //Need m_absolute to be correct below.
+
+	for(unsigned j=0;j<count;j++)	
+	if(m_joints[j]->m_parent==(int)joint)
 	{
-		if(m_joints[j]->m_parent==(int)joint)
+		//NOTE: This triggers validateSkel on the way out.
+		//(It calls invalidateSkel.)
+		setBoneJointParent(j,new_parent);
+
+		auto jt = m_joints[j];
+
+		//2021: It's not necessary to reuse m_absolute 
+		//here and it's misleading some since the goal
+		//here is to compute a new m_relative.
+		auto &mm = jt->m_absolute;
+
+		//https://github.com/zturtleman/mm3d/issues/132
+		if(new_parent>=0)
+		mm = mm * m_joints[new_parent]->getAbsoluteInverse();
+
+		//TODO: Matrix::decompose or something?
+		bool scale = false;
+		mm.getScale(jt->m_xyz); //2021
 		{
-			setBoneJointParent(j,m_joints[joint]->m_parent);
+			for(int i=3;i-->0;)	
+			if(fabs(1-jt->m_xyz[i])>0.00000001)
+			{
+				scale = true;
+			}
+			else jt->m_xyz[i] = 1;
 
-			auto &mm = m_joints[j]->m_absolute;				
-
-			//https://github.com/zturtleman/mm3d/issues/132
-			if(parent>=0)
-			mm = mm * m_joints[parent]->getAbsoluteInverse();
-
-			mm.getRotation(m_joints[j]->m_rot);
-			mm.getTranslation(m_joints[j]->m_rel);
+			if(scale) mm.normalizeRotation();
 		}
-	}
+		mm.getRotation(jt->m_rot);
+		mm.getTranslation(jt->m_rel);
+	}	
 
-	Joint *ptr = m_joints[joint];
+	Joint *swap = m_joints[joint];
 	removeBoneJoint(joint);
 		
-	//invalidateSkel(); //m_validJoints = false; //???
-
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_DeleteBoneJoint;
-		undo->deleteBoneJoint(joint,ptr);
+		undo->deleteBoneJoint(joint,swap);
 		sendUndo(undo);
 	}
 
-	log_debug("parent was %d\n",parent);
+	log_debug("new parent was %d\n",new_parent);
 
-	//2020: Insert into animation?
-	//validateSkel();
-	invalidateSkel();
-	
+	//May as well keep it up-to-date since the only real
+	//benefit to not doing so is if multiple joints are
+	//deleted, but in that case validateSkel is called
+	//above either way.
+	//invalidateSkel();
+	validateSkel();
 }
 
 void Model::deletePoint(unsigned point)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return; //REMOVE ME
-	
 	m_changeBits |= AddOther; //2020
 
 	if(point<m_points.size())
@@ -971,15 +969,11 @@ void Model::deletePoint(unsigned point)
 			undo->deletePoint(point,ptr);
 			sendUndo(undo);
 		}
-
-		//validateSkel(); //???
 	}
 }
 
 void Model::deleteProjection(unsigned proj)
 {
-	//if(m_animationMode) return; //REMOVE ME
-
 	if(proj<m_projections.size())
 	{
 		m_changeBits |= AddOther; //2020
@@ -1001,9 +995,7 @@ unsigned Model::deleteOrphanedVertices(unsigned begin, unsigned i)
 	i = std::min(i,(unsigned)m_vertices.size());
 
 	/*
-	LOG_PROFILE();
-	
-	//if(m_animationMode) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	for(unsigned v = 0; v<m_vertices.size(); v++)
 	{
@@ -1038,12 +1030,10 @@ unsigned Model::deleteOrphanedVertices(unsigned begin, unsigned i)
 
 void Model::deleteFlattenedTriangles()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	// Delete any triangles that have two or more vertex indices that point
 	// at the same vertex (could happen as a result of welding vertices
-	
-	//if(m_animationMode) return; //REMOVE ME
 
 	int count = m_triangles.size();
 	for(int t = count-1; t>=0; t--)
@@ -1059,7 +1049,7 @@ void Model::deleteFlattenedTriangles()
 
 void Model::deleteSelected()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	/*FIX ME
 	//NOTE: What about ANIMMODE_FRAME?
@@ -1117,14 +1107,11 @@ void Model::deleteSelected()
 	}
 	deleteOrphanedVertices();
 
-	bool doJointSetup = false;
-
 	for(int j = m_joints.size()-1; j>=0; j--)
 	{
 		if(m_joints[j]->m_selected)
 		{
 			deleteBoneJoint(j);
-			doJointSetup = true;
 		}
 	}
 
@@ -1151,93 +1138,71 @@ void Model::deleteSelected()
 
 bool Model::movePosition(const Position &pos, double x, double y, double z)
 {
-	switch (pos.type)
+	switch(pos.type)
 	{
-	case PT_Vertex:
-		return moveVertex(pos.index,x,y,z);
+	case PT_Vertex: return moveVertex(pos.index,x,y,z);
 
-	case PT_Joint:
-		return moveBoneJoint(pos.index,x,y,z);
+	case PT_Joint: return moveBoneJoint(pos.index,x,y,z);
 
-	case PT_Point:
-		return movePoint(pos.index,x,y,z);
+	case PT_Point: return movePoint(pos.index,x,y,z);
 
-	case PT_Projection:
-		return moveProjection(pos.index,x,y,z);
+	case PT_Projection: return moveProjection(pos.index,x,y,z);
 
 	default:
+
 		log_error("do not know how to move position of type %d\n",pos.type);
-		break;
+		return false;
 	}
-	return false;
 }
 
-bool Model::moveVertex(unsigned v, double x, double y, double z)
+bool Model::moveVertex(unsigned index, double x, double y, double z)
 {
-	switch (m_animationMode)
+	if(index>=m_vertices.size()) return false;
+
+	auto v = m_vertices[index]; if(inSkeletalMode()) 
 	{
-	case ANIMMODE_NONE:
-		if(v<m_vertices.size())
+		Vector tmp(x,y,z);
+		if(_skel_xform_abs(-1,v->m_influences,tmp))
 		{
-			double old[3];
-
-			old[0] = m_vertices[v]->m_coord[0];
-			old[1] = m_vertices[v]->m_coord[1];
-			old[2] = m_vertices[v]->m_coord[2];
-
-			m_vertices[v]->m_coord[0] = x;
-			m_vertices[v]->m_coord[1] = y;
-			m_vertices[v]->m_coord[2] = z;
-
-			invalidateNormals(); //OVERKILL
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_MovePrimitive;
-				undo->addMovePrimitive(MU_MovePrimitive::MT_Vertex,v,x,y,z,
-						old[0],old[1],old[2]);
-				sendUndo(undo,true);
-			}
-
-			return true;
+			x = tmp[0]; y = tmp[1]; z = tmp[2];
 		}
-		break;
-	case ANIMMODE_FRAME:
-		if(v<m_vertices.size()&&m_currentAnim<m_frameAnims.size())
-		{
-			setFrameAnimVertexCoords(m_currentAnim,m_currentFrame,v,x,y,z);
-
-			return true;
-		}
-		break;
-	default:
-		break;
 	}
-	return false;
+
+	if(inFrameAnimMode())
+	{
+		makeCurrentAnimationFrame();		
+
+		return setFrameAnimVertexCoords(m_currentAnim,m_currentFrame,index,x,y,z);
+	}
+	else invalidateAnim();
+
+	//if(!inAnimationMode()) //Enabling editing and setPositionCoords.	
+	{
+		double old[3];
+
+		old[0] = v->m_coord[0]; v->m_coord[0] = x;
+		old[1] = v->m_coord[1]; v->m_coord[1] = y;
+		old[2] = v->m_coord[2]; v->m_coord[2] = z;
+
+		invalidateNormals(); //OVERKILL
+
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_MovePrimitive;
+			undo->addMovePrimitive(MU_MovePrimitive::MT_Vertex,index,x,y,z,
+					old[0],old[1],old[2]);
+			sendUndo(undo,true);
+		}
+
+		return true;
+	}
 }
 
 bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 {
 	if(j>=m_joints.size()) return false;
 
-	bool rval; if(!m_animationMode)
-	{
-		double *cmp = m_joints[j]->m_abs;
-		if(x==cmp[0]&&y==cmp[1]&&z==cmp[2]) return true; //2020
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_MovePrimitive;
-			undo->addMovePrimitive(MU_MovePrimitive::MT_Joint,j,x,y,z,
-					m_joints[j]->m_abs[0],//m_absolute.get(3,0),
-					m_joints[j]->m_abs[1],//m_absolute.get(3,1),
-					m_joints[j]->m_abs[2]);//m_absolute.get(3,2));
-			sendUndo(undo,true);
-		}
-
-		rval = relocateBoneJoint(j,x,y,z,false);
-	}
-	else if(inSkeletalMode()) //2020
+	bool rval; if(inSkeletalMode()) //2020
 	{	
 		//HACK? Need to update m_final matrix.
 		validateAnimSkel();
@@ -1267,49 +1232,68 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 		rval = -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,{PT_Joint,j},KeyTranslate,coord[0],coord[1],coord[2]);
 	}
-	else return false;
+	else //if(!inAnimationMode()) //setPositionCoords should work.
+	{
+		double *cmp = m_joints[j]->m_abs;
+		if(x==cmp[0]&&y==cmp[1]&&z==cmp[2]) return true; //2020
+
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_MovePrimitive;
+			undo->addMovePrimitive(MU_MovePrimitive::MT_Joint,j,x,y,z,
+					m_joints[j]->m_abs[0],//m_absolute.get(3,0),
+					m_joints[j]->m_abs[1],//m_absolute.get(3,1),
+					m_joints[j]->m_abs[2]);//m_absolute.get(3,2));
+			sendUndo(undo,true);
+		}
+
+		rval = relocateBoneJoint(j,x,y,z,false);
+	}
 
 	if(rval) invalidateSkel(); return rval;
 }
 
-bool Model::movePoint(unsigned p, double x, double y, double z)
+bool Model::movePoint(unsigned index, double x, double y, double z)
 {
-	if(!m_animationMode&&p<m_points.size())
+	if(index>=m_points.size()) return false;
+
+	auto p = m_points[index]; if(inSkeletalMode())
+	{
+		Vector tmp(x,y,z);
+		if(_skel_xform_abs(-1,p->m_influences,tmp))
+		{
+			x = tmp[0]; y = tmp[1]; z = tmp[2];
+		}
+	}
+
+	if(inFrameAnimMode())
+	{
+		makeCurrentAnimationFrame();
+
+		return -1!=setKeyframe
+		(m_currentAnim,m_currentFrame,{PT_Point,index},KeyTranslate,x,y,z);
+	}
+	else invalidateAnim();
+
+	//if(!inAnimationMode()) //setPositionCoords should work.
 	{
 		m_changeBits|=MoveOther; //2020
 
 		if(m_undoEnabled)
 		{
 			auto undo = new MU_MovePrimitive;
-			undo->addMovePrimitive(MU_MovePrimitive::MT_Point,p,x,y,z,
-					m_points[p]->m_abs[0],
-					m_points[p]->m_abs[1],
-					m_points[p]->m_abs[2]);
+			undo->addMovePrimitive(MU_MovePrimitive::MT_Point,index,x,y,z,
+					p->m_abs[0],p->m_abs[1],p->m_abs[2]);
 			sendUndo(undo,true);
 		}
 
-		m_points[p]->m_abs[0] = x;
-		m_points[p]->m_abs[1] = y;
-		m_points[p]->m_abs[2] = z;
-
-		return true;
-	}
-	else if(m_animationMode==ANIMMODE_FRAME)
-	{
-		makeCurrentAnimationFrame();
-		//return setFrameAnimPointCoords(m_currentAnim,m_currentFrame,p,x,y,z);
-		return -1!=setKeyframe(m_currentAnim,m_currentFrame,{PT_Point,p},KeyTranslate,x,y,z);
-	}
-	else
-	{
-		log_debug("point %d does not exist\n",p);
-		return false;
+		p->m_abs[0] = x; p->m_abs[1] = y; p->m_abs[2] = z; return true;
 	}
 }
 
 bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool downstream)
 {
-	if(j>=m_joints.size()) return false; //???
+	if(j>=m_joints.size()) return false;
 	
 	m_changeBits|=MoveOther; //2020
 
@@ -1358,7 +1342,7 @@ bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool dow
 
 void Model::beginHideDifference()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(m_undoEnabled)
 	{
@@ -1376,7 +1360,7 @@ void Model::beginHideDifference()
 
 void Model::endHideDifference()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(m_undoEnabled) switch (m_selectionMode)
 	{
@@ -1411,15 +1395,15 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 	if(!am||e<0||d<0||e>InterpolateLerp||d>InterpolantScale) return;
 
-	bool skel = am==ANIMMODE_SKELETAL;
-		
+	if(!_anim_check(true)) return;
+
 	//TODO: Remove the frame if no keys remain. This can be
 	//done manually with the clear operation until a counter
 	//is added/managed.
 	auto anim = m_currentAnim, frame = m_currentFrame;
 	if(!e) //Programmer error? 
 	{
-		if(m_currentTime!=getAnimFrameTime(am,anim,frame))
+		if(m_currentTime!=getAnimFrameTime(anim,frame))
 		return;
 	}
 	else frame = makeCurrentAnimationFrame(); 
@@ -1432,29 +1416,34 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 	m_changeBits|=MoveGeometry;
 
-	Position j{skel?PT_Joint:PT_Point,-1};
-	auto &vec = *(std::vector<Object2020*>*)(skel?(void*)&m_joints:&m_points);
-	for(auto*ea:vec)
+	for(int pass=1;pass<=2;pass++) if(pass&m_anims[anim]->_type)
 	{
-		j++; if(ea->m_selected)
-		{		
-			const double *coord = ea->getParams(d);
-			setKeyframe(anim,frame,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
+		Position j{pass==1?PT_Joint:PT_Point,-1};
+		auto &vec = *(std::vector<Object2020*>*)(pass==1?(void*)&m_joints:&m_points);
+		for(auto*ea:vec)
+		{
+			j++; if(ea->m_selected)
+			{		
+				const double *coord = ea->getParams(d);
+				setKeyframe(anim,frame,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
+			}
 		}
 	}
 
-	if(m_animationMode==ANIMMODE_FRAME)
-	{	
+	if(inFrameAnimMode())
+	{
 		const bool ue = m_undoEnabled;
 		MU_InterpolateSelected *undo = nullptr;
 
-		auto fa = m_frameAnims[m_currentAnim];
-		unsigned i=0, fp = fa->m_frame0+frame;
-		for(auto*ea:m_vertices) 
+		auto fa = m_anims[m_currentAnim];
+		unsigned i=0, fp = fa->m_frame0;
+		
+		if(e||~fp) for(auto*ea:m_vertices) 
 		{
 			i++; if(ea->m_selected)
 			{
-				auto vf = ea->m_frames[fp];
+				if(0==~fp) _anim_valloc(fa);
+				auto vf = ea->m_frames[fp+frame];
 				auto &cmp = vf->m_interp2020;
 				if(cmp!=e) 
 				{
@@ -1477,159 +1466,209 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 	invalidateAnim();
 }
 
-//FIX ME 
-//Call sites all use vectors. What does it 
-//even mean to "translate" with a matrix??
-//void translateSelected(const Matrix &m);
 void Model::translateSelected(const double vec[3]) 
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(!vec[0]&&!vec[1]&&!vec[2]) return; //2020
 
-//	std::vector<unsigned> newJointList; //???
+	bool skel = inSkeletalMode();
 	
-	makeCurrentAnimationFrame(); //2020
-
-	auto ca = m_currentAnim, cf = m_currentFrame;
-
-	if(inSkeletalMode())
+	bool sel = false; if(inAnimationMode())
 	{
-		if(m_skelAnims.empty()) no_anim: //2020
-		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No animation"));
+		if(!_anim_check(true)) return; //???
 
-		bool sel = false; //2020: Trying to move vertices?
+		auto ca = m_currentAnim, cf = m_currentFrame;
 
-		for(Position j{PT_Joint,0};j<m_joints.size();j++)
-		if(m_joints[j]->m_selected&&!parentJointSelected(j))
+		if(skel)
 		{
-			sel = true;
+			for(Position j{PT_Joint,0};j<m_joints.size();j++)
+			if(m_joints[j]->m_selected&&!parentJointSelected(j))
+			{				
+				if(!sel) makeCurrentAnimationFrame(); //2020
 
-			//HACK? Need to update m_final matrix.
-			validateAnimSkel();
+				sel = true;
 
-			//DUPLICATES NEW moveBoneJoint LOGIC.
-			auto p = m_joints[j];
-			double coord[3]; for(int i=3;i-->0;) 
-			{
-				coord[i] = vec[i]+p->m_kfAbs()[i];
+				//HACK? Need to update m_final matrix.
+				validateAnimSkel();
+
+				//DUPLICATES NEW moveBoneJoint LOGIC.
+				auto p = m_joints[j];
+				double coord[3]; for(int i=3;i-->0;) 
+				{
+					coord[i] = vec[i]+p->m_kfAbs()[i];
+				}
+				if(p->m_parent>=0)
+				{
+					Joint *pp = m_joints[p->m_parent];
+					pp->m_final.inverseTranslateVector(coord);
+					pp->m_final.inverseRotateVector(coord);
+					p->m_relative.inverseTranslateVector(coord);
+					p->m_relative.inverseRotateVector(coord);				
+				}
+				else //NECESSARY?
+				{
+					p->m_absolute.inverseTranslateVector(coord);
+					p->m_absolute.inverseRotateVector(coord);
+				}
+				setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
 			}
-			if(p->m_parent>=0)
-			{
-				Joint *pp = m_joints[p->m_parent];
-				pp->m_final.inverseTranslateVector(coord);
-				pp->m_final.inverseRotateVector(coord);
-				p->m_relative.inverseTranslateVector(coord);
-				p->m_relative.inverseRotateVector(coord);				
-			}
-			else //NECESSARY?
-			{
-				p->m_absolute.inverseTranslateVector(coord);
-				p->m_absolute.inverseRotateVector(coord);
-			}
-			setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
 		}
+		//2021: Not allowing to rotate joints and frame data at the
+		//same time.
+		if(!sel&&inFrameAnimMode())
+		{
+			for(unsigned v=0;v<m_vertices.size();v++)
+			if(m_vertices[v]->m_selected)
+			{
+				if(!sel)
+				{
+					sel = true;
 
-		if(!sel) no_sel:
-		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection (animating)"));
+					makeCurrentAnimationFrame(); //2020
+
+					if(skel) validateAnim(); //Need real m_kfCoord? _resample?
+				}
+
+				double coord[3+1];
+				auto vt = m_vertices[v];
+				if(skel&&!vt->m_influences.empty())
+				{
+					//setKeyframe would make this recompute the animation for
+					//every vertex.
+					//validateAnim(); //Need real m_kfCoord? _resample?					
+					for(int i=3;i-->0;)
+					coord[i] = vt->m_kfCoord[i]+vec[i];
+					coord[3] = 1;
+					_skel_xform_abs(-1,vt->m_influences,*(Vector*)coord);
+				}
+				else
+				{			
+					interpKeyframe(ca,cf,v,coord);
+					for(int i=3;i-->0;) coord[i]+=vec[i];
+				}
+				setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
+			}
+
+			for(Position j{PT_Point,0};j<m_points.size();j++)
+			if(m_points[j]->m_selected)
+			{
+				if(!sel)
+				{
+					sel = true;
+
+					makeCurrentAnimationFrame(); //2020
+
+					if(skel) validateAnim(); //Need real m_kfAbs? _resample?
+				}
+
+				double coord[3+1];
+				auto pt = m_points[j.index];
+				if(skel&&!pt->m_influences.empty())
+				{
+					//setKeyframe would make this recompute the animation for
+					//every point.
+					//validateAnim(); //Need real m_kfAbs? _resample?
+					for(int i=3;i-->0;)
+					coord[i] = pt->m_kfAbs[i]+vec[i];
+					coord[3] = 1;
+					_skel_xform_abs(-1,pt->m_influences,*(Vector*)coord);
+				}
+				else
+				{
+					interpKeyframe(ca,cf,j,coord,nullptr,nullptr);
+					for(int i=3;i-->0;) coord[i]+=vec[i];
+				}
+				setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
+			}
+		}
+		
+		if(sel) return;		
 	}
-	else if(m_animationMode==ANIMMODE_FRAME) 
-	{
-		if(m_frameAnims.empty()) goto no_anim;
-
-		bool sel = false;
-
-		for(unsigned v=0;v<m_vertices.size();v++)
-		if(m_vertices[v]->m_selected)
-		{
-			sel = true;
-
-			double coord[3];
-			interpKeyframe(ca,cf,v,coord);
-			for(int i=3;i-->0;) coord[i]+=vec[i];
-			setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
-		}
-
-		for(Position j{PT_Point,0};j<m_points.size();j++)
-		if(m_points[j]->m_selected)
-		{
-			sel = true;
-
-			double coord[3];
-			interpKeyframe(ca,cf,j,coord,nullptr,nullptr);
-			for(int i=3;i-->0;) coord[i]+=vec[i];
-			setKeyframe(ca,cf,j,KeyTranslate,coord[0],coord[1],coord[2]);
-		}
-
-		if(!sel) goto no_sel;
-	}
-	else
+	//else //Enabling modeling in animation mode.
 	{
 		bool verts = false;
-		for(unsigned v=0;v<m_vertices.size();v++)		
-		if(m_vertices[v]->m_selected)
+		for(auto*v:m_vertices) if(v->m_selected)
 		{
-			m_vertices[v]->m_coord[0]+=vec[0];
-			m_vertices[v]->m_coord[1]+=vec[1];
-			m_vertices[v]->m_coord[2]+=vec[2];
+			sel = true;
+
+			if(skel&&!v->m_influences.empty())
+			{
+				validateAnim(); //Need real m_kfCoord? _resample?
+				float coord[3+1];
+				for(int i=3;i-->0;)
+				coord[i] = v->m_kfCoord[i]+vec[i];
+				coord[3] = 1;
+				_skel_xform_abs(-1,v->m_influences,*(Vector*)coord);
+				for(int i=3;i-->0;) v->m_coord[i] = coord[i];
+			}
+			else for(int i=3;i-->0;) v->m_coord[i]+=vec[i];
 
 			verts = true;
 		}
 		if(verts)
 		{
-			m_changeBits |= MoveGeometry;
-
+			//m_changeBits |= MoveGeometry;
 			invalidateNormals(); //OVERKILL
 		}
 
-		for(unsigned j=0;j<m_joints.size();j++) 
+		for(unsigned j=0;j<m_joints.size();j++) 		
+		if(m_joints[j]->m_selected)
 		{
-			if(m_joints[j]->m_selected)
+			sel = true;
+
+			invalidateSkel(); //2020
+
+			m_changeBits |= MoveOther; //2020
+
+			double tran[3] = {vec[0],vec[1],vec[2]};
+			//REMINDER: inverseRotateVector should scale.
+			if(int p=m_joints[j]->m_parent>=0)
+			m_joints[m_joints[j]->m_parent]->m_absolute.inverseRotateVector(tran);
+			for(int i=3;i-->0;)
+			m_joints[j]->m_rel[i]+=tran[i];
+
+			for(size_t t=0;t<m_joints.size();t++)									
+			if(j==(unsigned)m_joints[t]->m_parent)
 			{
-				invalidateSkel(); //2020
+				//REMINDER: inverseRotateVector should scale.
+				double tran2[3] = {vec[0],vec[1],vec[2]};
+				m_joints[j]->m_absolute.inverseRotateVector(tran2);
 
-				m_changeBits |= MoveOther; //2020
-
-				double tran[3] = {vec[0],vec[1],vec[2]};
-				//m.getTranslation(tran);
-				//REMINDER: inverseRotateVector should scale
-				if(int p=m_joints[j]->m_parent>=0)
-				m_joints[m_joints[j]->m_parent]->m_absolute.inverseRotateVector(tran);
+				for(;t<m_joints.size();t++)
+				if(m_joints[t]->m_parent==(signed)j)
 				for(int i=3;i-->0;)
-				m_joints[j]->m_rel[i]+=tran[i];
-
-				for(size_t t=0;t<m_joints.size();t++)									
-				if(j==(unsigned)m_joints[t]->m_parent)
-				{
-					//REMINDER: inverseRotateVector should scale
-					double tran2[3] = {vec[0],vec[1],vec[2]};
-					m_joints[j]->m_absolute.inverseRotateVector(tran2);
-
-					for(;t<m_joints.size();t++)
-					if(m_joints[t]->m_parent==(signed)j)
-					for(int i=3;i-->0;)
-					m_joints[t]->m_rel[i]-=tran2[i]; 
+				m_joints[t]->m_rel[i]-=tran2[i]; 
 						
-					break;
-				}
+				break;
 			}
-		}
+		}		
 
-		for(unsigned p = 0; p<m_points.size(); p++)
+		for(auto*p:m_points) if(p->m_selected)
 		{
-			if(m_points[p]->m_selected)
-			{
-				m_changeBits |= MoveOther; //2020
+			sel = true;
 
+			m_changeBits |= MoveOther; //2020
+
+			if(skel&&!p->m_influences.empty())
+			{
+				validateAnim(); //Need real m_kfAbs? _resample?
+				float coord[3+1];
 				for(int i=3;i-->0;)
-				m_points[p]->m_abs[i]+=vec[i];
+				coord[i] = p->m_kfAbs[i]+vec[i];
+				coord[3] = 1;
+				_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
+				for(int i=3;i-->0;) p->m_abs[i] = coord[i];
 			}
+			else for(int i=3;i-->0;) p->m_abs[i]+=vec[i];
 		}
 
 		for(unsigned p = 0; p<m_projections.size(); p++)
 		{
 			if(m_projections[p]->m_selected)
 			{
+				sel = true;
+
 				m_changeBits |= MoveOther; //2020
 
 				for(int i=3;i-->0;)
@@ -1639,7 +1678,7 @@ void Model::translateSelected(const double vec[3])
 			}
 		}
 		
-		if(m_undoEnabled)
+		if(sel&&m_undoEnabled)
 		{
 			auto undo = new MU_TranslateSelected;
 			//undo->setMatrix(m);
@@ -1647,142 +1686,149 @@ void Model::translateSelected(const double vec[3])
 			sendUndo(undo,true);
 		}
 	}
+
+	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
 }
 
-void Model::rotateSelected(const Matrix &m, double *point)
+void Model::rotateSelected(const Matrix &m, const double point[3])
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
-	makeCurrentAnimationFrame(); //2020
+	bool skel = inSkeletalMode();
 
-	auto ca = m_currentAnim, cf = m_currentFrame;
-
-	if(inSkeletalMode())
+	bool sel = false; if(inAnimationMode())
 	{
-		if(m_skelAnims.empty()) no_anim: //2020
-		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No animation"));
-				
-		bool sel = false;
+		if(!_anim_check(true)) return; //???
 
-		for(Position j{PT_Joint,0};j<m_joints.size();j++)		
-		if(m_joints[j]->m_selected)
+		auto ca = m_currentAnim, cf = m_currentFrame;
+
+		if(skel)
 		{
-			sel = true;
-
-			//HACK? Need to update m_final matrix.
-			validateAnimSkel();
-
-			Matrix absInv; if(m_joints[j]->m_parent>=0)
+			for(Position j{PT_Joint,0};j<m_joints.size();j++)		
+			if(m_joints[j]->m_selected)
 			{
-				Joint *parent = m_joints[m_joints[j]->m_parent];
-				absInv = m_joints[j]->m_relative * parent->m_final;
-				absInv = absInv.getInverse();
+				if(!sel) makeCurrentAnimationFrame(); //2020
+
+				sel = true;
+
+				//HACK? Need to update m_final matrix.
+				validateAnimSkel();
+
+				Matrix absInv; if(m_joints[j]->m_parent>=0)
+				{
+					Joint *parent = m_joints[m_joints[j]->m_parent];
+					absInv = m_joints[j]->m_relative * parent->m_final;
+					absInv = absInv.getInverse();
+				}
+				else absInv = m_joints[j]->getAbsoluteInverse();
+
+				Matrix cur = m_joints[j]->m_final * m * absInv;
+
+				double rot[3]; cur.getRotation(rot);
+
+				setKeyframe(ca,cf,j,KeyRotate,rot[0],rot[1],rot[2]);
+			//	setCurrentAnimationFrame(m_currentFrame);
+
+				// setKeyframe handles undo
+
+				// TODO: should I really allow multiple joints here?
+				//break;
 			}
-			else absInv = m_joints[j]->getAbsoluteInverse();
-
-			Matrix cur = m_joints[j]->m_final * m * absInv;
-
-			double rot[3]; cur.getRotation(rot);
-
-			setKeyframe(ca,cf,j,KeyRotate,rot[0],rot[1],rot[2]);
-		//	setCurrentAnimationFrame(m_currentFrame);
-
-			// setKeyframe handles undo
-
-			// TODO: should I really allow multiple joints here?
-			//break;
 		}
-
-		if(!sel) no_sel:
-		return model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection (animating)"));
-	}
-	else if(m_animationMode==ANIMMODE_FRAME)
-	{
-		if(m_frameAnims.empty()) goto no_anim;
-
-		bool sel = false;
-
-		for(unsigned v=0;v<m_vertices.size();v++)
-		if(m_vertices[v]->m_selected)
+		//2021: Not allowing to rotate joints and frame data at the
+		//same time.
+		if(!sel&&inFrameAnimMode())
 		{
-			sel = true;
-
-			double coord[3];
-			interpKeyframe(ca,cf,v,coord);
-
-			coord[0] -= point[0];
-			coord[1] -= point[1];
-			coord[2] -= point[2];
-
-			Vector vec(coord);
-			vec.transform(m);
-
-			coord[0] = vec[0];
-			coord[1] = vec[1];
-			coord[2] = vec[2];
-
-			coord[0] += point[0];
-			coord[1] += point[1];
-			coord[2] += point[2];
-
-			setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
-		}
-
-		for(Position p{PT_Point,0};p<m_points.size();p++)
-		if(m_points[p]->m_selected)
-		{
-			sel = true;
-
-			double coord[3],rot[3];
-			interpKeyframe(ca,cf,p,coord,rot,nullptr);
-
-			Matrix pm;
-			pm.setTranslation(
-					coord[0]-point[0],
-					coord[1]-point[1],
-					coord[2]-point[2]);
-			pm.setRotation(rot);
-
-			pm = pm *m;
-
-			pm.getTranslation(coord);
-			pm.getRotation(rot);
-
-			coord[0] += point[0];
-			coord[1] += point[1];
-			coord[2] += point[2];
-
-			setKeyframe(ca,cf,p,KeyTranslate,coord[0],coord[1],coord[2]);
-			setKeyframe(ca,cf,p,KeyRotate,rot[0],rot[1],rot[2]);
-		}
-
-		if(!sel) goto no_sel;
-	}
-	else
-	{
-		for(unsigned v = 0; v<m_vertices.size(); v++)
-		{
+			for(unsigned v=0;v<m_vertices.size();v++)
 			if(m_vertices[v]->m_selected)
 			{
-				m_changeBits|=MoveGeometry; //2020
+				if(!sel) 
+				{
+					sel = true;
 
-				m_vertices[v]->m_coord[0] -= point[0];
-				m_vertices[v]->m_coord[1] -= point[1];
-				m_vertices[v]->m_coord[2] -= point[2];
+					makeCurrentAnimationFrame(); //2020
 
-				Vector vec(m_vertices[v]->m_coord);
+					if(skel) validateAnim(); //Need real m_kfCoord? _resample?
+				}
 
-				vec.transform(m);
-				const double *val = vec.getVector();
-
-				m_vertices[v]->m_coord[0] = val[0];
-				m_vertices[v]->m_coord[1] = val[1];
-				m_vertices[v]->m_coord[2] = val[2];
-
-				m_vertices[v]->m_coord[0] += point[0];
-				m_vertices[v]->m_coord[1] += point[1];
-				m_vertices[v]->m_coord[2] += point[2];
+				Vector coord;				
+				auto vt = m_vertices[v];
+				bool infl = skel&&!vt->m_influences.empty(); if(infl)
+				{
+					//setKeyframe would make this recompute the animation for
+					//every vertex.
+					//validateAnim(); //Need real m_kfCoord? _resample?					
+					for(int i=3;i-->0;) coord[i] = vt->m_kfCoord[i];
+				}
+				else interpKeyframe(ca,cf,v,coord.getVector());
+				for(int i=3;i-->0;) coord[i]-=point[i];
+				coord.transform(m);
+				for(int i=3;i-->0;) coord[i]+=point[i];
+				if(infl) _skel_xform_abs(-1,vt->m_influences,coord);
+				setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
 			}
+
+			for(Position p{PT_Point,0};p<m_points.size();p++)
+			if(m_points[p]->m_selected)
+			{
+				if(!sel) 
+				{
+					sel = true;
+
+					makeCurrentAnimationFrame(); //2020
+
+					if(skel) validateAnim(); //Need real m_kfAbs? _resample?
+				}
+
+				Matrix pm;
+				double rot[3],*coord = pm.getVector(3);
+				auto pt = m_points[p];
+				bool infl = skel&&!pt->m_influences.empty(); if(infl)
+				{
+					//setKeyframe would make this recompute the animation for
+					//every point.
+					//validateAnim(); //Need real m_kfAbs? _resample?
+					for(int i=3;i-->0;) coord[i] = pt->m_kfAbs[i];
+				}
+				else interpKeyframe(ca,cf,p,coord,rot,nullptr);
+				for(int i=3;i-->0;) coord[i]-=point[i];				
+				//pm.setTranslation(coord[0],coord[1],coord[2]);
+				pm.setRotation(infl?pt->m_kfRot:rot);
+				pm = pm * m;
+				//pm.getTranslation(coord);
+				for(int i=3;i-->0;) coord[i]+=point[i];				
+				if(infl) _skel_xform_abs(-1,pt->m_influences,*(Vector*)coord);
+				if(infl) _skel_xform_rot(-1,pt->m_influences,pm);
+				pm.getRotation(rot);
+				setKeyframe(ca,cf,p,KeyTranslate,coord[0],coord[1],coord[2]);
+				setKeyframe(ca,cf,p,KeyRotate,rot[0],rot[1],rot[2]);
+			}
+		}
+		if(sel) return;		
+	}
+	//else //Enabling modeling in animation mode.
+	{
+		bool verts = false;
+		for(auto*v:m_vertices) if(v->m_selected)
+		{
+			verts = sel = true; 
+
+			bool infl = skel&&!v->m_influences.empty();
+
+			if(infl) validateAnim(); //Need real m_kfCoord? _resample?
+
+			Vector coord(infl?v->m_kfCoord:v->m_coord);
+			for(int i=3;i-->0;) coord[i]-=point[i];
+			coord.transform(m);
+			for(int i=3;i-->0;) coord[i]+=point[i];
+			if(infl) _skel_xform_abs(-1,v->m_influences,coord);
+			for(int i=3;i-->0;)
+			v->m_coord[i] = coord[i];
+		}
+		if(verts)
+		{
+			//m_changeBits |= MoveGeometry;
+			invalidateNormals(); //OVERKILL
 		}
 		
 		//NOTE: qm is just in case m is not affine.
@@ -1797,6 +1843,8 @@ void Model::rotateSelected(const Matrix &m, double *point)
 			// and invert the operation on those joints.
 			if(m_joints[j]->m_selected&&!parentJointSelected(j))
 			{
+				sel = true;
+
 				//HACK? Need to update m_final matrix.
 				validateAnimSkel();
 
@@ -1844,20 +1892,39 @@ void Model::rotateSelected(const Matrix &m, double *point)
 			obj.m_abs[2] += point[2];
 		};
 
-		for(unsigned p = 0; p<m_points.size(); p++)
+		for(auto*p:m_points) if(p->m_selected)
 		{
-			if(m_points[p]->m_selected)
-			{
-				m_changeBits|=MoveOther; //2020
+			sel = true;
 
-				f(*m_points[p]);				
+			m_changeBits|=MoveOther; //2020
+
+			if(skel&&!p->m_influences.empty())
+			{
+				validateAnim(); //Need real m_kfAbs? _resample?
+
+				Matrix pm;
+				double *coord = pm.getVector(3);
+				for(int i=3;i-->0;) 
+				coord[i] = p->m_kfAbs[i]-point[i];				
+				//pm.setTranslation(coord[0],coord[1],coord[2]);
+				pm.setRotation(p->m_kfRot);
+				pm = pm * m;
+				//pm.getTranslation(coord);
+				for(int i=3;i-->0;) coord[i]+=point[i];				
+				_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
+				_skel_xform_rot(-1,p->m_influences,pm);
+				pm.getRotation(p->m_rot);
+				for(int i=3;i-->0;) p->m_abs[i] = coord[i];
 			}
+			else f(*p);
 		}
 
 		for(unsigned r = 0; r<m_projections.size(); r++)
 		{
 			if(m_projections[r]->m_selected)
 			{
+				sel = true;
+
 				m_changeBits|=MoveOther; //2020
 
 				f(*m_projections[r]);				
@@ -1866,22 +1933,22 @@ void Model::rotateSelected(const Matrix &m, double *point)
 			}
 		}
 
-		invalidateNormals(); //OVERKILL
-
-		if(m_undoEnabled)
+		if(sel&&m_undoEnabled)
 		{
 			auto undo = new MU_RotateSelected;
 			undo->setMatrixPoint(m,point);
 			sendUndo(undo,true);
 		}
 	}
+
+	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
 }
 
 //2020: Manipulating m to implement scale
-//void Model::applyMatrix(const Matrix &m, OperationScopeE scope, bool animations, bool undoable)
-void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool undoable)
+//void Model::applyMatrix(const Matrix &m, OperationScopeE scope, bool undoable)
+void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 	
 	//NOTE: I think "undoable" is in case the matrix
 	//isn't invertible. 
@@ -1891,13 +1958,11 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool u
 		{
 			//CAUTION: m IS MODIFIED BELOW
 			auto undo = new MU_ApplyMatrix;
-			undo->setMatrix(m,scope,animations);
+			undo->setMatrix(m,scope);
 			sendUndo(undo,true);
 		}
 		else clearUndo(); //YIKES!!!
 	}
-	
-	makeCurrentAnimationFrame(); //2020
 
 	bool global = scope==OS_Global;
 
@@ -1905,7 +1970,6 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool u
 	unsigned bcount = m_joints.size();
 	unsigned pcount = m_points.size();
 	unsigned rcount = m_projections.size();
-	unsigned facount = m_frameAnims.size();
 	
 	for(unsigned v = 0; v<vcount; v++)
 	{
@@ -1998,12 +2062,12 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool u
 		}
 	};	
 
-	for(unsigned p=pcount;p-->0;)
+	for(Position p={PT_Point,pcount};p-->0;)
 	if(global||m_points[p]->m_selected)
 	{
 		f(*m_points[p]);
 
-		for(auto*fa:m_frameAnims)
+		for(auto*fa:m_anims)
 		for(auto*kf:fa->m_keyframes[p])
 		{
 			switch(kf->m_isRotation)
@@ -2041,19 +2105,13 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool animations, bool u
 		}
 	}
 
-	// Skeletal animations are handled by bone joint
-
 	invalidateNormals(); //OVERKILL
 	invalidateAnim(); 
 }
 
 void Model::subdivideSelectedTriangles()
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	m_changeBits|=SelectionVertices|SelectionFaces; //2020
 
@@ -2131,11 +2189,7 @@ void Model::subdivideSelectedTriangles()
 //void Model::unsubdivideTriangles(unsigned t1, unsigned t2, unsigned t3, unsigned t4)
 void Model::subdivideSelectedTriangles_undo(unsigned t1, unsigned t2, unsigned t3, unsigned t4)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return; //REMOVE ME
-
-	//if(displayFrameAnimPrimitiveError()) return; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	//This should implement a MU object or shouldn't be a regular API method.
 	assert(!m_undoEnabled);
@@ -2233,7 +2287,7 @@ const char *Model::getRedoOpName()const
 
 void Model::undo()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//UndoList *list = (m_animationMode)? m_animUndoMgr->undo(): m_undoMgr->undo();
 	UndoList *list = m_undoMgr->undo();
@@ -2264,7 +2318,7 @@ void Model::undo()
 
 void Model::redo()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//UndoList *list = (m_animationMode)? m_animUndoMgr->redo(): m_undoMgr->redo();
 	UndoList *list = m_undoMgr->redo();
@@ -2294,7 +2348,7 @@ void Model::redo()
 
 void Model::undoCurrent()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//UndoList *list = (m_animationMode)? m_animUndoMgr->undoCurrent(): m_undoMgr->undoCurrent();
 	UndoList *list = m_undoMgr->undoCurrent();
@@ -2327,9 +2381,7 @@ void Model::undoCurrent()
 
 bool Model::hideVertex(unsigned v)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(v<m_vertices.size())
 	{
@@ -2344,9 +2396,7 @@ bool Model::hideVertex(unsigned v)
 
 bool Model::hideTriangle(unsigned t)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(t<m_triangles.size())
 	{
@@ -2362,9 +2412,7 @@ bool Model::hideTriangle(unsigned t)
 
 bool Model::hideJoint(unsigned j)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(j<m_joints.size())
 	{
@@ -2379,9 +2427,7 @@ bool Model::hideJoint(unsigned j)
 
 bool Model::hidePoint(unsigned p)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(p<m_points.size())
 	{
@@ -2396,9 +2442,7 @@ bool Model::hidePoint(unsigned p)
 
 bool Model::unhideVertex(unsigned v)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(v<m_vertices.size())
 	{
@@ -2413,9 +2457,7 @@ bool Model::unhideVertex(unsigned v)
 
 bool Model::unhideTriangle(unsigned t)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(t<m_triangles.size())
 	{
@@ -2430,9 +2472,7 @@ bool Model::unhideTriangle(unsigned t)
 
 bool Model::unhideJoint(unsigned j)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(j<m_joints.size())
 	{
@@ -2447,9 +2487,7 @@ bool Model::unhideJoint(unsigned j)
 
 bool Model::unhidePoint(unsigned p)
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	if(p<m_points.size())
 	{
@@ -2464,9 +2502,7 @@ bool Model::unhidePoint(unsigned p)
 
 bool Model::hideSelected()
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	unsigned t = 0;
 	unsigned v = 0;
@@ -2592,9 +2628,7 @@ bool Model::hideSelected()
 
 bool Model::hideUnselected()
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	unsigned t = 0;
 	unsigned v = 0;
@@ -2704,9 +2738,7 @@ bool Model::hideUnselected()
 
 bool Model::unhideAll()
 {
-	LOG_PROFILE();
-
-	//if(m_animationMode) return false; //REMOVE ME
+	//LOG_PROFILE(); //???
 
 	for(unsigned v = 0; v<m_vertices.size(); v++)
 	{
@@ -2770,7 +2802,7 @@ bool Model::unhideAll()
 
 void Model::hideTrianglesFromVertices()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	// Hide triangles with at least one vertex hidden
 	for(unsigned t = 0; t<m_triangles.size(); t++)
@@ -2787,7 +2819,7 @@ void Model::hideTrianglesFromVertices()
 
 void Model::unhideTrianglesFromVertices()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	// Hide triangles with at least one vertex hidden
 	for(unsigned t = 0; t<m_triangles.size(); t++)
@@ -2804,7 +2836,7 @@ void Model::unhideTrianglesFromVertices()
 
 void Model::hideVerticesFromTriangles()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	// Hide vertices with all triangles hidden
 	unsigned t;
@@ -2828,7 +2860,7 @@ void Model::hideVerticesFromTriangles()
 
 void Model::unhideVerticesFromTriangles()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	// Unhide vertices with at least one triangle visible
 	for(unsigned t = 0; t<m_triangles.size(); t++)
@@ -3069,7 +3101,7 @@ bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, do
 
 void Model::invertNormals(unsigned triangleNum)
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(triangleNum<m_triangles.size())
 	{
@@ -3243,28 +3275,7 @@ void Model::appendUndo(Undo *undo)
 	sendUndo(undo,false);
 }
 
-/*REFERENCE
-// Show an error because the user tried to add or remove primitives while
-// the model has frame animations.
-bool Model::displayFrameAnimPrimitiveError()
-{
-	//https://github.com/zturtleman/mm3d/issues/87
-
-	if(1) return false; //I think this is solved.
-
-	//REMINDER: Extend frame vectors if necessary.
-	if(m_frameAnims.size()>0&&!m_forceAddOrDelete)
-	model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","Cannot add or delete because you have frame animations.  Try \"Merge...\" instead."));
-	else return false; return true;
-}
-void Model::forceAddOrDelete(bool o)
-{
-	if(!o&&m_forceAddOrDelete) clearUndo();
-
-	m_forceAddOrDelete = o;
-}*/
-
-#endif // MM3D_EDIT
+#endif // MM3D_EDIT //???
 
 int Model::addFormatData(FormatData *fd)
 {
@@ -3335,7 +3346,7 @@ Model::FormatData *Model::getFormatDataByFormat(const char *format, unsigned ind
 
 bool Model::setBoneJointParent(unsigned joint, int parent)
 {
-	if(joint<m_joints.size()&&parent>=-1)
+	if(joint<m_joints.size())
 	{
 		if(m_undoEnabled)
 		{
@@ -3346,11 +3357,9 @@ bool Model::setBoneJointParent(unsigned joint, int parent)
 
 		m_joints[joint]->m_parent = parent;
 
-		invalidateSkel();
-
-		return true;
+		invalidateSkel(); return true;
 	}
-	else return false;
+	return false;
 }
 
 int Model::getBoneJointParent(unsigned j)const
@@ -3450,39 +3459,27 @@ bool Model::getBoneJointFinalMatrix(unsigned jointNumber,Matrix &m)const
 		//HACK? Need to update m_final matrix.
 		//validateAnimSkel();
 
-		m = m_joints[jointNumber]->m_final;
-		return true;
+		m = m_joints[jointNumber]->m_final; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 bool Model::getBoneJointAbsoluteMatrix(unsigned jointNumber,Matrix &m)const
 {
 	if(jointNumber<m_joints.size())
 	{
-		m = m_joints[jointNumber]->m_absolute;
-		return true;
+		m = m_joints[jointNumber]->m_absolute; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 bool Model::getBoneJointRelativeMatrix(unsigned jointNumber,Matrix &m)const
 {
 	if(jointNumber<m_joints.size())
 	{
-		m = m_joints[jointNumber]->m_relative;
-		return true;
+		m = m_joints[jointNumber]->m_relative; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 bool Model::getPointFinalMatrix(unsigned pointNumber, Matrix &m)const
@@ -3670,7 +3667,7 @@ void Model::calculateNormals()
 	//CAUTION: I've changed this to fill out the animation "source" normals
 	//when selected.
 
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	//INSANITY
 	//Note: I've used static to avoid reallocations but it's not threadsafe
@@ -4072,8 +4069,7 @@ void model_show_alloc_stats()
 	Model::Joint::stats();
 	Model::Point::stats();
 	Model::TextureProjection::stats();
-	Model::SkelAnim::stats();
-	Model::FrameAnim::stats();
+	Model::Animation::stats();
 	Model::FrameAnimVertex::stats();
 //	Model::FrameAnimPoint::stats();
 	BspTree::Poly::stats();
@@ -4099,10 +4095,11 @@ int model_free_primitives()
 	c += Model::Joint::flush();
 	c += Model::Point::flush();
 	c += Model::Keyframe::flush();
-	c += Model::SkelAnim::flush();
+	//c += Model::SkelAnim::flush();
+	c += Model::Animation::flush();
 	c += BspTree::Poly::flush();
 	c += BspTree::Node::flush();
-	c += Model::FrameAnim::flush();
+	//c += Model::FrameAnim::flush();
 	c += Model::FrameAnimVertex::flush();
 //	c += Model::FrameAnimPoint::flush();
 
@@ -4204,15 +4201,15 @@ Matrix Model::Object2020::getMatrixUnanimated()const
 
 bool Model::setPositionCoords(const Position &pos, const double *coord)
 {
-	Object2020 *obj = getPositionObject(pos); if(!obj) return false;
-
-	if(pos.type==PT_Point&&m_animationMode==ANIMMODE_FRAME
-	 ||pos.type==PT_Joint&&m_animationMode==ANIMMODE_SKELETAL)
+	//1) Vertex isn't an "object".
+	//2) Joint uses m_rel (and computes m_abs as side effect.)
+	//3) Point animation is just less code this way.
+	if(pos.type<=PT_Projection)
 	{
-		makeCurrentAnimationFrame();
-		return -1!=setKeyframe
-		(m_currentAnim,m_currentFrame,pos,KeyTranslate,coord[0],coord[1],coord[2]);
+		return movePosition(pos,coord[0],coord[1],coord[2]);
 	}
+	
+	Object2020 *obj = getPositionObject(pos); if(!obj) return false;
 
 	//TODO: Let sendUndo reject no-op changes.
 	if(!memcmp(obj->m_abs,coord,sizeof(*coord)*3)) return true; //2020
@@ -4225,15 +4222,7 @@ bool Model::setPositionCoords(const Position &pos, const double *coord)
 		undo->setXYZ(this,obj->m_abs,coord); 
 		sendUndo(undo,true);
 	}
-	memcpy(obj->m_abs,coord,sizeof(*coord)*3); 
-	
-	switch(pos.type)
-	{
-	case PT_Joint: invalidateSkel(); break;
-	case PT_Projection: applyProjection(pos); break;
-	}
-		
-	return true;
+	memcpy(obj->m_abs,coord,sizeof(*coord)*3); return true;
 }
 bool Model::getPositionCoords(const Position &pos, double *coord)const
 {
@@ -4254,10 +4243,11 @@ bool Model::setPositionRotation(const Position &pos, const double *rot)
 	if(!obj) return false;
 
 	//HACK: Compatibility fix.
-	if(pos.type==PT_Point&&m_animationMode==ANIMMODE_FRAME
-	 ||pos.type==PT_Joint&&m_animationMode==ANIMMODE_SKELETAL)
+	if(pos.type==PT_Point&&inFrameAnimMode()
+	 ||pos.type==PT_Joint&&inSkeletalMode())
 	{
 		makeCurrentAnimationFrame();
+
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyRotate,rot[0],rot[1],rot[2]);
 	}
@@ -4299,10 +4289,11 @@ bool Model::setPositionScale(const Position &pos, const double *scale)
 	Object2020 *obj = getPositionObject(pos); if(!obj) return false;
 
 	//HACK: Compatibility fix.
-	if(pos.type==PT_Point&&m_animationMode==ANIMMODE_FRAME
-	 ||pos.type==PT_Joint&&m_animationMode==ANIMMODE_SKELETAL)
+	if(pos.type==PT_Point&&inFrameAnimMode()
+	 ||pos.type==PT_Joint&&inSkeletalMode())
 	{
 		makeCurrentAnimationFrame();
+
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyScale,scale[0],scale[1],scale[2]);
 	}
@@ -4367,9 +4358,35 @@ const char *Model::getPositionName(const Position &pos)const
 	return obj?obj->m_name.c_str():nullptr;
 }
 
-bool Model::setPointCoords(unsigned point, const double *trans)
+bool Model::setBoneJointTranslation(unsigned j, const double *rel)
 {
-	return setPositionCoords({PT_Point,point},trans);
+	if(j>=m_joints.size()||!rel) return false;
+
+	auto *obj = m_joints[j];
+
+	//TODO: Let sendUndo reject no-op changes.
+	if(!memcmp(obj->m_rel,rel,sizeof(*rel)*3)) return true; //2020
+
+	m_changeBits|=MoveOther; //2020
+
+	if(m_undoEnabled)
+	{
+		auto undo = new MU_SetObjectXYZ({PT_Joint,j});
+		undo->setXYZ(this,obj->m_rel,rel); 
+		sendUndo(undo,true);
+	}
+
+	memcpy(obj->m_rel,rel,sizeof(*rel)*3);
+
+	invalidateSkel(); return true;
+}
+bool Model::setBoneJointCoords(unsigned joint, const double *abs)
+{
+	return setPositionCoords({PT_Joint,joint},abs);
+}
+bool Model::setPointCoords(unsigned point, const double *abs)
+{
+	return setPositionCoords({PT_Point,point},abs);
 }
 bool Model::setProjectionCoords(unsigned proj, const double *coord)
 {
@@ -4403,6 +4420,20 @@ bool Model::getBoneJointScale(unsigned joint, double *coord)const
 bool Model::getBoneJointScaleUnanimated(unsigned joint, double *coord)const
 {
 	return getPositionScaleUnanimated({PT_Joint,joint},coord);
+}
+bool Model::getBoneJointTranslation(unsigned j, double *rel)const
+{
+	if(j>=m_joints.size()||!rel) return false;
+	
+	auto src = inSkeletalMode()?&Joint::m_kfRel:&Joint::m_rel;
+	
+	memcpy(rel,m_joints[j]->*src,sizeof(*rel)*3); return true;
+}
+bool Model::getBoneJointTranslationUnanimated(unsigned j, double *rel)const
+{
+	if(j>=m_joints.size()||!rel) return false;
+
+	memcpy(rel,m_joints[j]->m_rel,sizeof(*rel)*3); return true;
 }
 bool Model::getPointCoords(unsigned point, double *coord)const
 {
@@ -4458,6 +4489,14 @@ bool Model::getProjectionRotation(unsigned proj, double *rot)const
 	return getPositionRotation({PT_Projection,proj},rot);
 }
 
+bool Model::setBoneJointScale(unsigned joint, const double *scale)
+{
+	return setPositionScale({PT_Joint,joint},scale);
+}
+bool Model::setPointScale(unsigned point, const double *scale)
+{
+	return setPositionScale({PT_Point,point},scale);
+}
 bool Model::setProjectionScale(unsigned proj, double scale)
 {
 	double xyz[3] = {scale,scale,scale};

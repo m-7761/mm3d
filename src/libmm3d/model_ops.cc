@@ -30,9 +30,8 @@
 #include "texture.h"
 #include "translate.h"
 
-#ifdef MM3D_EDIT
+#include "modelstatus.h"
 #include "modelundo.h"
-#endif // MM3D_EDIT
 
 // FIXME centralize this
 const double EQ_TOLERANCE = 0.00001;
@@ -523,242 +522,231 @@ bool Model::equivalent(const Model *model, double tolerance)const
 	// Don't need to check texture contents,already did that in the group
 	// and material check above.
 
+
+	//////
+	//
+	// TODO? Does it matter to classify by restriction?
+	//
+	//
 	// Compare skeletal animations. This assumes animations are in the
 	// same order.
 	Model::AnimationModeE mode = Model::ANIMMODE_SKELETAL;
-	int acount = getAnimCount(mode);
-	if(acount!=(int)model->getAnimCount(mode))
+	unsigned acount = getAnimationCount(mode);
+	if(acount!=model->getAnimationCount(mode))
 	{
 		log_warning("animation count mismatch,lhs = %d,rhs = %d\n",
-				acount,model->getAnimCount(mode));
+				acount,model->getAnimationCount(mode));
+		return false;
+	}	
+	// Compare frame animations. This assumes animations are in the
+	// same order.
+	mode = Model::ANIMMODE_FRAME;
+	acount = getAnimationCount(mode);
+	if(acount!=model->getAnimationCount(mode))
+	{
+		log_warning("frame animation count mismatch,lhs = %d,rhs = %d\n",
+				acount,model->getAnimationCount(mode));
+		return false;
+	}
+	// Compare frame+skeletal. This assumes animations are in the
+	// same order.
+	mode = Model::ANIMMODE;
+	acount = getAnimationCount(mode);
+	if(acount!=model->getAnimationCount(mode))
+	{
+		log_warning("frame+skeletal animation count mismatch,lhs = %d,rhs = %d\n",
+				acount,model->getAnimationCount(mode));
 		return false;
 	}
 
-	for(int a = 0; a<acount; ++a)
+	Matrix lhs_mat, rhs_mat;
+	acount = getAnimationCount();
+	for(unsigned a=0;a<acount;a++)
 	{
-		if(std::string(getAnimName(mode,a))
-			  !=std::string(model->getAnimName(mode,a)))
+		if(strcmp(getAnimName(a),model->getAnimName(a)))
 		{
 			log_warning("anim name mismatch on %d,lhs = %s,rhs = %s\n",
-					a,getAnimName(mode,a),model->getAnimName(mode,a));
+					a,getAnimName(a),model->getAnimName(a));
 			return false;
 		}
-		if(getAnimFrameCount(mode,a)!=model->getAnimFrameCount(mode,a))
+		if(getAnimFrameCount(a)!=model->getAnimFrameCount(a))
 		{
 			log_warning("animation frame count mismatch on %d,lhs = %d,rhs = %d\n",
-					a,getAnimFrameCount(mode,a),model->getAnimFrameCount(mode,a));
+					a,getAnimFrameCount(a),model->getAnimFrameCount(a));
 			return false;
 		}
-		if(fabs(getAnimFPS(mode,a)-model->getAnimFPS(mode,a))
-			 >tolerance)
+		if(fabs(getAnimFPS(a)-model->getAnimFPS(a))>tolerance)
 		{
 			//How to print?
 			//log_warning("animation fps mismatch on %d,lhs = %d,rhs = %d\n",
 			log_warning("animation fps mismatch on %d,lhs = %f,rhs = %f\n",
-					a,model->getAnimFPS(mode,a),model->getAnimFPS(mode,a));
+					a,model->getAnimFPS(a),model->getAnimFPS(a));
 			return false;
 		}
 
-		int fcount = getAnimFrameCount(mode,a);
-		
 		//FIX ME //Why not propEqual?
-		auto sa = m_skelAnims[a], sb = model->m_skelAnims[a]; //2020
-		Matrix lhs_mat, rhs_mat;
-
-		for(int f = 0; f<fcount; ++f)
+		auto sa = m_anims[a], sb = model->m_anims[a]; //2020
+		
+		int fcount = getAnimFrameCount(a);
+		int type = getAnimType(a);
+		for(int f=0;f<fcount;f++)
 		{
-			auto time = sa->m_timetable2020[f];
-			if(fabs(time-sb->m_timetable2020[f])>tolerance)
-			{
-				log_warning("animation timestamp mismatch on %d,lhs = %f,rhs = %f\n",
-						a,time,sb->m_timetable2020[f]);
-				return false;
-			}
-			for(Position b{PT_Joint,0};b<lhsBCount;b++)
-			{
-				Position rb{PT_Joint,jointMap[b]};
+			if(type&ANIMMODE_SKELETAL)
+			{			
+				auto time = sa->m_timetable2020[f];
+				if(fabs(time-sb->m_timetable2020[f])>tolerance)
+				{
+					log_warning("animation timestamp mismatch on %d,lhs = %f,rhs = %f\n",
+							a,time,sb->m_timetable2020[f]);
+					return false;
+				}
+				for(Position b{PT_Joint,0};b<lhsBCount;b++)
+				{
+					Position rb{PT_Joint,jointMap[b]};
 				
-				//NOTE: These omit model-> so would always fail.
-				//I want to retire interpSkelAnimKeyframe usage.
-				//https://github.com/zturtleman/mm3d/issues/123
-				/*REFERENCE (2020)
+					//NOTE: These omit model-> so would always fail.
+					//I want to retire interpSkelAnimKeyframe usage.
+					//https://github.com/zturtleman/mm3d/issues/123
+					/*REFERENCE (2020)
 
-				bool lhs_havekf;
-				bool rhs_havekf;
+					bool lhs_havekf;
+					bool rhs_havekf;
 
-				double lhs_param[3];
-				double rhs_param[3];
+					double lhs_param[3];
+					double rhs_param[3];
 
-				lhs_havekf = getKeyframe(a,f,b,KeyRotate,
-						lhs_param[0],lhs_param[1],lhs_param[2]);
-				rhs_havekf = getKeyframe(a,f,rb,KeyRotate,
-						rhs_param[0],rhs_param[1],rhs_param[2]);
+					lhs_havekf = getKeyframe(a,f,b,KeyRotate,
+							lhs_param[0],lhs_param[1],lhs_param[2]);
+					rhs_havekf = getKeyframe(a,f,rb,KeyRotate,
+							rhs_param[0],rhs_param[1],rhs_param[2]);
 
-				if(lhs_havekf!=rhs_havekf)
-				{
-					if(!lhs_havekf)
+					if(lhs_havekf!=rhs_havekf)
 					{
-						interpSkelAnimKeyframe(a,f,true,b,KeyRotate,
-								lhs_param[0],lhs_param[1],lhs_param[2]);
+						if(!lhs_havekf)
+						{
+							interpSkelAnimKeyframe(a,f,true,b,KeyRotate,
+									lhs_param[0],lhs_param[1],lhs_param[2]);
+						}
+						if(!rhs_havekf)
+						{
+							interpSkelAnimKeyframe(a,f,true,rb,KeyRotate,
+									rhs_param[0],rhs_param[1],rhs_param[2]);
+						}
 					}
-					if(!rhs_havekf)
+
+					if(lhs_havekf||rhs_havekf)
 					{
-						interpSkelAnimKeyframe(a,f,true,rb,KeyRotate,
-								rhs_param[0],rhs_param[1],rhs_param[2]);
+						Matrix lhs_mat;
+						Matrix rhs_mat;
+						lhs_mat.setRotation(lhs_param);
+						rhs_mat.setRotation(rhs_param);
+
+						if(!matrixEquiv(lhs_mat,rhs_mat))
+						{
+							log_warning("rotation keyframe %d mismatch on anim %d for joint %d\n",
+									f,a,b);
+							return false;
+						}
 					}
-				}
 
-				if(lhs_havekf||rhs_havekf)
-				{
-					Matrix lhs_mat;
-					Matrix rhs_mat;
-					lhs_mat.setRotation(lhs_param);
-					rhs_mat.setRotation(rhs_param);
+					lhs_havekf = getKeyframe(a,f,b,KeyTranslate,
+							lhs_param[0],lhs_param[1],lhs_param[2]);
+					rhs_havekf = getKeyframe(a,f,rb,KeyTranslate,
+							rhs_param[0],rhs_param[1],rhs_param[2]);
 
-					if(!matrixEquiv(lhs_mat,rhs_mat))
+					if(lhs_havekf!=rhs_havekf)
 					{
-						log_warning("rotation keyframe %d mismatch on anim %d for joint %d\n",
-								f,a,b);
+						if(!lhs_havekf)
+						{
+							interpSkelAnimKeyframe(a,f,true,b,KeyTranslate,
+									lhs_param[0],lhs_param[1],lhs_param[2]);
+						}
+						if(!rhs_havekf)
+						{
+							interpSkelAnimKeyframe(a,f,true,rb,KeyTranslate,
+									rhs_param[0],rhs_param[1],rhs_param[2]);
+						}
+					}
+
+					if(lhs_havekf)
+					{
+						if(!floatCompareVector(lhs_param,rhs_param,3,tolerance))
+						{
+							log_warning("translation keyframe %d mismatch on anim %d for joint %d\n",
+									f,a,b);
+							return false;
+						}
+					}*/
+					//HACK: I hope this is good enough?
+					interpKeyframe(a,f,time,b,lhs_mat);
+					model->interpKeyframe(a,f,time,rb,rhs_mat);
+					if(!matrixEquiv(lhs_mat,rhs_mat/*,tolerance?*/))
+					{
+						log_warning("keyframe %d mismatch on anim %d for joint %d\n",f,a,b);
 						return false;
 					}
 				}
-
-				lhs_havekf = getKeyframe(a,f,b,KeyTranslate,
-						lhs_param[0],lhs_param[1],lhs_param[2]);
-				rhs_havekf = getKeyframe(a,f,rb,KeyTranslate,
-						rhs_param[0],rhs_param[1],rhs_param[2]);
-
-				if(lhs_havekf!=rhs_havekf)
+			}		
+			if(type&ANIMMODE_FRAME)
+			{				
+				model_ops_TriMatchMap::const_iterator it;
+				for(it = triMap.begin(); it!=triMap.end(); ++it)
 				{
-					if(!lhs_havekf)
+					double coords[3];
+					double rcoords[3];
+					for(int i = 0; i<3; i++)
 					{
-						interpSkelAnimKeyframe(a,f,true,b,KeyTranslate,
-								lhs_param[0],lhs_param[1],lhs_param[2]);
-					}
-					if(!rhs_havekf)
-					{
-						interpSkelAnimKeyframe(a,f,true,rb,KeyTranslate,
-								rhs_param[0],rhs_param[1],rhs_param[2]);
+						int lv = getTriangleVertex(it->first,i);
+						int rv = model->getTriangleVertex(it->second.rtri,
+								(i+it->second.indexOffset)%3);
+						auto le = getFrameAnimVertexCoords(a,f,lv,
+								coords[0],coords[1],coords[2]);
+						auto re = model->getFrameAnimVertexCoords(a,f,rv,
+								rcoords[0],rcoords[1],rcoords[2]);
+
+						if(le!=re||le&&!floatCompareVector(coords,rcoords,3,tolerance))
+						{
+							log_warning("anim frame triangle %d mismatch on anim %d for frame %d\n",
+									it->first,a,f);
+							return false;
+						}
 					}
 				}
 
-				if(lhs_havekf)
+				IntMap::const_iterator pit;
+				for(pit = pointMap.begin(); pit!=pointMap.end(); ++pit)
 				{
-					if(!floatCompareVector(lhs_param,rhs_param,3,tolerance))
+					double vec[3];
+					double rvec[3];
+
+					//getFrameAnimPointCoords(a,f,pit->first,
+					getKeyframe(a,f,{PT_Point,(unsigned)pit->first},KeyTranslate,
+							vec[0],vec[1],vec[2]);
+					//model->getFrameAnimPointCoords(a,f,pit->second,
+					model->getKeyframe(a,f,{PT_Point,(unsigned)pit->second},KeyTranslate,
+							rvec[0],rvec[1],rvec[2]);
+
+					if(!floatCompareVector(vec,rvec,3,tolerance))
 					{
-						log_warning("translation keyframe %d mismatch on anim %d for joint %d\n",
-								f,a,b);
+						log_warning("anim frame point %d coord mismatch on anim %d for frame %d\n",
+								pit->first,a,f);
 						return false;
 					}
-				}*/
-				//HACK: I hope this is good enough?
-				interpKeyframe(a,f,time,b,lhs_mat);
-				model->interpKeyframe(a,f,time,rb,rhs_mat);
-				if(!matrixEquiv(lhs_mat,rhs_mat/*,tolerance?*/))
-				{
-					log_warning("keyframe %d mismatch on anim %d for joint %d\n",
-							f,a,b);
-					return false;
-				}
-			}
-		}
-	}
 
-	// Compare frame animations. This assumes animations are in the
-	// same order.
-	mode = Model::ANIMMODE_FRAME;
-	acount = getAnimCount(mode);
-	if(acount!=(int)model->getAnimCount(mode))
-	{
-		log_warning("frame animation count mismatch,lhs = %d,rhs = %d\n",
-				acount,model->getAnimCount(mode));
-		return false;
-	}
+					//getFrameAnimPointRotation(a,f,pit->first,
+					getKeyframe(a,f,{PT_Point,(unsigned)pit->first},KeyRotate,
+							vec[0],vec[1],vec[2]);
+					//model->getFrameAnimPointRotation(a,f,pit->second,
+					model->getKeyframe(a,f,{PT_Point,(unsigned)pit->second},KeyRotate,
+							rvec[0],rvec[1],rvec[2]);
 
-	for(int a = 0; a<acount; ++a)
-	{
-		if(std::string(getAnimName(mode,a))
-			  !=std::string(model->getAnimName(mode,a)))
-		{
-			log_warning("anim name mismatch on %d,lhs = %s,rhs = %s\n",
-					a,getAnimName(mode,a),model->getAnimName(mode,a));
-			return false;
-		}
-		if(getAnimFrameCount(mode,a)!=model->getAnimFrameCount(mode,a))
-		{
-			log_warning("animation frame count mismatch on %d,lhs = %d,rhs = %d\n",
-					a,getAnimFrameCount(mode,a),model->getAnimFrameCount(mode,a));
-			return false;
-		}
-		if(fabs(getAnimFPS(mode,a)-model->getAnimFPS(mode,a))
-			 >tolerance)
-		{
-			log_warning("animation fps mismatch on %d,lhs = %d,rhs = %d\n",
-					a,model->getAnimFPS(mode,a),model->getAnimFPS(mode,a));
-			return false;
-		}
-
-		int fcount = getAnimFrameCount(mode,a);
-
-		for(int f = 0; f<fcount; ++f)
-		{
-			model_ops_TriMatchMap::const_iterator it;
-			for(it = triMap.begin(); it!=triMap.end(); ++it)
-			{
-				double coords[3];
-				double rcoords[3];
-				for(int i = 0; i<3; i++)
-				{
-					int lv = getTriangleVertex(it->first,i);
-					int rv = model->getTriangleVertex(it->second.rtri,
-							(i+it->second.indexOffset)%3);
-					auto le = getFrameAnimVertexCoords(a,f,lv,
-							coords[0],coords[1],coords[2]);
-					auto re = model->getFrameAnimVertexCoords(a,f,rv,
-							rcoords[0],rcoords[1],rcoords[2]);
-
-					if(le!=re||le&&!floatCompareVector(coords,rcoords,3,tolerance))
+					if(!floatCompareVector(vec,rvec,3,tolerance))
 					{
-						log_warning("anim frame triangle %d mismatch on anim %d for frame %d\n",
-								it->first,a,f);
+						log_warning("anim frame point %d rot mismatch on anim %d for frame %d\n",
+								pit->first,a,f);
 						return false;
 					}
-				}
-			}
-
-			IntMap::const_iterator pit;
-			for(pit = pointMap.begin(); pit!=pointMap.end(); ++pit)
-			{
-				double vec[3];
-				double rvec[3];
-
-				//getFrameAnimPointCoords(a,f,pit->first,
-				getKeyframe(a,f,{PT_Point,(unsigned)pit->first},KeyTranslate,
-						vec[0],vec[1],vec[2]);
-				//model->getFrameAnimPointCoords(a,f,pit->second,
-				model->getKeyframe(a,f,{PT_Point,(unsigned)pit->second},KeyTranslate,
-						rvec[0],rvec[1],rvec[2]);
-
-				if(!floatCompareVector(vec,rvec,3,tolerance))
-				{
-					log_warning("anim frame point %d coord mismatch on anim %d for frame %d\n",
-							pit->first,a,f);
-					return false;
-				}
-
-				//getFrameAnimPointRotation(a,f,pit->first,
-				getKeyframe(a,f,{PT_Point,(unsigned)pit->first},KeyRotate,
-						vec[0],vec[1],vec[2]);
-				//model->getFrameAnimPointRotation(a,f,pit->second,
-				model->getKeyframe(a,f,{PT_Point,(unsigned)pit->second},KeyRotate,
-						rvec[0],rvec[1],rvec[2]);
-
-				if(!floatCompareVector(vec,rvec,3,tolerance))
-				{
-					log_warning("anim frame point %d rot mismatch on anim %d for frame %d\n",
-							pit->first,a,f);
-					return false;
-				}
+				}			
 			}
 		}
 	}
@@ -776,8 +764,15 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 	unsigned numPoints		= m_points.size();
 	unsigned numTextures	 = m_materials.size();
 	unsigned numProjections = m_projections.size();
-	unsigned numFrameAnims  = m_frameAnims.size();
-	unsigned numSkelAnims	= m_skelAnims.size();
+	unsigned numFrameAnims  = 0;
+	unsigned numSkelAnims	= 0;
+	unsigned numRemAnims	= 0;
+	for(auto*ea:m_anims) switch(ea->_type)
+	{
+	case 1: numSkelAnims++; continue;
+	case 2: numFrameAnims++; continue;
+	case 3: numRemAnims++; continue;
+	}
 
 	unsigned t = 0;
 	unsigned v = 0;
@@ -951,37 +946,56 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 
 	if(partBits &PartSkelAnims)
 	{
-		if(numSkelAnims!=model->m_skelAnims.size())
+		auto cmp = model->getAnimationCount(ANIMMODE_SKELETAL);
+		if(numSkelAnims!=cmp)
 		{
 			log_warning("match failed at skel anim count %d!=%d\n",
-					numSkelAnims,model->m_skelAnims.size());
+					numSkelAnims,cmp);
 			return false;
 		}
 
 		for(t = 0; t<numSkelAnims; t++)
 		{
-			if(!m_skelAnims[t]->propEqual(*model->m_skelAnims[t],propBits,tolerance))
+			if(!m_anims[t]->propEqual(*model->m_anims[t],propBits,tolerance))
 			{
 				log_warning("match failed at skel animation %d\n",t);
 				return false;
 			}
 		}
 	}
-
 	if(partBits &PartFrameAnims)
 	{
-		if(numFrameAnims!=model->m_frameAnims.size())
+		auto cmp = model->getAnimationCount(ANIMMODE_FRAME);
+		if(numFrameAnims!=cmp)
 		{
-			log_warning("match failed at frameAnim count %d!=%d\n",
-					numFrameAnims,model->m_frameAnims.size());
+			log_warning("match failed at frame anim count %d!=%d\n",numFrameAnims,cmp);
 			return false;
 		}
-
+		cmp = numSkelAnims;
 		for(t = 0; t<numFrameAnims; t++)
 		{
-			if(!m_frameAnims[t]->propEqual(*model->m_frameAnims[t],propBits,tolerance))
+			if(!m_anims[cmp+t]->propEqual(*model->m_anims[cmp+t],propBits,tolerance))
 			{
 				log_warning("match failed at frame animation %d\n",t);
+				return false;
+			}
+		}
+	}
+	if(partBits &PartAnims)
+	{
+		auto cmp = model->getAnimationCount(ANIMMODE);
+		if(numFrameAnims!=cmp)
+		{
+			log_warning("match failed at skel+frame anim count %d!=%d\n",
+					numFrameAnims,cmp);
+			return false;
+		}
+		cmp = numSkelAnims+numFrameAnims;
+		for(t = 0; t<numFrameAnims; t++)
+		{
+			if(!m_anims[cmp+t]->propEqual(*model->m_anims[cmp+t],propBits,tolerance))
+			{
+				log_warning("match failed at skel+frame animation %d\n",t);
 				return false;
 			}
 		}
@@ -1108,14 +1122,12 @@ struct SpatialSort //credit Assimp/SpatialSort.cpp
 	}
 };
 
-Model::AnimBase2020 *Model::_dup(AnimationModeE mode, AnimBase2020 *a, bool keyframes)
+unsigned Model::_dup(Animation *a, bool keyframes)
 {
-	unsigned index = addAnimation(mode,a->m_name.c_str());
-	setAnimFrameCount(mode,index,a->_frame_count());
+	unsigned index = addAnimation((AnimationModeE)a->_type,a->m_name.c_str());
+	setAnimFrameCount(index,a->_frame_count());
 
-	AnimBase2020 *b;
-	if(mode==ANIMMODE_SKELETAL) b = m_skelAnims[index];
-	else b = m_frameAnims[index];
+	Animation *b = m_anims[index];
 
 	b->m_fps = a->m_fps;
 	b->m_frame2020 = a->m_frame2020;
@@ -1124,32 +1136,28 @@ Model::AnimBase2020 *Model::_dup(AnimationModeE mode, AnimBase2020 *a, bool keyf
 
 	if(keyframes)
 	{
-		Position j{mode==ANIMMODE_SKELETAL?PT_Joint:PT_Point,0};
-
-		for(;j<a->m_keyframes.size();j++)			
-		for(auto*kf:a->m_keyframes[j])
+		for(auto&ea:a->m_keyframes)
+		for(auto*kf:ea.second)
 		{
-			setKeyframe(index,kf->m_frame,j,kf->m_isRotation,
+			setKeyframe(index,kf->m_frame,ea.first,kf->m_isRotation,
 			kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
 		}
 	}
 
-	return b;
+	return index; //return b;
 }
 bool Model::mergeAnimations(Model *model)
 {
-	//if(m_animationMode) return false; //REMOVE ME
-
-	unsigned count = model->getAnimCount(ANIMMODE_SKELETAL);
-
-	if(!count&&!model->getAnimCount(ANIMMODE_FRAME))
+	if(model->m_anims.empty())
 	{
 		//msg_warning(TRANSLATE("LowLevel","Model contains no skeletal animations"));
 		msg_warning(TRANSLATE("LowLevel","Model contains no animations"));
 		return false;
 	}
 
-	if(count)
+	unsigned sa_count = model->getAnimationCount(ANIMMODE_SKELETAL);
+
+	if(sa_count)
 	{
 		unsigned j1 = getBoneJointCount();
 		unsigned j2 = model->getBoneJointCount();
@@ -1166,62 +1174,25 @@ bool Model::mergeAnimations(Model *model)
 		}
 	}
 
-	//	bool canAdd = canAddOrDelete();
-	//	forceAddOrDelete(true);
-
-	auto f = [&](AnimBase2020 *a, AnimationModeE mode)
+	if(sa_count) // Do skeletal add
 	{
-		unsigned index = addAnimation(mode,a->m_name.c_str());
-		setAnimFrameCount(mode,index,a->_frame_count());
-
-		AnimBase2020 *b;
-		if(mode==ANIMMODE_SKELETAL) b = m_skelAnims[index];
-		else b = m_frameAnims[index];
-
-		b->m_fps = a->m_fps;
-		b->m_frame2020 = a->m_frame2020;
-		b->m_timetable2020 = a->m_timetable2020;
-
-		auto pt = mode==ANIMMODE_SKELETAL?PT_Joint:PT_Point;
-
-		//TODO: compare points/joints by position?
-		for(unsigned j=0;j<a->m_keyframes.size();j++)			
-		for(unsigned k=0;k<a->m_keyframes[j].size();k++)
+		for(unsigned i=0;i<sa_count;i++)
 		{
-			Keyframe *kf = a->m_keyframes[j][k];
-			setKeyframe(index,kf->m_frame,{pt,j},kf->m_isRotation,
-			kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2]);
-		}
-
-		return b;
-	};
-
-	if(count) // Do skeletal add
-	{
-		for(unsigned n=0;n<count;n++)
-		{
-			_dup(ANIMMODE_SKELETAL,model->m_skelAnims[n]);
+			_dup(model->m_anims[i]);
 		}
 	}
 
-	count = model->getAnimCount(ANIMMODE_FRAME);
+	unsigned fa_count = model->m_anims.size()-sa_count;
 
-	if(!count&&!model->getAnimCount(ANIMMODE_SKELETAL))
+	if(fa_count) //2020
 	{
-		//msg_warning(TRANSLATE("LowLevel","Model contains no skeletal animations"));
-		msg_warning(TRANSLATE("LowLevel","Model contains no animations"));
-		return false;
-	}
+		std::vector<std::pair<Animation*,Animation*>> ab;
 
-	if(count) //2020
-	{
-		std::vector<std::pair<FrameAnim*,FrameAnim*>> ab;
-
-		for(unsigned n=0;n<count;n++)
+		for(unsigned i=0;i<fa_count;i++)
 		{
-			FrameAnim *a = model->m_frameAnims[n];
-			AnimBase2020 *b = _dup(ANIMMODE_FRAME,a);
-			ab.push_back({a,(FrameAnim*)b});
+			Animation *a = model->m_anims[sa_count+i];
+			Animation *b = m_anims[_dup(a)];
+			ab.push_back({a,b});
 		}
 		
 		SpatialSort ss(*model);
@@ -1249,7 +1220,8 @@ bool Model::mergeAnimations(Model *model)
 			for(auto&ea:ab)
 			{
 				int ap = ea.first->m_frame0;
-				int bp = ea.second->m_frame0;
+				if(0==~ap) continue;
+				int bp = ea.second->_frame0(this);
 
 				for(size_t i=ea.first->_frame_count();i-->0;)
 				{
@@ -1259,19 +1231,27 @@ bool Model::mergeAnimations(Model *model)
 		}
 	}
 
-//	invalidateNormals(); //???
-
-//	forceAddOrDelete(canAdd&&m_frameAnims.empty());
-
 	return true;
 }
 
 bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE animations, bool emptyGroups)
 {
-//	if(m_animationMode) return false; //REMOVE ME
-
-//	bool canAdd = canAddOrDelete();
-//	forceAddOrDelete(true);
+	if(animations==AM_MERGE) //Do up front with error!
+	{		
+		bool merge = true;
+		for(int i=1;i<=3;i++)// Do skeletal merge if possible
+		{
+			unsigned ac1 = getAnimationCount((AnimationModeE)i);
+			unsigned ac2 = model->getAnimationCount((AnimationModeE)i);
+			if(ac1&&ac2&&ac1!=ac2) merge = false;
+		}
+		if(!merge)
+		{
+			model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel",
+			"Reason can't merge animations: type and count mismatch"));
+			return false;
+		}	
+	}
 
 	std::unordered_map<int,int> groupMap;
 	std::unordered_map<int,int> materialMap;
@@ -1477,81 +1457,82 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		}
 	}
 
-	if(animations!=AM_NONE)
+	int_list frameMap;
+
+	if(animations!=AM_NONE) 
+	for(unsigned ac1,ac2,base2=0,i=1;i<=3;i++,base2+=ac2)
 	{
-		// Do frame merge if possible
-		unsigned ac1 = getAnimCount(ANIMMODE_FRAME);
-		unsigned ac2 = model->getAnimCount(ANIMMODE_FRAME);
+		// Do merge if possible
+		ac1 = getAnimationCount((AnimationModeE)i);
+		ac2 = model->getAnimationCount((AnimationModeE)i);
+		bool merge = animations==AM_MERGE&&ac1&&ac2&&ac1==ac2;
 
-		bool merge = animations==AM_MERGE&&ac1==ac2;		
-		// Have to check frame counts too
-		for(unsigned a=0;merge&&a<ac1;a++)
-		{
-			unsigned fc1 = getAnimFrameCount(ANIMMODE_FRAME,a);
-			unsigned fc2 = model->getAnimFrameCount(ANIMMODE_FRAME,a);
+		unsigned base = getAnimationIndex((AnimationModeE)i);
+		if(!merge) base+=ac1;
 
-			if(fc1!=fc2) merge = false;
-		}
-
-		// Do frame add otherwise
-		unsigned base = merge?0:ac1;
-		for(unsigned a=0;a<ac2;a++)
-		{			
-			FrameAnim *fa = model->m_frameAnims[a];
-			
-			if(!merge) _dup(ANIMMODE_FRAME,fa,false);								
-
-			for(unsigned j=0;j<fa->m_keyframes.size();j++)
-			for(Keyframe *kf:fa->m_keyframes[j])
-			{
-				setKeyframe(base+a,kf->m_frame,{Model::PT_Point,j+pointbase},
-				kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
-			}
-
-			//Note, setFrameAnimVertexCoords is unnecessary 
-			//because this is a fresh animation
-			auto fp = fa->m_frame0;
-			auto fd = m_frameAnims[base+a]->m_frame0;
-			auto fc = fa->_frame_count();
-			if(fc) //OUCH
-			for(size_t v=model->m_vertices.size();v-->0;)
-			{
-				//Note, it's easier on the cache to do
-				//the vertices in the outer loop
-
-				auto p = &model->m_vertices[v]->m_frames[fp];
-				auto d = &m_vertices[vertbase+v]->m_frames[fd];
-
-				for(unsigned c=fc;c-->0;d++,p++) **d = **p;
-			}			
-		}
-
-		// Do skeletal merge if possible
-		ac1 = getAnimCount(ANIMMODE_SKELETAL);
-		ac2 = model->getAnimCount(ANIMMODE_SKELETAL);
-
-		merge = ac1==ac2&&animations==AM_MERGE;
-		// Have to check frame counts too
-		for(unsigned a=0;merge&&a<ac1;a++)
-		{
-			unsigned fc1 = getAnimFrameCount(ANIMMODE_SKELETAL,a);
-			unsigned fc2 = model->getAnimFrameCount(ANIMMODE_SKELETAL,a);
-
-			if(fc1!=fc2) merge = false;
-		}
-
-		base = merge?0:ac1;
 		for(unsigned a=0;a<ac2;a++)
 		{	
-			SkelAnim *sa = model->m_skelAnims[a];
+			auto p = model->m_anims[base2+a];
+			auto fc = p->_frame_count();			
 
-			if(!merge) _dup(ANIMMODE_SKELETAL,sa,false);
-
-			for(unsigned j=0;j<sa->m_keyframes.size();j++)
-			for(Keyframe *kf:sa->m_keyframes[j])
+			frameMap.clear(); if(merge)
 			{
-				setKeyframe(base+a,kf->m_frame,{Model::PT_Joint,j+jointbase},
-				kf->m_isRotation,kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
+				auto q = m_anims[base+a]; 
+
+				double r = 1;
+				if(q->m_fps!=p->m_fps) r = q->m_fps/p->m_fps;
+
+				if(r!=1||q->m_timetable2020!=p->m_timetable2020)
+				{
+					setAnimTimeFrame(base+a,
+					std::max(q->_time_frame(),r*p->_time_frame()));
+
+					for(unsigned j=0;j<fc;j++)
+					frameMap.push_back(insertAnimFrame(base+a,r*p->m_timetable2020[j]));
+				}
+			}
+			else 
+			{
+				unsigned num = _dup(p,false);
+				assert(num==base+a);
+			}
+
+			for(auto&ea:p->m_keyframes)
+			{
+				auto pos = ea.first; pos.index+=jointbase;
+				for(Keyframe*kf:ea.second)
+				{
+					auto fr = kf->m_frame;
+					if(!frameMap.empty()) fr = frameMap[fr];
+
+					setKeyframe(base+a,fr,pos,kf->m_isRotation,
+					kf->m_parameter[0],kf->m_parameter[1],kf->m_parameter[2],kf->m_interp2020);
+				}
+			}
+
+			if(fc&&~p->m_frame0) //ANIMMODE_FRAME
+			{
+				auto fp = p->m_frame0;
+				auto fd = m_anims[base+a]->_frame0(this);				
+				//if(fc) //OUCH
+				for(size_t v=model->m_vertices.size();v-->0;)
+				{
+					//Note, it's easier on the cache to do
+					//the vertices in the outer loop
+
+					auto p = &model->m_vertices[v]->m_frames[fp];
+					auto d = &m_vertices[vertbase+v]->m_frames[fd];
+
+					if(frameMap.empty())
+					for(unsigned c=fc;c-->0;d++,p++) 
+					{
+						**d = **p;
+					}
+					else for(unsigned c=0;c<fc;c++,p++)
+					{
+						*d[frameMap[c]] = **p;
+					}
+				}			
 			}
 		}
 	}
@@ -1568,8 +1549,6 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 	while(n-->projbase) selectProjection(n);
 
 	calculateSkel(); calculateNormals();
-
-//	forceAddOrDelete(canAdd&&m_frameAnims.empty());
 
 	return true;
 }

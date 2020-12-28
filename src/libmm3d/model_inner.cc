@@ -36,8 +36,7 @@ int Model::Keyframe::s_allocated = 0;
 int Model::Joint::s_allocated = 0;
 int Model::Point::s_allocated = 0;
 int Model::TextureProjection::s_allocated = 0;
-int Model::SkelAnim::s_allocated = 0;
-int Model::FrameAnim::s_allocated = 0;
+int Model::Animation::s_allocated = 0;
 int Model::FrameAnimVertex::s_allocated = 0;
 //int Model::FrameAnimPoint::s_allocated = 0;
 
@@ -49,8 +48,7 @@ std::vector<Model::Material*> Model::Material::s_recycle;
 std::vector<Model::Keyframe*> Model::Keyframe::s_recycle;
 std::vector<Model::Joint*> Model::Joint::s_recycle;
 std::vector<Model::Point*> Model::Point::s_recycle;
-std::vector<Model::SkelAnim*> Model::SkelAnim::s_recycle;
-std::vector<Model::FrameAnim*> Model::FrameAnim::s_recycle;
+std::vector<Model::Animation*> Model::Animation::s_recycle;
 std::vector<Model::FrameAnimVertex*> Model::FrameAnimVertex::s_recycle;
 //std::vector<Model::FrameAnimPoint*> Model::FrameAnimPoint::s_recycle;
 
@@ -688,24 +686,32 @@ void Model::Keyframe::release()
 bool Model::Keyframe::propEqual(const Keyframe &rhs, int propBits, double tolerance)const
 {
 	if(m_objectIndex!=rhs.m_objectIndex)
-		return false;
+	return false;
 
 	if((propBits &PropType)!=0)
+	{
 		if(m_isRotation!=rhs.m_isRotation)
-			return false;
+		return false;
+
+		if(m_interp2020!=rhs.m_interp2020) //2021
+		return false;
+	}
 
 	if((propBits &PropTime)!=0)
 	{
 		if(m_frame!=rhs.m_frame)
-			return false;
+		return false;
 	//	if(fabs(m_time-rhs.m_time)>tolerance)
-	//		return false;
+	//	return false;
 	}
 
 	if((m_isRotation==KeyRotate&&(propBits &PropRotation)!=0)
-		  ||(m_isRotation==KeyTranslate&&(propBits &PropCoords)!=0))
+	 ||(m_isRotation==KeyTranslate&&(propBits &PropCoords)!=0)
+	 ||(m_isRotation==KeyScale&&(propBits &PropScale)!=0)) //2021
+	{
 		if(!floatCompareVector(m_parameter,rhs.m_parameter,3,tolerance))
-			return false;
+		return false;
+	}
 
 	return true;
 }
@@ -1033,94 +1039,74 @@ bool Model::TextureProjection::propEqual(const TextureProjection &rhs, int propB
 	return true;
 }
 
-Model::SkelAnim::SkelAnim()
+Model::Animation::Animation()
 {
-	s_allocated++;
-	init();
+	s_allocated++; init();
 }
-
-Model::SkelAnim::~SkelAnim()
+Model::Animation::~Animation()
 {
-	s_allocated--;
-	init();
+	s_allocated--; init();
 }
-
-void Model::AnimBase2020::init()
+void Model::Animation::init()
 {
 	//CAUTION: Several fields are assigned 
 	//by addAnimation.
 
-	//m_name = "Skel";
-	//m_validNormals = false;
+	_type = 0;
+	//m_name = "skeletal"; //Note: m_name is std::string
 	m_fps = 10; //10???
 	m_frame2020 = -1; //0; //-1 is for loading old files
 	m_wrap = false; //true;
+	m_frame0 = ~0; //0
 
 	releaseData(); //???
 
 	m_timetable2020.clear(); //2020 //Assuming correct???
 }
-
-void Model::AnimBase2020::releaseData()
+void Model::Animation::releaseData()
 {
-	for(unsigned j = 0; j<m_keyframes.size(); j++)
+	for(auto&ea:m_keyframes)
 	{
-		for(unsigned k = 0; k<m_keyframes[j].size(); k++)
-		{
-			m_keyframes[j][k]->release();
-		}
-		m_keyframes[j].clear();
+		for(auto*ea2:ea.second) ea2->release();
+
+		ea.second.clear();
 	}
 	m_keyframes.clear();
 }
-
-Model::SkelAnim *Model::SkelAnim::get()
+Model::Animation *Model::Animation::get()
 {
-	if(s_recycle.empty())
+	if(!s_recycle.empty())
 	{
-		return new SkelAnim;
-	}
-	else
-	{
-		SkelAnim *val = s_recycle.back();
+		Animation *val = s_recycle.back();
 		s_recycle.pop_back();
 		return val;
 	}
+	else return new Animation;
 }
-
-void Model::SkelAnim::release()
+void Model::Animation::release()
 {
 	if(model_inner_recycle)
 	{
 		init();
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
-
-int Model::SkelAnim::flush()
+int Model::Animation::flush()
 {
 	int c = 0;
-	std::vector<SkelAnim*>::iterator it = s_recycle.begin();
+	auto it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
-		delete *it;
-		it++;
-		c++;
+		delete *it; it++; c++;
 	}
-	s_recycle.clear();
-	return c;
+	s_recycle.clear(); return c;
 }
-
-void Model::SkelAnim::stats()
+void Model::Animation::stats()
 {
-	log_debug("SkelAnim: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Animation: %d/%d\n",s_recycle.size(),s_allocated);
 }
-
-bool Model::AnimBase2020::propEqual(const AnimBase2020 &rhs, int propBits, double tolerance)const
+bool Model::Animation::propEqual(const Animation &rhs, int propBits, double tolerance)const
 {
 	if((propBits &PropName)!=0)
 	{
@@ -1173,7 +1159,7 @@ bool Model::AnimBase2020::propEqual(const AnimBase2020 &rhs, int propBits, doubl
 		}
 	}
 
-	if((propBits &(PropCoords | PropRotation | PropType))!=0)
+	if((propBits&PropKeyframes)!=0)
 	{
 		if(m_keyframes.size()!=rhs.m_keyframes.size())
 		{
@@ -1184,122 +1170,27 @@ bool Model::AnimBase2020::propEqual(const AnimBase2020 &rhs, int propBits, doubl
 
 		auto lhs_it = m_keyframes.begin();
 		auto rhs_it = rhs.m_keyframes.begin();
-		for(; lhs_it!=m_keyframes.end()&&rhs_it!=m_keyframes.end();
-				++lhs_it,++rhs_it)
+		for(;lhs_it!=m_keyframes.end();lhs_it++,rhs_it++)
 		{
-			if(lhs_it->size()!=rhs_it->size())
-				return false;
+			//WARNING: m_keyframes is unordered_map
+			//(Assuming same order where identical)
 
-			auto l = lhs_it->begin();
-			auto r = rhs_it->begin();
-			for(; l!=lhs_it->end()&&r!=rhs_it->end(); ++l,++r)
+			//2021: This had been implied before.
+			if(lhs_it->first!=rhs_it->first) return false; 
+
+			auto &a = lhs_it->second, &b = rhs_it->second;
+
+			if(a.size()!=b.size()) return false;
+
+			for(auto l=a.begin(),r=b.begin();l!=a.end();l++,r++)			
+			if(!(*l)->propEqual(**r,propBits,tolerance))
 			{
-				if(!(*l)->propEqual(**r,propBits,tolerance))
-					return false;
+				return false;
 			}
 		}
 	}
 
 	return true;
-}
-
-/*REFERENCE
-void Model::FrameAnimData::releaseData()
-{
-	//if(m_frameVertices)
-	{
-		for(unsigned v = 0; v<m_frameVertices.size(); v++)
-		{
-			m_frameVertices[v]->release();
-		}
-		m_frameVertices.clear(); //shrink_to_fit???
-	}
-	//if(m_framePoints)
-	{
-		for(unsigned p = 0; p<m_framePoints.size(); p++)
-		{
-			m_framePoints[p]->release();
-		}
-		m_framePoints.clear(); //shrink_to_fit???
-	}
-}*/
-
-Model::FrameAnim::FrameAnim()
-{
-	s_allocated++;
-	init();
-}
-
-Model::FrameAnim::~FrameAnim()
-{
-	s_allocated--;
-	init();
-}
-
-/*REFERENCE
-void Model::FrameAnim::init()
-{
-	m_name = "Frame";
-	//m_validNormals = false;
-	m_fps = 10;
-	m_frame2020 = 0;
-	releaseData();	
-}*/
-
-Model::FrameAnim *Model::FrameAnim::get()
-{
-	if(s_recycle.empty())
-	{
-		return new FrameAnim;
-	}
-	else
-	{
-		FrameAnim *val = s_recycle.back();
-		s_recycle.pop_back();
-		return val;
-	}
-}
-
-void Model::FrameAnim::release()
-{
-	if(model_inner_recycle)
-	{
-		init();
-		s_recycle.push_back(this);
-	}
-	else
-	{
-		delete this;
-	}
-}
-
-/*
-void Model::FrameAnim::releaseData()
-{
-	for(auto*ea:m_frameData)
-	{
-		ea->releaseData(); delete ea;
-	}
-	m_frameData.clear(); //shrink_to_fit???
-}*/
-
-int Model::FrameAnim::flush()
-{
-	int c = 0;
-	std::vector<FrameAnim*>::iterator it = s_recycle.begin();
-	while(it!=s_recycle.end())
-	{
-		delete *it;
-		it++;
-		c++;
-	}
-	s_recycle.clear();
-	return c;
-}
-
-void Model::FrameAnim::stats()
-{
-	log_debug("FrameAnim: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::FrameAnimVertex::FrameAnimVertex()

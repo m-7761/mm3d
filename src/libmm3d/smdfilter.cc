@@ -292,10 +292,10 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 			}
 
 			unsigned anim = *it;
-			//const char *animName = model->getAnimName(Model::ANIMMODE_SKELETAL,anim);
-			float fps = model->getAnimFPS(Model::ANIMMODE_SKELETAL,anim);
-			unsigned frameCount = model->getAnimFrameCount(Model::ANIMMODE_SKELETAL,anim);
-			//bool loop = model->getAnimWrap(Model::ANIMMODE_SKELETAL,anim);
+			//const char *animName = model->getAnimName(anim);
+			float fps = model->getAnimFPS(anim);
+			unsigned frameCount = model->getAnimFrameCount(anim);
+			//bool loop = model->getAnimWrap(anim);
 
 			if(frameCount==0)
 			{
@@ -418,7 +418,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 	{
 		writeLine(dst,"triangles");
 
-		std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
+		auto &modelMaterials = model->getMaterialList();
 
 		int groupCount = model->getGroupCount();
 		for(int g = 0; g<groupCount+1; g++)
@@ -446,7 +446,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 				materialName = PORT_basename(modelMaterials[matId]->m_filename.c_str());
 			}
 
-			if(materialName.length()==0)
+			if(materialName.size()==0)
 			{
 				materialName = "default.bmp";
 			}

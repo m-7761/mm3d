@@ -510,13 +510,13 @@ void Model::calculateRemainderWeight(const Position &pos)
 	{
 		if(pos.type==PT_Vertex)
 		{
-			m_vertices[pos.index]->_calc_influences(*this);			
+			m_vertices[pos]->_resample(*this,pos);
 
 			invalidateNormals(); //OVERKILL
 		}
 		else if(pos.type==PT_Point)
 		{
-			m_points[pos.index]->_calc_influences(*this);
+			m_points[pos]->_resample(*this,pos);
 		}
 		else assert(0);
 	}

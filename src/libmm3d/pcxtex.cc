@@ -48,8 +48,9 @@
 //------------------------------------------------------------------
 //
 
+#include "mm3dtypes.h" //PCH
+
 #include "mm3dconfig.h"
-#include "endianconfig.h"
 #include "log.h"
 #include "filedatasource.h"
 #include "texmgr.h"
@@ -185,7 +186,7 @@ Texture::ErrorE PcxTextureFilter::load_image(DataSource &src)
 	return Texture::ERROR_NONE;
 }
 
-void PcxTextureFilter::load_8 (DataSource &src, int	m_width, int	m_height,uint8_t *buffer, int	bytes)
+void PcxTextureFilter::load_8(DataSource &src, int m_width, int m_height, uint8_t *buffer, int	bytes)
 {
 	int x,y;
 	uint8_t *line;
@@ -205,7 +206,7 @@ void PcxTextureFilter::load_8 (DataSource &src, int	m_width, int	m_height,uint8_
 	free (line);
 }
 
-void PcxTextureFilter::load_24 (DataSource &src, int	m_width, int	m_height,uint8_t *buffer, int	bytes)
+void PcxTextureFilter::load_24(DataSource &src, int m_width, int m_height,uint8_t *buffer, int	bytes)
 {
 	int x,y,c;
 	uint8_t *line;
@@ -228,7 +229,7 @@ void PcxTextureFilter::load_24 (DataSource &src, int	m_width, int	m_height,uint8
 	free (line);
 }
 
-void PcxTextureFilter::load_1 (DataSource &src, int	m_width, int	m_height,uint8_t *buffer, int	bytes)
+void PcxTextureFilter::load_1(DataSource &src, int m_width, int m_height, uint8_t *buffer, int	bytes)
 {
 	int x,y;
 	uint8_t *line;
@@ -255,7 +256,7 @@ void PcxTextureFilter::load_1 (DataSource &src, int	m_width, int	m_height,uint8_
 	free (line);
 }
 
-void PcxTextureFilter::load_4 (DataSource &src, int	m_width, int	m_height,uint8_t *buffer, int	bytes)
+void PcxTextureFilter::load_4(DataSource &src, int	m_width, int m_height,uint8_t *buffer, int	bytes)
 {
 	// TODO implement this if I ever want it to work
 	/*
@@ -283,7 +284,7 @@ void PcxTextureFilter::load_4 (DataSource &src, int	m_width, int	m_height,uint8_
 	*/
 }
 
-void PcxTextureFilter::readline (DataSource &src,uint8_t *buffer, int	 bytes)
+void PcxTextureFilter::readline(DataSource &src,uint8_t *buffer, int bytes)
 {
 	static uint8_t count = 0,value = 0;
 

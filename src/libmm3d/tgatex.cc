@@ -22,7 +22,6 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "endianconfig.h"
 #include "mm3dconfig.h"
 #include "log.h"
 #include "texmgr.h"

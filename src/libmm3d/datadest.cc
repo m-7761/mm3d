@@ -23,7 +23,7 @@
 #include "mm3dtypes.h" //PCH
 
 #include "datadest.h"
-#include "endianconfig.h"
+//#include "endianconfig.h"
 #include "mm3dport.h"
 
 DestCloser::DestCloser(DataDest *src)
@@ -37,7 +37,7 @@ DestCloser::~DestCloser()
 }
 
 DataDest::DataDest()
-	: m_endian(LittleEndian),
+	: //m_endian(LittleEndian), //UNUSED
 	  m_fileSize(0),
 	  m_fileSizeLimit(0),
 	  m_hasLimit(false),
@@ -45,9 +45,10 @@ DataDest::DataDest()
 	  m_errorOccurred(false),
 	  m_atFileLimit(false),
 	  m_errno(0),
-	  m_endfunc16(htol_u16),
-	  m_endfunc32(htol_u32),
-	  m_endfuncfl(htol_float)
+	  //m_endfunc16(htol_u16),
+	  //m_endfunc32(htol_u32),
+	  //m_endfuncfl(htol_float)
+	m_swap(BYTEORDER==4321)
 {
 }
 
@@ -55,7 +56,7 @@ DataDest::~DataDest()
 {
 }
 
-void DataDest::setEndianness(EndiannessE e)
+/*void DataDest::setEndianness(EndiannessE e) //UNUSED
 {
 	m_endian = e;
 
@@ -71,7 +72,7 @@ void DataDest::setEndianness(EndiannessE e)
 		m_endfunc32 = htob_u32;
 		m_endfuncfl = htob_float;
 	}
-}
+}*/
 
 void DataDest::setFileSizeLimit(size_t bytes)
 {
@@ -129,66 +130,22 @@ bool DataDest::canWrite(size_t bytes)
 	return true;
 }
 
-bool DataDest::write(int8_t val)
+template<class T>
+inline bool DataDest::_write(T &val)
 {
-	if(!canWrite(sizeof(val)))
-		return false;
+	if(!canWrite(sizeof(T))) return false;
 
-	return internalWrite((const uint8_t *)&val,sizeof(val));
+	if(m_swap) swapEndianness(val);
+
+	return internalWrite((const uint8_t*)&val,sizeof(T));
 }
-
-bool DataDest::write(uint8_t val)
-{
-	if(!canWrite(sizeof(val)))
-		return false;
-
-	return internalWrite(&val,sizeof(val));
-}
-
-bool DataDest::write(int16_t val)
-{
-	if(!canWrite(sizeof(val)))
-		return false;
-
-	uint16_t wval = m_endfunc16(val);
-	return internalWrite((const uint8_t *)&wval,sizeof(wval));
-}
-
-bool DataDest::write(uint16_t val)
-{
-	if(!canWrite(sizeof(val)))
-		return false;
-
-	uint16_t wval = m_endfunc16(val);
-	return internalWrite((const uint8_t *)&wval,sizeof(wval));
-}
-
-bool DataDest::write(int32_t val)
-{
-	if(!canWrite(sizeof(val)))
-		return false;
-
-	uint32_t wval = m_endfunc32(val);
-	return internalWrite((const uint8_t *)&wval,sizeof(wval));
-}
-
-bool DataDest::write(uint32_t val)
-{
-	if(!canWrite(sizeof(val)))
-		return false;
-
-	uint32_t wval = m_endfunc32(val);
-	return internalWrite((const uint8_t *)&wval,sizeof(wval));
-}
-
-bool DataDest::write(float val)
-{
-	if(!canWrite(sizeof(val)))
-		return false;
-
-	float wval = m_endfuncfl(val);
-	return internalWrite((const uint8_t *)&wval,sizeof(wval));
-}
+bool DataDest::write(int8_t val){ return _write(val); }
+bool DataDest::write(uint8_t val){ return _write(val); }
+bool DataDest::write(int16_t val){ return _write(val); }
+bool DataDest::write(uint16_t val){ return _write(val); }
+bool DataDest::write(int32_t val){ return _write(val); }
+bool DataDest::write(uint32_t val){ return _write(val); }
+bool DataDest::write(float val){ return _write(val); }
 
 bool DataDest::writeBytes(const void *buf, size_t bufLen)
 {

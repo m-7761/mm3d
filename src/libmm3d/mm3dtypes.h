@@ -98,5 +98,16 @@ class Tool;
 class Undo;
 class Vector;
 
+#ifndef BYTEORDER //2019
+#ifdef __BYTE_ORDER__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define BYTEORDER 4321
+#endif
+#endif
+#endif
+#ifndef BYTEORDER
+#define BYTEORDER 1234
+#endif
+
 #endif  //__MM3DTYPES_H_INC__
 

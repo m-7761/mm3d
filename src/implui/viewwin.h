@@ -40,8 +40,13 @@ public:
 	MainWin(Model *model=nullptr), ~MainWin();
 
 	static bool quit();
-
+		
 	static bool open(utf8 file, MainWin *window=nullptr);
+	inline bool open(nullptr_t, MainWin *window=nullptr)
+	{
+		return open((utf8)nullptr,window);
+	}
+	static void open(Model *model, MainWin *window=nullptr);	
 
 	static bool save(Model *model, bool expdir=false);
 
@@ -93,12 +98,14 @@ public:
 		
 	const int glut_window_id;
 	const int clipboard_mode;
+	const int animation_mode;
 	
 	Toolbox toolbox;	
 	ViewPanel views; SideBar sidebar; //IN Z-ORDER
-			
-	pos_list selection; //NEW
+	
+	pos_list selection;
 	unsigned nselection[Model::PT_MAX];
+	int_list fselection;
 
 	bool playing;
 

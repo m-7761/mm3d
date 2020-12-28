@@ -88,7 +88,7 @@ m_rendering()
 	//setCursor(Qt::ArrowCursor);
 }
 
-enum{ modelviewport_drawing_view=0 }; //TESTING
+enum{ modelviewport_drawing_view=1 }; //TESTING
 
 void ModelViewport::updateMatrix() //NEW
 {
@@ -119,6 +119,11 @@ void ModelViewport::updateMatrix() //NEW
 		//switch on one axis making it do in reverse before it can
 		//straighten out. Maverick does this too. It's strange the
 		//perspective isn't plagued by this
+		//
+		// UPDATE: I somehow solved this, by accident!! I suppose
+		// this comment can be removed but I'd still like to know 
+		// why it's solved. So I will leave it here a little more.
+		//
 		//https://github.com/zturtleman/mm3d/issues/144
 
 		m_viewMatrix.setRotationInDegrees(m_rotX,m_rotY,m_rotZ);

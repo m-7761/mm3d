@@ -60,7 +60,7 @@ extern void aboutwin(int id)
 		"http://github.com/mick-p1982/mm3d<br>"
 		"http://sourceforge.net/p/daedalus-3d<br>"
 		"http://sourceforge.net/p/widgets-95<br><br>"
-		"Copyright &copy; 2019-2020 Mick Pearson<br><br>"
+		"Copyright &copy; 2019-2021 Mick Pearson<br><br>"
 		"<h1>Maverick Model 3D</h1>"
 		"<h2>" VERSION_STRING "</h2><br>"
 		"https://clover.moe/mm3d<br><br>"

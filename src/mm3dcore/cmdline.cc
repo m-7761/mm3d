@@ -382,7 +382,7 @@ int cmdline_command()
 		{
 			cmdline_runui = false;
 			std::string filename = m->getFilename();
-			if(filename.length()==0)
+			if(filename.size()==0)
 			{
 				filename = "unnamed.mm3d";
 			}

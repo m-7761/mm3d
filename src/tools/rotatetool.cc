@@ -85,6 +85,8 @@ struct RotateTool : Tool
 	virtual void draw(bool){ m_rotatePoint.draw(); }
 		
 		double m_mouse2_angle;
+		
+		bool m_skel_mode; //2021
 
 		struct RotatePoint
 		{	
@@ -123,8 +125,24 @@ extern Tool *rotatetool(){ return new RotateTool; }
 void RotateTool::activated2()
 {
 	Model *model = parent->getModel();
-
-	if(model->getAnimationMode()!=Model::ANIMMODE_SKELETAL)
+		
+	int am = model->getAnimationMode();
+	if(am&Model::ANIMMODE_SKELETAL)
+	{
+		int iN = model->getBoneJointCount();
+		for(int i=0;i<iN;i++)		
+		if(model->isBoneJointSelected(i))
+		{
+			model->getBoneJointCoords(i,m_rotatePoint);
+			goto empty2;
+		}
+		if(am!=Model::ANIMMODE_SKELETAL) //2021
+		goto empty3;
+		
+	empty1: m_rotatePoint.x = m_rotatePoint.y = m_rotatePoint.z = 0;
+	empty2:	m_rotatePoint.scale = model->getViewportUnits().inc3d/4; //0.25
+	}
+	else empty3:
 	{
 		//FIX ME
 		//Min/max/scale the pivot accordingly.
@@ -148,17 +166,6 @@ void RotateTool::activated2()
 		double dist = distance(min,max);
 		if(!dist) goto empty2; //NEW
 		m_rotatePoint.scale = dist/6;
-	}
-	else 
-	{
-		for(int_list l;model->getSelectedBoneJoints(l),!l.empty();)
-		{
-			model->getBoneJointCoords(l.front(),m_rotatePoint);
-			goto empty2;
-		}
-		
-	empty1: m_rotatePoint.x = m_rotatePoint.y = m_rotatePoint.z = 0;
-	empty2:	m_rotatePoint.scale = model->getViewportUnits().inc3d/4; //0.25
 	}
 	m_rotatePoint.w = 1;		
 
@@ -195,8 +202,7 @@ int RotateTool::mouse2()
 
 		m_mouse2_angle = angle;
 	}
-	else if(parent->getButtons()&BS_Right
-	&&model->getAnimationMode()!=Model::ANIMMODE_SKELETAL)
+	else if(!m_skel_mode&&parent->getButtons()&BS_Right)
 	{
 		ret = 2;
 
@@ -217,12 +223,14 @@ void RotateTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
-	if(model->getAnimationMode()==Model::ANIMMODE_SKELETAL)
+	m_skel_mode = false;
+	if(model->inSkeletalMode())
 	{
 		int iN = model->getBoneJointCount();
 		for(int i=0;i<iN;i++)		
 		if(model->isBoneJointSelected(i))
 		{
+			m_skel_mode = true;
 			model->getBoneJointCoords(i,m_rotatePoint);
 			parent->updateParams();
 			break;
@@ -239,8 +247,7 @@ void RotateTool::mouseButtonDown()
 }
 void RotateTool::mouseButtonMove()
 {
-	double angle = m_mouse2_angle;
-	if(1==mouse2())
+	double angle = m_mouse2_angle; if(1==mouse2())
 	{
 		double vec[3] = { 0,0,1 };
 		parent->getParentBestInverseMatrix().apply3(vec);

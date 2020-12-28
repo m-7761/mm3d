@@ -674,7 +674,8 @@ void ObjFilter::addObjMaterial(ObjMaterial *objmat)
 			mat->m_shininess	= objmat->shininess;
 		}
 
-		getMaterialList(m_model).push_back(mat);
+		//FIX ME
+		(*(Model::_MaterialList*)&m_model->getMaterialList()).push_back(mat);
 	}
 }
 

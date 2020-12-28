@@ -103,29 +103,44 @@ void JointWin::submit(control *c)
 
 	case id_init:
 	
+		//2021: Preven X confirmation prompt on empty
+		//selection.
+		joint.add_item(-1,"<None>").select_id(-1);
+
 		for(int i=0;i<model->getBoneJointCount();i++)
 		{
 			joint.add_item(i,model->getBoneJointName(i));
 		}
-		if(!joint.empty())
-		{
-			int_list l; //REMOVE ME
-			model->getSelectedBoneJoints(l);
-			if(!l.empty())
-			joint.select_id(l.front());
 
-			goto id_item;
+		for(auto&i:model.selection)
+		if(i.type==Model::PT_Joint)
+		{		
+			joint.select_id(i); //break;
+
+			if(1!=model.nselection[Model::PT_Joint])
+			{
+				//Note: This causes the X button to
+				//request to ask for a confirmation.
+				goto id_item; 
+			}
 		}
-		else //NEW: Maybe last joint was deleted?
-		{
-			disable(); f1_ok_cancel.nav.enable();
-		}
-		break;
+		else if(!i.type) break; //nice?
+
+		goto enable;
 
 	case id_item: id_item: 
-		
+
+		//Note: This is just a visual aid.
 		model->unselectAllBoneJoints();
 		model->selectBoneJoint((int)joint);
+		enable: if(-1==(int)joint)
+		{
+			disable(); 
+			joint.enable();
+			f1_ok_cancel.nav.enable();
+		}
+		else enable(); model->updateObservers();
+
 		break;
 	
 	default: //"Selection"

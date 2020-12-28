@@ -159,7 +159,7 @@ void UndoManager::operationComplete(const char *opname)
 
 UndoList *UndoManager::undo()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	operationComplete();
 
@@ -181,7 +181,7 @@ UndoList *UndoManager::undo()
 
 UndoList *UndoManager::redo()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	operationComplete();
 
@@ -225,7 +225,7 @@ const char *UndoManager::getRedoOpName()const
 
 UndoList *UndoManager::undoCurrent()
 {
-	LOG_PROFILE();
+	//LOG_PROFILE(); //???
 
 	if(m_currentUndo)
 	{

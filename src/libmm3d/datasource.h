@@ -125,14 +125,20 @@ class DataSource
 		DataSource();
 		virtual ~DataSource();
 
-		enum EndiannessE {
+		/*enum EndiannessE //UNUSED
+		{
 			LittleEndian,	// Intel byte order,low-order byte first (default)
 			BigEndian,		// Network byte order,high-order byte first
 		};
-
 		// Endianness of the input data.
-		void setEndianness(EndiannessE e);
-		EndiannessE getEndianness(){ return m_endian; }
+		void setEndianness(EndiannessE e); //UNUSED
+		EndiannessE getEndianness(){ return m_endian; } //UNUSED*/
+		template<class T> static void swapEndianness(T &val) //2021
+		{
+			for(int i=sizeof(T);i-->0;)
+			std::swap(*(char*)&val,((char*)&val)[sizeof(T)-i]);
+		}
+		void swapEndianness(){ m_swap = !m_swap; } //2021 (UNUSED)
 
 		// Perform any clenaup when done reading.
 		void close(){ internalClose(); }
@@ -186,6 +192,7 @@ class DataSource
 		bool read(int32_t &val);
 		bool read(uint32_t &val);
 		bool read(float32_t &val);
+		template<class T> bool _read(T&); //2021
 
 		// For convinience,if you don't care about errors.
 		// These are safe to use if you want to read a lot of unvalidated
@@ -218,7 +225,7 @@ class DataSource
 		void advanceBytes(size_t bytes);
 		bool fillBuffer();
 
-		EndiannessE m_endian;
+		//EndiannessE m_endian; //UNUSED
 		const uint8_t *m_buf;
 		size_t m_fileSize;
 		size_t m_bufLen;
@@ -228,13 +235,14 @@ class DataSource
 		bool m_unexpectedEof;
 		int m_errno;
 
+		/*REMOVE ME? (USE ME?)
 		typedef uint16_t (*EndianFunction16T)(uint16_t);
 		typedef uint32_t (*EndianFunction32T)(uint32_t);
 		typedef float (*EndianFunctionFlT)(float);
-
 		EndianFunction16T m_endfunc16;
 		EndianFunction32T m_endfunc32;
-		EndianFunctionFlT m_endfuncfl;
+		EndianFunctionFlT m_endfuncfl;*/
+		bool m_swap;
 };
 
 class SourceCloser

@@ -163,6 +163,7 @@ enum
 	id_animate_play,
 	id_animate_stop,
 	id_animate_loop,
+	id_animate_mode,
 	id_animate_snap,
 	id_animate_insert,
 	id_animate_mode_1,
@@ -174,6 +175,11 @@ enum
 	id_about,  //wxOSX needs to be About.
 	id_license,
 	id_unscale,
+
+	id_toolparams,
+	id_properties,
+	id_viewselect,
+	id_fullscreen,
 };
 
 struct Win : Widgets95::ui

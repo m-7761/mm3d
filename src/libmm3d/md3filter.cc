@@ -121,25 +121,29 @@ protected:
 
 	unsigned readString(char *dest, size_t len);
 
-	bool	  readAnimations(bool create);
+	bool readAnimations(bool create);
 
-	void	  setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t numMeshes, int32_t parentTag, int32_t animIndex);
-	int32_t  setSkins(char *meshName);
-	void	  setPoints(MeshSectionE section, int32_t offsetTags, int32_t numTags, int32_t numFrames, int32_t parentTag, int32_t animIndex);
-	std::string findTexture(std::string baseName,std::string shaderFullName);
-	int32_t  materialsCheck(std::string textureFullName);
-
-	std::string getSafeName(unsigned int anim);
-
+	void readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t numMeshes, int32_t parentTag, int32_t animIndex);
+	int32_t readFile_setSkins(char *meshName);
+	void readFile_setPoints(MeshSectionE section, int32_t offsetTags, int32_t numTags, int32_t numFrames, int32_t parentTag, int32_t animIndex);
+	std::string readFile_findTexture(std::string baseName,std::string shaderFullName);
+	int32_t readFile_materialsCheck(std::string textureFullName);
+	
 	// Returns MD3 frame number for a specific animation frame
-	int		animToFrame(MeshSectionE section, int anim, int frame);
+	int readFile_animToFrame(MeshSectionE section, int anim, int frame);
+
+	const char *getSafeName(unsigned int anim)
+	{
+		const char *n = m_model->getAnimName(anim);
+		return n?n:"none";
+	}
 
 	// Indicates if the animation specified is contained in the 
 	// specified MD3 model section 
-	bool	  animInSection(std::string animName,MeshSectionE section);
-	bool	  groupInSection(std::string groupName,MeshSectionE section);
-	bool	  tagInSection(std::string tagName,MeshSectionE section);
-	bool	  tagIsSectionRoot(std::string tagName,MeshSectionE section);
+	bool animInSection(std::string animName,MeshSectionE section);
+	bool groupInSection(std::string groupName,MeshSectionE section);
+	bool tagInSection(std::string tagName,MeshSectionE section);
+	bool tagIsSectionRoot(std::string tagName,MeshSectionE section);
 
 	// Path handling functions
 	std::string extractPath(const char *md3DataPath);
@@ -154,13 +158,14 @@ protected:
 	std::string	 m_modelPath;
 	std::string	 m_modelBaseName;
 	std::vector<int> m_animStartFrame;
-	int				  m_standFrame; // torso
-	int				  m_idleFrame; // legs
-	int				  m_headFrame; // head
+	int m_standFrame; // torso
+	int m_idleFrame; // legs
+	int m_headFrame; // head
 	std::string		m_lastMd3Path;
 	Md3PathList		m_pathList;
 
 	//writes
+	int_list _writeSF_anims2021;
 	Model::ModelErrorE writeSectionFile(const char *filename,MeshSectionE section,MeshList &meshes);
 	bool	  writeAnimations();
 	DataDest *m_dst;
@@ -173,7 +178,7 @@ protected:
 	double	smaller(double a, double b);
 	Matrix	getMatrixFromPoint(int anim, int frame, int point);
 	MeshAnimationTypeE getAnimationType(const char *animName);
-	bool getExportAnimData(int modelAnim,
+	bool writeFile_getExportAnimData(int modelAnim,
 			int &fileFrame, int &frameCount, int &fps);
 };
 
@@ -484,8 +489,8 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 		}
 
 		m_meshVecInfos = new MeshVectorInfoT*[numMeshes];
-		setPoints((*it).section,offsetTags,numTags,numFrames,(*it).tagPoint,-1);
-		setMeshes((*it).section,offsetMeshes,numMeshes,(*it).tagPoint,-1);
+		readFile_setPoints((*it).section,offsetTags,numTags,numFrames,(*it).tagPoint,-1);
+		readFile_setMeshes((*it).section,offsetMeshes,numMeshes,(*it).tagPoint,-1);
 
 		(*it).meshVecInfos = m_meshVecInfos;
 		(*it).src = m_src;
@@ -499,14 +504,14 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 	if(fileList.front().numFrames>1)
 	{
 		log_debug("Model has animation,setting up animation mode.\n");
-		if(m_model->getAnimCount(Model::ANIMMODE_FRAME)==0)
+		if(!m_model->getAnimationCount())
 		{
 			if(!loadAll||!readAnimations(true))
 			{
 				int animIndex = m_model->addAnimation(Model::ANIMMODE_FRAME,"AnimFrames");
-				m_model->setAnimFPS(Model::ANIMMODE_FRAME,animIndex,15.0);
-				m_model->setAnimFrameCount(Model::ANIMMODE_FRAME,0,fileList.front().numFrames);
-				m_model->setAnimWrap(Model::ANIMMODE_FRAME,animIndex,false);
+				m_model->setAnimFPS(animIndex,15.0);
+				m_model->setAnimFrameCount(animIndex,fileList.front().numFrames);
+				m_model->setAnimWrap(animIndex,false);
 			}
 		}
 	}
@@ -520,8 +525,8 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 		int32_t animIndex = 0;
 		if((*it).numFrames>0)
 		{
-			setPoints((*it).section,(*it).offsetTags,(*it).numTags,(*it).numFrames,(*it).tagPoint,animIndex);
-			setMeshes((*it).section,(*it).offsetMeshes,(*it).numMeshes,(*it).tagPoint,animIndex);
+			readFile_setPoints((*it).section,(*it).offsetTags,(*it).numTags,(*it).numFrames,(*it).tagPoint,animIndex);
+			readFile_setMeshes((*it).section,(*it).offsetMeshes,(*it).numMeshes,(*it).tagPoint,animIndex);
 		}
 	}
 
@@ -844,8 +849,8 @@ bool Md3Filter::readAnimations(bool create)
 					{
 						log_debug("adding animation '%s'\n",name);
 						int animIndex = m_model->addAnimation(Model::ANIMMODE_FRAME,name);
-						m_model->setAnimFPS(Model::ANIMMODE_FRAME,animIndex,(double)fps);
-						m_model->setAnimFrameCount(Model::ANIMMODE_FRAME,animIndex,fcount);
+						m_model->setAnimFPS(animIndex,(double)fps);
+						m_model->setAnimFrameCount(animIndex,fcount);
 					}
 
 					animCount++;
@@ -909,11 +914,11 @@ bool Md3Filter::readAnimations(bool create)
 		// Set looping
 		if(create)
 		{
-			int animCount = m_model->getAnimCount(Model::ANIMMODE_FRAME);
+			int animCount = m_model->getAnimationCount();
 			for(int animIndex = 0; animIndex<animCount; ++animIndex)
 			{
 				bool loop = (eliteLoop)? (animLoop[animIndex]==0): (animLoop[animIndex]!=0);
-				m_model->setAnimWrap(Model::ANIMMODE_FRAME,animIndex,loop);
+				m_model->setAnimWrap(animIndex,loop);
 			}
 		}
 
@@ -974,7 +979,7 @@ bool Md3Filter::readAnimations(bool create)
 	return false;
 }
 
-void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t numMeshes, int32_t parentTag, int32_t animIndex)
+void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t numMeshes, int32_t parentTag, int32_t animIndex)
 {
 	Matrix loadMatrix;
 
@@ -1036,7 +1041,7 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 		float meshVec[4] = { 0,0,0,1 };
 		if(animIndex<0)
 		{
-			int fileFrame = animToFrame(section,-1,0);
+			int fileFrame = readFile_animToFrame(section,-1,0);
 			log_debug("Using frame %d as default for section %d\n",fileFrame,section);
 			if(fileFrame>=meshFrameCount)
 			{
@@ -1064,14 +1069,14 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 		}
 		else
 		{
-			int acount = m_model->getAnimCount(Model::ANIMMODE_FRAME);
+			int acount = m_model->getAnimationCount();
 			for(animIndex = 0; animIndex<acount; animIndex++)
 			{
 				bool inAnim = animInSection(getSafeName(animIndex),section);
-				int fcount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,animIndex);
+				int fcount = m_model->getAnimFrameCount(animIndex);
 				for(int frame = 0; frame<fcount; frame++)
 				{
-					int fileFrame = animToFrame(section,animIndex,frame);
+					int fileFrame = readFile_animToFrame(section,animIndex,frame);
 					if(fileFrame>=meshFrameCount)
 					{
 						log_error("mesh %s appears to be missing frame %d for anim %d,using frame %d instead\n",meshName,fileFrame,animIndex,meshFrameCount-1);
@@ -1167,7 +1172,8 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 			}
 
 			//Textures/Shaders
-			std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+			//std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+			auto &modelMaterials = *(Model::_MaterialList*)&m_model->getMaterialList();
 
 			m_src->seek(meshPos+meshShaderOffset);
 			char shaderName[MAX_QPATH];
@@ -1197,7 +1203,7 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 			bool textureFound = false;
 			int matId = -1;
 			//First check for skins
-			matId = setSkins(meshName);
+			matId = readFile_setSkins(meshName);
 			if(matId>=0)
 			{
 				textureFound = true;
@@ -1205,11 +1211,11 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 
 			if(!textureFound)
 			{
-				textureFile = findTexture(shaderBaseName,shaderName);
+				textureFile = readFile_findTexture(shaderBaseName,shaderName);
 				if(textureFile.size()>0)
 				{
 					//If we already loaded this texture before
-					int checkId = materialsCheck(textureFile);
+					int checkId = readFile_materialsCheck(textureFile);
 					if(checkId>=0)
 					{
 						matId = checkId;
@@ -1277,7 +1283,7 @@ void Md3Filter::setMeshes(MeshSectionE section, int32_t offsetMeshes, int32_t nu
 
 //Give it file basename and it will find a texture like it.
 //Returns full path
-std::string Md3Filter::findTexture(std::string baseName, std::string shaderFullName)
+std::string Md3Filter::readFile_findTexture(std::string baseName, std::string shaderFullName)
 {
 	//Lets go through everything see if we could find a texture
 	if(baseName.size()<=0||strcmp(baseName.c_str(),".")==0)
@@ -1331,33 +1337,30 @@ std::string Md3Filter::findTexture(std::string baseName, std::string shaderFullN
 }
 
 //If a material with filename already exists reutrn id,otherwise -1
-int32_t Md3Filter::materialsCheck(std::string textureFullName)
+int32_t Md3Filter::readFile_materialsCheck(std::string textureFullName)
 {
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
-	for(unsigned i = 0; i<modelMaterials.size(); i++)
-	{
-		if(strcmp(modelMaterials[i]->m_filename.c_str(),textureFullName.c_str())==0)
-		{
-			return i;
-		}
-	}
-	return -1;
+	//std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+	auto &modelMaterials = *(Model::_MaterialList*)&m_model->getMaterialList();
+	for(unsigned i=0;i<modelMaterials.size();i++)	
+	if(strcmp(modelMaterials[i]->m_filename.c_str(),textureFullName.c_str())==0)
+	return i; return -1;
 }
 
 //Will load all the textures in a skin file for a meshName
 //it will return the default material.
-int32_t Md3Filter::setSkins(char *meshName)
+int32_t Md3Filter::readFile_setSkins(char *meshName)
 {
 	size_t meshNameLength = strlen(meshName);
 	if(meshNameLength==0)
 	{
-		log_debug("setSkins()no meshName.\n");
+		log_debug("readFile_setSkins()no meshName.\n");
 		return -1;
 	}
 
 	int matId = -1;
 
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+	//std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+	auto &modelMaterials = *(Model::_MaterialList*)&m_model->getMaterialList();
 
 	//Find all the skin files
 	std::list<std::string> files;
@@ -1440,10 +1443,10 @@ int32_t Md3Filter::setSkins(char *meshName)
 			//Whew!we have the file now lets load it up.
 			replaceBackslash(file);
 			std::string textureBaseName = getFileNameFromPath(file);
-			std::string textureFullName = findTexture(textureBaseName,file);
+			std::string textureFullName = readFile_findTexture(textureBaseName,file);
 			if(textureFullName.size()>0)
 			{
-				int checkId = materialsCheck(textureFullName);
+				int checkId = readFile_materialsCheck(textureFullName);
 				//If already loaded
 				if(checkId>=0)
 				{
@@ -1495,7 +1498,7 @@ int32_t Md3Filter::setSkins(char *meshName)
 
 //If animIndex<0 it will setup the initial points
 //otherwise it will set the position.
-void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numTags, int32_t numFrames, int32_t parentTag, int32_t animIndex)
+void Md3Filter::readFile_setPoints(MeshSectionE section, int32_t offsetTags, int32_t numTags, int32_t numFrames, int32_t parentTag, int32_t animIndex)
 {
 	Matrix loadMatrix;
 
@@ -1517,7 +1520,7 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 	int frameSize = numTags *TAG_SIZE;
 
 	// Tags
-	int animCount = m_model->getAnimCount(Model::ANIMMODE_FRAME);
+	int animCount = m_model->getAnimationCount();
 	if(animIndex<0)
 	{
 		animCount = 0;
@@ -1525,7 +1528,7 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 
 	for(/**/; animIndex<animCount; animIndex++)
 	{
-		int frameCount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,animIndex);
+		int frameCount = m_model->getAnimFrameCount(animIndex);
 		if(animIndex<0)
 		{
 			frameCount = 1;
@@ -1533,7 +1536,7 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 
 		for(int f = 0; f<frameCount; f++)
 		{
-			int fileFrame = animToFrame(section,animIndex,f);
+			int fileFrame = readFile_animToFrame(section,animIndex,f);
 			if(animIndex<0)
 			{
 				log_debug("Using frame %d as default for tag section %d\n",fileFrame,section);
@@ -1611,7 +1614,7 @@ void Md3Filter::setPoints(MeshSectionE section, int32_t offsetTags, int32_t numT
 	return;
 }
 
-int Md3Filter::animToFrame(MeshSectionE section, int anim, int frame)
+int Md3Filter::readFile_animToFrame(MeshSectionE section, int anim, int frame)
 {
 	if(anim<0||!animInSection(getSafeName(anim),section))
 	{
@@ -1818,18 +1821,6 @@ bool Md3Filter::tagIsSectionRoot(std::string tagName, MeshSectionE section)
 
 	return false;
 }
-
-std::string Md3Filter::getSafeName(unsigned int anim)
-{
-	std::string animName = "none";
-
-	if(anim<m_model->getAnimCount(Model::ANIMMODE_FRAME))
-	{
-		animName = m_model->getAnimName(Model::ANIMMODE_FRAME,anim);
-	}
-
-	return animName;
-}
  
 Model::ModelErrorE Md3Filter::writeFile(Model *model, const char *const filename, Options&)
 {
@@ -2024,19 +2015,25 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 
 	int32_t flags = 0;
 	int32_t numFrames = 0;
-	int32_t numAnims = 0;
+	
+	bool noAnim = true; //2021
 	//We are making all the anims be one anim.
-	unsigned animCount = m_model->getAnimCount(Model::ANIMMODE_FRAME);
-	for(unsigned i = 0; i<animCount; i++)
+	//unsigned animCount = m_model->getAnimationCount(Model::ANIMMODE_FRAME);
+	unsigned animCount = m_model->getAnimationCount();
+	_writeSF_anims2021.clear();
+	for(unsigned i=0;i<animCount;i++)
+	if(m_model->getAnimType(i)&Model::ANIMMODE_FRAME) //2021
 	{
 		// Skip animations that don't belong in this section
-		std::string name = getSafeName(i);
-		if(animInSection(name,section))
+		if(animInSection(getSafeName(i),section))
 		{
-			numAnims++;
-			numFrames += m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,i);
+			noAnim = false;
+			numFrames+=m_model->getAnimFrameCount(i);
+
+			_writeSF_anims2021.push_back(i);
 		}
 	}
+	if(noAnim) _writeSF_anims2021.push_back(0);
 
 	if(numFrames>MD3_MAX_FRAMES)
 	{
@@ -2045,10 +2042,6 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 		return Model::ERROR_FILTER_SPECIFIC;
 	}
 
-	if(animCount==0)
-	{
-		animCount = 1;
-	}
 	if(numFrames==0)
 	{
 		numFrames = 1;
@@ -2167,95 +2160,90 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 
 	// FRAMES
 	log_debug("writing frames at %d/%d\n",offsetFrames,m_dst->offset());
-	unsigned a;
-
-	for(a = 0; a<animCount; a++)
+	
+	for(auto anim:_writeSF_anims2021)
 	{
-		if(animInSection(getSafeName(a),section)
-			  ||(numAnims==0&&a==0))
-		{
-			unsigned aFrameCount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,a);
-			if((aFrameCount==0&&animCount==1)
-				  ||(numAnims==0))
-			{
-				aFrameCount = 1;
-			}
+		unsigned aFrameCount = m_model->getAnimFrameCount(anim);
 
-			std::string animName = getSafeName(a);
-			for(unsigned t = 0; t<aFrameCount; t++)
+		if(noAnim||!aFrameCount&&_writeSF_anims2021.size()<=1)
+		{
+			aFrameCount = 1;
+		}
+
+		std::string animName = getSafeName(anim);
+		for(unsigned t = 0; t<aFrameCount; t++)
+		{
+			Matrix saveMatrix;
+			if(noAnim)
 			{
-				Matrix saveMatrix;
-				if(numAnims==0)
+				saveMatrix = getMatrixFromPoint(-1,-1,rootTag).getInverse();
+			}
+			else
+			{
+				saveMatrix = getMatrixFromPoint(anim,t,rootTag).getInverse();
+			}
+			int_list::iterator vit;
+			double dmax[4] = { DBL_MIN,DBL_MIN,DBL_MIN,1 };
+			double dmin[4] = { DBL_MAX,DBL_MAX,DBL_MAX,1 };
+			for(mlit = meshes.begin(); mlit!=meshes.end(); mlit++)
+			{
+				int i = (*mlit).group;
+				if(i>=0&&groupInSection(m_model->getGroupName(i),section))
 				{
-					saveMatrix = getMatrixFromPoint(-1,-1,rootTag).getInverse();
-				}
-				else
-				{
-					saveMatrix = getMatrixFromPoint(a,t,rootTag).getInverse();
-				}
-				int_list::iterator vit;
-				double dmax[4] = { DBL_MIN,DBL_MIN,DBL_MIN,1 };
-				double dmin[4] = { DBL_MAX,DBL_MAX,DBL_MAX,1 };
-				for(mlit = meshes.begin(); mlit!=meshes.end(); mlit++)
-				{
-					int i = (*mlit).group;
-					if(i>=0&&groupInSection(m_model->getGroupName(i),section))
+					for(int tri:m_model->getGroupTriangles(i))
 					{
-						for(int tri:m_model->getGroupTriangles(i))
+						for(int n = 0; n<3; n++)
 						{
-							for(int n = 0; n<3; n++)
+							int vertex = m_model->getTriangleVertex(tri,n);
+							double cords[3];
+							/*if(noAnim)
 							{
-								int vertex = m_model->getTriangleVertex(tri,n);
-								double cords[3];
-								/*if(numAnims==0)
-								{
-									m_model->getVertexCoords(vertex,cords);
-								}
-								else m_model->getFrameAnimVertexCoords(a,t,vertex,cords[0],cords[1],cords[2]);
-								*/
 								m_model->getVertexCoords(vertex,cords);
-								dmax[0] = greater(dmax[0],cords[0]);
-								dmax[1] = greater(dmax[1],cords[1]);
-								dmax[2] = greater(dmax[2],cords[2]);
-								dmin[0] = smaller(dmin[0],cords[0]);
-								dmin[1] = smaller(dmin[1],cords[1]);
-								dmin[2] = smaller(dmin[2],cords[2]);
 							}
+							else m_model->getFrameAnimVertexCoords(anim,t,vertex,cords[0],cords[1],cords[2]);
+							*/
+							m_model->getVertexCoords(vertex,cords);
+							dmax[0] = greater(dmax[0],cords[0]);
+							dmax[1] = greater(dmax[1],cords[1]);
+							dmax[2] = greater(dmax[2],cords[2]);
+							dmin[0] = smaller(dmin[0],cords[0]);
+							dmin[1] = smaller(dmin[1],cords[1]);
+							dmin[2] = smaller(dmin[2],cords[2]);
 						}
 					}
 				}
-				saveMatrix.apply(dmin);
-				saveMatrix.apply(dmax);
-
-				//min_bounds
-				for(int v = 0; v<3; v++)
-				{
-					m_dst->write((float)dmin[v]);
-				}
-				//max_bounds
-				for(int v = 0; v<3; v++)
-				{
-					m_dst->write((float)dmax[v]);
-				}
-				//local_origin
-				float temp = 0;
-				for(int v = 0; v<3; v++)
-				{
-					m_dst->write(temp);
-				}
-				//radius
-				double radiusm = sqrt(dmin[0] *dmin[0]+dmin[1] *dmin[1]+dmin[2] *dmin[2]);
-				double radius = sqrt(dmax[0] *dmax[0]+dmax[1] *dmax[1]+dmax[2] *dmax[2]);
-				if(radiusm>radius)
-				{
-					radius = radiusm;
-				}
-				//log_debug("Frame radius: %f\n",((float)radius));
-				m_dst->write((float)radius);
-				char name[16] = "MaverickModel3D"; // this is what other exporters do
-				snprintf(name,sizeof(name),"%s%02d",animName.c_str(),t);
-				m_dst->writeBytes(name,sizeof(name));
 			}
+			saveMatrix.apply(dmin);
+			saveMatrix.apply(dmax);
+
+			//min_bounds
+			for(int v = 0; v<3; v++)
+			{
+				m_dst->write((float)dmin[v]);
+			}
+			//max_bounds
+			for(int v = 0; v<3; v++)
+			{
+				m_dst->write((float)dmax[v]);
+			}
+			//local_origin
+			float temp = 0;
+			for(int v = 0; v<3; v++)
+			{
+				m_dst->write(temp);
+			}
+			//radius
+			double radiusm = sqrt(dmin[0] *dmin[0]+dmin[1] *dmin[1]+dmin[2] *dmin[2]);
+			double radius = sqrt(dmax[0] *dmax[0]+dmax[1] *dmax[1]+dmax[2] *dmax[2]);
+			if(radiusm>radius)
+			{
+				radius = radiusm;
+			}
+			//log_debug("Frame radius: %f\n",((float)radius));
+			m_dst->write((float)radius);
+			char name[16] = "MaverickModel3D"; // this is what other exporters do
+			snprintf(name,sizeof(name),"%s%02d",animName.c_str(),t);
+			m_dst->writeBytes(name,sizeof(name));
 		}
 	}
 
@@ -2264,88 +2252,84 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 	//TAGS
 	log_debug("writing tags at %d/%d\n",offsetTags,m_dst->offset());
 
-	for(a = 0; a<animCount; a++)
+	for(auto anim:_writeSF_anims2021)
 	{
-		if(animInSection(getSafeName(a),section)
-			  ||(numAnims==0&&a==0))
+		unsigned aFrameCount = m_model->getAnimFrameCount(anim);
+
+		if(noAnim||!aFrameCount&&_writeSF_anims2021.size()<=1)
 		{
-			unsigned aFrameCount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,a);
-			if((aFrameCount==0&&animCount==1)
-				  ||(numAnims==0))
+			aFrameCount = 1;
+		}
+		for(unsigned t = 0; t<aFrameCount; t++)
+		{
+			Matrix saveMatrix;
+			if(noAnim)
 			{
-				aFrameCount = 1;
+				saveMatrix = getMatrixFromPoint(-1,-1,rootTag).getInverse();
 			}
-			for(unsigned t = 0; t<aFrameCount; t++)
+			else
 			{
-				Matrix saveMatrix;
-				if(numAnims==0)
+				saveMatrix = getMatrixFromPoint(anim,t,rootTag).getInverse();
+			}
+			for(unsigned j = 0; j<pcount; j++)
+			{
+				if(tagInSection(m_model->getPointName(j),section))
 				{
-					saveMatrix = getMatrixFromPoint(-1,-1,rootTag).getInverse();
-				}
-				else
-				{
-					saveMatrix = getMatrixFromPoint(a,t,rootTag).getInverse();
-				}
-				for(unsigned j = 0; j<pcount; j++)
-				{
-					if(tagInSection(m_model->getPointName(j),section))
+					char tName[MAX_QPATH];
+					memset(tName,0,MAX_QPATH);
+					if(snprintf(tName,sizeof(tName),"%s",m_model->getPointName(j))>=MAX_QPATH)
 					{
-						char tName[MAX_QPATH];
-						memset(tName,0,MAX_QPATH);
-						if(snprintf(tName,sizeof(tName),"%s",m_model->getPointName(j))>=MAX_QPATH)
-						{
-							log_error("Point name is too large\n");
-							m_model->setFilterSpecificError(TRANSLATE("LowLevel","Point name is too large for MD3 export."));
-							return Model::ERROR_FILTER_SPECIFIC;
-						}
-						m_dst->writeBytes(tName,MAX_QPATH);
+						log_error("Point name is too large\n");
+						m_model->setFilterSpecificError(TRANSLATE("LowLevel","Point name is too large for MD3 export."));
+						return Model::ERROR_FILTER_SPECIFIC;
+					}
+					m_dst->writeBytes(tName,MAX_QPATH);
 
-						// origin
-						double origin[4] = { 0,0,0,1 };
-						if(numAnims==0)
-						{
-							m_model->getPointCoordsUnanimated(j,origin);
-						}
-						else
-						{
-							m_model->interpKeyframe(a,t,{Model::PT_Point,j},origin,nullptr,nullptr);
-						}
+					// origin
+					double origin[4] = { 0,0,0,1 };
+					if(noAnim)
+					{
+						m_model->getPointCoordsUnanimated(j,origin);
+					}
+					else
+					{
+						m_model->interpKeyframe(anim,t,{Model::PT_Point,j},origin,nullptr,nullptr);
+					}
 
-						saveMatrix.apply(origin);
+					saveMatrix.apply(origin);
 
-						m_dst->write((float)origin[0]);
-						m_dst->write((float)origin[1]);
-						m_dst->write((float)origin[2]);
+					m_dst->write((float)origin[0]);
+					m_dst->write((float)origin[1]);
+					m_dst->write((float)origin[2]);
 
-						Matrix rotMatrix;
-						double rotVector[3];
-						if(numAnims==0)
-						{
-							m_model->getPointRotationUnanimated(j,rotVector);
-						}
-						else
-						{
-							m_model->interpKeyframe(a,t,{Model::PT_Point,j},nullptr,rotVector,nullptr);
-						}
+					Matrix rotMatrix;
+					double rotVector[3];
+					if(noAnim)
+					{
+						m_model->getPointRotationUnanimated(j,rotVector);
+					}
+					else
+					{
+						m_model->interpKeyframe(anim,t,{Model::PT_Point,j},nullptr,rotVector,nullptr);
+					}
 
-						// Seems whenver we have a nan its from a identity matrix
-						if(rotVector[0]!=rotVector[0]||rotVector[1]!=rotVector[1]||rotVector[2]!=rotVector[2])
-						{
-							rotMatrix.loadIdentity();
-						}
-						else
-						{
-							rotMatrix.setRotation(rotVector);
-						}
-						rotMatrix = rotMatrix*saveMatrix;
+					// Seems whenver we have a nan its from a identity matrix
+					if(rotVector[0]!=rotVector[0]||rotVector[1]!=rotVector[1]||rotVector[2]!=rotVector[2])
+					{
+						rotMatrix.loadIdentity();
+					}
+					else
+					{
+						rotMatrix.setRotation(rotVector);
+					}
+					rotMatrix = rotMatrix*saveMatrix;
 
-						// orientation
-						for(int m = 0; m<3; m++)
+					// orientation
+					for(int m = 0; m<3; m++)
+					{
+						for(int n = 0; n<3; n++)
 						{
-							for(int n = 0; n<3; n++)
-							{
-								m_dst->write((float)rotMatrix.get(m,n));
-							}
+							m_dst->write((float)rotMatrix.get(m,n));
 						}
 					}
 				}
@@ -2353,7 +2337,8 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 		}
 	}
 
-	std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+	//std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
+	auto &modelMaterials = *(Model::_MaterialList*)&m_model->getMaterialList();
 
 	// MESHES
 	log_debug("writing meshes at %d/%d\n",offsetMeshes,m_dst->offset());
@@ -2506,104 +2491,99 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 			}
 
 			// VERTEX			
-			for(unsigned a = 0; a<animCount; a++)
-			{
-				if(animInSection(getSafeName(a),section)
-					  ||(numAnims==0&&a==0))
+			for(auto anim:_writeSF_anims2021)
+			{					
+				unsigned aFrameCount = m_model->getAnimFrameCount(anim);
+				if(noAnim||!aFrameCount&&_writeSF_anims2021.size()<=1)
 				{
-					unsigned aFrameCount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,a);
-					if((aFrameCount==0&&animCount==1)
-						  ||(numAnims==0))
+					aFrameCount = 1;
+				}
+
+				if(!noAnim) //2020: Generate normals.
+				m_model->setCurrentAnimation(anim,Model::ANIMMODE_FRAME);
+					
+				for(unsigned t = 0; t<aFrameCount; t++)
+				{	
+					if(!noAnim) //2020: Generate normals.
 					{
-						aFrameCount = 1;
+						m_model->setCurrentAnimationFrame(t);
+						resetVertexNormals(m_model,*mlit);
 					}
 
-					if(numAnims!=0) //2020: Generate normals.
-					m_model->setCurrentAnimation(Model::ANIMMODE_FRAME,a);
-					
-					for(unsigned t = 0; t<aFrameCount; t++)
-					{	
-						if(numAnims!=0) //2020: Generate normals.
-						{
-							m_model->setCurrentAnimationFrame(t);
-							resetVertexNormals(m_model,*mlit);
-						}
+					Matrix saveMatrix;
 
-						Matrix saveMatrix;
+					if(noAnim)
+					{
+						saveMatrix = getMatrixFromPoint(-1,-1,rootTag).getInverse();
+					}
+					else
+					{
+						saveMatrix = getMatrixFromPoint(anim,t,rootTag).getInverse();
+					}
 
-						if(numAnims==0)
+					for(vit = (*mlit).vertices.begin(); vit!=(*mlit).vertices.end(); vit++)
+					{
+						double meshVec[4] = {0,0,0,1};
+						double meshNor[4] = {0,0,0,1};
+
+						/*Removing getFrameAnimVertexNormal
+						//NOTE: Mesh would never produce ideal animations of the normals.
+						//https://github.com/zturtleman/mm3d/issues/109
+						if(noAnim)
 						{
-							saveMatrix = getMatrixFromPoint(-1,-1,rootTag).getInverse();
+							// force unanimated coordinates for head
+							m_model->getVertexCoords((*vit).v,meshVec);
+
+							float meshNorF[3];
+							if(getVertexNormal(m_model,(*mlit).group,(*vit).v,meshNorF))
+							{
+								meshNor[0] = meshNorF[0];
+								meshNor[1] = meshNorF[1];
+								meshNor[2] = meshNorF[2];
+							}
 						}
 						else
 						{
-							saveMatrix = getMatrixFromPoint(a,t,rootTag).getInverse();
-						}
+							m_model->getFrameAnimVertexCoords(anim,t,(*vit).v,meshVec[0],meshVec[1],meshVec[2]);
+							m_model->getFrameAnimVertexNormal(anim,t,(*vit).v,meshNor[0],meshNor[1],meshNor[2]);
+						}*/
+						m_model->getVertexCoords((*vit).v,meshVec);
 
-						for(vit = (*mlit).vertices.begin(); vit!=(*mlit).vertices.end(); vit++)
+						meshNor[0] = vit->norm[0];
+						meshNor[1] = vit->norm[1];
+						meshNor[2] = vit->norm[2];							
+
+						saveMatrix.apply(meshVec);
+						saveMatrix.apply3(meshNor); // only apply rotation
+						normalize3(meshNor);
+						m_dst->write((int16_t)(meshVec[0]/MD3_XYZ_SCALE+0.5));
+						m_dst->write((int16_t)(meshVec[1]/MD3_XYZ_SCALE+0.5));
+						m_dst->write((int16_t)(meshVec[2]/MD3_XYZ_SCALE+0.5));
+						int16_t lng;
+						int16_t lat;
+						if(meshNor[0]==0&&meshNor[1]==0)
 						{
-							double meshVec[4] = {0,0,0,1};
-							double meshNor[4] = {0,0,0,1};
-
-							/*Removing getFrameAnimVertexNormal
-							//NOTE: Mesh would never produce ideal animations of the normals.
-							//https://github.com/zturtleman/mm3d/issues/109
-							if(numAnims==0)
+							if(meshNor[2]>0)
 							{
-								// force unanimated coordinates for head
-								m_model->getVertexCoords((*vit).v,meshVec);
-
-								float meshNorF[3];
-								if(getVertexNormal(m_model,(*mlit).group,(*vit).v,meshNorF))
-								{
-									meshNor[0] = meshNorF[0];
-									meshNor[1] = meshNorF[1];
-									meshNor[2] = meshNorF[2];
-								}
+								lng = 0;
+								lat = 0;
 							}
 							else
 							{
-								m_model->getFrameAnimVertexCoords(a,t,(*vit).v,meshVec[0],meshVec[1],meshVec[2]);
-								m_model->getFrameAnimVertexNormal(a,t,(*vit).v,meshNor[0],meshNor[1],meshNor[2]);
-							}*/
-							m_model->getVertexCoords((*vit).v,meshVec);
-
-							meshNor[0] = vit->norm[0];
-							meshNor[1] = vit->norm[1];
-							meshNor[2] = vit->norm[2];							
-
-							saveMatrix.apply(meshVec);
-							saveMatrix.apply3(meshNor); // only apply rotation
-							normalize3(meshNor);
-							m_dst->write((int16_t)(meshVec[0]/MD3_XYZ_SCALE+0.5));
-							m_dst->write((int16_t)(meshVec[1]/MD3_XYZ_SCALE+0.5));
-							m_dst->write((int16_t)(meshVec[2]/MD3_XYZ_SCALE+0.5));
-							int16_t lng;
-							int16_t lat;
-							if(meshNor[0]==0&&meshNor[1]==0)
-							{
-								if(meshNor[2]>0)
-								{
-									lng = 0;
-									lat = 0;
-								}
-								else
-								{
-									lat = 128;
-									lng = 0;
-								}
+								lat = 128;
+								lng = 0;
 							}
-							else
-							{
-								lng = (int16_t)(acos(meshNor[2])*255/(2 *PI));
-								lat = (int16_t)(atan2(meshNor[1],meshNor[0])*255/(2 *PI));
-							}
-							// log_debug("%f,%f,%f lat %d lng %d\n",meshNor[0],meshNor[1],meshNor[2],lat,lng);
-							uint16_t normal = ((lat &255)*256)| (lng &255);
-							m_dst->write(normal);
 						}
+						else
+						{
+							lng = (int16_t)(acos(meshNor[2])*255/(2 *PI));
+							lat = (int16_t)(atan2(meshNor[1],meshNor[0])*255/(2 *PI));
+						}
+						// log_debug("%f,%f,%f lat %d lng %d\n",meshNor[0],meshNor[1],meshNor[2],lat,lng);
+						uint16_t normal = ((lat &255)*256)| (lng &255);
+						m_dst->write(normal);
 					}
-				}
+				}			
 			}
 		}
 	}
@@ -2627,7 +2607,7 @@ bool Md3Filter::animSyncWarning(std::string name)
 
 	for(unsigned i = 0; s_animSyncWarning[i]!=nullptr; i++)
 	{
-		if(PORT_strncasecmp(s_animSyncWarning[i],name.c_str(),name.length())==0)
+		if(PORT_strncasecmp(s_animSyncWarning[i],name.c_str(),name.size())==0)
 		{
 			return true;
 		}
@@ -2709,24 +2689,27 @@ bool Md3Filter::writeAnimations()
 		dst->writeString("//	 first	count	looping	fps\r\n\r\n");
 
 		char warning[] = " (MUST NOT CHANGE -- hand animation is synced to this)";
-		size_t animCount = m_model->getAnimCount(Model::ANIMMODE_FRAME);
-
+		//size_t animCount = m_model->getAnimationCount(Model::ANIMMODE_FRAME);
+		size_t animCount = m_model->getAnimationCount();
+	
 		size_t longestName = 16; // minimum name length for spacing
 		for(size_t anim = 0; anim<animCount; anim++)
+		if(m_model->getAnimType(anim)&Model::ANIMMODE_FRAME) //2021
 		{
 			std::string name = getSafeName(anim);
-			size_t len = name.length();
+			size_t len = name.size();
 			if(len>longestName){
 				longestName = len;
 			}
 		}
 
 		for(size_t anim = 0; anim<animCount; anim++)
+		if(m_model->getAnimType(anim)&Model::ANIMMODE_FRAME) //2021
 		{
 			int animFrame = 0;
 			int count = 1;
 			int fps	= 15;
-			if(!getExportAnimData((int)anim,animFrame,count,fps))
+			if(!writeFile_getExportAnimData((int)anim,animFrame,count,fps))
 			{
 				continue;
 			}
@@ -2734,14 +2717,14 @@ bool Md3Filter::writeAnimations()
 			int loop = count; // loop by default
 
 			std::string name = getSafeName(anim);
-			size_t len = name.length();
+			size_t len = name.size();
 			for(size_t n = 0; n<len; n++)
 			{
 				name[n] = toupper(name[n]);
 			}
 
 			// disable looping on non-looping anims
-			if(!m_model->getAnimWrap(Model::ANIMMODE_FRAME,anim))
+			if(!m_model->getAnimWrap(anim))
 			{
 				loop = 0;
 			}
@@ -2763,7 +2746,7 @@ bool Md3Filter::writeAnimations()
 											' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','\0'};
 				size_t maxSpaces = (longestName+6>MAX_SPACES)? MAX_SPACES : longestName+6;
 
-				spaces[((name.length()<maxSpaces)? (maxSpaces-name.length()): 0)] = '\0';
+				spaces[((name.size()<maxSpaces)? (maxSpaces-name.size()): 0)] = '\0';
 
 				if(animSyncWarning(name))
 					dst->writePrintf("%s%s\t%d\t%d\t%d\t%d\t\t// %s\r\n",
@@ -2839,25 +2822,27 @@ Md3Filter::MeshAnimationTypeE Md3Filter::getAnimationType(const char *animName)
 	return animType;
 }
 
-bool Md3Filter::getExportAnimData(int modelAnim,
+bool Md3Filter::writeFile_getExportAnimData(int modelAnim,
 		int &fileFrame, int &frameCount, int &fps)
 {
 	fileFrame  = 0;
 	frameCount = 0;
 
-	size_t animCount = m_model->getAnimCount(Model::ANIMMODE_FRAME);
+	//size_t animCount = m_model->getAnimationCount(Model::ANIMMODE_FRAME);
+	size_t animCount = m_model->getAnimationCount();
+
 	std::string animName = getSafeName(modelAnim);
 	MeshAnimationTypeE animType = getAnimationType(animName.c_str());
 
 	// If this is a "dead" animation and its after a "death" animation
 	//	and it has 0 frames,use the last frame of the death animation.
 	if(modelAnim>0&&((PORT_strncasecmp(animName.c_str(),"all_dead",8)==0
-		  &&PORT_strncasecmp(getSafeName(modelAnim-1).c_str(),"all_death",9)==0)
+		  &&PORT_strncasecmp(getSafeName(modelAnim-1),"all_death",9)==0)
 	  ||(PORT_strncasecmp(animName.c_str(),"both_dead",9)==0
-		  &&PORT_strncasecmp(getSafeName(modelAnim-1).c_str(),"both_death",10)==0))
-	  &&m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,modelAnim)==0)
+		  &&PORT_strncasecmp(getSafeName(modelAnim-1),"both_death",10)==0))
+	  &&m_model->getAnimFrameCount(modelAnim)==0)
 	{
-		if(getExportAnimData(modelAnim-1,fileFrame,frameCount,fps))
+		if(writeFile_getExportAnimData(modelAnim-1,fileFrame,frameCount,fps))
 		{
 			fileFrame += frameCount-1;
 			frameCount = 1;
@@ -2866,6 +2851,7 @@ bool Md3Filter::getExportAnimData(int modelAnim,
 	}
 
 	for(size_t a = 0; a<animCount; a++)
+	if(m_model->getAnimType(a)&Model::ANIMMODE_FRAME) //2021
 	{
 		std::string name = getSafeName(a);
 		if(animInSection(name,MS_Upper)
@@ -2875,8 +2861,8 @@ bool Md3Filter::getExportAnimData(int modelAnim,
 			MeshAnimationTypeE type = getAnimationType(name.c_str());
 			if((int)a==modelAnim)
 			{
-				frameCount = m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,a);
-				fps	= (int)m_model->getAnimFPS(Model::ANIMMODE_FRAME,a);
+				frameCount = m_model->getAnimFrameCount(a);
+				fps	= (int)m_model->getAnimFPS(a);
 
 				if(fps<=0)// just being paranoid
 				{
@@ -2896,7 +2882,7 @@ bool Md3Filter::getExportAnimData(int modelAnim,
 			// All torso frames go before leg frames,all legs go after tosro
 			else if(((int)a<modelAnim&&animType>=type)||((int)a>modelAnim&&animType>type))
 			{
-					fileFrame += m_model->getAnimFrameCount(Model::ANIMMODE_FRAME,a);
+					fileFrame += m_model->getAnimFrameCount(a);
 			}
 		}
 	}

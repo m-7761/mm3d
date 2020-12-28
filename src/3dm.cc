@@ -99,7 +99,7 @@ extern int main(int argc, char *argv[])
 
 	//???
 	{
-		LOG_PROFILE();
+		//LOG_PROFILE(); //???
 
 		//???
 		{

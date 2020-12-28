@@ -879,7 +879,7 @@ void Model::drawJoints(float a)
 	//https://github.com/zturtleman/mm3d/issues/118
 	float l = alpha?0:1;
 
-	bool skel = m_animationMode==ANIMMODE_SKELETAL;
+	bool skel = 0!=(m_animationMode&ANIMMODE_SKELETAL);
 	bool skel2 = false;
 
 	glPointSize(5); //3
@@ -951,6 +951,13 @@ void Model::drawJoints(float a)
 			//Vector face(0,1,0);
 			Vector point = jvec-pvec;
 			double length = distance(pvec,jvec);
+
+			//TODO: The octohedrons can spin noticeably 
+			//under animation, since the positions move.
+			//In theory it would work to transform them.
+			#ifdef NDEBUG
+			#error Try to stabilize drawJoints in animation.
+			#endif
 
 			/*FIX ME
 			//This rolls around in the Top view.

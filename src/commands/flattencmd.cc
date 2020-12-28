@@ -69,7 +69,8 @@ bool FlattenCommand::activated(int index, Model *model)
 
 	if(posList.empty())
 	{
-		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Need at least 1 vertex,joint,point,or face selected"));
+		model_status(model,StatusError,STATUSTIME_LONG,
+		TRANSLATE("Command","Need at least 1 vertex, joint, point, or face selected"));
 		return false;
 	}
 

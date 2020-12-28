@@ -136,7 +136,7 @@ bool Model::setProjectionRange(unsigned proj,
 
 bool Model::moveProjection(unsigned p, double x, double y, double z)
 {
-	if(m_animationMode==ANIMMODE_NONE)
+	//if(m_animationMode==ANIMMODE_NONE) //2021: Why micromanage this?
 	{
 		if(p<m_projections.size())
 		{

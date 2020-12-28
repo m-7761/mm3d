@@ -102,13 +102,10 @@ void ProjectionWin::submit(int id)
 	case id_remove: p = -1; 
 	case id_append:
 	
-		for(int i=model->getTriangleCount();i-->0;)
+		for(int i:model.fselection)
 		{
-			if(model->isTriangleSelected(i))
-			{
-				//FIX ME: This is one Undo per triangle!
-				model->setTriangleProjection(i,p);
-			}
+			//FIX ME: This is one Undo per triangle!
+			model->setTriangleProjection(i,p);
 		}
 		if(p!=-1) model->applyProjection(p);		
 
@@ -193,15 +190,13 @@ void ProjectionWin::openModel()
 	{
 		p = i; break;
 	}
-	iN = model->getTriangleCount();
 	if(p==-1)
-	for(int i=0;i<iN;i++)
-	if(model->isTriangleSelected(i))
+	for(int i:model.fselection)
 	{
 		int pp = model->getTriangleProjection(i);
 		if(pp<0) continue;
 		p = pp; break;
-	}	
+	}
 	projection.select_id(p==-1?0:p); submit(id_item);
 }
 

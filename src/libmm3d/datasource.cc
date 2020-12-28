@@ -23,7 +23,7 @@
 #include "mm3dtypes.h" //PCH
 
 #include "datasource.h"
-#include "endianconfig.h"
+//#include "endianconfig.h"
 
 SourceCloser::SourceCloser(DataSource *src)
 	: m_src(src)
@@ -36,7 +36,7 @@ SourceCloser::~SourceCloser()
 }
 
 DataSource::DataSource()
-	: m_endian(LittleEndian),
+	: //m_endian(LittleEndian), //UNUSED
 	  m_buf(nullptr),
 	  m_fileSize(0),
 	  m_bufLen(0),
@@ -44,9 +44,10 @@ DataSource::DataSource()
 	  m_errorOccurred(false),
 	  m_unexpectedEof(false),
 	  m_errno(0),
-	  m_endfunc16(ltoh_u16),
-	  m_endfunc32(ltoh_u32),
-	  m_endfuncfl(ltoh_float)
+	  //m_endfunc16(ltoh_u16),
+	  //m_endfunc32(ltoh_u32),
+	  //m_endfuncfl(ltoh_float)
+	m_swap(BYTEORDER==4321)
 {
 }
 
@@ -54,7 +55,7 @@ DataSource::~DataSource()
 {
 }
 
-void DataSource::setEndianness(EndiannessE e)
+/*void DataSource::setEndianness(EndiannessE e) //UNUSED
 {
 	m_endian = e;
 
@@ -70,7 +71,7 @@ void DataSource::setEndianness(EndiannessE e)
 		m_endfunc32 = btoh_u32;
 		m_endfuncfl = btoh_float;
 	}
-}
+}*/
 
 void DataSource::setUnexpectedEof(bool o)
 {
@@ -145,82 +146,27 @@ bool DataSource::seek(off_t offset)
 	return true;
 }
 
-bool DataSource::read(int8_t &val)
+template<class T>
+inline bool DataSource::_read(T &val)
 {
-	if(!requireBytes(sizeof(val)))
-		return false;
+	if(!requireBytes(sizeof(T))) return false;
 
-	val = *(int8_t*)m_buf;
+	//This is an unaligned read, which doesn't 
+	//work for ARM systems.
+	//m_endfunc16(*(uint16_t*)m_buf);
+	memcpy(&val,m_buf,sizeof(T));
 
-	advanceBytes(sizeof(val));
-	return true;
+	if(m_swap) swapEndianness(val);
+
+	advanceBytes(sizeof(T)); return true;
 }
-
-bool DataSource::read(uint8_t &val)
-{
-	if(!requireBytes(sizeof(val)))
-		return false;
-
-	val = *(int8_t*)m_buf;
-
-	advanceBytes(sizeof(val));
-	return true;
-}
-
-bool DataSource::read(int16_t &val)
-{
-	if(!requireBytes(sizeof(val)))
-		return false;
-
-	val = m_endfunc16(* (uint16_t*)m_buf);
-	advanceBytes(sizeof(val));
-
-	return true;
-}
-
-bool DataSource::read(uint16_t &val)
-{
-	if(!requireBytes(sizeof(val)))
-		return false;
-
-	val = m_endfunc16(* (uint16_t*)m_buf);
-	advanceBytes(sizeof(val));
-
-	return true;
-}
-
-bool DataSource::read(int32_t &val)
-{
-	if(!requireBytes(sizeof(val)))
-		return false;
-
-	val = m_endfunc32(* (uint32_t*)m_buf);
-	advanceBytes(sizeof(val));
-
-	return true;
-}
-
-bool DataSource::read(uint32_t &val)
-{
-	if(!requireBytes(sizeof(val)))
-		return false;
-
-	val = m_endfunc32(* (uint32_t*)m_buf);
-	advanceBytes(sizeof(val));
-
-	return true;
-}
-
-bool DataSource::read(float &val)
-{
-	if(!requireBytes(sizeof(val)))
-		return false;
-
-	val = m_endfuncfl(* (float*)m_buf);
-	advanceBytes(sizeof(val));
-
-	return true;
-}
+bool DataSource::read(int8_t &val){ return _read(val); }
+bool DataSource::read(uint8_t &val){ return _read(val); }
+bool DataSource::read(int16_t &val){ return _read(val); }
+bool DataSource::read(uint16_t &val){ return _read(val); }
+bool DataSource::read(int32_t &val){ return _read(val); }
+bool DataSource::read(uint32_t &val){ return _read(val); }
+bool DataSource::read(float &val){ return _read(val); }
 
 bool DataSource::fillBuffer()
 {
@@ -242,7 +188,7 @@ bool DataSource::fillBuffer()
 	return true;
 }
 
-bool DataSource::readAsciiz(char *buf, size_t bufLen,bool *foundNull)
+bool DataSource::readAsciiz(char *buf, size_t bufLen, bool *foundNull)
 {
 	if(bufLen<1)
 		return false;
@@ -255,7 +201,7 @@ bool DataSource::readAsciiz(char *buf, size_t bufLen,bool *foundNull)
 	return rval;
 }
 
-bool DataSource::readLine(char *buf, size_t bufLen,bool *foundNewline)
+bool DataSource::readLine(char *buf, size_t bufLen, bool *foundNewline)
 {
 	if(bufLen<1)
 		return false;
@@ -268,7 +214,7 @@ bool DataSource::readLine(char *buf, size_t bufLen,bool *foundNewline)
 	return rval;
 }
 
-bool DataSource::readTo(char stopChar,char *buf, size_t bufLen,bool *foundChar)
+bool DataSource::readTo(char stopChar,char *buf, size_t bufLen, bool *foundChar)
 {
 	if(foundChar!=nullptr)
 		*foundChar = false;

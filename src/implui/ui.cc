@@ -65,7 +65,10 @@ static void ui_drop(char **f, int n)
 		}
 		else 
 		{
-			new MainWin(m);
+			extern MainWin*&viewwin(int=glutGetWindow());
+			MainWin *w = viewwin();
+			MainWin::open(m,w&&!w->model->getEdited()?w:nullptr);
+
 			//add path to most-recently-used menu?
 			extern void viewwin_mru_drop(char*);
 			viewwin_mru_drop(url);

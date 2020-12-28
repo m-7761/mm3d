@@ -70,7 +70,7 @@ void ViewBar::StatusBar::timer_expired()
 	setText(tqi.str.c_str());
 	if(tqi.type==StatusError)
 	{
-		text.select_all(); beep();
+		text.select_all(); event.beep();
 	}
 
 	m_queueDisplay = true;
@@ -98,7 +98,7 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 		setText(str);
 		if(type==StatusError)
 		{
-			text.select_all(); beep();
+			text.select_all(); event.beep();
 		}
 
 		glutTimerFunc(ms,statusbar_timer,nav.ui()->glut_window_id());
@@ -152,7 +152,7 @@ void ViewBar::StatusBar::setStats()
 	int d[6][2] = 
 	{
 		{m_model->getVertexCount(),sn[Model::PT_Vertex]},
-		{m_model->getTriangleCount(),m_model->getSelectedTriangleCount()},
+		{m_model->getTriangleCount(),model.fselection.size()},
 		{m_model->getGroupCount()},
 		{m_model->getBoneJointCount(),sn[Model::PT_Joint]},
 		{m_model->getPointCount(),sn[Model::PT_Point]},

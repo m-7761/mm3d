@@ -25,7 +25,6 @@
 
 #include "viewwin.h"
 
-
 #include "log.h"
 #include "msg.h"
 
@@ -47,19 +46,20 @@ struct AnimSetWin : Win
 		fps_col(header,"FPS"),
 		frames_col(header,"Frames"),
 		loop(name_col,"Wrap",id_check),
-	nav1(main),
-		up(nav1,"&Up",id_up),
-		down(nav1,"&Down",id_down),
+	nav1(main),		
+		up(nav1,"Up",id_up),
+		down(nav1,"Down",id_down),
 	nav2(main),
-		add(nav2,"&New",id_new),
-		name(nav2,"&Rename",id_name),
-		del(nav2,"&Delete",id_delete),
+		add(nav2," New ",id_new), //YUCK 
+		name(nav2,"Rename",id_name),
+		del(nav2,"Delete",id_delete),
 	nav3(main),
-		copy(nav3,"&Copy",id_copy),
-		split(nav3,"&Split",id_split),
-		join(nav3,"&Join",id_join),
-		merge(nav3,"&Merge",id_merge),
-	convert(main,"&Convert To Frame Animation",id_convert),
+		copy(nav3,"Copy",id_copy),
+		joint(nav3), //YUCK
+		split(joint,"Split",id_split),
+		join(joint,"Join",id_join),
+		merge(nav3,"Merge",id_merge),
+	convert(main,"Convert To Frame Animation",id_convert),
 	f1_ok_cancel(main)	
 	{	
 		(checkbox_item::cbcb&) //YUCK
@@ -68,13 +68,19 @@ struct AnimSetWin : Win
 		type.expand();		
 		nav1.ralign();
 		nav2.expand_all().proportion();
-		nav3.expand_all().proportion();
-		convert.expand();
-
+		//nav3.expand_all().proportion();
+		nav3.expand();		
+		joint.expand_all().proportion();
+		merge.ralign();
+		convert.expand();		
+	
 		//The columns should support the window.
-		//table.expand();
+		//But just to be safe.
+		table.expand();
+
 		loop.ctrl_tab_navigate();
-		name_col.span()*=2;
+		//name_col.expand(); //Doesn't work yet.
+		name_col.lock(150,false);
 		//NOTE: The end column auto-extends, so
 		//it's better to have the short name as
 		//the middle column.
@@ -86,7 +92,7 @@ struct AnimSetWin : Win
 	}
 
 	MainWin &model;
-	Model::AnimationModeE mode;
+	int mode; //Model::AnimationModeE mode;
 
 	dropdown type; listbox table; //MERGE US?
 	listbar header;
@@ -94,8 +100,9 @@ struct AnimSetWin : Win
 	boolean loop; 
 	row nav1; button up,down;
 	row nav2; button add,name,del;
-	row nav3; button copy,split,join,merge;
-	button convert;
+	row nav3; button copy;
+	row joint; button split,join;
+	button merge, convert;
 	f1_ok_cancel_panel f1_ok_cancel;
 
 	void refresh();
@@ -108,10 +115,10 @@ struct AnimSetWin : Win
 	void format_item(li::item *i)
 	{
 		int id = i->id();
-		utf8 n = model->getAnimName(mode,id);		
-		double fps = model->getAnimFPS(mode,id);
-		double frames = model->getAnimTimeFrame(mode,id);
-		i->check(model->getAnimWrap(mode,id));
+		utf8 n = model->getAnimName(id);		
+		double fps = model->getAnimFPS(id);
+		double frames = model->getAnimTimeFrame(id);
+		i->check(model->getAnimWrap(id));
 		format_item(i,n,fps,frames);
 	}
 	void format_item(li::item *i, const char *n, double fps, double frames)
@@ -123,7 +130,7 @@ struct AnimSetWin : Win
 	{
 		assert(impl&it.impl_checkbox);
 		auto w = (AnimSetWin*)it.list().ui();
-		w->model->setAnimWrap(w->mode,it.id(),it.checkbox());
+		w->model->setAnimWrap(it.id(),it.checkbox());
 	}
 
 	//HACK: Since the columns can be sorted it's
@@ -147,23 +154,28 @@ struct AnimSetWin : Win
 	}
 };
 
-struct AnimEditWin : EditWin
+struct AnimEditWin : Win //EditWin
 {
-	AnimEditWin(int id, li::item *i)
+	AnimEditWin(AnimSetWin &win, int id, li::item *i)
 		:
-	EditWin((char*)nullptr,
-	id==id_name?"Rename Animation":"New Animation",
-	"New name:",0,0,&AnimEditWin::submit_cb,false),
-	nav2(nav),
-	fps(nav2,"FPS"),frames(nav2,"Frames")
+	Win(id==id_new?"New Animation":"Rename Animation"),
+		win(win),conv(),
+	type(main),
+	name(main,"Name"), //"New name:"
+	nav(main),
+	fps(nav,"FPS"),frames(nav,"Frames"),
+	ok_cancel(main)
 	{
+		type.reference(win.type);
+		type.select_id(win.type);
+
 		double c1 = 30; int c2 = !1; if(i)
 		{
 			//It's a problem if merely "focused".
 			//i->select();
 			assert(i->multisel());
 			utf8 row[3]; i->text().c_row(row);
-			edit.set_text(row[0]);
+			name.set_text(row[0]);
 			c1 = strtod(row[1],nullptr);
 			c2 = atoi(row[2]);
 		}
@@ -172,7 +184,7 @@ struct AnimEditWin : EditWin
 			//Must be multi-selection, so don't
 			//give impression all names will be
 			//reassigned.
-			edit.disable();
+			name.disable();
 		}
 		fps.edit<double>(1,c1,120);
 		frames.edit<int>(!1,c2,INT_MAX);
@@ -182,25 +194,74 @@ struct AnimEditWin : EditWin
 		if(!i) fps.text().clear();
 		if(!i) frames.text().clear();
 
-		submit(main); //YUCK
-	}
-	void submit_cb(control *c) //YUCK
-	{
-		//FIX ME: How to extend EditWin requires
-		//more consideration. This is a big mess.
+		type.expand();
+		name.place(bottom).expand();
+		fps.place(bottom);
+		fps.compact(ok_cancel.cancel.span());
+		frames.place(bottom);
+		frames.compact(ok_cancel.ok.span());
 
-		if(c==main) //id_init
+		if(2==event.get_click()) switch(win.header)
 		{
-			fps.place(bottom);
-			fps.compact(ok_cancel.cancel.span());
-			frames.place(bottom);
-			frames.compact(ok_cancel.ok.span());
+		case 0: name.activate(); break;
+		case 1: fps.activate(); break;
+		case 2: frames.activate(); break;
 		}
-		basic_submit(c->id());
+		else name.activate();
+
+		if(id!=id_new)
+		active_callback = &AnimEditWin::confirm_conv;
 	}
+
+	AnimSetWin &win;
+	Model::AnimationModeE conv;
 	
-	row nav2;
+	dropdown type;
+	textbox name;
+	row nav;
 	textbox fps,frames;
+	ok_cancel_panel ok_cancel;
+
+	void confirm_conv(int id)
+	{
+		if(id!=id_ok) return basic_submit(id);
+		
+		int a = type, b = win.type; if(a!=b&&a!=3)
+		{
+			b = Model::PM_Joint; if(a==1) b = ~b;
+
+			int n = 0; std::string msg;
+
+			win.table^[&](li::multisel ea)
+			{
+				n = n?id_yes|id_no:id_ok;
+			};				
+			win.table^[&](li::multisel ea)
+			{
+				if(0==(id&(id_no|id_cancel)))
+				if(win.model->hasKeyframeData(ea->id(),b))
+				{
+					msg.reserve(255);
+					msg.assign(n==id_ok?"This animation":"At least 1 animation (");
+					if(n!=id_ok) 
+					msg.append(ea->text().c_str()).push_back(')'); //text is a row
+					msg.append(" will lose data with type conversion.");
+					if(n!=id_ok)
+					msg.append("\nContinue scanning for data loss?");
+					id = Win::InfoBox(::tr("Potential data loss!"),
+					msg.c_str(),n|id_cancel,id==id_yes?id_yes:id_cancel);
+				}
+			};
+			if(id&(id_yes|id_no))
+			id = Win::InfoBox(::tr("Accept data loss?"),
+			::tr("The converted animations will lose data incompatible with their new animation type.\n"
+			"Is this acceptable?"),id_ok|id_cancel,id_cancel);
+		}
+		if(id!=id_cancel) 
+		{
+			conv = Model::AnimationModeE(a); basic_submit(id_ok);
+		}
+	}
 };
 
 struct AnimConvertWin : Win
@@ -209,8 +270,9 @@ struct AnimConvertWin : Win
 
 	AnimConvertWin(AnimSetWin &owner)
 		:
-	Win("Convert To Frame"),owner(owner),
-	table(main,"Convert Skeletal to Frame:",id_item),
+	Win("Convert To Frame Animation"),owner(owner),
+	//table(main,"Convert Skeletal to Frame:",id_item),
+	table(main,"",id_item),
 		header(table,id_sort),
 	f1_ok_cancel(main)
 	{
@@ -241,7 +303,7 @@ void AnimConvertWin::submit(int id)
 
 			utf8 name = ea->text().c_str();
 			row->text().format(&"%s\0%s\0%g",name,name,
-			owner.model->getAnimTimeFrame(owner.mode,ea->id()));
+			owner.model->getAnimTimeFrame(ea->id()));
 			
 			table.add_item(row);
 		};
@@ -282,7 +344,7 @@ void AnimConvertWin::submit(int id)
 		{
 			utf8 row[3]; ea->text().c_row(row);
 			auto fix_me = Model::InterpolateLerp; //FIX ME
-			owner.model->convertAnimToFrame(owner.mode,ea->id(),row[1],atoi(row[2]),fix_me);
+			owner.model->convertAnimToFrame(ea->id(),row[1],atoi(row[2]),fix_me);
 		};
 		break;
 	}
@@ -295,43 +357,34 @@ void AnimSetWin::submit(int id)
 	switch(id)
 	{
 	case id_init:
-	
-		type.add_item(0,::tr("Skeletal Animation"));
-		type.add_item(1,::tr("Frame Animation"));
+	{	
+		type.add_item(2,::tr("Frame Animation"));
+		type.add_item(1,::tr("Skeletal Animation"));
+		type.add_item(3,::tr("Complex Animation"));
+		//I'd like to add this as a mode to combine
+		//real animations, and add a hide flag when
+		//animations aren't intended to be exported.
+		//type.add_item(0,::tr("Composite Animation"));
 
-		//NEW: Select current animation?
-		if(auto m=model->getAnimationMode())
+		int n = model->getCurrentAnimation();
+		auto m = model->getAnimType(n);		
+		type.select_id(m?m:Model::ANIMMODE);
+		submit(id_item); if(m)
 		{
-			//HACK: Intialize table, then select.
-			type.select_id(m-1);
-			int n = model->getCurrentAnimation();
-			submit(id_item);
+			n-=model->getAnimationIndex(m);
 			table.outline(n);
 			table.find_line_ptr()->select();
 			table.show_line(n);
-			break;
 		}
-		else
-		{
-			int a = model->getAnimCount(Model::ANIMMODE_SKELETAL);
-			int b = model->getAnimCount(Model::ANIMMODE_FRAME);
-			type.select_id(a?0:b?1:0);
-		}
-		
-		//break; /*FALLING THROUGH*/
-	
+		break;
+	}
 	case id_item:
 	{
-		Model::AnimationModeE cmp = mode;
-		switch(type)
-		{
-		case 1: mode = Model::ANIMMODE_FRAME; 
-		break;
-		default: mode = Model::ANIMMODE_SKELETAL;
-		}
-		if(cmp!=mode) table.clear();
+		if(mode!=(int)type) table.clear();
+
+		mode = type; refresh(); 
 		
-		refresh(); break;
+		break;
 	}
 	case id_check:
 
@@ -376,16 +429,16 @@ void AnimSetWin::submit(int id)
 				if(modal.move_into_place())
 				if(modal.return_on_enter()) switch(header)
 				{
-				case 0: model->setAnimName(mode,(int)table,modal); break;
-				case 1: model->setAnimFPS(mode,(int)table,modal); break;
-				case 2: model->setAnimTimeFrame(mode,(int)table,(int)modal); break;
+				case 0: model->setAnimName((int)table,modal); break;
+				case 1: model->setAnimFPS((int)table,modal); break;
+				case 2: model->setAnimTimeFrame((int)table,(int)modal); break;
 				}
 			}
 			return;		
 		}
-		//break;
+		//break; //FALLING-THROUGH
 	
-	case id_name: case id_new: //Append to back?
+	case id_name: case id_new:
 	{
 		int j = 0;
 		li::item *it = nullptr;
@@ -393,16 +446,17 @@ void AnimSetWin::submit(int id)
 		{
 			j++; it = ea;
 		};		
-		if(!j&&id==id_name) //NEW
+		if(!j&&id==id_name)
 		{
 			//Should probably disable Delete/Rename then?
-			return;
+			return event.beep();
 		}
 		if(j>1) it = nullptr;
-		AnimEditWin e(id,it);		
+		AnimEditWin e(*this,id,it);		
 		if(id_ok!=e.return_on_close())
 		return;
-		utf8 c_str = e.edit.c_str();
+		int converted = 0;
+		utf8 c_str = e.name.c_str();
 		j = -1; table^[&](li::multisel ea)
 		{
 			if(id==id_new)
@@ -412,33 +466,56 @@ void AnimSetWin::submit(int id)
 			else //id_name
 			{
 				if(*c_str)
-				model->setAnimName(mode,ea->id(),c_str);
+				model->setAnimName(ea->id(),c_str);
 				if(!e.fps.text().empty())
-				model->setAnimFPS(mode,ea->id(),e.fps);
+				model->setAnimFPS(ea->id(),e.fps);
 				if(!e.frames.text().empty())
-				model->setAnimTimeFrame(mode,ea->id(),(int)e.frames);
+				model->setAnimTimeFrame(ea->id(),(int)e.frames);
 				format_item(ea,c_str,e.fps,e.frames);
+				if(e.conv)
+				{
+					int i = model->convertAnimToType(e.conv,ea->id()-converted);
+					if(j==-1)
+					j = i-model->getAnimationIndex(e.conv);
+					converted++;
+				}
 			}
 		};
+		e.conv = Model::AnimationModeE((int)e.type);
 		if(id==id_new)
 		{
-			int i = model->addAnimation(mode,c_str);
+			int i = model->addAnimation(e.conv,c_str);
 			if(i==-1) break;
 
 			if(!e.fps.text().empty())
-			model->setAnimFPS(mode,i,e.fps);
+			model->setAnimFPS(i,e.fps);
 			if(!e.frames.text().empty())
-			model->setAnimTimeFrame(mode,i,(int)e.frames);
+			model->setAnimTimeFrame(i,(int)e.frames);
 			if(j==-1) j = i;
-			model->moveAnimation(mode,i,j); //NEW
-
-			if(!table.empty()) //YUCK: enable/disable?
+			if(mode==e.conv) 
 			{
-				table.outline(j);
+				model->moveAnimation(i,j); //NEW
 				table.add_item(new_item(j)->select());
+				refresh();
 			}
-			refresh();
+			else converted = 1;
+			j-=model->getAnimationIndex(e.conv);
 		}
+		if(j!=-1) //New or conversion?
+		{
+			if(converted)
+			{
+				mode = e.conv;
+				type.select_id(mode);
+				table.clear();
+				refresh(); 
+				int i = 0; table^[&](li::allitems ea)
+				{
+					if(i++>=j&&i<=j+converted) ea->select();
+				};
+			}
+			table.outline(j);
+		}		
 		break;
 	}		
 	case id_up:
@@ -448,11 +525,11 @@ void AnimSetWin::submit(int id)
 			table^[&](li::multisel ea)
 			{
 				table.insert_item(ea,ea->prev());
-				model->moveAnimation(mode,ea->id(),ea->id()-1);
+				model->moveAnimation(ea->id(),ea->id()-1);
 			};
 			refresh();
 		}
-		else Win::beep(); break;
+		else event.beep(); break;
 
 	case id_down:
 		
@@ -461,11 +538,11 @@ void AnimSetWin::submit(int id)
 			table^[&](li::reverse_multisel ea)
 			{
 				table.insert_item(ea,ea->next(),behind);
-				model->moveAnimation(mode,ea->id(),ea->id()+1);
+				model->moveAnimation(ea->id(),ea->id()+1);
 			};
 			refresh();
 		}
-		else Win::beep(); break;
+		else event.beep(); break;
 
 	case id_delete:
 	case id_copy: case id_split: case id_join: case id_merge:
@@ -482,7 +559,7 @@ void AnimSetWin::submit(int id)
 			{
 			case id_delete:
 
-				model->deleteAnimation(mode,ea->id()-b);
+				model->deleteAnimation(ea->id()-b);
 				b++;
 				table.erase(ea);
 				break;
@@ -491,14 +568,14 @@ void AnimSetWin::submit(int id)
 
 				unsort(); //YUCK
 
-				model->copyAnimation(mode,ea->id());
+				model->copyAnimation(ea->id());
 				b++;
 				table.insert(ea->next(),new_item(ea->id()+b)); 
 				break;
 
 			case id_split:
 								
-				a = ea->id(); /*b = model->getAnimFrameCount(mode,a); if(b<2)
+				a = ea->id(); /*b = model->getAnimFrameCount(a); if(b<2)
 				{
 					InfoBox(::tr("Cannot Split","Cannot split animation window title"),
 					::tr("Must have at least 2 frames to split","split animation"),id_ok);
@@ -508,22 +585,22 @@ void AnimSetWin::submit(int id)
 					std::string name;
 					name = ::tr("Split","'Split' refers to splitting an animation into two separate animations");
 					name.push_back(' '); //MERGE US 
-					name.append(model->getAnimName(mode,a));
+					name.append(model->getAnimName(a));
 					name.push_back(' '); //MERGE US
 					name.append(::tr("at frame number","the frame number where the second (split) animation begins"));
 
 					//int split = b/2;
-					double b = model->getAnimTimeFrame(mode,a);
+					double b = model->getAnimTimeFrame(a);
 					double t = b/2;
 					if(id_ok!=EditBox(&t,::tr("Split at frame","Split animation frame window title"),name.c_str(),/*2*/0,b))
 					return;
 
-					int split = model->insertAnimFrame(mode,a,t);
+					int split = model->insertAnimFrame(a,t);
 					
-					name = model->getAnimName(mode,a);
+					name = model->getAnimName(a);
 					name.push_back(' ');
 					name.append(::tr("split"));
-					if((split=model->splitAnimation(mode,a,name.c_str(),split))<0)
+					if((split=model->splitAnimation(a,name.c_str(),split))<0)
 					return;
 		
 					format_item(ea);
@@ -550,10 +627,10 @@ void AnimSetWin::submit(int id)
 				else
 				{	
 					if(id==id_join)				
-					if(beep=!model->joinAnimations(mode,a,ea->id()+b))
+					if(beep=!model->joinAnimations(a,ea->id()+b))
 					return; //shouldn't occur
 					if(id==id_merge)
-					if(beep=!model->mergeAnimations(mode,a,ea->id()+b))
+					if(beep=!model->mergeAnimations(a,ea->id()+b))
 					return; //shouldn't occur
 
 					b--;
@@ -566,7 +643,7 @@ void AnimSetWin::submit(int id)
 			}
 		};
 
-		if(beep) Win::beep();
+		if(beep) event.beep();
 
 		refresh(); break;
 	}
@@ -593,7 +670,7 @@ void AnimSetWin::refresh()
 		unsort();
 		table^[&](li::allitems ea){ ea->id() = iN++; };
 	}
-	else if(iN=model->getAnimCount(mode))
+	else if(iN=model->getAnimationCount((Model::AnimationModeE)mode))
 	{
 		main_panel()->enable();
 
@@ -601,10 +678,11 @@ void AnimSetWin::refresh()
 		//mergeAnimations but since I didn't enable it
 		//here I likely neglected to test the new code
 		//merge.enable(mode==Model::ANIMMODE_SKELETAL);
-		convert.enable(mode==Model::ANIMMODE_SKELETAL);
+		convert.enable(mode!=Model::ANIMMODE_FRAME);
+
+		int ii = model->getAnimationIndex((Model::AnimationModeE)mode);
 		
-		for(int i=0;i<iN;i++)
-		table.add_item(new_item(i));
+		for(int i=0;i<iN;i++) table.add_item(new_item(ii+i));
 
 		//MM3D's table is not sortable. It needs more work
 		//I think to be sortable. unsort must go obviously.

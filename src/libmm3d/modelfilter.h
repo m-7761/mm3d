@@ -204,21 +204,6 @@ protected:
 	DataSource *openInput(const char *file, Model::ModelErrorE &err);
 	DataDest *openOutput(const char *file, Model::ModelErrorE &err);
 
-	//REMOVE US
-	// Call these protected methods in your base class if to get direct
-	// access to the model's primitive list.
-	//2020: Using Model::getVertexList
-	//std::vector<Model::Vertex*>				 &getVertexList(Model *m)	{ return m->m_vertices;	  };
-	//2020: Using Model::getTriangleList
-	//std::vector<Model::Triangle*>			  &getTriangleList(Model *m) { return m->m_triangles;	 };
-	//std::vector<Model::Group*>				  &getGroupList(Model *m)	 { return m->m_groups;		 };
-	std::vector<Model::Material*>			  &getMaterialList(Model *m) { return m->m_materials;	 };
-	std::vector<Model::Joint*>				  &getJointList(Model *m)	 { return m->m_joints;		 };
-	std::vector<Model::Point*>				  &getPointList(Model *m)	 { return m->m_points;		 };
-	std::vector<Model::TextureProjection*>  &getProjectionList(Model *m){ return m->m_projections;  };
-	std::vector<Model::SkelAnim*>			  &getSkelList(Model *m)	  { return m->m_skelAnims;	 };
-	std::vector<Model::FrameAnim*>			 &getFrameList(Model *m)	 { return m->m_frameAnims;	};
-
 	PromptF *m_promptFunc;
 
 	FileFactory	m_defaultFactory, *m_factory;
