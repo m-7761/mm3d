@@ -1316,12 +1316,14 @@ class Model
 
 		// Background image accessors. See the BackgroundImage class.
 		bool setBackgroundImage(unsigned index, const char *str);
-		bool setBackgroundScale(unsigned index, float scale);
-		bool setBackgroundCenter(unsigned index, float x, float y, float z);
+		bool setBackgroundScale(unsigned index, double scale);
+		bool setBackgroundCoords(unsigned index, const double abs[3]);
+		bool setBackgroundCenter(unsigned index, double x, double y, double z); //LEGACY
 
 		const char *getBackgroundImage(unsigned index)const;
-		float getBackgroundScale(unsigned index)const;
-		bool getBackgroundCenter(unsigned index, float &x, float &y, float &z)const;
+		double getBackgroundScale(unsigned index)const;
+		bool getBackgroundCoords(unsigned index, double abs[3])const;
+		bool getBackgroundCenter(unsigned index, float &x, float &y, float &z)const; //LEGACY
 
 		// These are used to store status messages when the model does not have a status
 		// bar. When a model is assigned to a viewport window,the messages will be

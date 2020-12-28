@@ -296,7 +296,7 @@ template<typename T> T normalize3(T *vec)
 
 extern double distance(const Vector &v1, const Vector &v2);
 
-extern double distance(const double *v1, const double *v2);
+extern double distance(const double v1[3], const double v2[3]);
 
 template<typename T> T dot3(const T *lhs, const T *rhs)
 {

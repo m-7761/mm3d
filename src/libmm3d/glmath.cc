@@ -1153,7 +1153,7 @@ Quaternion Quaternion::swapHandedness()
 	return rval;
 }*/
 
-double distance (const Vector &v1, const Vector &v2)
+double distance(const Vector &v1, const Vector &v2)
 {
 	double xDiff = v2.get(0)-v1.get(0);
 	double yDiff = v2.get(1)-v1.get(1);
@@ -1162,7 +1162,7 @@ double distance (const Vector &v1, const Vector &v2)
 	return sqrt(xDiff*xDiff+yDiff*yDiff+zDiff*zDiff);
 }
 
-double distance (const double *v1, const double *v2)
+double distance(const double v1[3], const double v2[3])
 {
 	double xDiff = v2[0]-v1[0];
 	double yDiff = v2[1]-v1[1];

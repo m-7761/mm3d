@@ -124,26 +124,26 @@ void BackgroundTool::mouseButtonMove()
 	int index = parent->getView()-1;
 	if((unsigned)index<Model::MAX_BACKGROUND_IMAGES) //NEW
 	{
-		double newX,newY,newZ;
-		parent->getXYZ(&newX,&newY,&newZ);
+		double new_center[3];
+		parent->getXYZ(new_center+0,new_center+1,new_center+2);
 
-		float cenX,cenY,cenZ;
-		model->getBackgroundCenter(index,cenX,cenY,cenZ);
+		double center[3];
+		model->getBackgroundCoords(index,center);
 
 		if(m_op) //Moving?
 		{
-			cenX+=(float)(newX-m_x);
-			cenY+=(float)(newY-m_y);
-			cenZ+=(float)(newZ-m_z);
-			model->setBackgroundCenter(index,cenX,cenY,cenZ);
+			center[0]+=new_center[0]-m_x;
+			center[1]+=new_center[1]-m_y;
+			center[2]+=new_center[2]-m_z;
+			model->setBackgroundCoords(index,center);
 
-			m_x = newX;
-			m_y = newY;
-			m_z = newZ;
+			m_x = new_center[0];
+			m_y = new_center[1];
+			m_z = new_center[2];
 		}
 		else //Scaling?
 		{
-			double length = distance((double)cenX,(double)cenY,(double)cenZ,newX,newY,newZ);
+			double length = distance(center,new_center);
 			double scale  = length*m_startScale/m_startLength;
 
 			//log_debug("scale with length %f,to scale %f\n",length,scale);

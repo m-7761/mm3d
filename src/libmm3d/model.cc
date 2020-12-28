@@ -1595,7 +1595,7 @@ void Model::translateSelected(const double vec[3])
 			if(skel&&!v->m_influences.empty())
 			{
 				validateAnim(); //Need real m_kfCoord? _resample?
-				float coord[3+1];
+				double coord[3+1];
 				for(int i=3;i-->0;)
 				coord[i] = v->m_kfCoord[i]+vec[i];
 				coord[3] = 1;
@@ -1653,7 +1653,7 @@ void Model::translateSelected(const double vec[3])
 			if(skel&&!p->m_influences.empty())
 			{
 				validateAnim(); //Need real m_kfAbs? _resample?
-				float coord[3+1];
+				double coord[3+1];
 				for(int i=3;i-->0;)
 				coord[i] = p->m_kfAbs[i]+vec[i];
 				coord[3] = 1;
@@ -1685,6 +1685,8 @@ void Model::translateSelected(const double vec[3])
 			undo->setVector(vec);
 			sendUndo(undo,true);
 		}
+
+		if(skel&&sel) invalidateAnim();
 	}
 
 	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
@@ -1939,6 +1941,8 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			undo->setMatrixPoint(m,point);
 			sendUndo(undo,true);
 		}
+
+		if(skel&&sel) invalidateAnim();
 	}
 
 	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
@@ -4392,7 +4396,11 @@ bool Model::setProjectionCoords(unsigned proj, const double *coord)
 {
 	return setPositionCoords({PT_Projection,proj},coord);
 }
-bool Model::setBackgroundCenter(unsigned index, float x, float y, float z)
+bool Model::setBackgroundCoords(unsigned index, const double abs[3])
+{
+	return setPositionCoords({_OT_Background_,index},abs);
+}
+bool Model::setBackgroundCenter(unsigned index, double x, double y, double z)
 {
 	double coord[3] = {x,y,z};
 	return setPositionCoords({_OT_Background_,index},coord);
@@ -4455,6 +4463,10 @@ bool Model::getBackgroundCenter(unsigned index, float &x, float &y, float &z)con
 	y = (float)coord[1]; 
 	z = (float)coord[2]; return true;
 }
+bool Model::getBackgroundCoords(unsigned index, double coord[3])const
+{
+	return getPositionCoords({_OT_Background_,index},coord);
+}
 
 bool Model::setBoneJointRotation(unsigned joint, const double *rot)
 {
@@ -4502,7 +4514,7 @@ bool Model::setProjectionScale(unsigned proj, double scale)
 	double xyz[3] = {scale,scale,scale};
 	return setPositionScale({PT_Projection,proj},xyz);
 }
-bool Model::setBackgroundScale(unsigned index, float scale)
+bool Model::setBackgroundScale(unsigned index, double scale)
 {
 	double xyz[3] = {scale,scale,scale};
 	return setPositionScale({_OT_Background_,index},xyz);
@@ -4511,13 +4523,13 @@ double Model::getProjectionScale(unsigned proj)const
 {
 	double xyz[3];
 	if(getPositionScale({PT_Projection,proj},xyz)) 
-	return (float)xyz[0]; return 0; //???	
+	return xyz[0]; return 0; //???	
 }
-float Model::getBackgroundScale(unsigned index)const
+double Model::getBackgroundScale(unsigned index)const
 {
 	double xyz[3];
 	if(getPositionScale({_OT_Background_,index},xyz)) 
-	return (float)xyz[0]; return 0; //???	
+	return xyz[0]; return 0; //???	
 }
 
 bool Model::setBoneJointName(unsigned joint, const char *name)
