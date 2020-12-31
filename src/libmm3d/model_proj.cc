@@ -120,7 +120,7 @@ bool Model::setProjectionRange(unsigned proj,
 					xmin,ymin,xmax,ymax,
 					ptr->m_range[0][0],ptr->m_range[0][1],
 					ptr->m_range[1][0],ptr->m_range[1][1]);
-			sendUndo(undo,true); //IMPLEMENT ME
+			sendUndo(undo/*,true*/); //IMPLEMENT ME
 		}
 
 		ptr->m_range[0][0] = xmin;
@@ -159,7 +159,7 @@ bool Model::moveProjection(unsigned p, double x, double y, double z)
 				auto undo = new MU_MovePrimitive;
 				undo->addMovePrimitive(MU_MovePrimitive::MT_Projection,p,x,y,z,
 						old[0],old[1],old[2]);
-				sendUndo(undo,true);
+				sendUndo(undo/*,true*/);
 			}
 
 			return true;
@@ -183,6 +183,8 @@ struct model_proj_TriangleTexCoordsT
 void Model::applyProjection(unsigned int pnum)
 {	
 	if(pnum>=m_projections.size()) return; //???
+
+	validateAnim(); //2021
 	
 	TextureProjection *proj = m_projections[pnum];	
 	auto type = proj->m_type;

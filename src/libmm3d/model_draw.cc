@@ -42,68 +42,67 @@ static void model_draw_defaultMaterial()
 static void model_draw_drawPointOrientation(bool selected, double scale,
 		  const Matrix &m)
 {
-	 float color = (selected)? 0.9f : 0.7f;
+	float color = selected?0.9f:0.7f;
 
-	 Vector v1;
-	 Vector v2;
+	Vector v1,v2;
 
-	 glBegin(GL_LINES);
+	glBegin(GL_LINES);
 
-	 glColor3f(color,0.0f,0.0f);
+	glColor3f(color,0.0f,0.0f);
 
-	 v1.setAll(0.0,0.0,0.0);
-	 v2.setAll(scale,0.0,scale);
+	v1.setAll(0.0,0.0,0.0);
+	v2.setAll(scale,0.0,scale);
 
-	 v1.transform(m);
-	 v2.transform(m);
+	v1.transform(m);
+	v2.transform(m);
 
-	 glVertex3dv(v1.getVector());
-	 glVertex3dv(v2.getVector());
+	glVertex3dv(v1.getVector());
+	glVertex3dv(v2.getVector());
 
-	 v1.setAll(scale,0.0,scale);
-	 v2.setAll(0.0,0.0,scale *2);
+	v1.setAll(scale,0.0,scale);
+	v2.setAll(0.0,0.0,scale *2);
 
-	 v1.transform(m);
-	 v2.transform(m);
+	v1.transform(m);
+	v2.transform(m);
 
-	 glVertex3dv(v1.getVector());
-	 glVertex3dv(v2.getVector());
+	glVertex3dv(v1.getVector());
+	glVertex3dv(v2.getVector());
+	 	 
+	glColor3f(0.0f,color,0.0f);
 
-	 glColor3f(0.0f,color,0.0f);
+	v1.setAll(0.0,0.0,0.0);
+	v2.setAll(0.0,scale,scale);
 
-	 v1.setAll(0.0,0.0,0.0);
-	 v2.setAll(0.0,scale,scale);
+	v1.transform(m);
+	v2.transform(m);
 
-	 v1.transform(m);
-	 v2.transform(m);
+	glVertex3dv(v1.getVector());
+	glVertex3dv(v2.getVector());
 
-	 glVertex3dv(v1.getVector());
-	 glVertex3dv(v2.getVector());
+	v1.transform(m);
+	v2.transform(m);
 
-	 v1.transform(m);
-	 v2.transform(m);
+	v1.setAll(0.0,scale,scale);
+	v2.setAll(0.0,0.0,scale *2);
 
-	 v1.setAll(0.0,scale,scale);
-	 v2.setAll(0.0,0.0,scale *2);
+	v1.transform(m);
+	v2.transform(m);
 
-	 v1.transform(m);
-	 v2.transform(m);
+	glVertex3dv(v1.getVector());
+	glVertex3dv(v2.getVector());
 
-	 glVertex3dv(v1.getVector());
-	 glVertex3dv(v2.getVector());
+	glColor3f(0.0f,0.0f,color);
 
-	 glColor3f(0.0f,0.0f,color);
+	v1.setAll(0.0,0.0,0.0);
+	v2.setAll(0.0,0.0,scale *3);
 
-	 v1.setAll(0.0,0.0,0.0);
-	 v2.setAll(0.0,0.0,scale *3);
+	v1.transform(m);
+	v2.transform(m);
 
-	 v1.transform(m);
-	 v2.transform(m);
+	glVertex3dv(v1.getVector());
+	glVertex3dv(v2.getVector());
 
-	 glVertex3dv(v1.getVector());
-	 glVertex3dv(v2.getVector());
-
-	 glEnd(); // GL_LINES
+	glEnd(); // GL_LINES
 }
 
 static const int CYL_VERT_COUNT = 8;
@@ -525,7 +524,7 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 		}
 		glEnd();
 
-		if(colorSelected==true) glDisable(GL_LIGHT1); //2020
+		if(colorSelected==(int)true) glDisable(GL_LIGHT1); //2020
 	}
 
 	// Draw ungrouped triangles
@@ -591,7 +590,7 @@ void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
 		}
 		glEnd();
 
-		if(colorSelected==true) glDisable(GL_LIGHT1); //2020
+		if(colorSelected==(int)true) glDisable(GL_LIGHT1); //2020
 	}
 
 	// Draw depth-sorted alpha blended polys last
@@ -839,27 +838,17 @@ void Model::_drawPolygons(int pass, bool mark)
 
 #ifdef MM3D_EDIT
 
-void Model::drawJoints(float a)
+void Model::drawJoints(float a, float axis)
 {
+	bool draw = m_drawJoints;
+	if(!draw&&!getSelectedBoneJointCount()) 
+	return;
+	
 	//NOTE: Both up vectors seem to work.
 	//Using Y up is easier since the bone
 	//shape identity matrix defaults to it.
 	//const Vector face(0,1,0),up(0,0,1);
 	const Vector up(0,1,0);
-
-	if(!m_drawJoints
-	/*This is confusing because the tool system can
-	//still make joints that won't be displayed.
-	//NOTE: to deal with this I've added ShowJoints
-	//and ShowProjections that let tools notify the
-	//"observers" they're forcibly displayed, and 
-	//the implui code remembers the setting in NONE
-	//animation mode and restores it, and forces it
-	//on/off in the other modes, but this allows it 
-	//to be overriden.
-	||m_animationMode!=ANIMMODE_NONE
-	&&m_animationMode!=ANIMMODE_SKELETAL*/)
-	return;
 	
 	validateAnimSkel();
 
@@ -877,33 +866,87 @@ void Model::drawJoints(float a)
 	//Black seems to be best. Blue/purple is legacy
 	//color.
 	//https://github.com/zturtleman/mm3d/issues/118
-	float l = alpha?0:1;
+	float l = (float)(alpha?0:1);
 
-	bool skel = 0!=(m_animationMode&ANIMMODE_SKELETAL);
+	bool skel = inSkeletalMode();
 	bool skel2 = false;
 
 	glPointSize(5); //3
-	glBegin(GL_POINTS);
-	for(Position j{PT_Joint,0};j<m_joints.size();j++)	
-	if(m_joints[j]->m_visible)
+	glBegin(GL_POINTS); 
+	int marks = 0, sel = 0;
+	for(Position j{PT_Joint,0};j<m_joints.size();j++)
 	{
-		if(m_joints[j]->m_selected)
+		auto *ea = m_joints[j];
+
+		if(ea->m_selected)
 		{
 			skel2 = true;
-
-			glColor3f(1,0,1); 
+			if(!sel++) glColor3f(1,0,1);
+			glVertex3dv(ea->m_absSource);
+			ea->m_marked = false;
 		}
-		else if(skel&&hasKeyframe(m_currentAnim,m_currentFrame,j))
+		else if(draw)
+		{
+			ea->m_marked = skel&&ea->m_visible
+			&&hasKeyframe(m_currentAnim,m_currentFrame,j);
+			marks+=ea->m_marked;
+		}		
+	}	
+	if(draw)
+	{
+		if(marks)
 		{
 			glColor3f(0,1,0);
+			for(auto*ea:m_joints)
+			{
+				if(ea->m_marked)
+				glVertex3dv(ea->m_absSource);
+			}
 		}
-		else glColor3f(0,0,l);
-		
-		Joint *joint = m_joints[j];
-
-		glVertex3dv(joint->m_absSource);
-	}	
+		if(sel+marks!=(int)m_joints.size())
+		{
+			glColor3f(0,0,l);
+			for(auto*ea:m_joints)
+			if(!ea->m_marked&&ea->m_visible)
+			{
+				glVertex3dv(ea->m_absSource);
+			}	
+		}
+	}
 	glEnd();
+	if(axis)
+	{
+		//TODO? Could decorate naked points
+		//based on axis scale?
+
+		if(sel) for(auto*ea:m_joints)
+		{
+			if(!ea->m_selected) continue;
+
+			Matrix m = ea->getMatrix();
+
+			double *pos = m.getVector(3); //m.scale(axis)
+			{
+				for(int i=0;i<3;i++) 
+				for(int j=0;j<3;j++) 
+				{
+					(m.getVector(i)[j]*=axis)+=pos[j];
+				}
+			}
+
+			//drawOrigin();
+			{
+				glBegin(GL_LINES);
+				glColor3f(1,0,0);
+				glVertex3dv(pos); glVertex3dv(m.getVector(0));
+				glColor3f(0,1,0);
+				glVertex3dv(pos); glVertex3dv(m.getVector(1));
+				glColor3f(0,0,1);
+				glVertex3dv(pos); glVertex3dv(m.getVector(2));
+				glEnd();
+			}
+		}
+	}
 	
 	if(alpha) glEnable(GL_BLEND);
 	float aa = skel2&&skel?a/2:a;	
@@ -912,18 +955,25 @@ void Model::drawJoints(float a)
 	//Needs to go in reverse to prioritize
 	//the child joints in the depth buffer.
 	//for(unsigned j=0 j<m_joints.size();j++)
-	for(unsigned j=m_joints.size();j-->0;)
-	if(m_joints[j]->m_visible
-	 &&m_joints[j]->m_parent>=0
-	 &&m_joints[m_joints[j]->m_parent]->m_visible)
+	//for(unsigned j=m_joints.size();j-->0;)
+	for(unsigned j2=m_joints2.size();j2-->0;)
+	if(m_joints2[j2].second->m_parent>=0)
 	{
-		skel2 = skel&&parentJointSelected(j);
-		
+		unsigned j = m_joints2[j2].first;
+
 		Joint *joint  = m_joints[j];
 		Joint *parent = m_joints[joint->m_parent];
+		if(!joint->m_visible
+		||!parent->m_visible) continue;
+
+		skel2 = skel&&parentJointSelected(j);
+		
+		if(!draw&&!skel2)
+		if(!joint->m_selected
+		||!parent->m_selected) continue;
 
 		Vector pvec(parent->m_absSource);
-		Vector jvec(joint->m_absSource);
+		Vector jvec(joint->m_absSource); 
 
 		if(skel2)
 		{	
@@ -938,10 +988,19 @@ void Model::drawJoints(float a)
 		glEnd();
 		glDisable(GL_LINE_STIPPLE);
 
+		//EXPERIMENTAL
+		//This almost works except when the child
+		//joint is translated. It's accurate even
+		//though it looks odd.
+		bool stable = skel&&true;
+
 		//https://github.com/zturtleman/mm3d/issues/56
 		//if(m_drawJoints==JOINTMODE_BONES)
 		if(m_drawOptions&DO_BONES&&joint->m_bone)
 		{				
+			if(stable) pvec.setAll(parent->m_abs);
+			if(stable) jvec.setAll(joint->m_abs);
+
 			if(skel) if(skel2)
 			{
 				glColor4f(l,0,l,a);
@@ -994,7 +1053,13 @@ void Model::drawJoints(float a)
 			{
 				//v[i] = v[i]*length*m+pvec;
 				v[i] = v[i]*length*rot+pvec;
+			
+				//2021: Stabilize the octohedron WRT bind pose.
+				if(stable) v[i].transform(parent->getSkinMatrix());
 			}
+			if(stable) pvec.transform(parent->getSkinMatrix());
+			if(stable) jvec.transform(parent->getSkinMatrix());
+
 			glBegin(GL_LINES);
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[0].getVector());
 			glVertex3dv(pvec.getVector()); glVertex3dv(v[1].getVector());

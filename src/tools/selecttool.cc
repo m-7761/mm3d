@@ -124,6 +124,13 @@ public:
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove()
 	{	
+		//Note: Doing this in mouseButtonDown can look
+		//bad in some modes.
+		if(!m_unselect&&~parent->getButtons()&BS_Shift)
+		{
+			parent->getModel()->unselectAll(); //OVERKILL
+		}
+
 		parent->getRawParentXYValue(m_x2,m_y2);
 		parent->updateView();
 	}
@@ -190,11 +197,6 @@ void SelectTool::mouseButtonDown()
 	m_x2 = m_x1;
 	m_y2 = m_y1;
 	
-	if(!m_unselect&&~parent->getButtons()&BS_Shift)
-	{
-		model->unselectAll(); //OVERKILL
-	}
-
 	parent->updateView();
 	
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
@@ -207,6 +209,10 @@ void SelectTool::mouseButtonUp()
 	//EXPERIMENTAL
 	if(m_x1==m_x2&&m_y1==m_y2) //2020
 	{
+		if(!m_unselect&&~parent->getButtons()&BS_Shift)
+		{
+			model->unselectAll(); //OVERKILL
+		}
 		Model::PositionTypeE e; switch(m_op)
 		{
 		case Vertices: e = Model::PT_Vertex; break;	

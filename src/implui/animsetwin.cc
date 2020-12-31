@@ -228,7 +228,7 @@ struct AnimEditWin : Win //EditWin
 		
 		int a = type, b = win.type; if(a!=b&&a!=3)
 		{
-			b = Model::PM_Joint; if(a==1) b = ~b;
+			b = Model::KM_Joint; if(a==1) b = ~b;
 
 			int n = 0; std::string msg;
 

@@ -30,7 +30,7 @@
 UndoManager::UndoManager()
 	: m_currentUndo(nullptr),
 	  m_currentList(nullptr),
-	  m_listCombine(true), //RETIRED
+	  //m_listCombine(true), //RETIRED
 	  m_sizeLimit(0),
 	  m_countLimit(0),
 	  m_saveLevel(0)
@@ -84,10 +84,11 @@ void UndoManager::clearRedo()
 	}
 	m_atomicRedo.clear();
 }
-void UndoManager::addUndo(Undo *u, bool listCombine)
+//void UndoManager::addUndo(Undo *u, bool listCombine)
+void UndoManager::addUndo(Undo *u)
 {
+	//MAYBE THIS SHOULD BE DONE ON OPERATION-COMPLETE?
 	clearRedo();
-
 	
 	/*TODO: reinterpret listCombine as don't call combineWithList
 	https://github.com/zturtleman/mm3d/issues/138
@@ -104,7 +105,8 @@ void UndoManager::addUndo(Undo *u, bool listCombine)
 		// Try to combine these undo items
 		/*https://github.com/zturtleman/mm3d/issues/138
 		if(combineWithList(u))*/
-		if(listCombine&&combineWithList(u))
+		//if(listCombine&&combineWithList(u))
+		if(m_currentUndo->combine(u))
 		{
 			// Combined, release new one
 			u->release();
@@ -150,7 +152,7 @@ void UndoManager::operationComplete(const char *opname)
 	}
 	m_currentList = nullptr;
 	m_currentUndo = nullptr;
-	m_listCombine = true; //RETIRED
+	//m_listCombine = true; //RETIRED
 
 	checkSize();
 
@@ -243,13 +245,14 @@ UndoList *UndoManager::undoCurrent()
 	return nullptr;
 }
 
+#if 0 //REFERENCE
 bool UndoManager::combineWithList(Undo *u)
 {
 	if(m_currentUndo->combine(u))
 	{
 		return true;
 	}
-	else if(m_listCombine)
+	//else if(m_listCombine)
 	{
 		/*FIX ME!
 		//It seems like this can get out of sequence? Why not just 
@@ -269,6 +272,7 @@ bool UndoManager::combineWithList(Undo *u)
 	}
 	return false;
 }
+#endif
 
 void UndoManager::pushUndoToList(Undo *u)
 {

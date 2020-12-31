@@ -94,19 +94,19 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 		{
 			model->getTextureCoords(i,0,s,t);
 			temp = s;
-			s = 0.5-(t-0.5);
+			s = 0.5f-(t-0.5f);
 			t = temp;
 			model->setTextureCoords(i,0,s,t);
 
 			model->getTextureCoords(i,1,s,t);
 			temp = s;
-			s = 0.5-(t-0.5);
+			s = 0.5f-(t-0.5f);
 			t = temp;
 			model->setTextureCoords(i,1,s,t);
 
 			model->getTextureCoords(i,2,s,t);
 			temp = s;
-			s = 0.5-(t-0.5);
+			s = 0.5f-(t-0.5f);
 			t = temp;
 			model->setTextureCoords(i,2,s,t);
 		}	

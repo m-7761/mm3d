@@ -166,7 +166,7 @@ void MU_Select::undo(Model *model)
 	//2020: I optimized unselectTriangle with the
 	//new connectivity data that should do better
 	if(m_mode==Model::SelectTriangles)	
-	conv = m_diff.size()<model->getTriangleCount()/10;
+	conv = m_diff.size()<(unsigned)model->getTriangleCount()/10;
 
 	/*2020: should go backward in time!
 	// Invert selection from our list	
@@ -229,7 +229,7 @@ void MU_Select::redo(Model *model)
 	//2020: I optimized unselectTriangle with the
 	//new connectivity data that should do better
 	if(m_mode==Model::SelectTriangles)
-	conv = m_diff.size()<model->getTriangleCount()/10;
+	conv = m_diff.size()<(unsigned)model->getTriangleCount()/10;
 
 	// Set selection from our list
 	for(auto&ea:m_diff) 

@@ -247,7 +247,7 @@ void AnimExportWin::submit(int id)
 		}
 
 		FileBox file;
-		int frameN = dur/interval; if(frameN>60) //NEW
+		int frameN = (int)(dur/interval); if(frameN>60) //NEW
 		{
 			file.format("Save %d images?",frameN);
 			if(id_yes!=WarningBox("Confirmation",file.c_str(),id_yes|id_no,id_no))

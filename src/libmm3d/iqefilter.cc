@@ -29,12 +29,12 @@ class IqeFilter : public ModelFilter
 {
 public:
 
-	Model::ModelErrorE readFile(Model *model, const char *const filename);
-	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+	virtual Model::ModelErrorE readFile(Model *model, const char *const filename);
+	virtual Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
 
-	const char *getWriteTypes(){ return "IQE"; }
+	virtual const char *getWriteTypes(){ return "IQE"; }
 
-	Options *getDefaultOptions(){ return new IqeOptions; };
+	virtual Options *getDefaultOptions(){ return new IqeOptions; };
 
 protected:
 

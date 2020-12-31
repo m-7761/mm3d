@@ -49,11 +49,11 @@ class Md3Filter : public ModelFilter
 {
 public:
 
-	Model::ModelErrorE readFile(Model *model, const char *const filename);
-	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
+	virtual Model::ModelErrorE readFile(Model *model, const char *const filename);
+	virtual Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
 
-	const char *getReadTypes(){ return "MD3"; }
-	const char *getWriteTypes(){ return "MD3"; }
+	virtual const char *getReadTypes(){ return "MD3"; }
+	virtual const char *getWriteTypes(){ return "MD3"; }
 
 protected:
 

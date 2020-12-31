@@ -46,11 +46,12 @@ bool Model::setPointBoneJoint(unsigned point, int joint)
 	return setPositionBoneJoint({PT_Point,point},joint);
 }
 
+/*REFERENCE
 void Model::getBoneJointVertices(int joint, int_list &rval)const
 {
 	rval.clear();
 
-	if(joint>=-1&&joint<(signed)m_joints.size())
+	if(joint>=-1&&joint<(signed)m_joints.size()) //???
 	{
 		//infl_list ilist;
 		infl_list::const_iterator it;
@@ -70,7 +71,7 @@ void Model::getBoneJointVertices(int joint, int_list &rval)const
 			}
 		}
 	}
-}
+}*/
 
 bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceTypeE type, double weight)
 {	
@@ -93,7 +94,7 @@ bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 		{
 			auto undo = new MU_UpdatePositionInfluence;
 			undo->updatePositionInfluence(pos,newInf,oldInf);
-			sendUndo(undo,true); //IMPLEMENT ME
+			sendUndo(undo/*,true*/); //IMPLEMENT ME
 		}
 
 		calculateRemainderWeight(pos);
@@ -112,7 +113,7 @@ bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 		{
 			auto undo = new MU_SetPositionInfluence;
 			undo->setPositionInfluence(true,pos,il->size(),inf);
-			sendUndo(undo,true); //IMPLEMENT ME
+			sendUndo(undo/*,true*/); //IMPLEMENT ME
 		}		
 
 		insertInfluence(pos,il->size(),inf);
@@ -146,7 +147,7 @@ bool Model::removePositionInfluence(const Position &pos, unsigned joint)
 			{
 				auto undo = new MU_SetPositionInfluence;
 				undo->setPositionInfluence(false,pos,index,ea);
-				sendUndo(undo,true); //IMPLEMENT ME
+				sendUndo(undo/*,true*/); //IMPLEMENT ME
 			}
 
 			removeInfluence(pos,index);
@@ -282,7 +283,7 @@ bool Model::setPositionInfluenceWeight(const Position &pos, unsigned int joint, 
 		{
 			auto undo = new MU_UpdatePositionInfluence();
 			undo->updatePositionInfluence(pos,newInf,oldInf);
-			sendUndo(undo,true); //IMPLEMENT ME
+			sendUndo(undo/*,true*/); //IMPLEMENT ME
 		}
 
 		calculateRemainderWeight(pos);

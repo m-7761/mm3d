@@ -34,7 +34,12 @@
 
 struct RotateTool : Tool
 {
-	RotateTool():Tool(TT_Other){}
+	RotateTool():Tool(TT_Other)
+	{
+		m_mode = 0; 
+
+		m_move = m_rotate = m_link = true;
+	}
 
 	virtual const char *getName(int)
 	{
@@ -50,11 +55,60 @@ struct RotateTool : Tool
 	virtual void activated(int)
 	{
 		activated2();
+
+		/*WIP
+		const char *f[7+1] = 
+		{
+		TRANSLATE_NOOP("Param","Rotate"),
+		TRANSLATE_NOOP("Param","X Axis"),
+		TRANSLATE_NOOP("Param","Y Axis"),
+		TRANSLATE_NOOP("Param","Z Axis"),
+		TRANSLATE_NOOP("Param","X Roll"),
+		TRANSLATE_NOOP("Param","Y Roll"),
+		TRANSLATE_NOOP("Param","Z Roll"),
+		};
+		parent->addEnum(true,&m_mode,TRANSLATE_NOOP("Param","Mode"),f);
+
+		parent->addBool(true,&m_move,TRANSLATE_NOOP("Param","Move"));
+		parent->groupParam();
+		parent->addBool(true,&m_rotate,TRANSLATE_NOOP("Param","Rotate"));
+		parent->groupParam();
+		parent->addBool(true,&m_link,TRANSLATE_NOOP("Param","Link"));*/
+
 		parent->addDouble(false,&m_rotatePoint.x,TRANSLATE_NOOP("Param","X"));
 		parent->groupParam();
 		parent->addDouble(false,&m_rotatePoint.y,TRANSLATE_NOOP("Param","Y"));
 		parent->groupParam();
 		parent->addDouble(false,&m_rotatePoint.z,TRANSLATE_NOOP("Param","Z"));
+
+		modelChanged(Model::SelectionJoints);
+	}	
+	virtual void modelChanged(int changeBits)
+	{
+		//NOTE: The only way to do this currently is to
+		//do something like Ctrl+A or turn on animation.
+		if(changeBits&(Model::SelectionJoints|Model::AnimationChange))
+		{
+			m_skel_mode = false;
+
+			auto model = parent->getModel();
+			bool hide = true; 
+			for(auto&ea:model->getFlatJointList())			
+			if(ea.second->m_selected)
+			{
+				if(m_skel_mode=model->inSkeletalMode())
+				{
+					model->getBoneJointCoords(ea.first,m_rotatePoint);
+					parent->updateParams();
+				}
+				hide = false; break;
+			}
+			/*WIP
+			parent->hideParam(&m_mode,hide);
+			parent->hideParam(&m_rotate,hide);
+			parent->hideParam(&m_move,hide);
+			parent->hideParam(&m_link,hide);*/
+		}
 	}
 	virtual void updateParam(void*)
 	{
@@ -71,22 +125,19 @@ struct RotateTool : Tool
 
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();
-
-	//REMOVE ME
-	virtual void mouseButtonUp()
-	{	
-		if(parent->getButtons()&BS_Left)	
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
-		TRANSLATE("Tool","Rotate complete"));
-	
-		parent->updateAllViews();
-	}
+	virtual void mouseButtonUp();
 
 	virtual void draw(bool){ m_rotatePoint.draw(); }
 		
 		double m_mouse2_angle;
+
+		bool m_selecting;
 		
-		bool m_skel_mode; //2021
+		bool m_skel_mode;
+
+		int m_mode; 
+		
+		bool m_move,m_rotate,m_link;
 
 		struct RotatePoint
 		{	
@@ -103,7 +154,7 @@ struct RotateTool : Tool
 					glColor3ub(0x80,0x80,0x80);
 					glLogicOp(GL_XOR);
 					glTranslated(x,y,z);
-					rotatepoint_draw_manip(scale); //0.25f
+					rotatepoint_draw_manip((float)scale); //0.25f
 					glTranslated(-x,-y,-z);
 					glDisable(GL_COLOR_LOGIC_OP);
 				}
@@ -111,7 +162,7 @@ struct RotateTool : Tool
 				glDepthFunc(GL_LEQUAL);
 			}
 
-			double x,y,z,w; float scale;
+			double x,y,z,w, scale;
 
 			operator double*(){ return &x; }	
 
@@ -217,25 +268,15 @@ int RotateTool::mouse2()
 		parent->updateParams();
 	}
 
-	parent->updateAllViews(); return ret;
+	parent->updateAllViews(); //Needed
+	
+	return ret;
 }
 void RotateTool::mouseButtonDown()
 {
-	Model *model = parent->getModel();
+	m_selecting = BS_Left&parent->getButtons();
 
-	m_skel_mode = false;
-	if(model->inSkeletalMode())
-	{
-		int iN = model->getBoneJointCount();
-		for(int i=0;i<iN;i++)		
-		if(model->isBoneJointSelected(i))
-		{
-			m_skel_mode = true;
-			model->getBoneJointCoords(i,m_rotatePoint);
-			parent->updateParams();
-			break;
-		}
-	}
+	Model *model = parent->getModel();
 	 
 	if(int mode=mouse2())
 	{
@@ -247,6 +288,8 @@ void RotateTool::mouseButtonDown()
 }
 void RotateTool::mouseButtonMove()
 {
+	m_selecting = false;
+
 	double angle = m_mouse2_angle; if(1==mouse2())
 	{
 		double vec[3] = { 0,0,1 };
@@ -256,5 +299,21 @@ void RotateTool::mouseButtonMove()
 
 		parent->getModel()->rotateSelected(m,m_rotatePoint);
 	}
+}
+void RotateTool::mouseButtonUp()
+{
+	Model *model = parent->getModel();
+
+	if(m_selecting)
+	{
+		parent->snapSelect(); //EXPERIMENTAL		
+	}
+	else if(parent->getButtons()&BS_Left)	
+	{
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Rotate complete"));
+	}
+	
+	parent->updateAllViews(); //Needed
 }
 

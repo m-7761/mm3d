@@ -37,14 +37,14 @@ public:
 	// by reference, except for multipart models is
 	// an open problem.
 	//
-	Model::ModelErrorE readFile(Model *model, const char *const filename);
-	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+	virtual Model::ModelErrorE readFile(Model *model, const char *const filename);
+	virtual Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
 
-	const char *getReadTypes(){ return "OBJ"; }
-	const char *getWriteTypes(){ return "OBJ"; }
+	virtual const char *getReadTypes(){ return "OBJ"; }
+	virtual const char *getWriteTypes(){ return "OBJ"; }
 
 	// Create a new options object that is specific to this filter
-	Options *getDefaultOptions(){ return new ObjOptions; };
+	virtual Options *getDefaultOptions(){ return new ObjOptions; };
 
 	class ObjMaterial
 	{

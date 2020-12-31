@@ -115,10 +115,7 @@ void Tool::movePosition
 			(float)tranVec[2]);
 			*/
 
-	m.apply3(tranVec);
-	tranVec[0] += m.get(3,0);
-	tranVec[1] += m.get(3,1);
-	tranVec[2] += m.get(3,2);
+	m.apply3x(tranVec);
 
 	/*
 	log_debug("tran position %f,%f,%f\n",
@@ -137,18 +134,11 @@ void Tool::makeToolCoordList
 	Model *model = parent->getModel();
 	const Matrix &mat = parent->getParentBestMatrix();
 
-	ToolCoordT tc;
-	pos_list::const_iterator it;
-	for(it = positions.begin(); it!=positions.end(); it++)
+	ToolCoordT tc; for(auto&ea:positions)
 	{
-		tc.pos = (*it);
+		tc.pos = ea;
 		model->getPositionCoords(tc.pos,tc.coords);
-
-		mat.apply3(tc.coords);
-		tc.coords[0] += mat.get(3,0);
-		tc.coords[1] += mat.get(3,1);
-		tc.coords[2] += mat.get(3,2);
-
+		mat.apply3x(tc.coords);
 		list.push_back(tc);
 	}
 }

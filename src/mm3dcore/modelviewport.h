@@ -111,7 +111,7 @@ public:
 
 	void frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2);
 	
-	void getParentXYZValue(int bs, int x, int y, double &xval, double &yval, double &zval, bool selected);
+	bool getParentXYZValue(int bs, int x, int y, double &xval, double &yval, double &zval, bool selected);
 
 	void getRawParentXYValue(int x, int y, double &xval, double &yval)
 	{
@@ -260,10 +260,9 @@ public: //slots:
 	{
 		return ports[m_focus].m_view; 
 	}
-	virtual void getParentXYZValue(double &xval, double &yval, double &zval, bool selected)
+	virtual bool getParentXYZValue(double &xval, double &yval, double &zval, bool selected)
 	{
-		//TODO: Cache result?
-		ports[m_focus].getParentXYZValue(_bs,_bx,_by,xval,yval,zval,selected);
+		return ports[m_focus].getParentXYZValue(_bs,_bx,_by,xval,yval,zval,selected);
 	}
 	virtual void getRawParentXYValue(double &xval, double &yval)
 	{

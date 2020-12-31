@@ -116,6 +116,7 @@ public:
 
 	virtual void activated(int arg){}
 	virtual void updateParam(void*){}
+	virtual void modelChanged(int changeBits){}
 	virtual void deactivated(){} //REMOVE ME (RotateTool)
 	
 	// NOTE: You will never receive a middle button event
@@ -275,7 +276,7 @@ public:
 	// a manipulation operation on selected vertices, for update or all
 	// other start operations you would set this value to false).
 	//
-	virtual void getParentXYZValue(double &xval, double &yval, double &zval, bool selected=false) = 0;	
+	virtual bool getParentXYZValue(double &xval, double &yval, double &zval, bool selected=false) = 0;	
 	//
 	// https://github.com/zturtleman/mm3d/issues/141#issuecomment-651962335
 	// Note, MoveTool uses the new XYZ variant but it should be added to the
@@ -402,6 +403,7 @@ public:
 	virtual void groupParam(){}
 	virtual void updateParams() = 0;
 	virtual void removeParams() = 0;
+	virtual void hideParam(void *p, int disable=-1) = 0;
 	
 	//EXPERIMENTAL
 	//polytool.cc and selecttool.cc
@@ -413,7 +415,28 @@ public:
 
 	int &getButtonX(){ return _bx; }
 	int &getButtonY(){ return _by; }
-	int &getButtons(){ return _bs; }	
+	int &getButtons(){ return _bs; }
+
+	//EXPERIMENTAL
+	bool snapSelect(Model::PositionTypeE type=Model::PT_ALL) 
+	{
+		snap_select = true;
+		snap_object.type = type;
+		snap_object.index = -1; //Check if implemented?
+		auto &pos = snap_object;
+		double _[3];
+		getParentXYZValue(_[0],_[1],_[2],true);
+		if(-1!=snap_object)
+		{
+			Model * model = getModel();
+			bool how = !model->isPositionSelected(pos);
+			if(how&&~getButtons()&BS_Shift)
+			model->selectAllPositions(pos.type,false); //OVERKILL
+			model->selectPosition(pos,how);
+			return true;
+		}
+		return false;
+	}
 };
 inline void Tool::mouseButtonDown(int buttonState, int x, int y)
 {

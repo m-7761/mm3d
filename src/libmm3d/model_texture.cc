@@ -174,17 +174,17 @@ int Model::addTexture(Texture *tex)
 		material->m_filename = tex->m_filename;
 		for(int m = 0; m<3; m++)
 		{
-			material->m_ambient[m] = 0.2;
-			material->m_diffuse[m] = 0.8;
-			material->m_specular[m] = 0.0;
-			material->m_emissive[m] = 0.0;
+			material->m_ambient[m] = 0.2f;
+			material->m_diffuse[m] = 0.8f;
+			material->m_specular[m] = 0;
+			material->m_emissive[m] = 0;
 		}
-		material->m_ambient[3]  = 1.0;
-		material->m_diffuse[3]  = 1.0;
-		material->m_specular[3] = 1.0;
-		material->m_emissive[3] = 1.0;
+		material->m_ambient[3]  = 1;
+		material->m_diffuse[3]  = 1;
+		material->m_specular[3] = 1;
+		material->m_emissive[3] = 1;
 
-		material->m_shininess = 0.0;
+		material->m_shininess = 0;
 
 		//DrawingContextList m_drawingContexts;
 		m_materials.push_back(material);
@@ -200,10 +200,7 @@ int Model::addTexture(Texture *tex)
 
 		return num;
 	}
-	else
-	{
-		return -1;
-	}
+	return -1;
 }
 
 int Model::addColorMaterial(const char *name)
@@ -225,15 +222,15 @@ int Model::addColorMaterial(const char *name)
 	material->m_filename = "";
 	for(int m = 0; m<3; m++)
 	{
-		material->m_ambient[m] = 0.2;
-		material->m_diffuse[m] = 0.8;
-		material->m_specular[m] = 0.0;
-		material->m_emissive[m] = 0.0;
+		material->m_ambient[m] = 0.2f;
+		material->m_diffuse[m] = 0.8f;
+		material->m_specular[m] = 0;
+		material->m_emissive[m] = 0;
 	}
-	material->m_ambient[3]  = 1.0;
-	material->m_diffuse[3]  = 1.0;
-	material->m_specular[3] = 1.0;
-	material->m_emissive[3] = 1.0;
+	material->m_ambient[3]  = 1;
+	material->m_diffuse[3]  = 1;
+	material->m_specular[3] = 1;
+	material->m_emissive[3] = 1;
 
 	material->m_shininess = 0.0;
 
@@ -291,7 +288,7 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 			auto undo = new MU_SetTexture;
 			undo->setTexture(groupNumber,textureId,
 					m_groups[groupNumber]->m_materialIndex);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_groups[groupNumber]->m_materialIndex = textureId;
@@ -305,7 +302,7 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 
 bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, float s, float t)
 {
-	https://github.com/zturtleman/mm3d/issues/90
+	//https://github.com/zturtleman/mm3d/issues/90
 	m_changeBits |= MoveGeometry;
 
 	//log_debug("setTextureCoords(%d,%d,%f,%f)\n",triangleNumber,vertexIndex,s,t);
@@ -320,7 +317,7 @@ bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, floa
 			undo->addTextureCoords(triangleNumber,vertexIndex,s,t,
 					m_triangles[triangleNumber]->m_s[vertexIndex],
 					m_triangles[triangleNumber]->m_t[vertexIndex]);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_triangles[triangleNumber]->m_s[vertexIndex] = s;
@@ -344,7 +341,7 @@ bool Model::setTextureAmbient(unsigned textureId, const float *ambient)
 			undo->setLightProperties(textureId,
 					MU_SetLightProperties::LightAmbient,
 					ambient,m_materials[textureId]->m_ambient);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		for(int t = 0; t<4; t++)
@@ -369,7 +366,7 @@ bool Model::setTextureDiffuse(unsigned textureId, const float *diffuse)
 			undo->setLightProperties(textureId,
 					MU_SetLightProperties::LightDiffuse,
 					diffuse,m_materials[textureId]->m_diffuse);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		for(int t = 0; t<4; t++)
@@ -394,7 +391,7 @@ bool Model::setTextureSpecular(unsigned textureId, const float *specular)
 			undo->setLightProperties(textureId,
 					MU_SetLightProperties::LightSpecular,
 					specular,m_materials[textureId]->m_specular);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		for(int t = 0; t<4; t++)
@@ -419,7 +416,7 @@ bool Model::setTextureEmissive(unsigned textureId, const float *emissive)
 			undo->setLightProperties(textureId,
 					MU_SetLightProperties::LightEmissive,
 					emissive,m_materials[textureId]->m_emissive);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		for(int t = 0; t<4; t++)
@@ -442,7 +439,7 @@ bool Model::setTextureShininess(unsigned textureId, float shininess)
 		{
 			auto undo = new MU_SetShininess;
 			undo->setShininess(textureId,shininess,m_materials[textureId]->m_shininess);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_materials[textureId]->m_shininess = shininess;
@@ -486,7 +483,7 @@ void Model::setMaterialTexture(unsigned textureId,Texture *tex)
 		{
 			auto undo = new MU_SetMaterialTexture;
 			undo->setMaterialTexture(textureId,tex,m_materials[textureId]->m_textureData);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_materials[textureId]->m_textureData = tex;
@@ -506,7 +503,7 @@ void Model::removeMaterialTexture(unsigned textureId)
 		{
 			auto undo = new MU_SetMaterialTexture;
 			undo->setMaterialTexture(textureId,nullptr,m_materials[textureId]->m_textureData);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_materials[textureId]->m_textureData = nullptr;
@@ -526,7 +523,7 @@ bool Model::setTextureSClamp(unsigned textureId,bool clamp)
 			auto undo = new MU_SetMaterialClamp;
 			undo->setMaterialClamp(textureId,true,clamp,
 					m_materials[textureId]->m_sClamp);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_materials[textureId]->m_sClamp = clamp;
@@ -544,7 +541,7 @@ bool Model::setTextureTClamp(unsigned textureId,bool clamp)
 			auto undo = new MU_SetMaterialClamp;
 			undo->setMaterialClamp(textureId,false,clamp,
 					m_materials[textureId]->m_tClamp);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_materials[textureId]->m_tClamp = clamp;

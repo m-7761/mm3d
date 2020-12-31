@@ -78,8 +78,7 @@ public:
 
 	typedef void (*OptionFunctionF)(const char *);
 
-	CommandLineManager();
-	virtual ~CommandLineManager();
+	CommandLineManager(),~CommandLineManager();
 
 	bool parse(int argc, const char ** argv);
 	int firstArgument()const { return m_firstArg; }

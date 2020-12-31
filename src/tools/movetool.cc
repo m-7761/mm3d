@@ -53,36 +53,50 @@ struct MoveTool : Tool
 	
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();
+	virtual void mouseButtonUp();
 
-	//REMOVE ME
-	virtual void mouseButtonUp()
-	{
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
-		TRANSLATE("Tool","Move complete"));
-		parent->updateAllViews();
-	}		
+		bool m_selecting,m_left;
+
 		double m_x,m_y,m_z;
 
-		bool m_allowX,m_allowY; double m_xx,m_yy;
+		bool m_allowX,m_allowY; double m_xx,m_yy,m_zz;
 };
 
 extern Tool *movetool(){ return new MoveTool; }
 
 void MoveTool::mouseButtonDown()
 {
+	m_left = //2021: Reserving BS_Right
+	m_selecting = BS_Left&parent->getButtons();
+	if(!m_left) 
+	return model_status(parent->getModel(),StatusError,STATUSTIME_LONG,
+	TRANSLATE("Tool","No function"));
+
+	//EXPERIMENTAL
+	//parent->getParentXYValue(m_x,m_y,true);
 	parent->getParentXYZValue(m_x,m_y,m_z,true);
 
 	m_allowX = m_allowY = 0!=(parent->getButtons()&BS_Shift);
 
-	m_xx = m_x; m_yy = m_y; //translateSelected?	
+	m_xx = m_x; m_yy = m_y; m_zz = m_z; //translateSelected?	
 	
 	model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Tool","Moving selected primitives"));
 }
 void MoveTool::mouseButtonMove()
 {	
+	m_selecting = false;
+	//2021: Reserving BS_Right
+	if(!m_left) return;
+
 	double pos[3];
-	parent->getParentXYZValue(pos[0],pos[1],pos[2]);
+	if(!parent->getParentXYZValue(pos[0],pos[1],pos[2],false))
+	{
+		//DICEY: m_z snapped to the selected vertex
+		//in mouseButtonDown but now that vertex is 
+		//ineligible.
+		pos[2] = m_zz; //m_z
+	}
 
 	if(m_allowX||m_allowY)
 	{
@@ -113,6 +127,22 @@ void MoveTool::mouseButtonMove()
 	//FIX ME: Translate via vector.
 	//parent->getModel()->translateSelected(m);
 	parent->getModel()->translateSelected(v);
-	parent->updateAllViews();
-}
 
+	parent->updateAllViews(); //Needed
+}
+void MoveTool::mouseButtonUp()
+{
+	Model *model = parent->getModel();
+
+	if(m_selecting)
+	{
+		parent->snapSelect(); //EXPERIMENTAL		
+	}
+	else if(m_left)	
+	{
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Move complete"));
+	}
+
+	parent->updateAllViews(); //Needed
+}		

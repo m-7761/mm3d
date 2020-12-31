@@ -67,36 +67,34 @@ struct ScaleTool : Tool
 	virtual void activated(int)
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
-		TRANSLATE("Tool","Tip: Hold shift to restrict scaling to one dimension"));
+		TRANSLATE_NOOP("Tool","Tip: Hold shift to restrict scaling to one dimension"));
 
 		const char *e[3+1] = 
 		{
-		TRANSLATE("Tool","Free","Free scaling option"),
-		TRANSLATE("Tool","Keep Aspect 2D","2D scaling aspect option"),
-		TRANSLATE("Tool","Keep Aspect 3D","3D scaling aspect option"),
+		TRANSLATE_NOOP("Param","Free","Free scaling option"),
+		TRANSLATE_NOOP("Param","Keep Aspect 2D","2D scaling aspect option"),
+		TRANSLATE_NOOP("Param","Keep Aspect 3D","3D scaling aspect option"),
 		};
-		parent->addEnum(true,&m_proportion,TRANSLATE("Tool","Proportion"),e);
+		parent->addEnum(true,&m_proportion,TRANSLATE_NOOP("Param","Proportion"),e);
 
 		const char *f[2+1] = 
 		{
-		TRANSLATE("Tool","Center","Scale from center"),
-		TRANSLATE("Tool","Far Corner","Scale from far corner"),
+		TRANSLATE("Param","Center","Scale from center"),
+		TRANSLATE("Param","Far Corner","Scale from far corner"),
 		};
-		parent->addEnum(true,&m_point,TRANSLATE("Tool","Point"),f);
+		parent->addEnum(true,&m_point,TRANSLATE_NOOP("Param","Point"),f);
 
-		parent->addBool(true,&m_translate,TRANSLATE("Tool","Move"));
-		parent->addBool(true,&m_scale,TRANSLATE("Tool","Scale"));
+		parent->addBool(true,&m_translate,TRANSLATE_NOOP("Param","Move"));
+		parent->groupParam();
+		parent->addBool(true,&m_scale,TRANSLATE_NOOP("Param","Scale"));
 	}
 
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();
+	virtual void mouseButtonUp();
 
-	//REMOVE ME
-	virtual void mouseButtonUp()
-	{
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
-		TRANSLATE("Tool","Scale complete"));
-	}
+		bool m_selecting,m_left;
+
 		int m_proportion,m_point;		
 		bool m_translate,m_scale;
 
@@ -124,6 +122,12 @@ extern Tool *scaletool(){ return new ScaleTool; }
 
 void ScaleTool::mouseButtonDown()
 {
+	m_left = //2021: Reserving BS_Right
+	m_selecting = BS_Left&parent->getButtons();
+	if(!m_left) 	
+	return model_status(parent->getModel(),StatusError,STATUSTIME_LONG,
+	TRANSLATE("Tool","No function"));
+
 	Model *model = parent->getModel();
 
 	m_allowX = m_allowY = true;
@@ -240,6 +244,10 @@ void ScaleTool::mouseButtonDown()
 
 void ScaleTool::mouseButtonMove()
 {
+	m_selecting = false;
+	//2021: Reserving BS_Right
+	if(!m_left) return;
+
 	Model *model = parent->getModel();
 
 	double pos[2];
@@ -348,5 +356,21 @@ void ScaleTool::mouseButtonMove()
 		}			
 	}
 
-	parent->updateAllViews();
+	parent->updateAllViews(); //Needed
+}
+void ScaleTool::mouseButtonUp()
+{
+	Model *model = parent->getModel();
+
+	if(m_selecting)
+	{
+		parent->snapSelect(); //EXPERIMENTAL		
+	}
+	else if(m_left)	
+	{
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Scale complete"));
+	}
+
+	parent->updateAllViews(); //Needed
 }

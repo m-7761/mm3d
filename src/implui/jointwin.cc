@@ -184,19 +184,15 @@ void JointWin::submit(control *c)
 		{
 			int j = joint;
 			//log_debug("%sing %d objects to joint %d\n",bt==2?"ass":"add",model.selection.size(),j); //???
-			for(auto&i:model.selection)
+			for(auto&i:model.selection)			
+			if(bt==2||bt==3&&loo)
 			{
-				if(bt==2) model->setPositionBoneJoint(i,j);
-				if(bt==3) if(loo)
-				{
-					//Oddly this is the old way of doing things?
-					model->addPositionInfluence(i,j,Model::IT_Custom,1);
-				}
-				else //2020 (standard way of auto-assignment elsewhere)
-				{
-					double w = model->calculatePositionInfluenceWeight(i,j);
-					model->addPositionInfluence(i,j,Model::IT_Auto,w);
-				}
+				model->setPositionBoneJoint(i,j);
+			}
+			else //2020 (standard way of auto-assignment elsewhere)
+			{
+				double w = model->calculatePositionInfluenceWeight(i,j);
+				model->addPositionInfluence(i,j,Model::IT_Auto,w);
 			}
 			break;
 		}}

@@ -36,10 +36,6 @@ typedef std::unordered_map<int,int> model_copy_int_map;
 
 Model *Model::copySelected(bool animated)const
 {
-	if(animated) validateAnim();
-
-	Model *m = new Model;
-
 	int_list tri;
 	getSelectedTriangles(tri);
 	int_list joints;
@@ -48,6 +44,12 @@ Model *Model::copySelected(bool animated)const
 	getSelectedPoints(points);
 	int_list proj;
 	getSelectedProjections(proj);
+	if(tri.empty()&&joints.empty()&&points.empty()&&proj.empty())
+	return nullptr; //2021
+
+	if(animated) validateAnim();
+
+	Model *m = new Model;
 
 	//REMOVE ME
 	//I think vector works here. hash_map
@@ -58,36 +60,35 @@ Model *Model::copySelected(bool animated)const
 	model_copy_int_map jointMap;
 	model_copy_int_map pointMap;
 
+	bool ret = false;
+
 	int_list::iterator lit;
-
-	if(!proj.empty())
+	for(lit = proj.begin(); lit!=proj.end(); ++lit)
 	{
-		for(lit = proj.begin(); lit!=proj.end(); ++lit)
-		{
-			const char *name = getProjectionName(*lit);
-			int type = getProjectionType(*lit);
+		const char *name = getProjectionName(*lit);
+		int type = getProjectionType(*lit);
 
-			double pos[3];
-			double rot[3];
-			double scale;
-			double range[2][2];
+		double pos[3];
+		double rot[3];
+		double scale;
+		double range[2][2];
 
-			getProjectionCoords(*lit,pos);
-			getProjectionRotation(*lit,rot);
-			scale = getProjectionScale(*lit);
-			getProjectionRange(*lit,range[0][0],range[0][1],range[1][0],range[1][1]);
+		getProjectionCoords(*lit,pos);
+		getProjectionRotation(*lit,rot);
+		scale = getProjectionScale(*lit);
+		getProjectionRange(*lit,range[0][0],range[0][1],range[1][0],range[1][1]);
 
-			int np = m->addProjection(name,type,pos[0],pos[1],pos[2]);
-			m->setProjectionRotation(np,rot);
-			m->setProjectionScale(np,scale);
-			m->setProjectionRange(np,range[0][0],range[0][1],range[1][0],range[1][1]);
+		int np = m->addProjection(name,type,pos[0],pos[1],pos[2]);
+		m->setProjectionRotation(np,rot);
+		m->setProjectionScale(np,scale);
+		m->setProjectionRange(np,range[0][0],range[0][1],range[1][0],range[1][1]);
 
-			m->selectProjection(np);
+		//??? //Paste/mergeModels does this afterwards.
+		//m->selectProjection(np);
 
 //			projMap[*lit] = np; //UNUSED???
 
-			//FIX ME: Assign copied faces?!
-		}
+		//FIX ME: Assign copied faces?!
 	}
 
 	if(!tri.empty())
@@ -106,7 +107,10 @@ Model *Model::copySelected(bool animated)const
 			else getVertexCoordsUnanimated(*lit,coords);
 
 			int nv = m->addVertex(coords[0],coords[1],coords[2]);
-			m->selectVertex(nv);
+
+			//??? //Paste/mergeModels does this afterwards.
+			//m->selectVertex(nv);
+
 			//m->setVertexFree(nv,isVertexFree(*lit));
 
 			vertMap[*lit] = nv;
@@ -123,7 +127,9 @@ Model *Model::copySelected(bool animated)const
 				v[t] = getTriangleVertex(*lit,t);
 			}
 			int nt = m->addTriangle(vertMap[v[0]] ,vertMap[v[1]],vertMap[v[2]]);
-			m->selectTriangle(nt);
+
+			//??? //Paste/mergeModels does this afterwards.
+			//m->selectTriangle(nt);
 
 			triMap[*lit] = nt;
 		}
@@ -240,7 +246,8 @@ Model *Model::copySelected(bool animated)const
 			memcpy(m->m_points[np]->m_xyz,xyz,sizeof(xyz));
 			pointMap[*lit] = np;
 
-			m->selectPoint(np);
+			//??? //Paste/mergeModels does this afterwards.
+			//m->selectPoint(np);
 		}
 	}
 
@@ -252,13 +259,17 @@ Model *Model::copySelected(bool animated)const
 		{
 			int parent = getBoneJointParent(*lit);
 
-			// TODO this will not work if parent joint comes after child
-			// joint.  That shouldn't happen... but...
-			if(isBoneJointSelected(parent))
+			if(!isBoneJointSelected(parent))
 			{
 				parent = jointMap[parent];
 			}
-			else parent = m->getBoneJointCount()>0?0:-1;
+			else
+			{
+				//NOTE: Multiple roots should work now since 
+				//setBoneJointParent allows it, but I suppose
+				//users can do this manually?
+				parent = m->m_joints.empty()?-1:0;
+			}
 
 			//TODO: Why not just copy the matrix by value?
 			double coord[3],rot[3],xyz[3];
@@ -281,7 +292,9 @@ Model *Model::copySelected(bool animated)const
 			jointMap[*lit] = nj;
 			memcpy(m->m_joints[nj]->m_rot,rot,sizeof(rot));
 			memcpy(m->m_joints[nj]->m_xyz,xyz,sizeof(xyz));
-			m->selectBoneJoint(nj);
+			
+			//??? //Paste/mergeModels does this afterwards.
+			//m->selectBoneJoint(nj);
 		}
 
 		for(auto it=vertMap.begin();it!=vertMap.end();it++)
@@ -298,7 +311,7 @@ Model *Model::copySelected(bool animated)const
 			for(auto&ea:getPointInfluences(it->first))
 			{
 				if(isBoneJointSelected(ea.m_boneId))
-				m->addVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+				m->addVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 	}
@@ -316,13 +329,12 @@ bool Model::duplicateSelected(bool animated)
 	
 	//2020: I added this code to phase these containers out but most
 	//of them are still required
-	//std::unordered_map<int,int> vertMap,triMap,jointMap,pointMap;
-	std::unordered_map<int,int> vertMap,triMap,jointMap;
+	std::unordered_map<int,int> vertMap,triMap,jointMap,pointMap;
 	unsigned vertbase = m_vertices.size();
 	unsigned tribase = m_triangles.size();
 	unsigned jointbase = m_joints.size();
 	unsigned pointbase = m_points.size();
-	//projbase = m_projections.size(); //IMPLEMENT ME
+	unsigned projbase = m_projections.size();
 
 	//if(!tri.empty())
 	{
@@ -397,10 +409,36 @@ bool Model::duplicateSelected(bool animated)
 
 	}
 
+	//if(!points.empty())
+	{
+		// Duplicated points
+		//log_debug("Duplicating %d points\n",points.size());
+		for(unsigned p=0;p<pointbase;p++)
+		{
+			if(!m_points[p]->m_selected) continue;
+
+			double coord[3],rot[3],xyz[3]; if(animated)
+			{
+				getPointCoords(p,coord);
+				getPointRotation(p,rot);
+				getPointScale(p,xyz);
+			}
+			else
+			{
+				getPointCoordsUnanimated(p,coord);
+				getPointRotationUnanimated(p,rot);
+				getPointScaleUnanimated(p,xyz);
+			}
+
+			int np = addPoint(getPointName(p),
+			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]/*,parent*/);
+			memcpy(m_points[np]->m_xyz,xyz,sizeof(xyz));
+			pointMap[p] = np;
+		}
+	}
+
 	//if(!joints.empty())
 	{
-		int_list vertlist;
-
 		// Duplicated joints
 		//log_debug("Duplicating %d joints\n",joints.size());
 		for(unsigned j=0;j<jointbase;j++)
@@ -409,8 +447,6 @@ bool Model::duplicateSelected(bool animated)
 
 			int parent = getBoneJointParent(j);
 
-			// TODO this will not work if parent joint comes after child
-			// joint.  That shouldn't happen... but...
 			if(isBoneJointSelected(parent))
 			{
 				parent = jointMap[parent];
@@ -441,62 +477,53 @@ bool Model::duplicateSelected(bool animated)
 			memcpy(m_joints[nj]->m_rot,rot,sizeof(rot));
 			memcpy(m_joints[nj]->m_xyz,xyz,sizeof(xyz));
 			jointMap[j] = nj;
+		}
 
-			//FIX ME
-			// Assign duplicated vertices to duplicated bone joints			
-			getBoneJointVertices(j,vertlist);
-			int_list::iterator vit;
-			for(vit = vertlist.begin(); vit!=vertlist.end(); vit++)
+		for(auto it=vertMap.begin();it!=vertMap.end();it++)
+		{	
+			for(auto&ea:getVertexInfluences(it->first))
 			{
-				if(isVertexSelected(*vit))
-				{
-					//LOOKS HIGHLY PROBLEMATIC
-					//LOOKS HIGHLY PROBLEMATIC
-					//LOOKS HIGHLY PROBLEMATIC
-					setVertexBoneJoint(vertMap[*vit],nj);
-				}
+				if(isBoneJointSelected(ea.m_boneId))
+				addVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+			}
+		}
+
+		for(auto it=pointMap.begin();it!=pointMap.end();it++)
+		{
+			for(auto&ea:getPointInfluences(it->first))
+			{
+				if(isBoneJointSelected(ea.m_boneId))
+				addVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 	}
 
-	//if(!points.empty())
+	//if(!projections.empty()) //2021
 	{
-		// Duplicated points
-		//log_debug("Duplicating %d points\n",points.size());
-		for(unsigned p=0;p<pointbase;p++)
+		// Duplicated projections
+		//log_debug("Duplicating %d projections\n",projections.size());
+		for(unsigned p=0;p<projbase;p++)
 		{
-			if(!m_points[p]->m_selected) continue;
+			if(!m_projections[p]->m_selected) continue;
 		
-			/*2020: addPoint ignored this parameter so
-			//I removed it.
-			int parent = getPrimaryPointInfluence(p);
-			if(isBoneJointSelected(parent))
-			{
-				parent = jointMap[parent];
-			}*/
+			double coord[3],rot[3];
+			getProjectionCoords(p,coord);
+			getProjectionRotation(p,rot);
+			double xyz = getProjectionScale(p);
 
-			double coord[3],rot[3],xyz[3]; if(animated)
-			{
-				getPointCoords(p,coord);
-				getPointRotation(p,rot);
-				getPointScale(p,xyz);
-			}
-			else
-			{
-				getPointCoordsUnanimated(p,coord);
-				getPointRotationUnanimated(p,rot);
-				getPointScaleUnanimated(p,xyz);
-			}
+			double range[2][2];
+			getProjectionRange(p,range[0][0],range[0][1],range[1][0],range[1][1]);
 
-			int np = addPoint(getPointName(p),
-			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]/*,parent*/);
-			memcpy(m_points[np]->m_xyz,xyz,sizeof(xyz));
-			//pointMap[p] = np;
+			int np = addProjection(getProjectionName(p),
+			m_projections[p]->m_type,coord[0],coord[1],coord[2]);
+			memcpy(m_projections[np]->m_rot,rot,sizeof(rot));
+			setProjectionScale(np,xyz);
+			setProjectionRange(np,range[0][0],range[0][1],range[1][0],range[1][1]);
 		}
 	}
 
 	if(vertMap.empty()&&triMap.empty()
-	&&jointMap.empty()&&pointbase==getPointCount())
+	&&jointMap.empty()&&pointMap.empty()&&projbase==getProjectionCount())
 	{
 		return false;
 	}
@@ -513,8 +540,8 @@ bool Model::duplicateSelected(bool animated)
 	while(n-->jointbase) selectBoneJoint(n);
 	n = getPointCount();
 	while(n-->pointbase) selectPoint(n);
-	//n=getProjectionCount();
-	//while(n-->projbase) selectProjection(n); //IMPLEMENTE ME
+	n = getProjectionCount();
+	while(n-->projbase) selectProjection(n);
 
 	calculateSkel(); calculateNormals(); return true;
 }

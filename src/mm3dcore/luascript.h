@@ -38,8 +38,7 @@ extern "C"
 class LuaScript
 {
 	public:
-		LuaScript();
-		virtual ~LuaScript();
+		LuaScript(),~LuaScript();
 
 		int runFile(const char *filename);
 

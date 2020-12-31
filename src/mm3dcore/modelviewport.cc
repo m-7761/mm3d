@@ -135,10 +135,7 @@ void ModelViewport::updateMatrix() //NEW
 	const double aspect = (double)m_viewportWidth/m_viewportHeight;
 	if(1&&m_view<=Tool::ViewPerspective)
 	{
-		if(aspect<=1)
-		z-=m_zoom*modelviewport_persp_factor/aspect;
-		else
-		z-=m_zoom*modelviewport_persp_factor;
+		z-=m_zoom*modelviewport_persp_factor/std::min(1.0,aspect);
 	}
 	//YUCK: Need to keep ortho matrix even for perspective.
 	//m_viewMatrix.setTranslation(-m_scroll[0],-m_scroll[1],z);
@@ -311,24 +308,21 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	}
 	else
 	{
-		float _viewPoint[4] = { 0,0,0,1 };
+		double _viewPoint[4] = { 0,0,0,1 };
 		if(m_view>=Tool::ViewOrtho
 		 ||m_view<=Tool::ViewPerspective)
 		{
 			//glEnable(GL_LIGHT0); //???
 		
-			_viewPoint[0] = (float)m_scroll[0]; 
-			_viewPoint[1] = (float)m_scroll[1]; 
-			_viewPoint[2] = (float)m_scroll[2]; 
+			_viewPoint[0] = m_scroll[0]; 
+			_viewPoint[1] = m_scroll[1]; 
+			_viewPoint[2] = m_scroll[2]; 
 			if(m_view<=Tool::ViewPerspective)
 			{
 				//https://github.com/zturtleman/mm3d/issues/99
-				if(aspect<=1)
-				_viewPoint[2]+=m_zoom*modelviewport_persp_factor/aspect;
-				else
-				_viewPoint[2]+=m_zoom*modelviewport_persp_factor;
+				_viewPoint[2]+=m_zoom*modelviewport_persp_factor/std::min(1.0,aspect);
 
-				glTranslatef(-_viewPoint[0],-_viewPoint[1],-_viewPoint[2]);
+				glTranslated(-_viewPoint[0],-_viewPoint[1],-_viewPoint[2]);
 			}
 			else 
 			{
@@ -336,7 +330,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 				//https://github.com/zturtleman/mm3d/issues/97
 				//glTranslatef(0,0,-m_farOrtho/2);
-				glTranslatef(0,0,-(m_farOrtho+m_nearOrtho)/2);
+				glTranslated(0,0,-(m_farOrtho+m_nearOrtho)/2);
 			}		
 
 			glRotated(m_rotZ,0,0,1);
@@ -361,7 +355,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			_viewPoint[1] = 0;
 			_viewPoint[2] = (m_farOrtho+m_nearOrtho)/2; //500000;
 
-			glTranslatef(-_viewPoint[0],-_viewPoint[1],-_viewPoint[2]);
+			glTranslated(-_viewPoint[0],-_viewPoint[1],-_viewPoint[2]);
 
 			Matrix m; //???
 			switch(m_view)
@@ -544,10 +538,28 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		glDepthRange(0,1);
 		glDepthFunc(GL_LEQUAL);
 	}
-		
+
+	//This should be X pixels.
+	//float axis = (float)m_zoom/10;
+	//This is how snapping is done in projection space.
+	//It just has to be moved into real space. 25 is 2
+	//arrow cursors tall on my system.
+	float axis = std::min(25.0f/w*m_width,25.0f/h*m_height);
+	{
+		//This seems to work but there's surely better
+		//ways to compute it. Maybe not though if it's
+		//to account for scrolling.
+		Vector p; m_projMatrix.apply(p);
+		//If only one is done it shrinks away from the 
+		//side view.
+		p[0]+=axis*p[3];
+		p[1]+=axis*p[3]; m_unprojMatrix.apply(p);
+		axis = (float)p.mag3();
+	}
+			
 	if(drawSelections)
 	{
-		model->drawJoints(0.333333f);
+		model->drawJoints(0.333333f,axis);
 	}
 
 	glDisable(GL_DEPTH_TEST);
@@ -559,14 +571,13 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	{
 		//drawOrigin();
 		{
-			float scale = (float)m_zoom/10;
 			glBegin(GL_LINES);
 			glColor3f(1,0,0);
-			glVertex3f(0,0,0); glVertex3f(scale,0,0);
+			glVertex3f(0,0,0); glVertex3f(axis,0,0);
 			glColor3f(0,1,0);
-			glVertex3f(0,0,0); glVertex3f(0,scale,0);
+			glVertex3f(0,0,0); glVertex3f(0,axis,0);
 			glColor3f(0,0,1);
-			glVertex3f(0,0,0); glVertex3f(0,0,scale);
+			glVertex3f(0,0,0); glVertex3f(0,0,axis);
 			glEnd();
 		}
 	}
@@ -867,13 +878,13 @@ void ModelViewport::drawBackground()
 	float minX,minY,minZ;
 	float maxX,maxY,maxZ;
 	float normX = 0, normY = 0, normZ = 0;
-	float scale = model->getBackgroundScale(index);
+	float scale = (float)model->getBackgroundScale(index);
 	//TODO: Assuming this wants background
 	//to slice through 0,0.
 	//https://github.com/zturtleman/mm3d/issues/97
 	//float ortho = m_farOrtho/2-0.1f; //???
 	//float ortho = -0.1f; //???
-	float ortho = m_farOrtho-0.01f; //???
+	float ortho = (float)m_farOrtho-0.01f; //???
 	switch(m_view)
 	{
 	case Tool::ViewFront:
@@ -914,7 +925,7 @@ void ModelViewport::drawBackground()
 		break;
 
 	case Tool::ViewTop:
-		minY  =  maxY = -(m_farOrtho/2-0.1f);
+		minY  =  maxY = -((float)m_farOrtho/2-0.1f);
 		minX  = -scale *(w/dimMax)+cenX;
 		maxX  =  scale *(w/dimMax)+cenX;
 		minZ  =  scale *(h/dimMax)+cenZ;
@@ -923,7 +934,7 @@ void ModelViewport::drawBackground()
 		break;
 
 	case Tool::ViewBottom:
-		minY  =  maxY = m_farOrtho/2-0.1f;
+		minY  =  maxY = (float)m_farOrtho/2-0.1f;
 		minX  = -scale *(w/dimMax)+cenX;
 		maxX  =  scale *(w/dimMax)+cenX;
 		minZ  = -scale *(h/dimMax)+cenZ;
@@ -1188,12 +1199,6 @@ void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 	}
 
 	if(!m_activeButton) return; //NEW
-
-	//EXPERIMENTAL
-	//This test filters out multi-pan/rotate via shift.
-	bool multipanning = bs&Tool::BS_Shift;
-	if(m_operation!=MO_Rotate&&m_operation!=MO_Pan)
-	multipanning = false;
 
 	if(m_operation==MO_Rotate)
 	{
@@ -1497,7 +1502,7 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 		m.setRotationInDegrees(-m_rotX,0,0);
 		m.apply3(m_scroll);
 	}
-	else m_viewInverse.apply3(m_scroll); //FIX ME: Try to stabilize?
+	else m_viewInverse.apply3(m_scroll);
 
 	log_debug("center point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
 
@@ -1552,8 +1557,9 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	parent->viewChangeEvent(*this); //NEW
 }
 
-void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, double &yval, double &zval, bool selected)
+bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, double &yval, double &zval, bool selected)
 {	
+	bool ret = false; //2021: Must signal if z is set to deal with "selected" logic.
 	zval = 0; //2020: Snapping to vertex Z component!
 
 	Model *model = parent->getModel();
@@ -1586,15 +1592,20 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		parent->snap_select = false;
 		parent->snap_vertex = -1;
 		parent->snap_object.index = -1;
-		auto m = (unsigned)parent->snap_object.type;
+		auto m = parent->snap_object.type;
 		if(m<Model::PT_MAX)
 		{
-			snaps = vu.VertexSnap; mask = 1<<m;
+			snaps = vu.VertexSnap; 
+			
+			if(m!=Model::PT_ALL) mask = 1<<m;
 		}
 	}
 
-	//if(config.get("ui_snap_vertex",false))
-	if(snaps&vu.VertexSnap)
+	//Perspective needs full getParentXYZW refactor to do better
+	//than snapping to the ortho matrix (which still seems to 
+	//have troubles even though I don't understand how.)
+	if(ss||m_view>Tool::ViewPerspective) 
+	if(snaps&vu.VertexSnap)	
 	{
 		// snap to vertex
 
@@ -1608,7 +1619,8 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		//HACK: I'm trying to add a click model to selecttool.cc
 		//(I got the idea from polytool.cc)
 		//const Matrix &mat = m_viewMatrix;
-		const Matrix &mat = ss?m_projMatrix:parent->getParentViewMatrix();
+		//2021: Did I miss this? Snap breaks down in perspective view???
+		const Matrix &mat = ss?m_projMatrix:parent->getParentBestMatrix();
 		Vector coord;
 		double saveCoord[3];
 
@@ -1637,7 +1649,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			//NOTE: If all points fall on a plane, just take first
 			//in vertex order
 			//if(dist<curDist)
-			if(dist<minDist&&coord[2]>saveCoord[2]) 
+			if(dist<minDist&&coord[2]>curDepth) 
 			{
 				//curDist = dist;
 				curDepth = coord[2];
@@ -1653,19 +1665,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 				}
 				else for(int i=3;i-->0;) saveCoord[i] = coord[i];
 			}
-		};
-		if(mask&1<<Model::PT_Vertex)
-		{
-			iN = model->getVertexCount();
-			for(i=0;i<iN;i++)
-			if(selected||!model->isVertexSelected(i))
-			{
-				model->getVertexCoords(i,coord.getVector());
-
-				f(Model::PT_Vertex);
-			}
-			parent->snap_vertex = curIndex;
-		}		
+		};			
 		if(mask&1<<Model::PT_Joint)
 		{
 			iN = model->getBoneJointCount();
@@ -1687,7 +1687,7 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 
 				f(Model::PT_Point);
 			}
-		}
+		}			
 		if(mask&1<<Model::PT_Projection)
 		{
 			iN = model->getProjectionCount();
@@ -1699,18 +1699,40 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 				f(Model::PT_Projection);
 			}
 		}
+		//There's a lot more vertices to process and they're
+		//smaller so users may need to zoom in. The main 
+		//reason for this is to be able to click on joints
+		//in skeletal animation mode.
+		if(curType==Model::PT_MAX)
+		if(mask&1<<Model::PT_Vertex)
+		{
+			iN = model->getVertexCount();
+			for(i=0;i<iN;i++)
+			if(selected||!model->isVertexSelected(i))
+			{
+				model->getVertexCoords(i,coord.getVector());
+
+				f(Model::PT_Vertex);
+			}
+			parent->snap_vertex = curIndex;
+		}
 
 		if(curIndex>=0)
 		{
 			xval = saveCoord[0]; yval = saveCoord[1];
-			zval = saveCoord[2]; 
+
+			zval = saveCoord[2]; ret = true;
 
 			maxDist = 0; //???
 		}
 
 		//EXPERIMENTAL
-		if(parent->snap_object.type==curType)		
-		parent->snap_object.index = curIndex;
+		if(parent->snap_object.type==curType
+		 ||parent->snap_object.type==Model::PT_ALL)		
+		{
+			parent->snap_object.type = curType;
+			parent->snap_object.index = curIndex;
+		}
 	}	
 
 	//if(config.get("ui_snap_grid",false))
@@ -1738,8 +1760,6 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		if(cmp[1]<maxDist) yval = val[1]-m_scroll[1];
 	}
 
-	//REMOVE ME?
-	//if(!multipanning)
 	if(m_view>Tool::ViewPerspective)
 	{
 		Vector pos;
@@ -1747,7 +1767,8 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		pos[0] = xval;
 		pos[1] = yval;
 		pos[2] = zval;
-		m_viewInverse.apply(pos);
+		//m_viewInverse.apply(pos);
+		m_bestInverse.apply(pos);
 		for(int i=0;i<3;i++) 
 		if(fabs(pos[i])<=0.000005) pos[i] = 0;
 
@@ -1759,6 +1780,8 @@ void ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
 		"Units: %g",m_unitWidth); //getUnitWidth());
 	}
+
+	return ret; //zval was set.
 }
 
 void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2)

@@ -70,7 +70,7 @@ FileDataSource::FileDataSource(const char *filename)
 	}
 
 	// FIXME: what if file size is too large for size_t.
-	setFileSize(length.QuadPart);
+	setFileSize((size_t)length.QuadPart);
 }
 
 FileDataSource::~FileDataSource()

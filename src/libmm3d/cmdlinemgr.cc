@@ -27,27 +27,23 @@ namespace
 {
 	class FunctionOption : public CommandLineManager::Option
 	{
-		public:
-			FunctionOption(char shortOption, const char *longOption,
-					bool takesArg,
-					CommandLineManager::OptionFunctionF optFunc)
-				: CommandLineManager::Option(shortOption,longOption,nullptr,takesArg),
-				  m_optFunc(optFunc)
-			{
-			}
+	public:
+		
+		FunctionOption(char shortOption, const char *longOption, 
+		bool takesArg, CommandLineManager::OptionFunctionF optFunc)
+		:CommandLineManager::Option(shortOption,longOption,nullptr,takesArg),
+		m_optFunc(optFunc){}
 
-			virtual ~FunctionOption()
-			{
-			}
+		virtual ~FunctionOption(){}
 
-			void customParse(const char *arg)
-			{
-				if(m_optFunc)
-					m_optFunc(arg);
-			}
+		virtual void customParse(const char *arg)
+		{
+			if(m_optFunc) m_optFunc(arg);
+		}
 
-		private:
-			CommandLineManager::OptionFunctionF m_optFunc;
+	private:
+
+		CommandLineManager::OptionFunctionF m_optFunc;
 	};
 } // namespace
 

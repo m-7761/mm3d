@@ -1429,7 +1429,7 @@ void Model::FormatData::serialize()
 {
 	// Implement this if you derive from Model::FormatData
 	// The default implementation assumes that data never changes
-	// after it is assigned,so it doesn't need to be re-serialized
+	// after it is assigned, so it doesn't need to be re-serialized
 }
 
 #ifdef MM3D_EDIT

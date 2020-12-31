@@ -103,7 +103,12 @@ void ScrollWidget::scrollRight()
 static const double texwidgit_zoom = 0.75;
 
 //0.0001,250000.0
-const double ScrollWidget::zoom_min = 0.0001;
+//2021: The modelviewport.cc projection math 
+//turns inside-out below 0.08. It's probably
+//related to the near-clipping plane. Ortho
+//views can go much lower but 0.08 is enough.
+//const double ScrollWidget::zoom_min = 0.0001;
+const double ScrollWidget::zoom_min = 0.08000;
 const double ScrollWidget::zoom_max = 250000;
 void ScrollWidget::setZoomLevel(double z)
 {		
@@ -1774,17 +1779,27 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		glRectd(m_xRangeMin-cx,m_yRangeMin-cy,m_xRangeMax+cx,m_yRangeMax+cy);
 	}
 	if(m_operation==MouseRotate) //drawRotationPoint()
-	{
-		glColor3f(0,1,0);
+	{	
+		//glColor3f(0,1,0);
+		glEnable(GL_COLOR_LOGIC_OP);
+		glColor3ub(0x80,0x80,0x80);
+		glLogicOp(GL_XOR);
 
 		double yoff = m_zoom*0.04;
 		double xoff = yoff/m_aspect;
+
+		/*Doesn't quite work without a depth buffer.
+		glTranslated(m_xRotPoint,m_yRotPoint,0);
+		rotatepoint_draw_manip((float)xoff,(float)yoff);
+		glTranslated(-m_xRotPoint,-m_yRotPoint,0);*/
 		glBegin(GL_QUADS);
 		glVertex2d(m_xRotPoint-xoff,m_yRotPoint);
 		glVertex2d(m_xRotPoint,m_yRotPoint-yoff);
 		glVertex2d(m_xRotPoint+xoff,m_yRotPoint);
 		glVertex2d(m_xRotPoint,m_yRotPoint+yoff);
 		glEnd();
+
+		glDisable(GL_COLOR_LOGIC_OP);
 	}
 
 	if(m_interactive) 

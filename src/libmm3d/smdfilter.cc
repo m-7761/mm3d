@@ -29,12 +29,12 @@ class SmdFilter : public ModelFilter
 {
 public:
 
-	Model::ModelErrorE readFile(Model *model, const char *const filename);
-	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
+	virtual Model::ModelErrorE readFile(Model *model, const char *const filename);
+	virtual Model::ModelErrorE writeFile(Model *model, const char *const filename, Options &o);
 
-	const char *getWriteTypes(){ return "SMD"; }
+	virtual const char *getWriteTypes(){ return "SMD"; }
 
-	Options *getDefaultOptions(){ return new SmdOptions; };
+	virtual Options *getDefaultOptions(){ return new SmdOptions; };
 
 protected:
 
@@ -169,7 +169,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 	}
 	else
 	{
-		for(int bone = 0; bone<boneCount; bone++)
+		for(unsigned bone = 0; bone<boneCount; bone++)
 		{
 			int parent = model->getBoneJointParent(bone);
 
@@ -204,41 +204,38 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 			writeLine(dst,"%d %.6f %.6f %.6f %.6f %.6f %.6f",
 							0,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f);
 		}
-		else
+		else for(unsigned bone = 0; bone<boneCount; bone++)
 		{
-			for(int bone = 0; bone<boneCount; bone++)
+			int parent = model->getBoneJointParent(bone);
+
+			Matrix m;
+			model->getBoneJointAbsoluteMatrix(bone,m);
+			m = m *saveMatrix;
+
+			Matrix pinv;
+			if(parent>=0)
 			{
-				int parent = model->getBoneJointParent(bone);
-
-				Matrix m;
-				model->getBoneJointAbsoluteMatrix(bone,m);
-				m = m *saveMatrix;
-
-				Matrix pinv;
-				if(parent>=0)
-				{
-					model->getBoneJointAbsoluteMatrix(parent,pinv);
-					pinv = pinv *saveMatrix;
-					pinv = pinv.getInverse();
-				}
-
-				Matrix lm;
-				lm = m *pinv;
-
-				double trans[3];
-				double rot[3];
-				lm.getTranslation(trans);
-				lm.getRotation(rot);
-
-				writeLine(dst,"%d %.6f %.6f %.6f %.6f %.6f %.6f",bone,
-								(float)trans[0],(float)trans[1],(float)trans[2],
-								(float)rot[0],(float)rot[1],(float)rot[2]);
+				model->getBoneJointAbsoluteMatrix(parent,pinv);
+				pinv = pinv *saveMatrix;
+				pinv = pinv.getInverse();
 			}
+
+			Matrix lm;
+			lm = m *pinv;
+
+			double trans[3];
+			double rot[3];
+			lm.getTranslation(trans);
+			lm.getRotation(rot);
+
+			writeLine(dst,"%d %.6f %.6f %.6f %.6f %.6f %.6f",bone,
+							(float)trans[0],(float)trans[1],(float)trans[2],
+							(float)rot[0],(float)rot[1],(float)rot[2]);
 		}
 
 		if(m_options->m_savePointsJoint)
 		{
-			for(int point = 0; point<pointCount; point++)
+			for(unsigned point = 0; point<pointCount; point++)
 			{
 				int parent = model->getPrimaryPointInfluence(point);
 
@@ -293,7 +290,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 
 			unsigned anim = *it;
 			//const char *animName = model->getAnimName(anim);
-			float fps = model->getAnimFPS(anim);
+			float fps = (float)model->getAnimFPS(anim);
 			unsigned frameCount = model->getAnimFrameCount(anim);
 			//bool loop = model->getAnimWrap(anim);
 
@@ -351,11 +348,9 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 							pinv = pinv.getInverse();
 						}
 
-						Matrix lm;
-						lm = m *pinv;
+						Matrix lm = m *pinv;
 
-						double trans[3];
-						double rot[3];
+						double trans[3],rot[3];
 						lm.getTranslation(trans);
 						lm.getRotation(rot);
 
@@ -375,7 +370,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 				// programs that require all joints to be animated.
 				if(m_options->m_savePointsJoint&&pointCount>0)
 				{
-					for(int point = 0; point<pointCount; point++)
+					for(unsigned point = 0; point<pointCount; point++)
 					{
 						int parent = model->getPrimaryPointInfluence(point);
 
@@ -391,11 +386,9 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 							pinv = pinv.getInverse();
 						}
 
-						Matrix lm;
-						lm = m *pinv;
+						Matrix lm = m *pinv;
 
-						double trans[3];
-						double rot[3];
+						double trans[3],rot[3];
 						lm.getTranslation(trans);
 						lm.getRotation(rot);
 

@@ -64,6 +64,10 @@ void JointTool::mouseButtonDown()
 
 	int p = -1;
 
+	//NOTE: This used to make the current root the 
+	//child of the new root, but now it's possible
+	//to reassign children and have parents out of
+	//order so it just makes island joints.
 	if(Tool::BS_Right!=parent->getButtons())
 	{
 		const Matrix &mat = parent->getParentBestMatrix();

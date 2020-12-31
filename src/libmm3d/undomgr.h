@@ -28,99 +28,88 @@
 
 class UndoList : public std::vector<Undo*>
 {
-	public:
+public:
 		
-		UndoList():m_name()
-		{}
-		
-		virtual ~UndoList()
-		{
-			free(m_name);
-		}
+	void setOpName(const char *name){ m_name = name; }
 
-		void setOpName(const char *name)
-		{ 
-			free(m_name);
+	const char *getOpName()const{ return m_name.c_str(); };
 
-			m_name = name?strdup(name):nullptr;
-		}
+protected:
 
-		const char *getOpName()const{ return m_name; };
-
-	protected:
-
-		char *m_name;
+	std::string m_name;
 };
 
 typedef std::vector<UndoList*> AtomicList;
 
 class UndoManager
 {
-	public:
-		UndoManager();
-		virtual ~UndoManager();
+public:
 
-		void clear();
+	UndoManager(),~UndoManager();
 
-		void setSaved();
-		bool isSaved()const;
+	void clear();
 
-		void addUndo(Undo *u,bool listCombine = false);		
-		void operationComplete(const char *opname = nullptr);
+	void setSaved();
+	bool isSaved()const;
 
-		// Items should be applied in reverse order (back to front)
-		UndoList *undo();
+	//See Model::sendUndo note.
+	//void addUndo(Undo *u,bool listCombine = false);
+	void addUndo(Undo *u);
+	void operationComplete(const char *opname = nullptr);
 
-		// Items should be applied in forward order (front to back)
-		UndoList *redo();
+	// Items should be applied in reverse order (back to front)
+	UndoList *undo();
 
-		// True if there is an undo list available
-		bool canUndo()const { return m_atomic.empty()? false : true; };
+	// Items should be applied in forward order (front to back)
+	UndoList *redo();
 
-		// True if there is a redo list available
-		bool canRedo()const { return m_atomicRedo.empty()? false : true ; }; 
+	// True if there is an undo list available
+	bool canUndo()const { return m_atomic.empty()? false : true; };
 
-		const char *getUndoOpName()const;
-		const char *getRedoOpName()const;
+	// True if there is a redo list available
+	bool canRedo()const { return m_atomicRedo.empty()? false : true ; }; 
 
-		//Exposing in order to implement Model::appendUndo.
-		AtomicList &getUndoStack(){ return m_atomic; }
+	const char *getUndoOpName()const;
+	const char *getRedoOpName()const;
 
-		// Only returns undo list if there is one being built
-		// Items should be applied in reverse order (back to front)
-		UndoList *undoCurrent();
+	//Exposing in order to implement Model::appendUndo.
+	AtomicList &getUndoStack(){ return m_atomic; }
 
-		// Allow intelligent handling of window close button
-		bool canUndoCurrent()const{ return m_currentUndo!=nullptr; }
+	// Only returns undo list if there is one being built
+	// Items should be applied in reverse order (back to front)
+	UndoList *undoCurrent();
 
-		void showStatistics()const;
+	// Allow intelligent handling of window close button
+	bool canUndoCurrent()const{ return m_currentUndo!=nullptr; }
 
-		void setSizeLimit(unsigned sizeLimit) { m_sizeLimit  = sizeLimit; };
-		void setCountLimit(unsigned countLimit){ m_countLimit = countLimit; };
+	void showStatistics()const;
 
-		size_t getSize(); //NEW
+	void setSizeLimit(unsigned sizeLimit) { m_sizeLimit  = sizeLimit; };
+	void setCountLimit(unsigned countLimit){ m_countLimit = countLimit; };
 
-	protected:
+	size_t getSize(); //NEW
 
-		enum //REMOVE ME (20mb IS WAY TOO SMALL?)
-		{
-			MAX_UNDO_LIST_SIZE = 20000000  // 20mb
-		};
+protected:
 
-		bool combineWithList(Undo *u);
-		void pushUndoToList(Undo *u);
-		void clearRedo();
-		void checkSize();
+	enum //REMOVE ME (20mb IS WAY TOO SMALL?)
+	{
+		MAX_UNDO_LIST_SIZE = 20000000  // 20mb
+	};
 
-		Undo		 *m_currentUndo;
-		UndoList	*m_currentList;
-		AtomicList	m_atomic;
-		AtomicList	m_atomicRedo;
-		bool			m_listCombine; //RETIRED
+	//bool combineWithList(Undo *u);
+	void pushUndoToList(Undo *u);
+	void clearRedo();
+	void checkSize();
 
-		unsigned	  m_sizeLimit;
-		unsigned	  m_countLimit;
-		int			 m_saveLevel;
+	Undo		 *m_currentUndo;
+	UndoList	*m_currentList;
+	AtomicList	m_atomic;
+	AtomicList	m_atomicRedo;
+	//bool			m_listCombine; //RETIRED
+
+	unsigned	  m_sizeLimit;
+	unsigned	  m_countLimit;
+	int			 m_saveLevel;
 };
 
 #endif // __UNDOMGR_H

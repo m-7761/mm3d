@@ -107,7 +107,9 @@ class Model
 			AnimationProperty    = 0x00010000, // Set animation times/frames/fps/wrap
 			ShowJoints           = 0x00020000, // Joints forced visible
 			ShowProjections      = 0x00040000, // Projections forced visible
-			ChangeAll			 = 0xFFFFFFFF	// All of the above
+			ChangeAll			 = 0xFFFFFFFF,	// All of the above
+
+			AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty,
 		};
 
 		// FIXME remove this when new equal routines are ready
@@ -194,20 +196,14 @@ class Model
 
 		enum PositionTypeE
 		{
-		  PT_Vertex,
-		  PT_Joint, //1
-		  PT_Point, //2
-		  PT_Projection,
-		  PT_MAX,
-		  //For the undo system.
-		  _OT_Background_=PT_MAX, 
-		};
-		enum PositionMaskE
-		{
-		  PM_None = 0,
-		  PM_Vertex = 1<<PT_Vertex,
-		  PM_Joint = 1<<PT_Joint,
-		  PM_Point = 1<<PT_Point,
+			PT_Vertex,
+			PT_Joint, //1
+			PT_Point, //2
+			PT_Projection,
+			PT_MAX,
+			//For the undo system.
+			_OT_Background_=PT_MAX,
+			PT_ALL = -1,
 		};
 
 		enum OperationScopeE
@@ -612,6 +608,16 @@ class Model
 			KeyTranslate = 1, //InterpolantCoords<<1
 			KeyRotate = 2, //InterpolantRotation<<1
 			KeyScale = 4, //InterpolantScale<<1
+		};
+		//Note: I didn't want to all this PositionMask
+		//because PM_Vertex seemed too easily confused
+		//for PT_Vertex, too easy to input by accident
+		enum KeyMask2021E
+		{
+		  KM_None = 0,
+		  KM_Vertex = 1<<PT_Vertex,
+		  KM_Joint = 1<<PT_Joint,
+		  KM_Point = 1<<PT_Point,
 		};
 		// A keyframe for a single joint in a single frame. Keyframes may be rotation or 
 		// translation (you can set one without setting the other).
@@ -1104,7 +1110,7 @@ class Model
 					  index(),
 					  len(),
 					  data(){ };
-				virtual ~FormatData();
+				virtual ~FormatData(); //???
 
 				uint16_t		offsetType;  // 0 = none,is valid
 				std::string	format;		// Should not be empty
@@ -1230,7 +1236,7 @@ class Model
 		class Observer
 		{
 			public:
-				virtual ~Observer(){} //???
+				//virtual ~Observer(){} //???
 				virtual void modelChanged(int changeBits)= 0;
 		};
 		typedef std::vector<Observer*> ObserverList;
@@ -1350,7 +1356,7 @@ class Model
 		void _drawPolygons(int,bool mark=false); //2019
 		void drawPoints();
 		void drawProjections();
-		void drawJoints(float alpha=1);
+		void drawJoints(float alpha=1, float axis=0);
 
 		//NOTE: m is ModelViewport::ViewOptionsE
 		void setCanvasDrawMode(int m){ m_canvasDrawMode = m; };
@@ -1600,7 +1606,7 @@ class Model
 
 		//2021: Tells if keyframes of a given type exists. Set "incl"
 		//to combination of PositionMaskE to only perform some tests.
-		PositionMaskE hasKeyframeData(unsigned anim, int incl=~0)const;
+		KeyMask2021E hasKeyframeData(unsigned anim, int incl=~0)const;
 
 		//MEMORY LEAK (removeKeyframe leaks if not using undo system.)
 		bool deleteKeyframe(unsigned anim, unsigned frame, Position joint, KeyType2020E isRotation=KeyAny);
@@ -1715,6 +1721,9 @@ class Model
 		typedef std::vector<Joint*> _JointList;
 		typedef const std::vector<const Joint*> JointList;
 		JointList &getJointList(){ return *(JointList*)&m_joints; };
+		typedef std::vector<std::pair<unsigned,Joint*>> _JointList2;
+		typedef const std::vector<std::pair<unsigned,Joint*>> JointList2;
+		JointList2 &getFlatJointList(){ return *(JointList2*)&m_joints2; };
 		typedef std::vector<Point*> _PointList;
 		typedef const std::vector<const Point*> PointList;
 		PointList &getPointList(){ return *(PointList*)&m_points; };
@@ -1902,14 +1911,9 @@ class Model
 		// Skeletal structure and influence functions
 		// ------------------------------------------------------------------
 		
-		//NOTE: Internally translation is all that matters. Rotation is
-		//just a number. As such it's best to keep it at 0,0,0 unless a
-		//tool changes the value for book-keeping purposes.
-		int addBoneJoint(const char *name, double x, double y, double z,
-				//2020: I think this is unnecessary. The loaders (filters)
-				//aren't using addBoneJoint.
-				/*double xrot, double yrot, double zrot,*/
-				int parent = -1);
+		//LEGACY: This is absolute translation (relative to the parent.)
+		int addBoneJoint(const char *name, double x, double y, double z, int parent=-1);
+		int addBoneJoint(const char *name, int parent=-1);		
 
 		void deleteBoneJoint(unsigned joint);
 
@@ -1932,12 +1936,12 @@ class Model
 		bool getPointFinalMatrix(unsigned pointNumber,Matrix &m)const;
 		bool getPointAbsoluteMatrix(unsigned pointNumber,Matrix &m)const;
 		
-		//REMOVE ME
+		/*REMOVE ME
 		//Only dupcmd uses this in a way that looks bad. 
-		void getBoneJointVertices(int joint, int_list&)const;
+		void getBoneJointVertices(int joint, int_list&)const;*/
 
-		//REMOVE US
-		//I think these date back to a time when primitives were stuck to one joint apiece.
+		//REMOVE US?
+		//These remove all existing influences and assign it 100%.
 		bool setPositionBoneJoint(const Position &pos, int joint);
 		bool setVertexBoneJoint(unsigned vertex, int joint);
 		bool setPointBoneJoint(unsigned point, int joint);
@@ -1957,8 +1961,7 @@ class Model
 		//REMOVE US
 		bool getPositionInfluences(const Position &pos,infl_list &l)const;
 		bool getVertexInfluences(unsigned vertex,infl_list &l)const;
-		bool getPointInfluences(unsigned point,infl_list &l)const;
-		
+		bool getPointInfluences(unsigned point,infl_list &l)const;		
 		//2019: Trying to encourage better programming.
 		infl_list &getVertexInfluences(unsigned vertex) //NEW
 		{		
@@ -2225,13 +2228,22 @@ class Model
 		};
 		void getSelectedInterpolation(unsigned anim, unsigned frame, Get3<Interpolate2020E>);
 
-		void unselectAll();				
-		void unselectAllVertices();
-		void unselectAllTriangles();
-		void unselectAllGroups(); 
-		bool unselectAllBoneJoints();
-		bool unselectAllPoints();
-		bool unselectAllProjections();
+		void selectAll(bool how=true);	
+		bool selectAllVertices(bool how=true);
+		bool selectAllTriangles(bool how=true);
+		bool selectAllGroups(bool how=true); 
+		bool selectAllBoneJoints(bool how=true);
+		bool selectAllPoints(bool how=true);
+		bool selectAllProjections(bool how=true);		
+		bool selectAllPositions(PositionTypeE, bool how=true);
+		void unselectAll(){ selectAll(false); }
+		bool unselectAllVertices(){ return selectAllVertices(false); }
+		bool unselectAllTriangles(){ return selectAllTriangles(false); }
+		bool unselectAllGroups(){ return selectAllGroups(false); }
+		bool unselectAllBoneJoints(){ return selectAllBoneJoints(false); }
+		bool unselectAllPoints(){ return selectAllPoints(false); }
+		bool unselectAllProjections(){ return selectAllProjections(false); }
+		bool unselectAllPositions(PositionTypeE pt){ return selectAllPositions(pt,false); }
 
 		// A selection test is an additional condition you can attach to whether
 		// or not an object in the selection volume should be selected. For example,
@@ -2304,7 +2316,9 @@ class Model
 		bool unselectProjection(unsigned p);
 		bool isProjectionSelected(unsigned p)const;
 
-		bool selectPosition(Position, bool how=true);
+		bool selectPosition(Position, bool how=true);		
+		bool unselectPosition(Position p){ return selectPosition(p,false); }
+		bool isPositionSelected(Position p)const;
 
 		// The behavior of this function changes based on the selection mode.
 		bool invertSelection();
@@ -2366,6 +2380,11 @@ class Model
 		bool movePoint(unsigned p, double x, double y, double z);
 		bool moveProjection(unsigned p, double x, double y, double z);
 
+		//TODO: NEED UNIFORM TRANSLATE/ROTATE MODES FOR JOINTS:
+		//1) Free movement (current for translation w/o animation)
+		//2) Move root of selection only (current for other modes)
+		//3) Move all (was current *bug* for rotating w/ animation)
+		//(3 can be pretty interesting, but might have applications)
 		void translateSelected(const double vec[3]);
 		void rotateSelected(const Matrix &m, const double point[3]);
 		void interpolateSelected(Interpolant2020E,Interpolate2020E);
@@ -2452,8 +2471,14 @@ class Model
 		// Undo
 		// ------------------------------------------------------------------
 
-		void sendUndo(Undo *undo,bool listCombine = false);
-		void appendUndo(Undo *undo);
+		//This flag used to interleave things in the undo list by searching
+		//into it, but this causes operations to be performed out-of-order
+		//so I changed it to be optining into the "combine" function, but
+		//I think now that it's too error prone to default or not really
+		//necessary to think about, so it should just always combine if
+		//combinable.
+		//void sendUndo(Undo *undo, bool listCombine = false);
+		void sendUndo(Undo *undo), appendUndo(Undo *undo);
 
 		// ------------------------------------------------------------------
 		// Meta
@@ -2491,6 +2516,7 @@ class Model
 		_GroupList m_groups;
 		_MaterialList m_materials;
 		_JointList m_joints;
+		_JointList2 m_joints2;
 		_PointList m_points;
 		_ProjectionList m_projections;
 		//_FrameAnimList m_frameAnims;		

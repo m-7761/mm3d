@@ -124,10 +124,22 @@ void ViewPanel::addEnum(bool cfg, int *val, utf8 name, const char **items)
 }
 void ViewPanel::groupParam()
 {
-	if(auto*c=params.nav.last_child()) c->sspace(0,-c->space<2>());
+	if(auto*c=params.nav.last_child())
+	{
+		//Checkbox right margin is just 2, so this doesn't buy much.
+		//c->sspace(0,-c->space<2>());
+		c->sspace(0,-8);
+	}
 }
 void ViewPanel::updateParams(){ params.nav.sync_live(); }
 void ViewPanel::removeParams(){ params.clear(); }
+void ViewPanel::hideParam(void *cmp, int how)
+{
+	if(auto*c=params.nav.find_child([cmp](Win::control *ch)
+	{
+		return ch->live_ptr()==cmp;
+	})) c->enable(how==0).set_hidden(how==1);
+}
 
 extern MainWin* &viewwin(int=glutGetWindow());
 extern void viewpanel_special_func(int kb, int x, int y)
@@ -172,10 +184,17 @@ extern void viewpanel_special_func(int kb, int x, int y)
 		}
 		else if(cm&GLUT_ACTIVE_SHIFT)
 		{
-			if(auto*c=vp.params.nav.last_child()) c->activate();
-			else goto beep;
+			auto *c = vp.params.nav.last_child();
+			while(c&&!c->activate()) 
+			c = c->next();
+			if(!c) goto beep;
 		}
-		else if(auto*c=vp.params.nav.first_child()) c->activate();
+		else if(auto*c=vp.params.nav.first_child())
+		{
+			while(c&&!c->activate())
+			c = c->prev(); 
+			if(!c) goto beep;
+		}
 		else beep:Win::event.beep();
 		return;
 

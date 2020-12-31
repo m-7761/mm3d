@@ -31,11 +31,11 @@ public:
 	Md2Filter();
 	virtual ~Md2Filter();
 
-	Model::ModelErrorE readFile(Model *model, const char *const filename);
-	Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
+	virtual Model::ModelErrorE readFile(Model *model, const char *const filename);
+	virtual Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
 
-	const char *getReadTypes(){ return "MD2"; }
-	const char *getWriteTypes(){ return "MD2"; }
+	virtual const char *getReadTypes(){ return "MD2"; }
+	virtual const char *getWriteTypes(){ return "MD2"; }
 
 protected:
 

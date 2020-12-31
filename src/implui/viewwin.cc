@@ -141,6 +141,8 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		//_deferredModelChanged makes this unnecessary.
 		//return;
 	}
+
+	toolbox.getCurrentTool()->modelChanged(changeBits);
 		
 	//TODO: May want to implement this in Model somehow.
 	//This is to keep the Properties panel from updating
@@ -557,20 +559,21 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry();
 		int conf = config.get("ui_ortho_drawing",0);
 		if(conf<0||conf>4) conf = 0;
-	glutAddMenuEntry(O(conf==0,ortho_wireframe,"Canvas Wireframe","View|Canvas","W"));		
-	glutAddMenuEntry(O(conf==1,ortho_flat,"Canvas Flat","View|Canvas","Alt+3"));
-	glutAddMenuEntry(O(conf==2,ortho_smooth,"Canvas Smooth","View|Canvas","Alt+4"));
-	glutAddMenuEntry(O(conf==3,ortho_texture,"Canvas Texture","View|Canvas","Alt+5"));
-	//I think I prefer Alt+F1, etc. for these, but Alt+F4 is Close on Windows?
-	glutAddMenuEntry(O(conf==4,ortho_blend,"Canvas Alpha Blend","View|Canvas","Shift+Alt+5"));
+	glutAddMenuEntry(O(conf==0,ortho_wireframe,"2D Wireframe","View|Canvas","W"));		
+	//2021: 2 for 2D, 4 for 2D+2D UV Map (mnemonic system)
+	glutAddMenuEntry(O(conf==1,ortho_flat,"2D Flat","View|Canvas","Alt+2"));
+	glutAddMenuEntry(O(conf==2,ortho_smooth,"2D Smooth","View|Canvas","Shift+Alt+2"));
+	glutAddMenuEntry(O(conf==3,ortho_texture,"2D Texture","View|Canvas","Alt+4"));
+	glutAddMenuEntry(O(conf==4,ortho_blend,"2D Alpha Blend","View|Canvas","Shift+Alt+4"));
 	glutAddMenuEntry();
 		conf = config.get("ui_persp_drawing",3);
 		if(conf<0||conf>4) conf = 3;
-	glutAddMenuEntry(O(conf==0,persp_wireframe,"3D Wireframe","View|3D","Alt+6"));
-	glutAddMenuEntry(O(conf==1,persp_flat,"3D Flat","View|3D","Alt+7"));
-	glutAddMenuEntry(O(conf==2,persp_smooth,"3D Smooth","View|3D","Alt+8"));
-	glutAddMenuEntry(O(conf==3,persp_texture,"3D Texture","View|3D","Alt+9"));
-	glutAddMenuEntry(O(conf==4,persp_blend,"3D Alpha Blend","View|3D","Shift+Alt+9"));
+	//2021: 3 for 3D, 5 for 3D+2D UV Map (mnemonic system)
+	glutAddMenuEntry(O(conf==0,persp_wireframe,"3D Wireframe","View|3D","Alt+1"));
+	glutAddMenuEntry(O(conf==1,persp_flat,"3D Flat","View|3D","Alt+3"));
+	glutAddMenuEntry(O(conf==2,persp_smooth,"3D Smooth","View|3D","Shift+Alt+3"));
+	glutAddMenuEntry(O(conf==3,persp_texture,"3D Texture","View|3D","Alt+5"));
+	glutAddMenuEntry(O(conf==4,persp_blend,"3D Alpha Blend","View|3D","Shift+Alt+5"));
 	glutAddMenuEntry();		
 		r = s = t = u = v = false;
 		switch(config.get("ui_viewport_count",0))
@@ -865,7 +868,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(::tr("&License","Help|License"),id_license);		
 	glutAddMenuEntry(::tr("&About","Help|About"),id_about);	
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(unscale,"&Unscale","","Alt+1"));
+	glutAddMenuEntry(E(unscale,"&Unscale","","Shift+Alt+1"));
 	}
 		
 	_menubar = glutCreateMenu(viewwin_menubarfunc);
@@ -1398,7 +1401,7 @@ void MainWin::frame(int scope)
 	if(model->getBounds(os,&x1,&y1,&z1,&x2,&y2,&z2))
 	{
 		//NEW: true locks 2d viewports.
-		views.frameArea(viewwin_interlock,x1,y1,z1,x2,y2,z2);
+		views.frameArea(1==viewwin_interlock,x1,y1,z1,x2,y2,z2);
 	}
 	else //NEW: If nothing is selected, frame model. 
 	{	
@@ -1410,7 +1413,7 @@ void MainWin::frame(int scope)
 		{
 			auto &va = model->getViewportUnits();
 			double x = va.lines3d*va.inc3d;
-			views.frameArea(viewwin_interlock,-x,-x,-x,x,x,x);
+			views.frameArea(1==viewwin_interlock,-x,-x,-x,x,x,x);
 		}
 	}
 }
@@ -1801,19 +1804,16 @@ void MainWin::perform_menu_action(int id)
 
 	case id_file_export_selection: 
 
-		if(!w->selection.empty())
+		if(!w->selection.empty())		
+		if(Model*tmp=m->copySelected())
 		{
-			if(Model*tmp=m->copySelected())
-			{
-				MainWin::save(tmp,true); delete tmp;
-			}
+			MainWin::save(tmp,true);
+			
+			delete tmp; return;
 		}
-		else 
-		{
-			model_status(m,StatusError,STATUSTIME_LONG,
-			//::tr("You must have at least 1 face, joint, or point selected to Export Selected"));
-			::tr("Select faces, joints, or points to export"));
-		}
+		model_status(m,StatusError,STATUSTIME_LONG,
+		//::tr("You must have at least 1 face, joint, or point selected to Export Selected"));
+		::tr("Select faces, joints, points, or projections to export"));
 		return;
 
 	//case id_file_run_script:
@@ -1886,10 +1886,10 @@ void MainWin::perform_menu_action(int id)
 	{
 		id-=id_rops_hide_projections;
 		//Let Shift+P toggle.
-		if(id==m->getDrawProjections())
+		if(id==(int)m->getDrawProjections())
 		id = !id;
 		config.set("ui_render_projections",id);
-		m->setDrawProjections(id,Model::ShowProjections);
+		m->setDrawProjections(1==id,Model::ShowProjections);
 		break;
 	}
 	case id_rops_show_badtex: 
@@ -1898,7 +1898,7 @@ void MainWin::perform_menu_action(int id)
 		id-=id_rops_hide_badtex;
 		config.set("ui_render_bad_textures",id);
 		//NEW
-		m->setDrawOption(Model::DO_BADTEX,id);
+		m->setDrawOption(Model::DO_BADTEX,1==id);
 		break;
 
 	case id_rops_hide_lines: 
@@ -1906,13 +1906,13 @@ void MainWin::perform_menu_action(int id)
 		
 		id-=id_rops_hide_lines;
 		//Let Shift+W toggle.
-		if(id==m->getDrawSelection())
+		if(id==(int)m->getDrawSelection())
 		{
 			id = !id;
 			glutext::glutMenuEnable(id_rops_hide_lines+id,glutext::GLUT_MENU_CHECK);
 		}		
 		config.set("ui_render_3d_selections",id);
-		m->setDrawSelection(id);
+		m->setDrawSelection(1==id);
 		break;
 
 	case id_rops_hide_backs:

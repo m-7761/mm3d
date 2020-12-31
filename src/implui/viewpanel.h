@@ -129,6 +129,7 @@ public: //slots:
 	virtual void groupParam();
 	virtual void updateParams();
 	virtual void removeParams();
+	virtual void hideParam(void *p, int how);
 	virtual void updateView();
 	virtual void updateAllViews();
 

@@ -140,9 +140,6 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 	auto p = Animation::get();
 		
 	p->_type = m; p->m_name = name;
-	
-	//2021: No using map with joints+points.
-	//p->m_keyframes.resize(m_joints.size()); //YUCK
 
 	/*DEFERRING FOR TYPE 3 ANIMATION (_anim_valloc)
 	//NOTE: There's a problem here since intially the 
@@ -322,7 +319,7 @@ bool Model::setAnimFPS(unsigned anim, double fps)
 			{
 				auto undo = new MU_SetAnimFPS;
 				undo->setFPS(anim,fps,ab->m_fps);
-				sendUndo(undo,true);
+				sendUndo(undo/*,true*/);
 			}
 
 			ab->m_fps = fps; 
@@ -344,7 +341,7 @@ bool Model::setAnimWrap(unsigned anim, bool wrap)
 			{
 				auto undo = new MU_SetAnimWrap;
 				undo->setAnimWrap(anim,wrap,ab->m_wrap);
-				sendUndo(undo,true);
+				sendUndo(undo/*,true*/);
 			}
 
 			ab->m_wrap = wrap;
@@ -373,7 +370,7 @@ bool Model::setAnimTimeFrame(unsigned anim, double time)
 	{
 		auto undo = new MU_SetAnimTime;
 		undo->setAnimTimeFrame(anim,time,ab->_time_frame());
-		sendUndo(undo,true);
+		sendUndo(undo/*,true*/);
 	}
 
 	ab->m_frame2020 = time;
@@ -406,7 +403,7 @@ bool Model::setAnimFrameTime(unsigned anim, unsigned frame, double time)
 		{
 			auto undo = new MU_SetAnimTime;
 			undo->setAnimFrameTime(anim,frame,time,t);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		t = time;			
@@ -459,7 +456,7 @@ bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned ver
 	{
 		auto undo = new MU_MoveFrameVertex(anim,frame);
 		undo->addVertex(vertex,x,y,z,interp2020,fav);
-		sendUndo(undo,true);
+		sendUndo(undo/*,true*/);
 	}
 
 	fav->m_coord[0] = x;
@@ -679,7 +676,7 @@ bool Model::joinAnimations(unsigned anim1, unsigned anim2)
 				*d = *p;
 			}
 
-			if(ue) sendUndo(undo,false);
+			if(ue) sendUndo(undo);
 		}
 	}	
 
@@ -868,7 +865,7 @@ bool Model::mergeAnimations(unsigned anim1, unsigned anim2)
 				*d = *p;
 			}
 
-			if(ue) sendUndo(undo,false);
+			if(ue) sendUndo(undo);
 		}
 	}		
 
@@ -1505,15 +1502,16 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 		return true; //2021
 	}
 
-	AnimationModeE oldMode = m_animationMode;
-	int oldAnim = m_currentAnim; //2019
-	int oldFrame = m_currentFrame; //2019
+	//AnimationModeE oldMode = m_animationMode;
+	//int oldAnim = m_currentAnim; //2019
+	//int oldFrame = m_currentFrame; //2019
+	auto old = makeRestorePoint();
 
-	//log_debug("Changing animation from %d to %d\n",oldMode,m); //???
+	//log_debug("Changing animation from %d to %d\n",old.mode,m); //???
 
 	//2021: Letting the animation and time be remembered so
 	//animation can be toggled on and off.
-	if(oldAnim!=anim)
+	if(old.anim!=anim)
 	{
 		//NOTE: setCurrentAnimationFrameTime is not called since
 		//the caller may have a different time than zero in mind.
@@ -1523,16 +1521,16 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 
 		m_changeBits |= AnimationSet;
 	}
-	if(m!=oldMode)
+	if(m!=old.mode)
 	{
 		m_changeBits |= AnimationMode;
 	}
 	
-	if(oldMode||m) m_validBspTree = false;
+	if(old.mode||m) m_validBspTree = false;
 
 	//2020: setCurrentAnimationTime builds its normals from the
 	//base model's flat normals.
-	if(!oldMode&&m) 
+	if(!old.mode&&m) 
 	{
 		//Note: This is called below too (after _source is set)
 		//but with different criteria.
@@ -1542,14 +1540,14 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 	}	
 	m_animationMode = m;
 	if(m_undoEnabled)
-	sendUndo(new MU_ChangeAnimState(makeRestorePoint(),*this));
+	sendUndo(new MU_ChangeAnimState(this,old));
 
 		for(auto*ea:m_vertices) ea->_source(m);
 		for(auto*ea:m_triangles) ea->_source(m);
 		for(auto*ea:m_points) ea->_source(m);
 		for(auto*ea:m_joints) ea->_source(m);
 
-	if(!m&&oldMode)
+	if(!m&&old.mode)
 	{
 		//SelectTool is failing to find bones? Might want to do this
 		//unconditionally, but setCurrentAnimationTime is currently
@@ -1729,14 +1727,15 @@ void Model::calculateSkel()
 
 	//log_debug("validateSkel()\n"); //???
 
-	/*REMOVE ME
-	//Assuming addAnimation covers this for loaders
-	for(auto*sa:m_skelAnims)
-	sa->m_keyframes.resize(m_joints.size());*/
+	//2021: Must do in order even if parentage
+	//is reordered.
+	//for(unsigned j=0;j<m_joints.size();j++)
+	for(auto&ea:m_joints2)
+	{		
+		//unsigned j = ea.first;
+		//Joint *jt = m_joints[j];
+		Joint *jt = ea.second;
 
-	for(unsigned j=0;j<m_joints.size();j++)
-	{
-		Joint *jt = m_joints[j];
 		jt->m_relative.loadIdentity();
 		jt->m_relative.setRotation(jt->m_rot);
 		jt->m_relative.scale(jt->m_xyz);
@@ -1755,6 +1754,7 @@ void Model::calculateSkel()
 		//REMINDER: This matrix is going to be animated. Not sure why it's
 		//set here.
 		jt->m_final = jt->m_absolute;
+
 //		log_debug("\n");
 //		log_debug("Joint %d:\n",j);
 //		jt->m_final.show();
@@ -1789,9 +1789,15 @@ void Model::calculateAnimSkel()
 		auto sa = m_anims[anim]; assert(sa->_type&1);
 
 		Matrix transform;
-		auto jN = m_joints.size();
-		for(Position j{PT_Joint,0};j<jN;j++)
+
+		//2021: Must do in order even if parentage
+		//is reordered.
+		//auto jN = m_joints.size();
+		//for(Position j{PT_Joint,0};j<jN;j++)
+		for(auto&ea:m_joints2)
 		{
+			Position j{PT_Joint,ea.first};
+
 			double trans[3],rot[3],scale[3];
 			//interpSkelAnimKeyframeTime(anim,frameTime,sa->m_wrap,j,transform);
 			int ch = interpKeyframe(anim,f,t,j,trans,rot,scale);
@@ -2088,21 +2094,21 @@ Model::Interpolate2020E Model::getFrameAnimVertexCoords(unsigned anim, unsigned 
 	return InterpolateNone; 
 }
 
-Model::PositionMaskE Model::hasKeyframeData(unsigned anim, int incl)const
+Model::KeyMask2021E Model::hasKeyframeData(unsigned anim, int incl)const
 {
 	//REMINDER: This supports convertAnimToType.
 
-	Animation *ab = _anim(anim); if(!ab) return PM_None;
+	Animation *ab = _anim(anim); if(!ab) return KM_None;
 
 	unsigned mask = 0; 
-	if(int inc2=incl&~PM_Vertex)	
+	if(int inc2=incl&~KM_Vertex)	
 	for(auto&ea:ab->m_keyframes) if(!ea.second.empty())
 	{
 		mask|=1<<ea.first.type;
 
 		if(mask==inc2) break; //Early out in simple case?
 	}
-	if(incl&PM_Vertex) if(~ab->m_frame0) //ANIMMODE_FRAME
+	if(incl&KM_Vertex) if(~ab->m_frame0) //ANIMMODE_FRAME
 	{
 		auto fc = ab->_frame_count(); 
 		auto fp = ab->m_frame0;
@@ -2111,9 +2117,9 @@ Model::PositionMaskE Model::hasKeyframeData(unsigned anim, int incl)const
 		for(auto*ea:m_vertices) 		
 		for(auto f=fp;f<fd;f++)
 		if(ea->m_frames[f]->m_interp2020)
-		return PositionMaskE(incl&(mask|PM_Vertex));
+		return KeyMask2021E(incl&(mask|KM_Vertex));
 	}
-	return PositionMaskE(incl&mask);
+	return KeyMask2021E(incl&mask);
 }
 
 Model::Interpolate2020E Model::hasKeyframe(unsigned anim, unsigned frame,

@@ -85,7 +85,7 @@ bool Model::setGroupSmooth(unsigned groupNum, uint8_t smooth)
 			{
 				auto undo = new MU_SetGroupSmooth;
 				undo->setGroupSmooth(groupNum,smooth,m_groups[groupNum]->m_smooth);		
-				sendUndo(undo,true);
+				sendUndo(undo/*,true*/);
 			}
 
 			m_groups[groupNum]->m_smooth = smooth;
@@ -111,7 +111,7 @@ bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 			{
 				auto undo = new MU_SetGroupAngle;
 				undo->setGroupAngle(groupNum,angle,m_groups[groupNum]->m_angle);
-				sendUndo(undo,true);
+				sendUndo(undo/*,true*/);
 			}
 
 			m_groups[groupNum]->m_angle = angle;
@@ -246,7 +246,7 @@ void Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 		{
 			auto undo = new MU_AddToGroup;
 			undo->addToGroup(groupNum,triangleNum);
-			sendUndo(undo,true);
+			sendUndo(undo/*,true*/);
 		}
 
 		m_validBspTree = false;
@@ -278,7 +278,7 @@ void Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 			{
 				auto undo = new MU_RemoveFromGroup;
 				undo->removeFromGroup(groupNum,triangleNum);
-				sendUndo(undo,true);
+				sendUndo(undo/*,true*/);
 			}
 		}
 

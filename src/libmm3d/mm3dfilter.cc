@@ -372,17 +372,17 @@ namespace
 
 	enum MisfitFrameAnimFlagsE
 	{
-		MFAF_ANIM_LOOP = 0x0001,
+		MFAF_ANIM_WRAP = 0x0001,
 	};
 
 	enum MisfitSkelAnimFlagsE
 	{
-		MSAF_ANIM_LOOP = 0x0001
+		MSAF_ANIM_WRAP = 0x0001
 	};
 	
 	enum MM3DFILE_AnimFlagsE //2021
 	{
-		MAF_ANIM_LOOP = 0x0008
+		MAF_ANIM_WRAP = 0x0008
 	};
 
 	// File header
@@ -554,11 +554,11 @@ namespace
 		//static const uint8_t WRITE_VERSION_MINOR = 0;
 		static const uint8_t WRITE_VERSION_MINOR = 1; //MDT_Animations/MDT_ScaleFactors
 
-		Model::ModelErrorE readFile(Model *model, const char *const filename);
-		Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
+		virtual Model::ModelErrorE readFile(Model *model, const char *const filename);
+		virtual Model::ModelErrorE writeFile(Model *model, const char *const filename, Options&);
 
-		const char *getReadTypes(){ return "MM3D"; }
-		const char *getWriteTypes(){ return "MM3D"; }
+		virtual const char *getReadTypes(){ return "MM3D"; }
+		virtual const char *getWriteTypes(){ return "MM3D"; }
 
 	protected:
 
@@ -627,7 +627,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		msg_error(TRANSLATE("LowLevel","MM3D encountered an unexpected data size problem\nSee Help->About to contact the developers")).c_str());
 		return Model::ERROR_FILE_OPEN;
 	}*/
-	int compile[4==sizeof(float32_t)];
+	int compile[4==sizeof(float32_t)]; (void)compile;
 
 	Model::ModelErrorE err = Model::ERROR_NONE;
 	m_src = openInput(filename,err);
@@ -752,7 +752,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	auto &modelTriangles = model->getTriangleList();
 	auto &modelGroups = model->getGroupList();
 	auto &modelMaterials = (Model::_MaterialList&)model->getMaterialList();
-	auto &modelJoints = (Model::_JointList&)model->getJointList();
+	auto &modelJoints = model->getJointList();
 	auto &modelPoints = model->getPointList();
 	auto &modelAnims = model->getAnimationList();
 
@@ -1256,6 +1256,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		for(unsigned j = 0; j<count; j++)
 		{
 			log_debug("reading joint %d/%d\n",j,count);
+
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1264,7 +1265,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			MM3DFILE_JointT fileJoint;
 			m_src->read(fileJoint.flags);
 			int jointFlags = fileJoint.flags;
-			m_src->readBytes(fileJoint.name,sizeof(fileJoint.name));
+			m_src->readBytes(fileJoint.name,sizeof(fileJoint.name));			
 			m_src->read(fileJoint.parentIndex);
 			m_src->read(fileJoint.localRot[0]);
 			m_src->read(fileJoint.localRot[1]);
@@ -1278,18 +1279,34 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				m_src->read(fileJoint.localScale[1]);
 				m_src->read(fileJoint.localScale[2]);
 			}
+			if(auto&jj=fileJoint.parentIndex) if(jj>=(signed)count)
+			{
+				if(!mm3d2020) //https://github.com/zturtleman/mm3d/issues/136
+				{
+					log_warning("Joint %d has bad parent joint, checking endianness\n",j);
 
-			Model::Joint *joint = Model::Joint::get();
-
+					// Misfit Model 3D 1.1.7 to 1.1.9 wrote joint parent as 
+					// native endian while the rest of the file was little endian.
+					m_src->swapEndianness(jj);
+				}
+				if(jj>=(signed)count)
+				{
+					missingElements = true;
+					
+					log_error("Joint %d has missing parent joint %d\n",j,jj);
+				}
+			}
 			fileJoint.name[sizeof(fileJoint.name)-1] = '\0';
 
-			joint->m_name = fileJoint.name;
-			joint->m_parent = fileJoint.parentIndex;
-			for(unsigned i = 0; i<3; i++)
+			int jn = model->addBoneJoint(fileJoint.name,fileJoint.parentIndex);	
+
+			//HACK: Previously addBoneJoint was bypassed. 
+			auto joint = (Model::Joint*)modelJoints[jn];
+			for(int i=3;i-->0;)
 			{
-				joint->m_rot[i] = fileJoint.localRot[i];
-				joint->m_rel[i] = fileJoint.localTrans[i];
-				if(mm3d2020&&!mm3d2021) //REMOVE ME
+				joint->m_rel[i] = fileJoint.localTrans[i]; 
+				joint->m_rot[i] = fileJoint.localRot[i]; 
+				if(mm3d2020&&!mm3d2021) //REMOVE ME			
 				joint->m_xyz[i] = fileJoint.localScale[i];
 			}			
 			if(jointFlags&MF_SELECTED)
@@ -1299,8 +1316,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			if(mm3d2020)
 			if(jointFlags&MF_VERTFREE) //2020 (draw as line?)
 			joint->m_bone = false;
-
-			modelJoints.push_back(joint); //REMOVE ME
 		}
 
 		log_debug("read %d joints\n",count);
@@ -1722,7 +1737,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			unsigned anim = model->addAnimation(Model::ANIMMODE_SKELETAL,name);
 			model->setAnimFPS(anim,fps);
 			model->setAnimFrameCount(anim,frameCount);
-			model->setAnimWrap(anim,(flags&MSAF_ANIM_LOOP)!=0);
+			model->setAnimWrap(anim,(flags&MSAF_ANIM_WRAP)!=0);
 			
 			if(mm3d2020) //REMOVE ME
 			{				
@@ -1856,7 +1871,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			unsigned anim = model->addAnimation(Model::ANIMMODE_FRAME,name);
 			model->setAnimFPS(anim,fps);
 			model->setAnimFrameCount(anim,frameCount);
-			model->setAnimWrap(anim,(flags &MFAF_ANIM_LOOP)!=0);
+			model->setAnimWrap(anim,(flags&MFAF_ANIM_WRAP)!=0);
 
 			if(mm3d2020) //REMOVE ME
 			{	
@@ -2112,7 +2127,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 			model->setAnimFPS(anim,fps);
 			model->setAnimFrameCount(anim,frameCount);
-			model->setAnimWrap(anim,(flags&MAF_ANIM_LOOP)!=0); //8
+			model->setAnimWrap(anim,(flags&MAF_ANIM_WRAP)!=0); //8
 
 			float32_t frame2020;
 			for(uint32_t f=0;f<frameCount;f++)
@@ -2127,7 +2142,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			uint32_t keyframeMask;
 			m_src->read(keyframeMask);
-			if(keyframeMask&Model::PM_Vertex)
+			if(keyframeMask&Model::KM_Vertex)
 			for(unsigned f=0;f<frameCount;f++)
 			{
 				unsigned vM,vN,v = 0;
@@ -2286,26 +2301,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			{
 				missingElements = true;
 				log_error("Group %d uses missing texture %d\n",g,modelGroups[g]->m_materialIndex);
-			}
-		}
-
-		for(unsigned j = 0; j<jcount; j++)
-		{
-			auto jj = modelJoints[j]->m_parent; if(jj>=(signed)jcount)
-			{
-				log_warning("Joint %d has bad parent joint, checking endianness\n",j);
-
-				if(!mm3d2020) //https://github.com/zturtleman/mm3d/issues/136
-				{
-					// Misfit Model 3D 1.1.7 to 1.1.9 wrote joint parent as 
-					// native endian while the rest of the file was little endian.
-					m_src->swapEndianness(jj); if(jj<(signed)jcount) modelJoints[j]->m_parent = jj;
-				}
-				if(jj>=(signed)jcount)
-				{
-					missingElements = true;
-					log_error("Joint %d has missing parent joint %d\n",j,modelJoints[j]->m_parent);
-				}
 			}
 		}
 	}
@@ -2524,35 +2519,22 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		for(unsigned t = 0; t<count; t++)
 		{
-			MM3DFILE_TriangleNormalsT fileNormals;
-
-			fileNormals.flags = 0x0000;
-			fileNormals.index = t;
-
-			for(unsigned v = 0; v<3; v++)
+			//REFERENCE
+			//MM3DFILE_TriangleNormalsT fileNormals;
+			//fileNormals.flags = 0x0000;
+			//fileNormals.index = t;
+			//for(unsigned v=0;v<3;v++)
 			{
 				//Can this source from m_finalNormals instead?
 				//NOTE: m_vertexNormals did not factor in smoothing... it can be
 				//disabled by calculateNormals if necessary.
-				//fileNormals.normal[v][0] = modelTriangles[t]->m_vertexNormals[v][0];
-				//fileNormals.normal[v][1] = modelTriangles[t]->m_vertexNormals[v][1];
-				//fileNormals.normal[v][2] = modelTriangles[t]->m_vertexNormals[v][2];
-				fileNormals.normal[v][0] = modelTriangles[t]->m_finalNormals[v][0];
-				fileNormals.normal[v][1] = modelTriangles[t]->m_finalNormals[v][1];
-				fileNormals.normal[v][2] = modelTriangles[t]->m_finalNormals[v][2];
+				//fileNormals.normal[v][...] = modelTriangles[t]->m_vertexNormals[v][...];
 			}
-
-			m_dst->write(fileNormals.flags);
-			m_dst->write(fileNormals.index);
-			m_dst->write(fileNormals.normal[0][0]);
-			m_dst->write(fileNormals.normal[0][1]);
-			m_dst->write(fileNormals.normal[0][2]);
-			m_dst->write(fileNormals.normal[1][0]);
-			m_dst->write(fileNormals.normal[1][1]);
-			m_dst->write(fileNormals.normal[1][2]);
-			m_dst->write(fileNormals.normal[2][0]);
-			m_dst->write(fileNormals.normal[2][1]);
-			m_dst->write(fileNormals.normal[2][2]);
+			m_dst->write((uint16_t)0);
+			m_dst->write((uint32_t)t);
+			for(unsigned v=0;v<3;v++)
+			for(unsigned i=0;i<3;i++)
+			m_dst->write((float32_t)modelTriangles[t]->m_finalNormals[v][i]);
 		}
 		log_debug("wrote %d triangle normals\n",count);
 	}
@@ -2816,7 +2798,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			cb.flags = 0x0000;
 			cb.viewIndex = b;
 
-			cb.scale = model->getBackgroundScale(b);
+			cb.scale = (float)model->getBackgroundScale(b);
 			model->getBackgroundCenter(b,cb.center[0],cb.center[1],cb.center[2]);
 
 			std::string relFile = 
@@ -2866,8 +2848,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			fileJoint.parentIndex = joint->m_parent;
 			for(int i=3;i-->0;)
 			{
-				fileJoint.localRot[i]	= joint->m_rot[i];
-				fileJoint.localTrans[i] = joint->m_rel[i];
+				fileJoint.localRot[i]	= (float)joint->m_rot[i];
+				fileJoint.localTrans[i] = (float)joint->m_rel[i];
 			}
 
 			m_dst->write(fileJoint.flags);
@@ -2909,8 +2891,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			auto point = modelPoints[p];
 			for(int i=3;i-->0;)
 			{
-				filePoint.rot[i] = point->m_rot[i];
-				filePoint.trans[i] = point->m_abs[i];
+				filePoint.rot[i] = (float)point->m_rot[i];
+				filePoint.trans[i] = (float)point->m_abs[i];
 			}
 
 			m_dst->write(filePoint.flags);
@@ -2978,51 +2960,33 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			int32_t type = model->getProjectionType(p);
 			m_dst->write(type);
 
-			double coord[3]  = { 0,0,0 };
-			float  fcoord[3] = { 0.0f,0.0f,0.0f };
-
+			double coord[3];
 			model->getProjectionCoords(p,coord);
-			fcoord[0] = coord[0];
-			fcoord[1] = coord[1];
-			fcoord[2] = coord[2];
-			m_dst->write(fcoord[0]);
-			m_dst->write(fcoord[1]);
-			m_dst->write(fcoord[2]);
+			m_dst->write((float32_t)coord[0]);
+			m_dst->write((float32_t)coord[1]);
+			m_dst->write((float32_t)coord[2]);
 
 			//MM3D2020			
 			//model->getProjectionUp(p,coord);
 			//HACK: Go ahead and get all three values.
 			model->getPositionScale({Model::PT_Projection,p},coord);
-
-			fcoord[0] = coord[0];
-			fcoord[1] = coord[1];
-			fcoord[2] = coord[2];
-			m_dst->write(fcoord[0]);
-			m_dst->write(fcoord[1]);
-			m_dst->write(fcoord[2]);
+			m_dst->write((float32_t)coord[0]);
+			m_dst->write((float32_t)coord[1]);
+			m_dst->write((float32_t)coord[2]);
 
 			//MM3D2020
 			//model->getProjectionSeam(p,coord);
 			model->getProjectionRotation(p,coord);
-			fcoord[0] = coord[0];
-			fcoord[1] = coord[1];
-			fcoord[2] = coord[2];
-			m_dst->write(fcoord[0]);
-			m_dst->write(fcoord[1]);
-			m_dst->write(fcoord[2]);
+			m_dst->write((float32_t)coord[0]);
+			m_dst->write((float32_t)coord[1]);
+			m_dst->write((float32_t)coord[2]);
 
 			double uv[2][2];
-			float  fuv[2][2];
-
-			model->getProjectionRange(p,uv[0][0],uv[0][1],uv[1][0],uv[1][1]);
-			fuv[0][0] = uv[0][0];
-			fuv[0][1] = uv[0][1];
-			fuv[1][0] = uv[1][0];
-			fuv[1][1] = uv[1][1];
-			m_dst->write(fuv[0][0]);
-			m_dst->write(fuv[0][1]);
-			m_dst->write(fuv[1][0]);
-			m_dst->write(fuv[1][1]);
+			model->getProjectionRange(p,uv[0][0],uv[0][1],uv[1][0],uv[1][1]);			
+			m_dst->write((float32_t)uv[0][0]);
+			m_dst->write((float32_t)uv[0][1]);
+			m_dst->write((float32_t)uv[1][0]);
+			m_dst->write((float32_t)uv[1][1]);
 		}
 		log_debug("wrote %d texture projections\n",count);
 	}
@@ -3066,7 +3030,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			uint32_t frameCount = ab->_frame_count();
 
 			uint16_t flags = ab->_type;
-			if(ab->m_wrap) flags|=MAF_ANIM_LOOP; //8
+			if(ab->m_wrap) flags|=MAF_ANIM_WRAP; //8
 			
 			m_dst->write(flags);
 			m_dst->writeBytes(ab->m_name.c_str(),ab->m_name.size()+1);
@@ -3077,11 +3041,11 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write((float32_t)ab->_time_frame());
 
 			uint32_t keyframeMask = model->hasKeyframeData
-			(anim,Model::PM_Vertex|Model::PM_Joint|Model::PM_Point);
+			(anim,Model::KM_Vertex|Model::KM_Joint|Model::KM_Point);
 
 			m_dst->write(keyframeMask);
 
-			if(keyframeMask&Model::PM_Vertex)
+			if(keyframeMask&Model::KM_Vertex)
 			{
 				unsigned fp = ab->m_frame0;
 				size_t vcount = modelVerts.size();
@@ -3133,7 +3097,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					//is described by Byte 1 & 2 as a unit.
 					uint8_t format_descriptor[4] = 
 					{
-						kf->m_interp2020,0,kf->m_isRotation,4
+						(char)kf->m_interp2020,0,(char)kf->m_isRotation,4
 					};
 					m_dst->writeBytes(format_descriptor,4);
 					m_dst->write((uint16_t)ea.first.index);

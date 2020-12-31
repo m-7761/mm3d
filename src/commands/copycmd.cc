@@ -89,25 +89,25 @@ bool CopyCommand::activated(int arg, Model *model)
 	}
 	else
 	{
-		//FIX ME
-		if(!model->getSelectedTriangleCount()
-		 &&!model->getSelectedBoneJointCount()
-		 &&!model->getSelectedPointCount()
-		 &&!model->getSelectedProjectionCount())
+		Model *m = model->copySelected(arg==0); if(!m)
 		{
+			/*2021: Copy model?
+			//It's easier to unselect evertyhing than to select evertyhing.
 			model_status(model,StatusError,STATUSTIME_LONG,
 			TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Copy"));
-			return false;
+			return false;*/
+			m = model;
+			model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Model copied to clipboard"));
 		}
-
-		Model *m = model->copySelected(arg==0);
-		if(!m) return false; //???
-
-		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives copied"));
+		else 
+		{
+			//model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives copied"));
+			model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection copied to clipboard"));
+		}
 	
 		FilterManager::getInstance()->writeFile(m,clipfile.c_str(),FilterManager::WO_ModelNoPrompt);
 
-		delete m;
+		if(m!=model) delete m;
 	}
 
 	return true;

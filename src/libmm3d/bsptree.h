@@ -25,99 +25,103 @@
 
 #include "drawcontext.h"
 
-#include <list>
-
 class BspTree
 {
+public:
+
+	class Poly
+	{
 	public:
-		class Poly
-		{
-			public:
-				static Poly *get();
-				void release();
 
-				static int flush();
-				static void stats();
+		static Poly *get();
+		void release();
 
-				int	id;
+		static int flush();
+		static void stats();
 
-				float coord[3][3];
-				float drawNormals[3][3];
+		int	id;
 
-				int	texture;
-				void *material; // Yeah,yeah,I know... it's hackish
-				void *triangle; // Yeah,yeah,I know... it's hackish
+		float coord[3][3];
+		float drawNormals[3][3];
 
-				float s[3];	 // texture coordinates
-				float t[3];
+		int	texture;
+		void *material; // Yeah,yeah,I know... it's hackish
+		void *triangle; // Yeah,yeah,I know... it's hackish
 
-				float norm[3];
-				float d;		 // dot product
+		float s[3];	 // texture coordinates
+		float t[3];
 
-				void calculateNormal();
-				void calculateD();
-				void intersection(float *p1, float *p2, float *po, float &place);
+		float norm[3];
+		float d;		 // dot product
 
-				void render(DrawingContext *context);
+		void calculateNormal();
+		void calculateD();
+		void intersection(float *p1, float *p2, float *po, float &place);
 
-				void print();
+		void render(DrawingContext *context);
 
-			protected:
-				Poly(): id(++s_nextId){ s_allocated++; }; 
-				virtual ~Poly(){ s_allocated--; };
-
-				static int s_nextId;
-				static std::vector<Poly*> s_recycle;
-
-				static int s_allocated;
-
-		};
-
-		class Node
-		{
-			public:
-				static Node *get();
-				void release();
-
-				static int flush();
-				static void stats();
-
-				void addChild(Node *n);
-				void render(float *point,DrawingContext *context);
-
-				void splitNodes(int idx1, int idx2, int idx3,
-						float *p1, float *p2,Node *n1,Node *n2,
-						const float &place1, const float &place2);
-
-				void splitNode(int idx1, int idx2, int idx3,
-						float *p1,Node *n1,
-						const float &place);
-
-				Poly *self;
-
-				Node *left;
-				Node *right;
-
-			protected:
-				Node(): self(nullptr),left(nullptr),right(nullptr){ s_allocated++;};
-				virtual ~Node(){ s_allocated--; };
-
-				static std::vector<Node*> s_recycle;
-
-				static int s_allocated;
-
-		};
-
-		BspTree(): m_root(nullptr){};
-		virtual ~BspTree(){ clear(); };
-
-		void addPoly(Poly *p);
-		void render(float *point,DrawingContext *context);
-
-		void clear();
+		void print();
 
 	protected:
-		Node *m_root;
+
+		Poly(): id(++s_nextId){ s_allocated++; }; 
+		~Poly(){ s_allocated--; };
+
+		static int s_nextId;
+		static std::vector<Poly*> s_recycle;
+
+		static int s_allocated;
+
+	};
+
+	class Node
+	{
+	public:
+
+		static Node *get();
+		void release();
+
+		static int flush();
+		static void stats();
+
+		void addChild(Node *n);
+		void render(float *point,DrawingContext *context);
+
+		void splitNodes(int idx1, int idx2, int idx3,
+				float *p1, float *p2,Node *n1,Node *n2,
+				const float &place1, const float &place2);
+
+		void splitNode(int idx1, int idx2, int idx3,
+				float *p1,Node *n1,
+				const float &place);
+
+		Poly *self;
+
+		Node *left;
+		Node *right;
+
+	protected:
+
+		Node(): self(nullptr),left(nullptr),right(nullptr){ s_allocated++; }
+		~Node(){ s_allocated--; }
+
+		static std::vector<Node*> s_recycle;
+
+		static int s_allocated;
+
+	};
+
+	BspTree(): m_root(nullptr){};
+	~BspTree(){ clear(); };
+
+	void addPoly(Poly *p);
+	void render(float *point,DrawingContext *context);
+
+	void clear();
+
+protected:
+
+	Node *m_root;
 };
 
 #endif // __BSPTREE_H

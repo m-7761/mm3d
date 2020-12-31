@@ -883,12 +883,12 @@ class MU_ChangeAnimState : public ModelUndo
 
 		unsigned size();
 
-		MU_ChangeAnimState(const Model::RestorePoint &old, Model &newInfo)
-		:m_old(old),m_new(newInfo.makeRestorePoint()){}
+		MU_ChangeAnimState(Model *newInfo, const Model::RestorePoint &old)
+		:m_new(newInfo->makeRestorePoint()),m_old(old){}
 
 	protected:
 
-		Model::RestorePoint m_old,m_new;
+		Model::RestorePoint m_new,m_old;
 };
 
 class MU_SetAnimName : public ModelUndo

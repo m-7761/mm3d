@@ -33,8 +33,8 @@ class MeshRectangle;
 class LuaContext
 {
 	public:
-		LuaContext(Model *model);
-		virtual ~LuaContext();
+
+		LuaContext(Model *model),~LuaContext();
 
 		Model *m_scriptModel;
 		Model *m_currentModel;
