@@ -44,7 +44,7 @@ struct ViewportSettings : Win
 	{	
 		ortho_group(node *main)
 			:
-		nav(main,"Canvas Grid"),
+		nav(main,"2D Grid"),
 		unit(nav,"Default Grid Unit\t"),
 		mult(nav)
 		{

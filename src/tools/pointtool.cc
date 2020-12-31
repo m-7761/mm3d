@@ -88,7 +88,7 @@ void PointTool::mouseButtonMove()
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1]);
 
-	movePosition(m_point.pos,pos[0],pos[1],0);
+	movePositionUnanimated(m_point.pos,pos[0],pos[1],0);
 
 	parent->updateAllViews();
 }

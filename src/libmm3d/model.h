@@ -2369,12 +2369,13 @@ class Model
 		// Transform functions
 		// ------------------------------------------------------------------
 
-		//NOTICE: These all use MU_MovePrimitive whereas setPositionCenter
+		//NOTICE: These all use MU_MoveUnanimated whereas setPositionCenter
 		//and setPointTranslation, etc. use MU_SetObjectXYZ (formerly there
 		//was an undo object of this type for every combination of types and
-		//parameters.) MU_MovePrimitive keeps a mapped array of reassignments.
+		//parameters.) MU_MoveUnanimated keeps a mapped array of reassignments.
 		//FIX ME? MU_TranslateSelected, etc. exists via translateSelected, etc!
 		bool movePosition(const Position &pos, double x, double y, double z);
+		bool movePositionUnanimated(const Position &pos, double x, double y, double z);
 		bool moveVertex(unsigned v, double x, double y, double z);
 		bool moveBoneJoint(unsigned j, double x, double y, double z);
 		bool movePoint(unsigned p, double x, double y, double z);

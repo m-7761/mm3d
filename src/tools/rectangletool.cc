@@ -93,9 +93,9 @@ void RectangleTool::mouseButtonMove()
 		TRANSLATE("Tool","Rectangle created"));
 	}
 
-	movePosition(m_v2.pos,m_x,pos[1],0);
-	movePosition(m_v3.pos,pos[0],m_y,0);
-	movePosition(m_v4.pos,pos[0],pos[1],0);
+	movePositionUnanimated(m_v2.pos,m_x,pos[1],0);
+	movePositionUnanimated(m_v3.pos,pos[0],m_y,0);
+	movePositionUnanimated(m_v4.pos,pos[0],pos[1],0);
 
 	parent->updateAllViews();
 }

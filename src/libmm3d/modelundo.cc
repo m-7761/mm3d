@@ -576,100 +576,43 @@ void MU_InvertNormal::addTriangle(int triangle)
 	m_triangles.push_back(triangle);
 }
 
-void MU_MovePrimitive::undo(Model *model)
+void MU_MoveUnanimated::undo(Model *model)
 {
 	log_debug("undo move vertex\n");
-
-	MovePrimitiveList::iterator it;
-
-	// Modify a vertex we already have
-	for(it = m_objects.begin(); it!=m_objects.end(); it++)
-	{
-		switch(it->type)
-		{
-		case MT_Vertex:
-			model->moveVertex(it->number,it->oldx,it->oldy,it->oldz);
-			break;
-		case MT_Joint:
-			model->moveBoneJoint(it->number,it->oldx,it->oldy,it->oldz);
-			break;
-		case MT_Point:
-			model->movePoint(it->number,it->oldx,it->oldy,it->oldz);
-			break;
-		case MT_Projection:
-			model->moveProjection(it->number,it->oldx,it->oldy,it->oldz);
-			break;
-		default:
-			log_error("Unknown type in move object undo\n");
-			break;
-		}
-	}
+	
+	for(auto&ea:m_objects)
+	model->movePositionUnanimated(ea,ea.oldx,ea.oldy,ea.oldz);
 }
 
-void MU_MovePrimitive::redo(Model *model)
+void MU_MoveUnanimated::redo(Model *model)
 {
-	MovePrimitiveList::iterator it;
-
-	// Modify a vertex we already have
-	for(it = m_objects.begin(); it!=m_objects.end(); it++)
-	{
-		switch(it->type)
-		{
-		case MT_Vertex:
-			model->moveVertex(it->number,it->x,it->y,it->z);
-			break;
-		case MT_Joint:
-			model->moveBoneJoint(it->number,it->x,it->y,it->z);
-			break;
-		case MT_Point:
-			model->movePoint(it->number,it->x,it->y,it->z);
-			break;
-		case MT_Projection:
-			model->moveProjection(it->number,it->x,it->y,it->z);
-			break;
-		default:
-			log_error("Unknown type in move object redo\n");
-			break;
-		}
-	}
+	for(auto&ea:m_objects)
+	model->movePositionUnanimated(ea,ea.x,ea.y,ea.z);
 }
-
-bool MU_MovePrimitive::combine(Undo *u)
+bool MU_MoveUnanimated::combine(Undo *u)
 {
-	MU_MovePrimitive *undo = dynamic_cast<MU_MovePrimitive*>(u);
+	MU_MoveUnanimated *undo = dynamic_cast<MU_MoveUnanimated*>(u);
 
 	if(undo)
 	{
-		MovePrimitiveList::iterator it;
-
-		for(it = undo->m_objects.begin(); it!=undo->m_objects.end(); it++)
-		{
-			addMovePrimitive(it->type,it->number,it->x,it->y,it->z,
-					it->oldx,it->oldy,it->oldz);
-		}
+		for(auto&ea:undo->m_objects)
+		addPosition(ea,ea.x,ea.y,ea.z,ea.oldx,ea.oldy,ea.oldz);
 
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
-
-unsigned MU_MovePrimitive::size()
+unsigned MU_MoveUnanimated::size()
 {
-	return sizeof(MU_MovePrimitive)+m_objects.size()*sizeof(MovePrimitiveT);
+	return sizeof(MU_MoveUnanimated)+m_objects.size()*sizeof(MovePrimitiveT);
 }
-
-void MU_MovePrimitive::addMovePrimitive(MU_MovePrimitive::MoveTypeE type, int i, double x, double y, double z,
+void MU_MoveUnanimated::addPosition(const Model::Position &pos, double x, double y, double z,
 		double oldx, double oldy, double oldz)
 {
-	unsigned index;
-	MovePrimitiveT mv;
-	mv.number = i;
-	mv.type = type;
+	MovePrimitiveT mv; mv.type = pos.type; mv.index = pos.index; //C++
 
 	// Modify an object we already have
+	unsigned index;
 	if(m_objects.find_sorted(mv,index))
 	{
 		m_objects[index].x = x;

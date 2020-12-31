@@ -192,6 +192,6 @@ void TorusTool::updateDimensions(double xdiff, double ydiff, double zdiff)
 	{
 		centerX-=xdiff; centerY-=ydiff; xdiff*=2; ydiff*=2; zdiff*=2;
 	}
-	for(auto&ea:m_vertices) movePosition
+	for(auto&ea:m_vertices) movePositionUnanimated
 	(ea.pos,centerX+xdiff*ea.coords[0],centerY+ydiff*ea.coords[1],zdiff*ea.coords[2]);		
 }

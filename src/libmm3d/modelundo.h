@@ -225,7 +225,7 @@ class MU_InvertNormal : public ModelUndo
 		int_list m_triangles;
 };
 
-class MU_MovePrimitive : public ModelUndo
+class MU_MoveUnanimated : public ModelUndo
 {
 	public:
 
@@ -235,42 +235,20 @@ class MU_MovePrimitive : public ModelUndo
 
 		unsigned size();
 
-		enum _MoveType_e
-		{
-			 MT_Vertex,
-			 MT_Joint,
-			 MT_Point,
-			 MT_Projection
-		};
-		typedef enum _MoveType_e MoveTypeE;
-
-		void addMovePrimitive(MoveTypeE, int i, double x, double y, double z,
+		void addPosition(const Model::Position &pos, double x, double y, double z,
 				double oldx, double oldy, double oldz);
 
 	private:
 
-		typedef struct _MovePrimitive_t
+		struct MovePrimitiveT : Model::Position
 		{
-			int number;
 			double x;
 			double y;
 			double z;
 			double oldx;
 			double oldy;
 			double oldz;
-			MoveTypeE type;
-
-			bool operator<(const struct _MovePrimitive_t &rhs)const
-			{
-				return (this->number<rhs.number||
-						(this->number==rhs.number&&this->type<rhs.type)
-					  );
-			};
-			bool operator== (const struct _MovePrimitive_t &rhs)const
-			{
-				return (this->number==rhs.number&&this->type==rhs.type);
-			};
-		} MovePrimitiveT;
+		};
 
 		//TODO: Use unsorted_map/Position.
 		typedef sorted_list<MovePrimitiveT> MovePrimitiveList;

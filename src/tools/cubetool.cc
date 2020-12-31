@@ -241,7 +241,7 @@ void CubeTool::updateVertexCoords
 
 	for(it = m_vertices.begin(); it!=m_vertices.end(); it++)
 	{
-		movePosition(it->pos,
+		movePositionUnanimated(it->pos,
 				it->coords[0]*xdiff+x1,
 				it->coords[1]*ydiff+y1,
 				it->coords[2]*zdiff+z1);

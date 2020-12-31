@@ -156,8 +156,8 @@ bool Model::moveProjection(unsigned p, double x, double y, double z)
 
 			if(m_undoEnabled)
 			{
-				auto undo = new MU_MovePrimitive;
-				undo->addMovePrimitive(MU_MovePrimitive::MT_Projection,p,x,y,z,
+				auto undo = new MU_MoveUnanimated;
+				undo->addPosition({PT_Projection,p},x,y,z,
 						old[0],old[1],old[2]);
 				sendUndo(undo/*,true*/);
 			}

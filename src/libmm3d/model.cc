@@ -1050,6 +1050,27 @@ bool Model::movePosition(const Position &pos, double x, double y, double z)
 		return false;
 	}
 }
+bool Model::movePositionUnanimated(const Position &pos, double x, double y, double z)
+{
+	auto swap = m_animationMode;
+	if(swap) m_animationMode = ANIMMODE_NONE;
+	bool ret; switch(pos.type)
+	{
+	case PT_Vertex: ret = moveVertex(pos.index,x,y,z); break;
+
+	case PT_Joint: ret = moveBoneJoint(pos.index,x,y,z); break;
+
+	case PT_Point: ret = movePoint(pos.index,x,y,z); break;
+
+	case PT_Projection: ret = moveProjection(pos.index,x,y,z); break;
+
+	default:
+
+		log_error("do not know how to move position of type %d\n",pos.type);
+		ret = false;
+	}
+	if(swap) m_animationMode = swap; return ret;
+}
 
 bool Model::moveVertex(unsigned index, double x, double y, double z)
 {
@@ -1084,8 +1105,8 @@ bool Model::moveVertex(unsigned index, double x, double y, double z)
 
 		if(m_undoEnabled)
 		{
-			auto undo = new MU_MovePrimitive;
-			undo->addMovePrimitive(MU_MovePrimitive::MT_Vertex,index,x,y,z,
+			auto undo = new MU_MoveUnanimated;
+			undo->addPosition({PT_Vertex,index},x,y,z,
 					old[0],old[1],old[2]);
 			sendUndo(undo/*,true*/);
 		}
@@ -1137,8 +1158,8 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 
 		if(m_undoEnabled)
 		{
-			auto undo = new MU_MovePrimitive;
-			undo->addMovePrimitive(MU_MovePrimitive::MT_Joint,j,x,y,z,
+			auto undo = new MU_MoveUnanimated;
+			undo->addPosition({PT_Joint,j},x,y,z,
 					m_joints[j]->m_abs[0],//m_absolute.get(3,0),
 					m_joints[j]->m_abs[1],//m_absolute.get(3,1),
 					m_joints[j]->m_abs[2]);//m_absolute.get(3,2));
@@ -1179,8 +1200,8 @@ bool Model::movePoint(unsigned index, double x, double y, double z)
 
 		if(m_undoEnabled)
 		{
-			auto undo = new MU_MovePrimitive;
-			undo->addMovePrimitive(MU_MovePrimitive::MT_Point,index,x,y,z,
+			auto undo = new MU_MoveUnanimated;
+			undo->addPosition({PT_Point,index},x,y,z,
 					p->m_abs[0],p->m_abs[1],p->m_abs[2]);
 			sendUndo(undo/*,true*/);
 		}
@@ -4224,6 +4245,9 @@ bool Model::setPositionCoords(const Position &pos, const double *coord)
 	//3) Point animation is just less code this way.
 	if(pos.type<=PT_Projection)
 	{
+		//NOTE: I guess setPositionCoords doesn't guarantee that 
+		//getPositionCoords will get back the save data, otherwise
+		//it'd be necessary to call validate/calculateAnim right now.
 		return movePosition(pos,coord[0],coord[1],coord[2]);
 	}
 	

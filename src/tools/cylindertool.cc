@@ -226,7 +226,7 @@ void CylinderTool::mouseButtonMove()
 void CylinderTool::updateVertexCoords
 (double x, double y, double z, double xrad, double yrad, double zrad)
 {
-	for(auto&ea:m_vertices) movePosition
+	for(auto&ea:m_vertices) movePositionUnanimated
 	(ea.pos,ea.coords[0]*xrad+x,ea.coords[1]*yrad+y,ea.coords[2]*zrad+z);
 }
 

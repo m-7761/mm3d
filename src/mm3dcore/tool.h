@@ -219,6 +219,7 @@ protected:
 	ToolCoordT addPosition(Model::PositionTypeE type,double,double,double,
 		const char *name=nullptr, int boneId=-1);
 	void movePosition(const Model::Position &pos, double x, double y, double z);
+	void movePositionUnanimated(const Model::Position &pos, double x, double y, double z);
 	void makeToolCoordList(ToolCoordList &list, const pos_list &positions);
 	bool makeToolCoord(ToolCoordT&, Model::Position);
 };

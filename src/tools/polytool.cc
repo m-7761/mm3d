@@ -211,7 +211,7 @@ void PolyTool::mouseButtonMove()
 			if(!m_allowY) pos[1] = m_y;
 		}
 
-		movePosition(m_lastVertex.pos,pos[0],pos[1],pos[2]);
+		movePositionUnanimated(m_lastVertex.pos,pos[0],pos[1],pos[2]);
 
 		parent->updateAllViews();
 	}
