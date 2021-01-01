@@ -631,42 +631,42 @@ void MU_MoveUnanimated::addPosition(const Model::Position &pos, double x, double
 	m_objects.insert_sorted(mv);
 }
 
-void MU_SetObjectXYZ::undo(Model *model)
+void MU_SetObjectUnanimated::undo(Model *model)
 {
 	//log_debug("undo point translation\n"); //???
 
 	_call_setter(model,vold);
 }
-void MU_SetObjectXYZ::redo(Model *model)
+void MU_SetObjectUnanimated::redo(Model *model)
 {
 	//log_debug("redo point translation\n"); //???
 
 	_call_setter(model,v);
 }
-void MU_SetObjectXYZ::_call_setter(Model *model, double *xyz)
+void MU_SetObjectUnanimated::_call_setter(Model *model, double *xyz)
 {
 	switch(vec)
 	{
-	case Abs: model->setPositionCoords(pos,xyz); break;
-	case Rot: model->setPositionRotation(pos,xyz); break;
-	case Scale: model->setPositionScale(pos,xyz); break;
-	case Rel: model->setBoneJointTranslation(pos,xyz); break;
+	case Abs: model->setPositionCoordsUnanimated(pos,xyz); break;
+	case Rot: model->setPositionRotationUnanimated(pos,xyz); break;
+	case Scale: model->setPositionScaleUnanimated(pos,xyz); break;
+	case Rel: model->setBoneJointOffsetUnanimated(pos,xyz); break;
 	}
 }
-bool MU_SetObjectXYZ::combine(Undo *u)
+bool MU_SetObjectUnanimated::combine(Undo *u)
 {
-	MU_SetObjectXYZ *undo = dynamic_cast<MU_SetObjectXYZ*>(u);
+	MU_SetObjectUnanimated *undo = dynamic_cast<MU_SetObjectUnanimated*>(u);
 	if(undo&&undo->pos==pos&&undo->vec==vec)
 	{
 		memcpy(v,undo->v,sizeof(v)); return true;
 	}
 	return false;
 }
-unsigned MU_SetObjectXYZ::size()
+unsigned MU_SetObjectUnanimated::size()
 {
-	return sizeof(MU_SetObjectXYZ);
+	return sizeof(MU_SetObjectUnanimated);
 }
-void MU_SetObjectXYZ::setXYZ(Model *m, double object[3], const double xyz[3])
+void MU_SetObjectUnanimated::setXYZ(Model *m, double object[3], const double xyz[3])
 {
 	auto o = m->getPositionObject(pos);
 	assert(o);

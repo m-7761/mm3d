@@ -575,10 +575,6 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 		//m_triangles.push_back(triangle);
 		insertTriangle(num,triangle);
 				
-		//NOTE: insertTriangle does this but maybe it shouldn't and
-		//neither sould this?
-		//invalidateNormals(); //OVERKILL
-
 		if(m_undoEnabled)
 		{
 			MU_AddTriangle *undo = new MU_AddTriangle();
@@ -737,6 +733,8 @@ bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned v
 			vs[v[i]]->m_faces.push_back({tri,i});
 			vi[i] = v[i];
 		}
+
+		m_changeBits |= AddGeometry;
 
 		invalidateNormals(); //OVERKILL
 
@@ -1037,38 +1035,18 @@ bool Model::movePosition(const Position &pos, double x, double y, double z)
 	switch(pos.type)
 	{
 	case PT_Vertex: return moveVertex(pos.index,x,y,z);
-
 	case PT_Joint: return moveBoneJoint(pos.index,x,y,z);
-
 	case PT_Point: return movePoint(pos.index,x,y,z);
-
 	case PT_Projection: return moveProjection(pos.index,x,y,z);
-
-	default:
-
-		log_error("do not know how to move position of type %d\n",pos.type);
-		return false;
+	default: log_error("do not know how to move position of type %d\n",pos.type);
 	}
+	return false;
 }
 bool Model::movePositionUnanimated(const Position &pos, double x, double y, double z)
 {
 	auto swap = m_animationMode;
 	if(swap) m_animationMode = ANIMMODE_NONE;
-	bool ret; switch(pos.type)
-	{
-	case PT_Vertex: ret = moveVertex(pos.index,x,y,z); break;
-
-	case PT_Joint: ret = moveBoneJoint(pos.index,x,y,z); break;
-
-	case PT_Point: ret = movePoint(pos.index,x,y,z); break;
-
-	case PT_Projection: ret = moveProjection(pos.index,x,y,z); break;
-
-	default:
-
-		log_error("do not know how to move position of type %d\n",pos.type);
-		ret = false;
-	}
+	bool ret = movePosition(pos,x,y,z);
 	if(swap) m_animationMode = swap; return ret;
 }
 
@@ -1093,33 +1071,65 @@ bool Model::moveVertex(unsigned index, double x, double y, double z)
 	}
 	else invalidateAnim();
 
-	//if(!inAnimationMode()) //Enabling editing and setPositionCoords.	
+	double old[3];
+
+	old[0] = v->m_coord[0]; v->m_coord[0] = x;
+	old[1] = v->m_coord[1]; v->m_coord[1] = y;
+	old[2] = v->m_coord[2]; v->m_coord[2] = z;
+
+	m_changeBits |= MoveGeometry;
+
+	invalidateNormals(); //OVERKILL
+
+	if(m_undoEnabled)
 	{
-		double old[3];
-
-		old[0] = v->m_coord[0]; v->m_coord[0] = x;
-		old[1] = v->m_coord[1]; v->m_coord[1] = y;
-		old[2] = v->m_coord[2]; v->m_coord[2] = z;
-
-		invalidateNormals(); //OVERKILL
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_MoveUnanimated;
-			undo->addPosition({PT_Vertex,index},x,y,z,
-					old[0],old[1],old[2]);
-			sendUndo(undo/*,true*/);
-		}
-
-		return true;
+		auto undo = new MU_MoveUnanimated;
+		undo->addPosition({PT_Vertex,index},x,y,z,
+				old[0],old[1],old[2]);
+		sendUndo(undo/*,true*/);
 	}
-}
 
+	return true;
+} 
+bool Model::movePoint(unsigned index, double x, double y, double z)
+{
+	if(index>=m_points.size()) return false;
+
+	auto p = m_points[index]; if(inSkeletalMode())
+	{
+		Vector tmp(x,y,z);
+		if(_skel_xform_abs(-1,p->m_influences,tmp))
+		{
+			x = tmp[0]; y = tmp[1]; z = tmp[2];
+		}
+	}
+
+	if(inFrameAnimMode())
+	{
+		makeCurrentAnimationFrame();
+
+		return -1!=setKeyframe
+		(m_currentAnim,m_currentFrame,{PT_Point,index},KeyTranslate,x,y,z);
+	}
+	else invalidateAnim();
+
+	m_changeBits|=MoveOther; //2020
+
+	if(m_undoEnabled)
+	{
+		auto undo = new MU_MoveUnanimated;
+		undo->addPosition({PT_Point,index},x,y,z,
+				p->m_abs[0],p->m_abs[1],p->m_abs[2]);
+		sendUndo(undo/*,true*/);
+	}
+
+	p->m_abs[0] = x; p->m_abs[1] = y; p->m_abs[2] = z; return true;
+}
 bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 {
 	if(j>=m_joints.size()) return false;
 
-	bool rval; if(inSkeletalMode()) //2020
+	if(inSkeletalMode()) //2020
 	{	
 		//HACK? Need to update m_final matrix.
 		validateAnimSkel();
@@ -1146,70 +1156,27 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 			p->m_absolute.inverseRotateVector(coord);
 		}
 		makeCurrentAnimationFrame();
-		rval = -1!=setKeyframe
+		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,{PT_Joint,j},KeyTranslate,coord[0],coord[1],coord[2]);
 	}
-	else //if(!inAnimationMode()) //setPositionCoords should work.
+	
+	validateSkel();
+
+	double *cmp = m_joints[j]->m_abs;
+	if(x==cmp[0]&&y==cmp[1]&&z==cmp[2]) return true; //2020
+
+	if(m_undoEnabled)
 	{
-		validateSkel();
-
-		double *cmp = m_joints[j]->m_abs;
-		if(x==cmp[0]&&y==cmp[1]&&z==cmp[2]) return true; //2020
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_MoveUnanimated;
-			undo->addPosition({PT_Joint,j},x,y,z,
-					m_joints[j]->m_abs[0],//m_absolute.get(3,0),
-					m_joints[j]->m_abs[1],//m_absolute.get(3,1),
-					m_joints[j]->m_abs[2]);//m_absolute.get(3,2));
-			sendUndo(undo/*,true*/);
-		}
-
-		rval = relocateBoneJoint(j,x,y,z,false);
+		auto undo = new MU_MoveUnanimated;
+		undo->addPosition({PT_Joint,j},x,y,z,
+				m_joints[j]->m_abs[0],//m_absolute.get(3,0),
+				m_joints[j]->m_abs[1],//m_absolute.get(3,1),
+				m_joints[j]->m_abs[2]);//m_absolute.get(3,2));
+		sendUndo(undo/*,true*/);
 	}
 
-	if(rval) invalidateSkel(); return rval;
+	return relocateBoneJoint(j,x,y,z,false);
 }
-
-bool Model::movePoint(unsigned index, double x, double y, double z)
-{
-	if(index>=m_points.size()) return false;
-
-	auto p = m_points[index]; if(inSkeletalMode())
-	{
-		Vector tmp(x,y,z);
-		if(_skel_xform_abs(-1,p->m_influences,tmp))
-		{
-			x = tmp[0]; y = tmp[1]; z = tmp[2];
-		}
-	}
-
-	if(inFrameAnimMode())
-	{
-		makeCurrentAnimationFrame();
-
-		return -1!=setKeyframe
-		(m_currentAnim,m_currentFrame,{PT_Point,index},KeyTranslate,x,y,z);
-	}
-	else invalidateAnim();
-
-	//if(!inAnimationMode()) //setPositionCoords should work.
-	{
-		m_changeBits|=MoveOther; //2020
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_MoveUnanimated;
-			undo->addPosition({PT_Point,index},x,y,z,
-					p->m_abs[0],p->m_abs[1],p->m_abs[2]);
-			sendUndo(undo/*,true*/);
-		}
-
-		p->m_abs[0] = x; p->m_abs[1] = y; p->m_abs[2] = z; return true;
-	}
-}
-
 bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool downstream)
 {
 	if(j>=m_joints.size()) return false;
@@ -1542,7 +1509,8 @@ void Model::translateSelected(const double vec[3])
 			}
 			if(verts)
 			{
-				//m_changeBits |= MoveGeometry;
+				m_changeBits |= MoveGeometry;
+
 				invalidateNormals(); //OVERKILL
 			}
 		}
@@ -1792,7 +1760,8 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			}
 			if(verts)
 			{
-				//m_changeBits |= MoveGeometry;
+				m_changeBits |= MoveGeometry;
+
 				invalidateNormals(); //OVERKILL
 			}
 		}
@@ -1960,7 +1929,12 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 			m.apply3x(ea->m_coord);
 		}
 	}
-	if(verts) invalidateNormals(); //OVERKILL
+	if(verts) 
+	{
+		m_changeBits |= MoveGeometry;
+
+		invalidateNormals(); //OVERKILL
+	}
 
 	Matrix pm,qm;
 	auto g = [&](Joint &j)
@@ -3967,21 +3941,22 @@ void Model::calculateNormals()
 
 void Model::invalidateNormals()
 {
-	//NOTE: This is a HACK as near as I can tell.
-	//It's true that when normals are invalidated
-	//geometry has changed.
-	m_changeBits |= MoveGeometry;
+	m_changeBits |= MoveNormals;
 
-	if(m_animationMode) m_validAnimNormals = false;
+	//2021: movePositionUnanimated may be in animation
+	//mode, plus there's no longer a clean split
+	//between animation off or on.
+	//if(m_animationMode) 
+	m_validAnimNormals = false;
 	
 	m_validNormals = false;
 	m_validBspTree = false;
 }
-void Model::invalidateAnimNormals() //UNUSED (USE ME)
+void Model::invalidateAnimNormals()
 {
-	//m_changeBits |= MoveGeometry; //???
+	m_changeBits |= MoveNormals;
 
-	m_validAnimNormals = false; //!!
+	m_validAnimNormals = false;
 	m_validBspTree = false;
 }
 
@@ -4238,7 +4213,7 @@ Matrix Model::Object2020::getMatrixUnanimated()const
 	m.setTranslation(m_abs); return m;
 }
 
-bool Model::setPositionCoords(const Position &pos, const double *coord)
+bool Model::setPositionCoords(const Position &pos, const double abs[3])
 {
 	//1) Vertex isn't an "object".
 	//2) Joint uses m_rel (and computes m_abs as side effect.)
@@ -4248,23 +4223,36 @@ bool Model::setPositionCoords(const Position &pos, const double *coord)
 		//NOTE: I guess setPositionCoords doesn't guarantee that 
 		//getPositionCoords will get back the save data, otherwise
 		//it'd be necessary to call validate/calculateAnim right now.
-		return movePosition(pos,coord[0],coord[1],coord[2]);
+		return movePosition(pos,abs[0],abs[1],abs[2]);
+	}	
+	return setPositionCoordsUnanimated(pos,abs);
+}
+bool Model::setPositionCoordsUnanimated(const Position &pos, const double abs[3])
+{
+	if(pos.type<=PT_Projection) //HACK
+	{
+		//FYI: See setPositionCoords notes for why this is.
+		return movePositionUnanimated(pos,abs[0],abs[1],abs[2]);
 	}
+
+	//HACK: This is just _OT_Background_ at this point but  
+	//I want don't want MU_SetObjectUnanimated to be using
+	//setPositionCoords.
 	
 	Object2020 *obj = getPositionObject(pos); if(!obj) return false;
 
 	//TODO: Let sendUndo reject no-op changes.
-	if(!memcmp(obj->m_abs,coord,sizeof(*coord)*3)) return true; //2020
+	if(!memcmp(obj->m_abs,abs,sizeof(*abs)*3)) return true; //2020
 
 	m_changeBits|=MoveOther; //2020
 
 	if(m_undoEnabled)
 	{
-		auto undo = new MU_SetObjectXYZ(pos);
-		undo->setXYZ(this,obj->m_abs,coord); 
+		auto undo = new MU_SetObjectUnanimated(pos);
+		undo->setXYZ(this,obj->m_abs,abs); 
 		sendUndo(undo/*,true*/);
 	}
-	memcpy(obj->m_abs,coord,sizeof(*coord)*3); return true;
+	memcpy(obj->m_abs,abs,sizeof(*abs)*3); return true;
 }
 bool Model::getPositionCoords(const Position &pos, double *coord)const
 {
@@ -4279,20 +4267,25 @@ bool Model::getPositionCoordsUnanimated(const Position &pos, double *coord)const
 	memcpy(coord,obj->m_abs,sizeof(*coord)*3); return true;
 }
 
-bool Model::setPositionRotation(const Position &pos, const double *rot)
+bool Model::setPositionRotation(const Position &pos, const double rot[3])
 {
-	Object2020 *obj = getPositionObject(pos);
-	if(!obj) return false;
-
-	//HACK: Compatibility fix.
 	if(pos.type==PT_Point&&inFrameAnimMode()
 	 ||pos.type==PT_Joint&&inSkeletalMode())
 	{
+		Object2020 *obj = getPositionObject(pos);
+		if(!obj) return false;
+
 		makeCurrentAnimationFrame();
 
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyRotate,rot[0],rot[1],rot[2]);
 	}
+	return setPositionRotationUnanimated(pos,rot);
+}
+bool Model::setPositionRotationUnanimated(const Position &pos, const double rot[3])
+{
+	Object2020 *obj = getPositionObject(pos);
+	if(!obj) return false;
 
 	//TODO: Let sendUndo reject no-op changes.
 	if(!memcmp(obj->m_rot,rot,sizeof(*rot)*3)) return true; //2020
@@ -4301,7 +4294,7 @@ bool Model::setPositionRotation(const Position &pos, const double *rot)
 
 	if(m_undoEnabled)
 	{			
-		auto undo = new MU_SetObjectXYZ(pos);
+		auto undo = new MU_SetObjectUnanimated(pos);
 		undo->setXYZ(this,obj->m_rot,rot); 
 		sendUndo(undo/*,true*/);
 	}
@@ -4328,18 +4321,24 @@ bool Model::getPositionRotationUnanimated(const Position &pos, double *rot)const
 
 bool Model::setPositionScale(const Position &pos, const double *scale)
 {
-	Object2020 *obj = getPositionObject(pos); if(!obj) return false;
-
 	//HACK: Compatibility fix.
 	if(pos.type==PT_Point&&inFrameAnimMode()
 	 ||pos.type==PT_Joint&&inSkeletalMode())
 	{
+		Object2020 *obj = getPositionObject(pos); 
+		if(!obj) return false;
+
 		makeCurrentAnimationFrame();
 
 		return -1!=setKeyframe
 		(m_currentAnim,m_currentFrame,pos,KeyScale,scale[0],scale[1],scale[2]);
 	}
-
+	return setPositionScaleUnanimated(pos,scale); 
+}
+bool Model::setPositionScaleUnanimated(const Position &pos, const double scale[3])
+{
+	Object2020 *obj = getPositionObject(pos); if(!obj) return false;
+			
 	//TODO: Let sendUndo reject no-op changes.
 	if(!memcmp(obj->m_xyz,scale,sizeof(*scale)*3)) return true; //2020
 
@@ -4347,7 +4346,7 @@ bool Model::setPositionScale(const Position &pos, const double *scale)
 
 	if(m_undoEnabled)
 	{
-		auto undo = new MU_SetObjectXYZ(pos);
+		auto undo = new MU_SetObjectUnanimated(pos);
 		undo->setXYZ(this,obj->m_xyz,scale); 
 		sendUndo(undo/*,true*/);
 	}
@@ -4392,7 +4391,7 @@ bool Model::setPositionName(const Position &pos, const char *name)
 		}
 		return true;
 	}
-	else return false;
+	return false;
 }
 const char *Model::getPositionName(const Position &pos)const
 {
@@ -4400,27 +4399,69 @@ const char *Model::getPositionName(const Position &pos)const
 	return obj?obj->m_name.c_str():nullptr;
 }
 
-bool Model::setBoneJointTranslation(unsigned j, const double *rel)
+bool Model::setBoneJointOffsetUnanimated(unsigned j, const double rel[3], const double rot[3], const double xyz[3])
 {
-	if(j>=m_joints.size()||!rel) return false;
+	if(j>=m_joints.size()) return false;
 
-	auto *obj = m_joints[j];
+	Position pos = {PT_Joint,j};
 
-	//TODO: Let sendUndo reject no-op changes.
-	if(!memcmp(obj->m_rel,rel,sizeof(*rel)*3)) return true; //2020
-
-	m_changeBits|=MoveOther; //2020
-
-	if(m_undoEnabled)
+	if(rel)
 	{
-		auto undo = new MU_SetObjectXYZ({PT_Joint,j});
-		undo->setXYZ(this,obj->m_rel,rel); 
-		sendUndo(undo/*,true*/);
+		auto *obj = m_joints[j];
+
+		//TODO: Let sendUndo reject no-op changes.
+		if(!memcmp(obj->m_rel,rel,sizeof(*rel)*3)) return true; //2020
+
+		m_changeBits|=MoveOther; //2020
+
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_SetObjectUnanimated(pos);
+			undo->setXYZ(this,obj->m_rel,rel); 
+			sendUndo(undo/*,true*/);
+		}
+
+		memcpy(obj->m_rel,rel,sizeof(*rel)*3);
+
+		invalidateSkel();
 	}
+	//REFACTOR ME
+	{
+		//THIS WORKS RIGHT NOW BECAUSE THESE ARE IN LOCAL COORDINATES
+		//BUT EVENTUALLY IT WILL NEED TO BE TREATED LIKE REL ABOVE IF
+		//THE API IS SWITCHED TO GLOBAL COORDINATES.
 
-	memcpy(obj->m_rel,rel,sizeof(*rel)*3);
+		if(rot) setPositionRotationUnanimated(pos,rot);
+		if(xyz) setPositionScaleUnanimated(pos,xyz);
+	}
+	return true; //Assuming all success?
+}
+bool Model::setBoneJointOffset(unsigned j, const double rel[3], const double rot[3], const double xyz[3])
+{
+	if(j>=m_joints.size()) return false;
 
-	invalidateSkel(); return true;
+	Position pos = {PT_Joint,j};
+
+	if(rel)
+	{
+		if(inSkeletalMode())
+		{
+			makeCurrentAnimationFrame();
+
+			setKeyframe(m_currentAnim,m_currentFrame,pos,KeyTranslate,rel[0],rel[1],rel[2]);
+		}
+		else setBoneJointOffsetUnanimated(j,rel);
+	}
+	//REFACTOR ME
+	{
+		//THIS WORKS RIGHT NOW BECAUSE THESE ARE IN LOCAL COORDINATES
+		//BUT EVENTUALLY IT WILL NEED TO BE TREATED LIKE REL ABOVE IF
+		//THE API IS SWITCHED TO GLOBAL COORDINATES.
+
+		if(rot) setPositionRotation(pos,rot);
+		if(xyz) setPositionScale(pos,xyz);
+	}
+	return true; //Assuming all success?
 }
 bool Model::setBoneJointCoords(unsigned joint, const double *abs)
 {
@@ -4467,19 +4508,27 @@ bool Model::getBoneJointScaleUnanimated(unsigned joint, double *coord)const
 {
 	return getPositionScaleUnanimated({PT_Joint,joint},coord);
 }
-bool Model::getBoneJointTranslation(unsigned j, double *rel)const
+bool Model::getBoneJointOffset(unsigned j, double rel[3], double rot[3], double xyz[3])
 {
-	if(j>=m_joints.size()||!rel) return false;
-	
-	auto src = inSkeletalMode()?&Joint::m_kfRel:&Joint::m_rel;
-	
-	memcpy(rel,m_joints[j]->*src,sizeof(*rel)*3); return true;
-}
-bool Model::getBoneJointTranslationUnanimated(unsigned j, double *rel)const
-{
-	if(j>=m_joints.size()||!rel) return false;
+	if(j>=m_joints.size()) return false;
 
-	memcpy(rel,m_joints[j]->m_rel,sizeof(*rel)*3); return true;
+	if(!inSkeletalMode()) return getBoneJointOffsetUnanimated(j,rel,rot,xyz);
+
+	if(rel) memcpy(rel,m_joints[j]->m_kfRel,sizeof(*rel)*3);
+	if(rot) memcpy(rot,m_joints[j]->m_kfRot,sizeof(*rot)*3);
+	if(xyz) memcpy(xyz,m_joints[j]->m_kfXyz,sizeof(*xyz)*3);
+	
+	return true;
+}
+bool Model::getBoneJointOffsetUnanimated(unsigned j, double rel[3], double rot[3], double xyz[3])
+{
+	if(j>=m_joints.size()) return false;
+
+	if(rel) memcpy(rel,m_joints[j]->m_rel,sizeof(*rel)*3);
+	if(rot) memcpy(rot,m_joints[j]->m_rot,sizeof(*rot)*3);
+	if(xyz) memcpy(xyz,m_joints[j]->m_xyz,sizeof(*xyz)*3);
+	
+	return true;
 }
 bool Model::getPointCoords(unsigned point, double *coord)const
 {

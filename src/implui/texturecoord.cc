@@ -139,7 +139,7 @@ void TextureCoordWin::setModel()
 void TextureCoordWin::modelChanged(int changeBits)
 {
 	if(changeBits&Model::SelectionFaces
-	 ||changeBits&Model::MoveGeometry&&!m_ignoreChange)
+	 ||changeBits&Model::MoveTexture&&!m_ignoreChange)
 	{		
 		texture.clearCoordinates(); //NEW: sync restoreSelectedUv 
 

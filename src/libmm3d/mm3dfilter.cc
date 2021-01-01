@@ -377,12 +377,13 @@ namespace
 
 	enum MisfitSkelAnimFlagsE
 	{
-		MSAF_ANIM_WRAP = 0x0001
+		MSAF_ANIM_WRAP = 0x0001,
 	};
 	
 	enum MM3DFILE_AnimFlagsE //2021
 	{
-		MAF_ANIM_WRAP = 0x0008
+		MAF_ANIM_TYPE = 0x0007,
+		MAF_ANIM_WRAP = 0x0008,
 	};
 
 	// File header
@@ -445,7 +446,7 @@ namespace
 		float32_t localScale[3]; //mm3d2020 only (REMOVE ME)
 	};
 
-	const size_t FILE_JOINT_SIZE = 70+12;
+	const size_t FILE_JOINT_SIZE = 70; //70+12;
 
 	struct MM3DFILE_JointVertexT
 	{
@@ -477,7 +478,7 @@ namespace
 		float32_t scale[3]; //mm3d2020 only (REMOVE ME)
 	};
 
-	const size_t FILE_POINT_SIZE = 74+12;
+	const size_t FILE_POINT_SIZE = 74; //74+12;
 
 	struct MM3DFILE_SmoothAngleT
 	{
@@ -2118,7 +2119,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(frameCount);
 			log_debug("frame count %u\n",frameCount);
 		
-			auto type = (Model::AnimationModeE)(flags&7);
+			auto type = (Model::AnimationModeE)(flags&MAF_ANIM_TYPE); //7
+
 			int anim = model->addAnimation(type,name); if(anim<0)
 			{
 				log_error("Type of animation was unrecognized (%d of %d)\n",
@@ -2142,7 +2144,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			uint32_t keyframeMask;
 			m_src->read(keyframeMask);
-			if(keyframeMask&Model::KM_Vertex)
+			if(keyframeMask&Model::KM_Vertex) //1
 			for(unsigned f=0;f<frameCount;f++)
 			{
 				unsigned vM,vN,v = 0;
@@ -2153,10 +2155,29 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 				restart2021:
 
-					uint32_t m,n;					
-					m_src->read(m);
+					uint32_t m,n;
+					uint8_t fd[4];
+					//m_src->read(m);
+					m_src->readBytes(fd,4);
+					m = fd[0];
 					m_src->read(n);
 					vN+=n;
+
+					//NOTE: A few development/demonstration files may
+					//have size 0 for InterpolateStep/InterpolateLerp. 
+					if(fd[1]||m>Model::InterpolateLerp||fd[3]!=3&&fd[3])
+					{
+						/*Can try to recover here, but if the file is newer
+						//than WRITE_VERSION_MAJOR/WRITE_VERSION_MINOR then
+						//it should have been rejected.
+						if(0) 
+						{
+							m_src->advanceBytes(4*fd[3]); continue;
+						}*/
+						log_error("Vertex keyframe format was unrecognized (%d-%d-%d-%d)\n",
+							fd[0],fd[1],fd[2],fd[3]);
+						return Model::ERROR_BAD_DATA;
+					}
 
 					if(vN>vM) 
 					{
@@ -2216,7 +2237,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 						{
 							m_src->advanceBytes(4*fd[3]); continue;
 						}*/
-						log_error("Type of keyframe was unrecognized (%d-%d-%d-%d)\n",
+						log_error("Object keyframe format was unrecognized (%d-%d-%d-%d)\n",
 							fd[0],fd[1],fd[2],fd[3]);
 						return Model::ERROR_BAD_DATA;
 					}
@@ -2320,7 +2341,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		msg_error(TRANSLATE("LowLevel","MM3D encountered an unexpected data size problem\nSee Help->About to contact the developers")).c_str());
 		return Model::ERROR_FILE_OPEN;
 	}*/
-	int compile[4==sizeof(float32_t)];
+	int compile[4==sizeof(float32_t)]; (void)compile;
 
 	Model::ModelErrorE err = Model::ERROR_NONE;
 	m_dst = openOutput(filename,err);
@@ -2543,7 +2564,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Groups
 	if(setOffset(MDT_Groups)*/	
 
-	int texNum = 0;
+	std::unordered_map<std::string,uint32_t> texMap;
 
 	// Materials
 	if(setOffset(MDT_Materials,false))
@@ -2555,13 +2576,14 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		unsigned baseSize = sizeof(uint16_t)+sizeof(uint32_t)
 		  +(sizeof(float32_t)*17);
 
+		int texNum = 0;
 		for(unsigned m = 0; m<count; m++)
 		{
 			auto mat = modelMaterials[m];
 			uint32_t matSize = baseSize+mat->m_name.size()+1;
 
 			uint16_t flags = 0x0000;
-			uint32_t texIndex = texNum;  // TODO deal with embedded textures
+			uint32_t texIndex = ~0;  // TODO deal with embedded textures
 
 			switch (mat->m_type)
 			{
@@ -2575,10 +2597,13 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				flags = 0x000f;
 				break;
 			case Model::Material::MATTYPE_TEXTURE:
+			{
 				flags = 0x0000;
-				texNum++;
+				auto ins = texMap.insert({mat->m_filename,texNum});
+				if(ins.second) texNum++;
+				texIndex = ins.first->second;
 				break;
-			}
+			}}
 
 			if(mat->m_sClamp) flags |= MF_MAT_CLAMP_S;
 			if(mat->m_tClamp) flags |= MF_MAT_CLAMP_T;
@@ -2614,7 +2639,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(lightProp);
 
 		}
-		log_debug("wrote %d materials with %d internal textures\n",count,texNum);
+		log_debug("wrote %d materials with %d internal textures\n",count,count-texNum);
 	}
 	if(setOffset(MDT_Groups,false))
 	{
@@ -2678,38 +2703,40 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// External Textures
 	if(setOffset(MDT_ExtTextures,false))
 	{
-		unsigned count = modelMaterials.size();
+		//unsigned count = modelMaterials.size();
+		unsigned count = texMap.size();
 
 		writeHeaderA(0x0000,count);
 
 		unsigned baseSize = sizeof(uint16_t);
 
-		for(unsigned m = 0; m<count; m++)
+		for(unsigned m=0;m<count;m++)
+		for(auto&ea:texMap) 
 		{
-			auto mat = modelMaterials[m];
-			if(mat->m_type==Model::Material::MATTYPE_TEXTURE)
-			{
-				std::string fileStr = getRelativePath(modelPath.c_str(),mat->m_filename.c_str());
+			if(m!=ea.second) continue;
 
-				char filename[PATH_MAX];
-				strncpy(filename,fileStr.c_str(),PATH_MAX);
-				utf8chrtrunc(filename,sizeof(filename)-1);
+			std::string fileStr = getRelativePath(modelPath.c_str(),ea.first.c_str());
 
-				replaceSlash(filename);
+			char filename[PATH_MAX];
+			strncpy(filename,fileStr.c_str(),PATH_MAX);
+			utf8chrtrunc(filename,sizeof(filename)-1);
 
-				size_t len = strlen(filename)+1;
-				uint32_t texSize = baseSize+len;
+			replaceSlash(filename);
 
-				uint16_t flags = 0x0000;
+			size_t len = strlen(filename)+1;
+			uint32_t texSize = baseSize+len;
 
-				m_dst->write(texSize);
-				m_dst->write(flags);
-				m_dst->writeBytes(filename,len);
+			uint16_t flags = 0x0000;
 
-				log_debug("material file is %s\n",filename);
-			}
+			m_dst->write(texSize);
+			m_dst->write(flags);
+			m_dst->writeBytes(filename,len);
+
+			log_debug("texture file is %s\n",filename);
+
+			break;
 		}
-		log_debug("wrote %d external textures\n",texNum);
+		log_debug("wrote %d external textures\n",count);
 	}
 
 	// Texture Coordinates
@@ -2751,7 +2778,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		writeHeaderA(0x0000,pcount);
 
-		for(unsigned p = 0; p<pcount; p++)
+		unsigned log_tris = 0;
+
+		for(unsigned p=0;p<pcount; p++)
 		{
 			unsigned wcount = 0; // triangles to write
 			unsigned tcount = model->getTriangleCount();
@@ -2761,6 +2790,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			{
 				wcount++;
 			}
+			log_tris+=wcount;
 
 			uint32_t triSize = sizeof(uint32_t)*2+sizeof(uint32_t)*wcount;
 			uint32_t writeProj  = (uint32_t)p;
@@ -2777,7 +2807,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				m_dst->write(tri);
 			}
 		}
-		log_debug("wrote %d external textures\n",texNum);
+		log_debug("wrote %d triangles affected by a texture projection\n",log_tris);
 	}
 
 	// Canvas Backgrounds
@@ -3056,8 +3086,20 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					auto cmp = vdata[v]->m_frames[fp]->m_interp2020;
 					for(w++;w<vcount&&cmp==vdata[w]->m_frames[fp]->m_interp2020;)
 					w++;
-					m_dst->write((uint32_t)cmp);
+
+					/*Almost forgot this should be extensible like
+					//the object keyframes, and it certainly isn't
+					//a good idea to waste 3 bytes.
+					m_dst->write((uint32_t)cmp);*/
+					uint8_t format_descriptor[4] = 
+					{
+						//3 is the size of each vertex 4B multiple.
+						(char)cmp,0,0,cmp>Model::InterpolateCopy?3:0
+					};
+					m_dst->writeBytes(format_descriptor,4);
+
 					m_dst->write((uint32_t)(w-v));
+
 					if(cmp>Model::InterpolateCopy) for(;v<w;v++)
 					{
 						//WARNING: This depends on the interpolation model.

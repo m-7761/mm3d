@@ -100,13 +100,15 @@ class Model
 			AddAnimation		 = 0x00000200, // Added/moved/named/deleted animation
 			AddOther			 = 0x00000400, // Added or removed something else
 			MoveGeometry		 = 0x00000800, // Model shape changed
-			MoveOther			 = 0x00001000, // Something non-geometric was moved
-			AnimationMode        = 0x00002000, // Changed animation mode
-			AnimationSet		 = 0x00004000, // Changed current animation			
-			AnimationFrame       = 0x00008000, // Changed current animation frame
-			AnimationProperty    = 0x00010000, // Set animation times/frames/fps/wrap
-			ShowJoints           = 0x00020000, // Joints forced visible
-			ShowProjections      = 0x00040000, // Projections forced visible
+			MoveNormals			 = 0x00001000, // Model surface normals changed
+			MoveTexture			 = 0x00002000, // Model texture map changed
+			MoveOther			 = 0x00004000, // Something non-geometric was moved
+			AnimationMode        = 0x00008000, // Changed animation mode
+			AnimationSet		 = 0x00010000, // Changed current animation			
+			AnimationFrame       = 0x00020000, // Changed current animation frame
+			AnimationProperty    = 0x00040000, // Set animation times/frames/fps/wrap
+			ShowJoints           = 0x00080000, // Joints forced visible
+			ShowProjections      = 0x00100000, // Projections forced visible
 			ChangeAll			 = 0xFFFFFFFF,	// All of the above
 
 			AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty,
@@ -1422,10 +1424,13 @@ class Model
 			return ((Model*)this)->getPositionObject(pos);
 		}
 
-		bool setPositionCoords(const Position &pos, const double coords[3]);
-		bool setPositionRotation(const Position &pos, const double rot[3]);
-		bool setPositionScale(const Position &pos, const double scale[3]);
 		bool setPositionName(const Position &pos, const char *name);		
+		bool setPositionCoords(const Position &pos, const double coords[3]);
+		bool setPositionCoordsUnanimated(const Position &pos, const double coords[3]);
+		bool setPositionRotation(const Position &pos, const double rot[3]);
+		bool setPositionRotationUnanimated(const Position &pos, const double rot[3]);
+		bool setPositionScale(const Position &pos, const double scale[3]);
+		bool setPositionScaleUnanimated(const Position &pos, const double scale[3]);
 
 		const char *getPositionName(const Position &pos)const;
 		bool getPositionCoords(const Position &pos, double coords[3])const;
@@ -1888,8 +1893,8 @@ class Model
 		// See the clamp property in the Material class.
 		bool getTextureSClamp(unsigned textureId)const;
 		bool getTextureTClamp(unsigned textureId)const;
-		bool setTextureSClamp(unsigned textureId,bool clamp);
-		bool setTextureTClamp(unsigned textureId,bool clamp);
+		bool setTextureSClamp(unsigned textureId, bool clamp);
+		bool setTextureTClamp(unsigned textureId, bool clamp);
 
 		int_list getUngroupedTriangles()const;
 		//int_list getGroupTriangles(unsigned groupNumber)const;
@@ -1911,24 +1916,33 @@ class Model
 		// Skeletal structure and influence functions
 		// ------------------------------------------------------------------
 		
+		//Please use setBoneJointOffset to assign relative coordinates.
+		//I don't think passing them is a big gain but it's also a bit
+		//confusing for one overload to be absolute and other relative.
+		int addBoneJoint(const char *name, int parent=-1);
 		//LEGACY: This is absolute translation (relative to the parent.)
 		int addBoneJoint(const char *name, double x, double y, double z, int parent=-1);
-		int addBoneJoint(const char *name, int parent=-1);		
 
 		void deleteBoneJoint(unsigned joint);
 
 		const char *getBoneJointName(unsigned joint)const;
 		int getBoneJointParent(unsigned joint)const;
+
+		//2021: This gets the joints local/relative coordinates. 
+		//There's no other API for doing that besides the other
+		//version that ignores animation. The Position versions
+		//are a mix of global and local now but the plan is the
+		//rotation and scale methods will be fully global later.
+		bool getBoneJointOffset(unsigned j, double rel[3], double rot[3]=nullptr, double scale[3]=nullptr);
+		bool getBoneJointOffsetUnanimated(unsigned j, double rel[3], double rot[3]=nullptr, double scale[3]=nullptr);
+		
+		//These are Position compatible APIs.
 		bool getBoneJointCoords(unsigned jointNumber, double *abs)const;
 		bool getBoneJointCoordsUnanimated(unsigned jointNumber, double *abs)const;
 		bool getBoneJointRotation(unsigned jointNumber, double *coord)const;
 		bool getBoneJointRotationUnanimated(unsigned jointNumber, double *coord)const;
 		bool getBoneJointScale(unsigned jointNumber, double *coord)const;
 		bool getBoneJointScaleUnanimated(unsigned jointNumber, double *coord)const;
-		//WARNING: This is relative coordinates.
-		bool getBoneJointTranslation(unsigned jointNumber, double *rel)const;
-		//WARNING: This is relative coordinates.
-		bool getBoneJointTranslationUnanimated(unsigned jointNumber, double *rel)const;
 
 		bool getBoneJointFinalMatrix(unsigned jointNumber,Matrix &m)const;
 		bool getBoneJointAbsoluteMatrix(unsigned jointNumber,Matrix &m)const;
@@ -2020,22 +2034,25 @@ class Model
 		bool setBoneJointName(unsigned joint, const char *name);
 		bool setBoneJointParent(unsigned joint, int parent=-1, bool validate=true);
 
-		bool setBoneJointCoords(unsigned j, const double *abs);
+		//2021: This sets the joints local/relative coordinates. 
+		//There's no other API for doing that besides the other
+		//version that ignores animation. The Position versions
+		//are a mix of global and local now but the plan is the
+		//rotation and scale methods will be fully global later.
+		bool setBoneJointOffset(unsigned j, const double rel[3], const double rot[3]=nullptr, const double scale[3]=nullptr);
+		bool setBoneJointOffsetUnanimated(unsigned j, const double rel[3], const double rot[3]=nullptr, const double scale[3]=nullptr);
+
+		//These are Position compatible APIs.
+		bool setBoneJointCoords(unsigned j, const double *abs);			
+		bool setBoneJointRotation(unsigned j, const double *rot);
 		bool setBoneJointScale(unsigned point, const double *scale);
-		bool setBoneJointRotation(unsigned j, const double *rot);		
-		//WARNING: This is relative coordinates.
-		bool setBoneJointTranslation(unsigned j, const double *rel);
-		
-		
 
 		double calculatePositionInfluenceWeight(const Position &pos, unsigned joint)const;
 		double calculateVertexInfluenceWeight(unsigned vertex, unsigned joint)const;
 		double calculatePointInfluenceWeight(unsigned point, unsigned joint)const;
 		double calculateCoordInfluenceWeight(const double *coord, unsigned joint)const;
-
-		//RENAME/REMOVE ME
-		//2020: I'm hijacking this API in order to keep the geometry up-to-date.
-		static void _calculateRemainderWeight(infl_list &list);
+		//NOTE: All "calculate" Influence methods call this eventually, so
+		//you can read it as "finalize" influence.
 		void calculateRemainderWeight(const Position&);
 
 		bool getBoneVector(unsigned joint, double *vec, const double *coord)const;
@@ -2369,17 +2386,12 @@ class Model
 		// Transform functions
 		// ------------------------------------------------------------------
 
-		//NOTICE: These all use MU_MoveUnanimated whereas setPositionCenter
-		//and setPointTranslation, etc. use MU_SetObjectXYZ (formerly there
-		//was an undo object of this type for every combination of types and
-		//parameters.) MU_MoveUnanimated keeps a mapped array of reassignments.
-		//FIX ME? MU_TranslateSelected, etc. exists via translateSelected, etc!
-		bool movePosition(const Position &pos, double x, double y, double z);
-		bool movePositionUnanimated(const Position &pos, double x, double y, double z);
 		bool moveVertex(unsigned v, double x, double y, double z);
 		bool moveBoneJoint(unsigned j, double x, double y, double z);
 		bool movePoint(unsigned p, double x, double y, double z);
 		bool moveProjection(unsigned p, double x, double y, double z);
+		bool movePosition(const Position &pos, double x, double y, double z);
+		bool movePositionUnanimated(const Position &pos, double x, double y, double z);
 
 		//TODO: NEED UNIFORM TRANSLATE/ROTATE MODES FOR JOINTS:
 		//1) Free movement (current for translation w/o animation)

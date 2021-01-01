@@ -277,7 +277,7 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 {
 	log_debug("assigning texture %d to group %d\n",textureId,groupNumber);
 
-	m_changeBits |= AddOther;
+	m_changeBits |= AddOther|MoveTexture;
 
 	if(groupNumber>=0&&groupNumber<m_groups.size()&&textureId<(int)m_materials.size())
 	{
@@ -294,16 +294,12 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 		m_groups[groupNumber]->m_materialIndex = textureId;
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, float s, float t)
 {
-	//https://github.com/zturtleman/mm3d/issues/90
-	m_changeBits |= MoveGeometry;
+	m_changeBits |= MoveTexture;
 
 	//log_debug("setTextureCoords(%d,%d,%f,%f)\n",triangleNumber,vertexIndex,s,t);
 
@@ -325,10 +321,7 @@ bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, floa
 
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 bool Model::setTextureAmbient(unsigned textureId, const float *ambient)
@@ -743,49 +736,28 @@ int Model::getMaterialColor(unsigned materialIndex, unsigned c, unsigned v)const
 
 Model::Material::MaterialTypeE Model::getMaterialType(unsigned materialIndex)const
 {
-	if(materialIndex<m_materials.size())
-	{
-		return m_materials[materialIndex]->m_type;
-	}
-	else
-	{
-		return Material::MATTYPE_BLANK;
-	}
+	if(materialIndex<m_materials.size())	
+	return m_materials[materialIndex]->m_type;
+	return Material::MATTYPE_BLANK;
 }
 
-int Model::getMaterialByName(const char *const materialName,bool ignoreCase)const
+int Model::getMaterialByName(const char *const materialName, bool ignoreCase)const
 {
-	int (*compare)(const char *, const char *);
-	compare = ignoreCase ? PORT_strcasecmp : strcmp;
-
-	int matNumber = -1;
-
-	for(unsigned m = 0; m<m_materials.size(); m++)
-	{
-		if(compare(materialName,m_materials[m]->m_name.c_str())==0)
-		{
-			matNumber = m;
-			break;
-		}
-	}
-
-	return matNumber;
+	int(*compare)(const char*,const char*);
+	compare = ignoreCase?PORT_strcasecmp:strcmp;
+	for(unsigned m=0;m<m_materials.size();m++)
+	if(!compare(materialName,m_materials[m]->m_name.c_str()))
+	return m; return -1;
 }
 
 DrawingContext *Model::getDrawingContext(ContextT context)
 {
-	DrawingContextList::iterator it;
-	for(it = m_drawingContexts.begin(); it!=m_drawingContexts.end(); it++)
-	{
-		if((*it)->m_context==context)
-		{
-			return (*it);
-		}
-	}
+	for(auto*ea:m_drawingContexts)
+	if(ea->m_context==context) return ea;
 
 	DrawingContext *drawContext = new DrawingContext;
 	drawContext->m_context = context;
-	drawContext->m_valid	= false;
+	drawContext->m_valid = false;
 	m_drawingContexts.push_back(drawContext);
 
 	return drawContext;
@@ -795,23 +767,18 @@ void Model::invalidateTextures() //OVERKILL
 {
 	//HACK/2020: Force Material to reload built-in OpenGL texture data.
 	m_validContext = false;
-
-	DrawingContextList::iterator it;
-	for(it=m_drawingContexts.begin();it!=m_drawingContexts.end();it++)
-	(*it)->m_valid = false;
 	m_validBspTree = false;
+	for(auto*ea:m_drawingContexts) ea->m_valid = false;	
 }
 
 void Model::deleteGlTextures(ContextT context)
 {
 	DrawingContext *drawContext = getDrawingContext(context);
-	for(FileTextureMap::const_iterator it = drawContext->m_fileTextures.begin();
-			it!=drawContext->m_fileTextures.end(); ++it)
+	for(auto&ea:drawContext->m_fileTextures)
 	{
-		int texId = it->second;
-		if(texId>0)
+		int texId = ea.second; if(texId>0)
 		{
-			glDeleteTextures(1,(GLuint *)&texId);
+			glDeleteTextures(1,(GLuint*)&texId);
 			s_glTextures--;
 			log_debug("GL textures: %d\n",s_glTextures);
 		}
@@ -823,21 +790,12 @@ void Model::deleteGlTextures(ContextT context)
 
 void Model::removeContext(ContextT context)
 {
-	DrawingContext *drawContext = nullptr;
-	DrawingContextList::iterator it;
-	for(it = m_drawingContexts.begin(); drawContext==nullptr&&it!=m_drawingContexts.end(); it++)
+	for(auto it=m_drawingContexts.begin();it!=m_drawingContexts.end();it++)	
+	if((*it)->m_context==context)
 	{
-		if((*it)->m_context==context)
-		{
-			drawContext = *it;
-			deleteGlTextures(context);
-			break;
-		}
-	}
-
-	if(drawContext)
-	{
+		deleteGlTextures(context);
 		m_drawingContexts.erase(it);
-		delete drawContext;
+		delete *it;
+		return;
 	}
 }

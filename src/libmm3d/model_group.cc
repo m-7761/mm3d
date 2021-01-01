@@ -77,54 +77,42 @@ void Model::deleteGroup(unsigned groupNum)
 
 bool Model::setGroupSmooth(unsigned groupNum, uint8_t smooth)
 {
-	if(groupNum<m_groups.size())
+	if(groupNum>=m_groups.size()) return false;
+	
+	if(smooth!=m_groups[groupNum]->m_smooth) //2020
 	{
-		if(smooth!=m_groups[groupNum]->m_smooth) //2020
+		if(m_undoEnabled)
 		{
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetGroupSmooth;
-				undo->setGroupSmooth(groupNum,smooth,m_groups[groupNum]->m_smooth);		
-				sendUndo(undo/*,true*/);
-			}
-
-			m_groups[groupNum]->m_smooth = smooth;
-		
-			invalidateNormals(); //OVERKILL
+			auto undo = new MU_SetGroupSmooth;
+			undo->setGroupSmooth(groupNum,smooth,m_groups[groupNum]->m_smooth);		
+			sendUndo(undo/*,true*/);
 		}
 
-		return true;
+		m_groups[groupNum]->m_smooth = smooth;
+		
+		invalidateNormals(); //OVERKILL
 	}
-	else
-	{
-		return false;
-	}
+	return true;
 }
 
 bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 {
-	if(groupNum<m_groups.size())
+	if(groupNum>=m_groups.size()) return false;
+	
+	if(angle!=m_groups[groupNum]->m_angle) //2020
 	{
-		if(angle!=m_groups[groupNum]->m_angle) //2020
+		if(m_undoEnabled)
 		{
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetGroupAngle;
-				undo->setGroupAngle(groupNum,angle,m_groups[groupNum]->m_angle);
-				sendUndo(undo/*,true*/);
-			}
-
-			m_groups[groupNum]->m_angle = angle;
-		
-			invalidateNormals(); //OVERKILL
+			auto undo = new MU_SetGroupAngle;
+			undo->setGroupAngle(groupNum,angle,m_groups[groupNum]->m_angle);
+			sendUndo(undo/*,true*/);
 		}
 
-		return true;
+		m_groups[groupNum]->m_angle = angle;
+		
+		invalidateNormals(); //OVERKILL
 	}
-	else
-	{
-		return false;
-	}
+	return true;
 }
 
 bool Model::setGroupName(unsigned groupNum, const char *name)

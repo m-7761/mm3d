@@ -592,8 +592,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		double trans[3] = { fp[0],fp[1],fp[2] };
 		fp = joint.m_rotation;
 		double rot[3] = { fp[0],fp[1],fp[2] };
-		model->setBoneJointTranslation(t,trans);
-		model->setBoneJointRotation(t,rot);
+		model->setBoneJointOffset(t,trans,rot);
 
 		uint16_t numRotationKeyframes	 = joint.m_numRotationKeyframes;
 		uint16_t numTranslationKeyframes = joint.m_numTranslationKeyframes;

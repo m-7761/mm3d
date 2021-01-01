@@ -504,39 +504,47 @@ void Model::calculateRemainderWeight(const Position &pos)
 {
 	auto *il = getPositionInfluences(pos); if(!il) return;
 
-	_calculateRemainderWeight(*il);
-
-	//2020: Keep coordinates up-to-date.
-	if(m_validAnim&&inSkeletalMode())
+	//2021: Can't rememember why I split this off 
+	//but this was its only use case.
+	//_calculateRemainderWeight(*il);
 	{
-		if(pos.type==PT_Vertex)
+		int	 remainders = 0; double remaining = 1;
+
+		for(auto&ea:*il) if(ea.m_type==IT_Remainder)
+		{
+			remainders++;
+		}
+		else remaining-=ea.m_weight;
+
+		if(remainders>0&&remaining>0)
+		{
+			for(auto&ea:*il) if(ea.m_type==IT_Remainder)
+			{
+				ea.m_weight = remaining/(double)remainders;
+			}
+		}
+	}
+
+	if(inSkeletalMode())
+	if(pos.type==PT_Vertex)
+	{	
+		m_changeBits |= MoveGeometry;
+
+		if(m_validAnim)
 		{
 			m_vertices[pos]->_resample(*this,pos);
 
-			invalidateNormals(); //OVERKILL
+			invalidateAnimNormals(); //OVERKILL
 		}
-		else if(pos.type==PT_Point)
+	}
+	else if(pos.type==PT_Point)
+	{
+		m_changeBits |= MoveOther;
+
+		if(m_validAnim)
 		{
 			m_points[pos]->_resample(*this,pos);
 		}
-		else assert(0);
 	}
-}
-void Model::_calculateRemainderWeight(infl_list &l)
-{
-	int	 remainders = 0; double remaining = 1;
-
-	for(auto&ea:l) if(ea.m_type==IT_Remainder)
-	{
-		remainders++;
-	}
-	else remaining-=ea.m_weight;
-
-	if(remainders>0&&remaining>0)
-	{
-		for(auto&ea:l) if(ea.m_type==IT_Remainder)
-		{
-			ea.m_weight = remaining/(double)remainders;
-		}
-	}
+	else assert(0);
 }

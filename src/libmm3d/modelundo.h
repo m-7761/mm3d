@@ -256,11 +256,11 @@ class MU_MoveUnanimated : public ModelUndo
 		MovePrimitiveList m_objects;
 };
 
-class MU_SetObjectXYZ : public ModelUndo
+class MU_SetObjectUnanimated : public ModelUndo
 {
 public:
 
-	MU_SetObjectXYZ(const Model::Position &pos):pos(pos)
+	MU_SetObjectUnanimated(const Model::Position &pos):pos(pos)
 	{}
 
 	void undo(Model *);

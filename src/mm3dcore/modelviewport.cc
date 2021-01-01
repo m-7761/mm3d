@@ -544,7 +544,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	//This is how snapping is done in projection space.
 	//It just has to be moved into real space. 25 is 2
 	//arrow cursors tall on my system.
-	float axis = std::min(25.0f/w*m_width,25.0f/h*m_height);
+	float axis = (float)std::min(25.0/w*m_width,25.0/h*m_height);
 	{
 		//This seems to work but there's surely better
 		//ways to compute it. Maybe not though if it's

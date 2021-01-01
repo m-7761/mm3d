@@ -1681,8 +1681,12 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	return true;
 }
 void Model::invalidateSkel()
-{	
-	if(inSkeletalMode()) m_validAnimJoints = false;
+{
+	//2021: movePositionUnanimated may be in animation
+	//mode, plus there's no longer a clean split
+	//between animation off or on.
+	//if(inSkeletalMode()) 
+	m_validAnimJoints = false;
 
 	m_validJoints = false; 
 }

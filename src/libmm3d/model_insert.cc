@@ -33,6 +33,11 @@ void Model::insertVertex(unsigned index, Model::Vertex *vertex)
 
 	m_changeBits |= AddGeometry;
 
+	if(vertex->m_selected)
+	{
+		m_changeBits |= SelectionVertices; 
+	}
+
 	invalidateNormals(); //OVERKILL
 
 	if(index==m_vertices.size())
@@ -69,6 +74,11 @@ void Model::removeVertex(unsigned index)
 
 	if(index<m_vertices.size())
 	{
+		if(m_vertices[index]->m_selected)
+		{
+			m_changeBits |= SelectionVertices; 
+		}
+
 		//unsigned count = 0;
 		//std::vector<Vertex*>::iterator it;
 		//for(it = m_vertices.begin(); it!=m_vertices.end(); it++)
@@ -98,6 +108,11 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 
 	m_changeBits |= AddGeometry;
 
+	if(triangle->m_selected)
+	{
+		m_changeBits |= SelectionFaces; 
+	}
+
 	invalidateNormals(); //OVERKILL
 
 	//2020: Keep connectivity to help calculateNormals
@@ -121,6 +136,11 @@ void Model::removeTriangle(unsigned index)
 	{		
 		m_changeBits |= AddGeometry;
 
+		if(m_triangles[index]->m_selected)
+		{
+			m_changeBits |= SelectionFaces; 
+		}
+
 		invalidateNormals(); //OVERKILL
 
 		//2020: Keep connectivity to help calculateNormals
@@ -137,12 +157,17 @@ void Model::removeTriangle(unsigned index)
 	else log_error("removeTriangle(%d)index out of range\n",index);
 }
 
-void Model::insertGroup(unsigned index,Model::Group *group)
+void Model::insertGroup(unsigned index, Model::Group *group)
 {
 	if(index>m_groups.size())
 	return log_error("insertGroup(%d)index out of range\n",index); 
 
 	m_changeBits |= AddOther;
+
+	if(group->m_selected)
+	{
+		m_changeBits |= SelectionGroups; 
+	}
 
 	m_groups.insert(m_groups.begin()+index,group);
 }
@@ -153,6 +178,11 @@ void Model::removeGroup(unsigned index)
 
 	if(index<m_groups.size())
 	{
+		if(m_groups[index]->m_selected)
+		{
+			m_changeBits |= SelectionGroups; 
+		}
+
 		m_groups.erase(m_groups.begin()+index);
 	}
 	else log_error("removeGroup(%d)index out of range\n",index);
@@ -166,6 +196,11 @@ void Model::insertBoneJoint(unsigned index, Joint *joint)
 	invalidateAnim(); joint->_source(m_animationMode);
 	
 	m_changeBits |= AddOther;
+
+	if(joint->m_selected)
+	{
+		m_changeBits |= SelectionJoints; 
+	}
 		
 	if(index<m_joints.size())
 	{
@@ -318,6 +353,11 @@ void Model::removeBoneJoint(unsigned index)
 
 	auto *cmp = m_joints[index];
 
+	if(cmp->m_selected)
+	{
+		m_changeBits |= SelectionJoints; 
+	}
+
 	m_joints.erase(m_joints.begin()+index);
 
 	for(auto it=m_joints2.begin();it<m_joints2.end();it++)		
@@ -328,7 +368,7 @@ void Model::removeBoneJoint(unsigned index)
 		}
 	}
 
-	invalidateSkel(); //m_validJoints = false;
+	invalidateSkel();
 }
 
 void Model::insertInfluence(const Position &pos, unsigned index, const InfluenceT &influence)
@@ -359,15 +399,6 @@ void Model::insertInfluence(const Position &pos, unsigned index, const Influence
 	l->insert(l->begin()+index,influence);
 
 	calculateRemainderWeight(pos); //2020
-
-	/*EXPERIMENTAL
-	if(influence.m_boneId<m_joints.size()) //2020
-	{
-		m_joints[influence.m_boneId]->_infl++;
-
-		assert(m_joints[influence.m_boneId]->_infl>=1);
-	}
-	else assert(0);*/
 }
 
 void Model::removeInfluence(const Position &pos, unsigned index)
@@ -421,6 +452,11 @@ void Model::insertPoint(unsigned index, Model::Point *point)
 	invalidateAnim(); point->_source(m_animationMode);
 
 	m_changeBits |= AddOther;
+
+	if(point->m_selected)
+	{
+		m_changeBits |= SelectionPoints; 
+	}
 
 	m_points.insert(m_points.begin()+index,point);
 }
@@ -476,6 +512,11 @@ void Model::removePoint(unsigned index)
 		}
 	}
 
+	if(m_points[index]->m_selected)
+	{
+		m_changeBits |= SelectionPoints; 
+	}
+
 	m_points.erase(m_points.begin()+index);	
 }
 
@@ -485,6 +526,11 @@ void Model::insertProjection(unsigned index, Model::TextureProjection *proj)
 	return log_error("insertProjection(%d)index out of range\n",index);
 
 	m_changeBits |= AddOther;
+
+	if(proj->m_selected)
+	{
+		m_changeBits |= SelectionProjections; 
+	}
 
 	if(index<m_projections.size())
 	{
@@ -503,6 +549,11 @@ void Model::removeProjection(unsigned proj)
 
 	if(proj<m_projections.size())
 	{
+		if(m_projections[proj]->m_selected)
+		{
+			m_changeBits |= SelectionProjections; 
+		}
+
 		m_projections.erase(m_projections.begin()+proj);
 		adjustProjectionIndices(proj,-1);
 	}

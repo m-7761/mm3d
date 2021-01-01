@@ -487,6 +487,11 @@ void AnimWin::Impl::set_frame(double i)
 		//if(model->setCurrentAnimationFrame(i,Model::Model::AT_invalidateAnim))
 		if(ok=model->setCurrentAnimationFrameTime(i,Model::Model::AT_invalidateAnim))
 		{
+			//2021: I can't recall why I did this but it seems like it
+			//can probably be removed. The API does it but only for BSP
+			//insurance.
+
+			//REMOVE ME?
 			//HACK: The slider can be manually dragged faster than the
 			//animation can be displayed right now.
 			model->invalidateAnimNormals();
