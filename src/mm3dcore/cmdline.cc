@@ -56,14 +56,14 @@ static StringList cmdline_argList;
 typedef std::vector<Model*> cmdline_ModelList;
 static cmdline_ModelList cmdline_models;
 
-static void cmdline_print_version(const char *progname)
+static void cmdline_print_version()
 {
 	printf("\nMaverick Model 3D,version %s\n\n",VERSION_STRING);
 }
 
 static void cmdline_print_help(const char *progname)
 {
-	cmdline_print_version(progname);
+	cmdline_print_version();
 
 	printf("Usage:\n  %s [options] [model_file] ...\n\n",progname);
 
@@ -135,8 +135,6 @@ static void cmdline_print_sysinfo()
 
 	printf("\n");
 #endif
-
-	exit(0);
 }
 
 enum cmdline_Mm3dOptionsE 
@@ -218,7 +216,7 @@ int init_cmdline(int &argc,char *argv[])
 
 	if(clm.isSpecified(OptVersion))
 	{
-		cmdline_print_version(argv[0]);
+		cmdline_print_version();
 		exit(0);
 	}
 
@@ -253,8 +251,18 @@ int init_cmdline(int &argc,char *argv[])
 		cmdline_runcommand = true;
 		cmdline_runui = true;
 	}
-
+		
 	if(clm.isSpecified(OptSysinfo))
+	{
+		cmdline_print_sysinfo();
+		exit(0);
+	}
+		
+	bool verbose = //2021
+		clm.isSpecified(OptVerbose);
+	if(verbose) 
+		log_enable_output(true);
+	if(verbose)
 		cmdline_print_sysinfo();
 
 	if(clm.isSpecified(OptDebug))

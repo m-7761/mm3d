@@ -312,6 +312,10 @@ template<typename T> bool equiv3(const T *lhs, const T *rhs)
 		  && fabs(lhs[2]-rhs[2])<0.0001);
 }
 
+static double dot_product(double *val1, double *val2)
+{
+	return val1[0]*val2[0]+val1[1]*val2[1]+val1[2]*val2[2];
+}
 
 template<typename T> //2020
 static T *cross_product(T *result,

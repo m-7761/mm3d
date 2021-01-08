@@ -29,10 +29,12 @@
 extern void log_enable_debug(bool o);
 extern void log_enable_warning(bool o);
 extern void log_enable_error(bool o);
+extern void log_enable_output(bool o);
 
 extern void log_debug(const char *fmt,...);
 extern void log_warning(const char *fmt,...);
 extern void log_error(const char *fmt,...);
+extern void log_output(const char *fmt,...);
 
 #ifdef __DO_PROFILE
 

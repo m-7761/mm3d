@@ -60,6 +60,7 @@ bool_panel(model.sidebar,model)
 	dropdown *ll[] = //HACK
 	{
 	&anim_panel.animation,
+	&prop_panel.faces.menu,
 	&prop_panel.group.group.menu,
 	&prop_panel.group.material.menu,
 	&prop_panel.group.projection.menu,
@@ -80,7 +81,9 @@ bool_panel(model.sidebar,model)
 
 	active_callback = &SideBar::submit;
 
-	basic_submit(id_init);
+	//Do this after faces.menu is initalized
+	//so its options won't change its size.
+	prop_panel.init();
 }
 void SideBar::submit(control *c)
 {
@@ -291,36 +294,39 @@ void SideBar::PropPanel::stop()
 		model.perform_menu_action(id_animate_stop);
 	}
 }
+void SideBar::PropPanel::init()
+{
+	pos.dimensions.disable();
+
+	for(int i=0;i<3;i++)
+	{
+		interp.menu[i].set_parent(interp.nav).id('t').expand();
+		interp.menu[i].add_item(Model::InterpolateNone,"<None>");
+	}
+	interp.menu[0].add_item(Model::InterpolateCopy,"<Position>");
+	interp.menu[0].add_item(Model::InterpolateLerp,"Lerp Position");
+	interp.menu[0].add_item(Model::InterpolateStep,"Step Position");		
+	interp.menu[1].add_item(Model::InterpolateCopy,"<Rotation>");
+	interp.menu[1].add_item(Model::InterpolateLerp,"Lerp Rotation");
+	interp.menu[1].add_item(Model::InterpolateStep,"Step Rotation");
+	interp.menu[2].add_item(Model::InterpolateCopy,"<Scale>");
+	interp.menu[2].add_item(Model::InterpolateLerp,"Lerp Scale");
+	interp.menu[2].add_item(Model::InterpolateStep,"Step Scale");
+	proj.type.menu.add_item(0,"Cylinder");
+	proj.type.menu.add_item(1,"Sphere");
+	proj.type.menu.add_item(2,"Plane");
+
+	faces.menu.add_item(0,"");
+	faces.menu.add_item(1,"Move to Top of Display List");
+	faces.menu.add_item(2,"Move to End");
+	faces.menu.add_item(3,"Transpose with Reverse List");
+}
 void SideBar::PropPanel::submit(control *c)
 {
 	sidebar_updater raii; //REMOVE ME
 
 	int id = c->id(); switch(id)
 	{
-	case id_init:
-
-		pos.dimensions.disable();
-
-		for(int i=0;i<3;i++)
-		{
-			interp.menu[i].set_parent(interp.nav).id('t').expand();
-			interp.menu[i].add_item(Model::InterpolateNone,"<None>");
-		}
-		interp.menu[0].add_item(Model::InterpolateCopy,"<Position>");
-		interp.menu[0].add_item(Model::InterpolateLerp,"Lerp Position");
-		interp.menu[0].add_item(Model::InterpolateStep,"Step Position");		
-		interp.menu[1].add_item(Model::InterpolateCopy,"<Rotation>");
-		interp.menu[1].add_item(Model::InterpolateLerp,"Lerp Rotation");
-		interp.menu[1].add_item(Model::InterpolateStep,"Step Rotation");
-		interp.menu[2].add_item(Model::InterpolateCopy,"<Scale>");
-		interp.menu[2].add_item(Model::InterpolateLerp,"Lerp Scale");
-		interp.menu[2].add_item(Model::InterpolateStep,"Step Scale");
-		proj.type.menu.add_item(0,"Cylinder");
-		proj.type.menu.add_item(1,"Sphere");
-		proj.type.menu.add_item(2,"Plane");
-			
-		return;
-
 	case id_name:
 
 		name.change(); break;
@@ -373,7 +379,11 @@ void SideBar::PropPanel::submit(control *c)
 		for(unsigned i:model.selection)
 		model->setBoneJointParent(i,infl.parent_joint);
 		model->operationComplete(::tr("Reparent","operation complete"));
-		break;	
+		break;
+
+	case '#': //2021
+
+		faces.change(); break;
 	}
 }
 
@@ -403,7 +413,7 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	size_t sz = model.selection.size();
 	if(1==sz) ss = model.selection[0];
 
-	bool show = ss.type;
+	bool show = ss.type!=Model::PT_Vertex;
 	if(mode&&ss.type==Model::PT_Projection)
 	show = false;
 	name.nav.set_hidden(!show);
@@ -481,6 +491,13 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 			cmp = cmp==-2?p:-3;
 		}
 		infl.parent_joint.select_id(cmp);
+	}
+
+	if(changeBits&Model::SelectionFaces)
+	{
+		show = !model.fselection.empty();	
+		faces.nav.set_hidden(!show);
+		faces.change(changeBits);
 	}
 }
 
@@ -1235,5 +1252,49 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 
 		assert(group.v.enabled());
 		sidebar_update_weight_v(group.v,true,group.v,w);
+	}
+}
+
+void SideBar::PropPanel::faces_props::change(int changeBits)
+{	
+	if(changeBits) // Update coordinates in text fields	
+	{
+		reverse:
+		char buf[64];
+		int i = 0; for(int f:model.fselection)
+		{
+			i+=snprintf(buf+i,sizeof(buf)-i,"%d,",f);
+			if((unsigned)i>=sizeof(buf))
+			{
+				i = sizeof(buf)-2;
+				while(i&&buf[i]!=','||i>sizeof(buf)-4) 
+				i--;
+				for(int j=3;j-->0;) 
+				buf[i++] = '.';
+				break;
+			}
+		}
+		if(i&&buf[i-1]==',') 
+		i--;
+		buf[i] = '\0';
+		menu.first_item()->set_text(buf);
+	}
+	else if(int id=menu)
+	{
+		menu.select_id(0);
+
+		if(model.fselection.empty()) return; //paranoia
+
+		if(id==3)
+		{
+			model->reverseOrderSelectedTriangle();
+			model->operationComplete(::tr("Reverse Order Selected Triangles","operation complete"));		
+			//NOTE: This is pure cosmetic feedback.
+			std::reverse(model.fselection.begin(),model.fselection.end());
+			goto reverse;
+		}
+		else if(id<=2)
+		model->prioritizeSelectedTriangles(id==1);
+		model->operationComplete(::tr("Prioritize Selected Triangles","operation complete"));
 	}
 }

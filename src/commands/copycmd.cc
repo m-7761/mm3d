@@ -105,7 +105,7 @@ bool CopyCommand::activated(int arg, Model *model)
 			model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection copied to clipboard"));
 		}
 	
-		FilterManager::getInstance()->writeFile(m,clipfile.c_str(),FilterManager::WO_ModelNoPrompt);
+		FilterManager::getInstance()->writeFile(m,clipfile.c_str(),false,FilterManager::WO_ModelNoPrompt);
 
 		if(m!=model) delete m;
 	}

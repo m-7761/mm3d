@@ -521,6 +521,15 @@ namespace
 
 	const size_t FILE_TEXTURE_PROJECTION_SIZE = 98;
 
+	struct MM3DFILE_ScaleFactorT
+	{
+		uint16_t type;
+		uint16_t index;
+		float32_t scale[3];
+	};
+
+	const size_t FILE_SCALE_FACTOR_SIZE = 16;
+
 	struct UnknownDataT
 	{
 		uint16_t offsetType;
@@ -658,8 +667,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		log_warning("bad magic number file\n");
 		return Model::ERROR_BAD_MAGIC;
 	}
-	int v = fileHeader.versionMajor<<8+fileHeader.versionMinor;
-	bool mm3d2021 = mm3d2020&&v>=0x201;
+	bool mm3d2021 = mm3d2020
+	&&(fileHeader.versionMajor>2||fileHeader.versionMinor>=1);
 
 	//FIX ME
 	//Assuming can't read if MISFIT3D is newer than 1.7.
@@ -680,9 +689,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 	unsigned offsetCount = fileHeader.offsetCount;
 
-	log_debug("Misfit file:\n");
-	log_debug("  major:	%d\n",fileHeader.versionMajor);
-	log_debug("  minor:	%d\n",fileHeader.versionMinor);
+	log_output("MM3D file:\n");
+	log_output("  major:	%d\n",fileHeader.versionMajor);
+	log_output("  minor:	%d\n",fileHeader.versionMinor);
 	log_debug("  offsets: %d\n",fileHeader.offsetCount);
 
 	log_debug("Offset information:\n");
@@ -2158,8 +2167,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 					uint32_t m,n;
 					uint8_t fd[4];
 					//m_src->read(m);
-					m_src->readBytes(fd,4);
-					m = fd[0];
+					m_src->readBytes(fd,4); m = fd[0];
 					m_src->read(n);
 					vN+=n;
 
@@ -2223,7 +2231,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				Model::Position pos;
 				pos.type = (Model::PositionTypeE)i;
 
-				m_src->read(frameCount); while(frameCount-->0)
+				uint32_t keyframeCount;
+				m_src->read(keyframeCount); while(keyframeCount-->0)
 				{
 					uint8_t fd[4];
 					m_src->readBytes(fd,4);
@@ -3024,17 +3033,15 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	//2021: Scale
 	if(setOffset(MDT_ScaleFactors,true))
 	{
-		size_t sz = 2*sizeof(int16_t)+3*sizeof(float32_t);
-
-		writeHeaderB(0x0000,basescaled,sz);
+		writeHeaderB(0x0000,basescaled,FILE_SCALE_FACTOR_SIZE);
 
 		Model::Position pos;
 		auto f = [&](const Model::Object2020 *ea)
 		{
 			if(1!=ea->m_xyz[0]||1!=ea->m_xyz[1]||1!=ea->m_xyz[2])
 			{
-				m_dst->write((int16_t)pos.type);
-				m_dst->write((int16_t)pos.index);
+				m_dst->write((uint16_t)pos.type);
+				m_dst->write((uint16_t)pos.index);
 				for(unsigned i=0;i<3;i++)
 				m_dst->write((float32_t)ea->m_xyz[i]);
 			}

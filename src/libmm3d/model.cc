@@ -403,15 +403,15 @@ void Model::pushError(const std::string &err)
 	m_loadErrors.push_back(err);
 }
 
-std::string Model::popError()
+bool Model::popError(std::string &rval)
 {
-	std::string rval = "";
 	if(!m_loadErrors.empty())
 	{
-		rval = m_loadErrors.front();
+		rval.swap(m_loadErrors.front());
 		m_loadErrors.pop_front();
+		return true;
 	}
-	return rval;
+	rval.clear(); return false;
 }
 
 #ifdef MM3D_EDIT //???
@@ -1302,7 +1302,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 	for(int pass=1;pass<=2;pass++) if(pass&m_anims[anim]->_type)
 	{
-		Position j{pass==1?PT_Joint:PT_Point,-1};
+		Position j{pass==1?PT_Joint:PT_Point,(unsigned)-1};
 		auto &vec = *(std::vector<Object2020*>*)(pass==1?(void*)&m_joints:&m_points);
 		for(auto*ea:vec)
 		{
@@ -2158,6 +2158,56 @@ void Model::subdivideSelectedTriangles_undo(unsigned t1, unsigned t2, unsigned t
 	std::swap(swap,m_undoEnabled);
 
 	invalidateNormals(); //OVERKILL
+}
+
+void Model::prioritizeSelectedTriangles(bool first)
+{
+	auto *tris = m_triangles.data();
+
+	unsigned i,sel,sz = getTriangleCount();
+
+	int_list map(sz);
+
+	for(auto pass=sel=0;pass<=1;pass++,first=!first)
+	{
+		for(i=0;i<sz;i++)
+		if(first==tris[i]->m_selected) map[i] = sel++;
+	}	
+	
+	remapTrianglesIndices(map);
+
+	if(m_undoEnabled)
+	{
+		auto undo = new MU_RemapTrianglesIndices;
+		undo->map.swap(map);
+		sendUndo(undo);
+	}
+}
+void Model::reverseOrderSelectedTriangle()
+{
+	auto *tris = m_triangles.data();
+
+	unsigned sz = getTriangleCount();
+
+	int_list map(sz);
+
+	for(int i=0,sel=sz;i<sz;i++)
+	if(tris[i]->m_selected) 
+	{
+		while(!tris[--sel]->m_selected)
+		;
+		map[i] = sel;
+	}
+	else map[i] = i;
+	
+	remapTrianglesIndices(map);
+
+	if(m_undoEnabled)
+	{
+		auto undo = new MU_RemapTrianglesIndices;
+		undo->map.swap(map);
+		sendUndo(undo);
+	}
 }
 
 void Model::operationComplete(const char *opname)
@@ -3798,7 +3848,7 @@ void Model::calculateNormals()
 	{
 		Group *grp = m_groups[g];
 
-		float maxAngle = grp->m_angle;
+		double maxAngle = grp->m_angle;
 		if(maxAngle<0.50f)
 		{
 			maxAngle = 0.50f;
@@ -3816,25 +3866,25 @@ void Model::calculateNormals()
 				//std::vector<NormAngleAccum> &acl = acl_normmap[v];
 				auto &acl = m_vertices[v]->m_faces;
 
-				float A = 0;
-				float B = 0;
-				float C = 0; for(auto&ea:acl)
+				double A = 0;
+				double B = 0;
+				double C = 0; for(auto&ea:acl)
 				{
 					//float dotprod = dot3(tri->m_flatSource,ea.norm);
 					//auto tri2 = m_triangles[ea&0x3fffffff];
 					auto tri2 = ea.first;
 					auto ea_norm = tri2->m_flatSource;
-					float dotprod = dot3(tri->m_flatSource,ea_norm);
+					double dotprod = dot3(tri->m_flatSource,ea_norm);
 
 					// Don't allow it to go over 1.0f
-					float angle = 0.0f;
+					double angle = 0.0f;
 					if(dotprod<0.99999f)
 					{
 						angle = fabs(acos(dotprod));
 					}
 
 					//float w = tri2->m_angleSource[ea>>30];
-					float w = tri2->m_angleSource[ea.second];
+					double w = tri2->m_angleSource[ea.second];
 
 					if(angle<=maxAngle)
 					{
@@ -3844,7 +3894,7 @@ void Model::calculateNormals()
 					}
 				}
 
-				float len = magnitude(A,B,C);
+				double len = magnitude(A,B,C);
 
 				if(len>=0.0001f)
 				{
@@ -3869,25 +3919,25 @@ void Model::calculateNormals()
 			//std::vector<NormAngleAccum> &acl = acl_normmap[v];
 			auto &acl = m_vertices[v]->m_faces;
 
-			float A = 0;
-			float B = 0;
-			float C = 0; for(auto&ea:acl)
+			double A = 0;
+			double B = 0;
+			double C = 0; for(auto&ea:acl)
 			{
 				//float dotprod = dot3(tri->m_flatSource,ea.norm);
 				//auto tri2 = m_triangles[ea&0x3fffffff];
 				auto tri2 = ea.first;
 				auto ea_norm = tri2->m_flatSource;
-				float dotprod = dot3(tri->m_flatSource,ea_norm);
+				double dotprod = dot3(tri->m_flatSource,ea_norm);
 
 				// Don't allow it to go over 1.0f
-				float angle = 0.0f;
+				double angle = 0.0f;
 				if(dotprod<0.99999f)
 				{
 					angle = fabs(acos(dotprod));
 				}
 
 				//float w = tri2->m_angleSource[ea>>30];
-				float w = tri2->m_angleSource[ea.second];
+				double w = tri2->m_angleSource[ea.second];
 
 				if(angle<=45.0f *PIOVER180)
 				{
@@ -3897,7 +3947,7 @@ void Model::calculateNormals()
 				}
 			}
 
-			float len = magnitude(A,B,C);
+			double len = magnitude(A,B,C);
 
 			if(len>=0.0001f)
 			{

@@ -69,7 +69,7 @@ extern int main(int argc, char *argv[])
 	// --debug,--warnings,or --errors run AllocConsole()
 	//if(AttachConsole(ATTACH_PARENT_PROCESS)||(want log output&&AllocConsole()))
 	AttachConsole(ATTACH_PARENT_PROCESS);
-	if(GetConsoleWindow());
+	if(GetConsoleWindow())
 	{
 		freopen("CONOUT$","w",stdout);
 		freopen("CONOUT$","w",stderr);

@@ -354,26 +354,19 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 		poseFinal.reserve(boneCount);
 
 		// Animation numbers to export are set by iqeprompt_show()
-		std::vector<unsigned>::iterator it;
-		for(it = m_options->m_animations.begin(); it!=m_options->m_animations.end(); it++)
+		for(unsigned anim:m_options->m_animations)
 		{
-			unsigned anim = *it;
 			const char *animName = model->getAnimName(anim);
-			float fps = model->getAnimFPS(anim);
+			double fps = model->getAnimFPS(anim);
 			unsigned frameCount = model->getAnimFrameCount(anim);
 			bool loop = model->getAnimWrap(anim);
 
-			if(frameCount==0)
-			{
-				continue;
-			}
+			if(frameCount==0) continue;
 
 			writeLine(dst,"animation \"%s\"",animName);
 			writeLine(dst,"\tframerate %.8f",fps);
 			if(loop)
-			{
-				writeLine(dst,"\tloop");
-			}
+			writeLine(dst,"\tloop");
 			writeLine(dst,"");
 
 			for(unsigned frame = 0; frame<frameCount; frame++)

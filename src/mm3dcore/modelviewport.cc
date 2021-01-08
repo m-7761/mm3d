@@ -451,8 +451,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//model->draw(opt,static_cast<ContextT>(this),_viewPoint);
 			//model->draw(modelviewport_opts(drawMode),nullptr,_viewPoint);
 			double *eye = m_viewInverse.getVector(3);
-			float vp[3] = {(float)eye[0],(float)eye[1],(float)eye[2]};			
-			model->draw(modelviewport_opts(drawMode),nullptr,vp);
+			model->draw(modelviewport_opts(drawMode),nullptr,eye);
 		}
 		glDepthRange(0,1);
 

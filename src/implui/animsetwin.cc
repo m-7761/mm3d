@@ -648,9 +648,10 @@ void AnimSetWin::submit(int id)
 		refresh(); break;
 	}
 	case id_convert:
-	{
-		AnimConvertWin(*this).return_on_close(); break;
-	}
+	
+		AnimConvertWin(*this).return_on_close(); 
+		break;
+	
 	case id_ok:
 			
 		model->operationComplete(::tr("Animation changes","operation complete"));

@@ -131,7 +131,7 @@ struct SideBar : Win
 
 	struct PropPanel
 	{
-		void submit(control*);
+		void submit(control*),init();
 
 		void stop();
 
@@ -150,10 +150,11 @@ struct SideBar : Win
 		interp(bar.prop_panel),		
 		group(bar.prop_panel),
 		proj(bar.prop_panel),
+		faces(bar.prop_panel),
 		name(bar.prop_panel),
 		infl(bar.prop_panel)
 		{
-			submit(bar.main); //id_init
+			//init(); //SideBar::SideBar calls init.
 		}
 		
 		MainWin &model;
@@ -190,19 +191,6 @@ struct SideBar : Win
 			dropdown menu; button window;
 		};
 		
-		struct name_props : props_base
-		{
-			void change(int=0);
-
-			name_props(PropPanel &p)
-				:
-			props_base(p),name(nav,"",id_name)
-			{
-				nav.name("Name");
-				name.expand();
-			}
-			textbox name;
-		};
 		struct rot_props : props_base
 		{
 			void change(int=0);
@@ -264,7 +252,7 @@ struct SideBar : Win
 			}
 
 			dropdown menu[3];			
-		};
+		};		
 		struct group_props : props_base
 		{
 			void change(int);
@@ -298,6 +286,31 @@ struct SideBar : Win
 			}
 
 			spinbox scale; nav_group type;
+		};		
+		struct faces_props : props_base
+		{
+			void change(int=0);
+
+			faces_props(PropPanel &p)
+				:
+			props_base(p),menu(nav,"",'#')
+			{
+				nav.name("Faces"); menu.expand(); 
+			}
+			dropdown menu;
+		};
+		struct name_props : props_base
+		{
+			void change(int=0);
+
+			name_props(PropPanel &p)
+				:
+			props_base(p),name(nav,"",id_name)
+			{
+				nav.name("Name");
+				name.expand();
+			}
+			textbox name;
 		};
 		struct infl_props : props_base
 		{	
@@ -363,16 +376,15 @@ struct SideBar : Win
 		interp_props interp;
 		group_props group;
 		proj_props proj;
+		faces_props faces;
 		name_props name;
-		infl_props infl;
+		infl_props infl;		
 	};
 
 	AnimPanel anim_panel;
 	BoolPanel bool_panel;
 	PropPanel prop_panel;	
-	
-		/* Qt supplemental */
-	
+
 	void setModel()
 	{
 		anim_panel.refresh_list();

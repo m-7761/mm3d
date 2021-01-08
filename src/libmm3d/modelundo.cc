@@ -3278,11 +3278,8 @@ void MU_UpdateMetaData::updateMetaData(const std::string &key,
 
 void MU_ClearMetaData::undo(Model *model)
 {
-	Model::MetaDataList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->addMetaData(it->key.c_str(),it->value.c_str());
-	}
+	for(auto&ea:m_list)
+	model->addMetaData(ea.key.c_str(),ea.value.c_str());
 }
 
 void MU_ClearMetaData::redo(Model *model)
@@ -3355,4 +3352,25 @@ void MU_InterpolateSelected::_do(Model *model, bool undoing)
 
 	if(m_anim==model->getCurrentAnimation()) 
 	model->setCurrentAnimationFrame(m_frame);
+}
+
+size_t MU_RemapTrianglesIndices::size()
+{
+	return map.size()*sizeof(int)+sizeof(*this);
+}
+void MU_RemapTrianglesIndices::redo(Model *model)
+{
+	swap(); model->remapTrianglesIndices(map);
+}
+void MU_RemapTrianglesIndices::undo(Model *model)
+{
+	swap(); model->remapTrianglesIndices(map);
+}
+void MU_RemapTrianglesIndices::swap()
+{
+	size_t i = 0, sz = map.size();
+
+	int_list swap(sz);
+	
+	for(int j:map) swap[j] = i++; map.swap(swap);	
 }

@@ -42,7 +42,9 @@ static void model_draw_defaultMaterial()
 static void model_draw_drawPointOrientation(bool selected, double scale,
 		  const Matrix &m)
 {
-	float color = selected?0.9f:0.7f;
+	//Selected green is completely invisible on the teal background :(
+	//float color = selected?0.9f:0.7f;
+	float color = selected?1.0f:0.7f;
 
 	Vector v1,v2;
 
@@ -319,7 +321,7 @@ static void model_draw_drawProjectionPlane(const Matrix &m)
 	 glLineWidth(1);
 }
 
-void Model::draw(unsigned drawOptions, ContextT context, float *viewPoint)
+void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 {
 	//https://github.com/zturtleman/mm3d/issues/56
 	drawOptions|=m_drawOptions;

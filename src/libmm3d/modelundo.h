@@ -733,9 +733,9 @@ class MU_SetLightProperties : public ModelUndo
 			bool  isSet[LightTypeMax];
 		} LightPropertiesT;
 
-		typedef std::list<LightPropertiesT> LightPropertiesList;
+		typedef std::vector<LightPropertiesT> LightPropertiesList;
 
-		std::list<LightPropertiesT> m_list;
+		LightPropertiesList m_list;
 };
 
 class MU_SetShininess : public ModelUndo
@@ -804,7 +804,7 @@ class MU_SetTriangleVertices : public ModelUndo
 			unsigned oldVertices[3];
 		} TriangleVerticesT;
 
-		typedef std::list<TriangleVerticesT> TriangleVerticesList;
+		typedef std::vector<TriangleVerticesT> TriangleVerticesList;
 
 		TriangleVerticesList m_list;
 };
@@ -1594,6 +1594,21 @@ private:
 
 	//NOTE: Had synchronized animation (AnimRP needed?)
 	void _do(Model*,bool);
+};
+
+class MU_RemapTrianglesIndices : public ModelUndo
+{
+public:
+
+	void undo(Model*);
+	void redo(Model*);
+	bool combine(Undo*){ return false; }
+
+	unsigned size();
+
+	int_list map;
+
+	void swap();
 };
 
 #endif //  __MODELUNDO_H

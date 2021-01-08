@@ -129,7 +129,6 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 	}
 	else m_triangles.push_back(triangle);
 }
-
 void Model::removeTriangle(unsigned index)
 {
 	if(index<m_triangles.size())
@@ -155,6 +154,24 @@ void Model::removeTriangle(unsigned index)
 		adjustTriangleIndices(index,-1);
 	}
 	else log_error("removeTriangle(%d)index out of range\n",index);
+}
+void Model::remapTrianglesIndices(const int_list &map)
+{
+	m_changeBits |= AddGeometry|SelectionFaces;
+
+	auto &tris = m_triangles;
+
+	size_t sz = tris.size(); assert(sz==map.size());
+
+	for(unsigned i=0;i<sz;i++) tris[i]->m_user = map[i];
+
+	std::sort(tris.begin(),tris.end(),[](Triangle *a, Triangle *b)
+	{
+		return a->m_user<b->m_user;
+	});
+
+	for(auto*g:m_groups)	
+	for(auto&i:g->m_triangleIndices) i = map[i];
 }
 
 void Model::insertGroup(unsigned index, Model::Group *group)
@@ -614,7 +631,8 @@ void Model::adjustTriangleIndices(unsigned index, int amount)
 		*/		
 		for(size_t i=grp.size();i-->0;)
 		{
-			if(grp[i]>=index) grp[i]+=amount; else break;
+			if((unsigned)grp[i]>=index) grp[i]+=amount; 
+			else break;
 		}
 	}
 }

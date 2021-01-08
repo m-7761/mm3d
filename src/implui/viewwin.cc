@@ -1191,8 +1191,9 @@ Model *MainWin::_swap_models(Model *swap)
 
 		frame(); //NEW
 	
-	while(model->hasErrors())
-	model_status(model,StatusError,STATUSTIME_LONG,"%s",model->popError().c_str());
+	std::string e;
+	while(model->popError(e))
+	model_status(model,StatusError,STATUSTIME_LONG,"%s",e.c_str());
 		
 	//This is needed to jumpstart.
 	modelChanged(Model::ChangeAll); return swap;

@@ -63,8 +63,10 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 	//_(rotatetex,"Faces")
 	extern Command *rotatetexcmd(const char*);
 	cmdMgr->addCommand(rotatetexcmd(GEOM_FACES_MENU));
+	cmdMgr->addSeparator();
 	_(subdivide)
-	_(edgediv)_(edgeturn)
+	_(edgediv)_(edgeturn) //Edges?
+	cmdMgr->addSeparator();
 	_(invnormal)
 	_(faceout) //INSANE //OVERKILL
 		

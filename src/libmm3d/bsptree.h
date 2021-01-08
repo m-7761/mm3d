@@ -41,8 +41,8 @@ public:
 
 		int	id;
 
-		float coord[3][3];
-		float drawNormals[3][3];
+		double coord[3][3];
+		double drawNormals[3][3];
 
 		int	texture;
 		void *material; // Yeah,yeah,I know... it's hackish
@@ -51,12 +51,12 @@ public:
 		float s[3];	 // texture coordinates
 		float t[3];
 
-		float norm[3];
-		float d;		 // dot product
+		double norm[3];
+		double d;		 // dot product
 
 		void calculateNormal();
 		void calculateD();
-		void intersection(float *p1, float *p2, float *po, float &place);
+		void intersection(double *p1, double *p2, double *po, float &place);
 
 		void render(DrawingContext *context);
 
@@ -85,15 +85,14 @@ public:
 		static void stats();
 
 		void addChild(Node *n);
-		void render(float *point,DrawingContext *context);
+		void render(double *point, DrawingContext *context);
 
 		void splitNodes(int idx1, int idx2, int idx3,
-				float *p1, float *p2,Node *n1,Node *n2,
-				const float &place1, const float &place2);
+				double *p1, double *p2,Node *n1, Node *n2,
+				float place1, float place2);
 
 		void splitNode(int idx1, int idx2, int idx3,
-				float *p1,Node *n1,
-				const float &place);
+				double *p1, Node *n1, float place);
 
 		Poly *self;
 
@@ -115,7 +114,7 @@ public:
 	~BspTree(){ clear(); };
 
 	void addPoly(Poly *p);
-	void render(float *point,DrawingContext *context);
+	void render(double *point,DrawingContext *context);
 
 	void clear();
 

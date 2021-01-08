@@ -131,7 +131,7 @@ static bool influencesMatch(const infl_list &lhs,
 		if(boneIt==jointMap.end())
 			return false;
 
-		float lw = 0;
+		double lw = 0;
 		WeightMap::const_iterator lwit = lhsInfMap.find(it->m_boneId);
 		if(lwit!=lhsInfMap.end())
 		{
@@ -139,7 +139,7 @@ static bool influencesMatch(const infl_list &lhs,
 			lhsInfMap.erase(lwit->first);
 		}
 
-		float rw = 0;
+		double rw = 0;
 		WeightMap::const_iterator rwit = rhsInfMap.find(boneIt->second);
 		if(rwit!=rhsInfMap.end())
 		{
@@ -189,14 +189,14 @@ bool Model::equivalent(const Model *model, double tolerance)const
 		//(jointsMatch calls getBoneJointFinalMatrix.)
 		validateAnimSkel(); model->validateAnimSkel();
 
-	int lhsTCount	 = m_triangles.size();
-	int rhsTCount	 = model->m_triangles.size();
-	int lhsGCount	 = m_groups.size();
-	int rhsGCount	 = model->m_groups.size();
-	int lhsBCount	 = m_joints.size();
-	int rhsBCount	 = model->m_joints.size();
-	int lhsPCount	 = m_points.size();
-	int rhsPCount	 = model->m_points.size();
+	int lhsTCount	 = (unsigned)m_triangles.size();
+	int rhsTCount	 = (unsigned)model->m_triangles.size();
+	int lhsGCount	 = (unsigned)m_groups.size();
+	int rhsGCount	 = (unsigned)model->m_groups.size();
+	int lhsBCount	 = (unsigned)m_joints.size();
+	int rhsBCount	 = (unsigned)model->m_joints.size();
+	int lhsPCount	 = (unsigned)m_points.size();
+	int rhsPCount	 = (unsigned)model->m_points.size();
 
 	if(lhsTCount!=rhsTCount)
 	{
@@ -240,17 +240,12 @@ bool Model::equivalent(const Model *model, double tolerance)const
 	for(b = 0; b<lhsBCount; ++b)
 	{
 		bool match = false;
-		for(int rb = 0; !match&&rb<rhsBCount; ++rb)
+		for(int rb=0;!match&&rb<rhsBCount;rb++)		
+		if(!jointMatched[rb]&&jointsMatch(this,b,model,rb))
 		{
-			if(!jointMatched[rb])
-			{
-				if(jointsMatch(this,b,model,rb))
-				{
-					jointMatched[rb] = true;
-					jointMap[b] = rb;
-					match = true;
-				}
-			}
+			jointMatched[rb] = true;
+			jointMap[b] = rb;
+			match = true;
 		}
 
 		if(!match)
@@ -267,37 +262,33 @@ bool Model::equivalent(const Model *model, double tolerance)const
 	IntListMap groupMap;
 
 	for(g = 0; g<lhsGCount; ++g)
+	for(int r = 0; r<rhsGCount; ++r)		
+	if(m_groups[g]->propEqual(*model->m_groups[r],Model::PropNormals))
 	{
-		for(int r = 0; r<rhsGCount; ++r)
+		bool match = false;
+
+		m = getGroupTextureId(g);
+		int rm = model->getGroupTextureId(r);
+		if(m<0&&rm<0)
 		{
-			if(m_groups[g]->propEqual(*model->m_groups[r],Model::PropNormals))
+			match = true;
+		}
+		if(m>=0&&rm>=0)
+		{
+			if(m_materials[m]->propEqual(*model->m_materials[rm],
+							Model::PropType
+						| Model::PropLighting
+						| Model::PropClamp
+						| Model::PropPixels
+						| Model::PropDimensions,
+						tolerance))
 			{
-				bool match = false;
-
-				m = getGroupTextureId(g);
-				int rm = model->getGroupTextureId(r);
-				if(m<0&&rm<0)
-				{
-					match = true;
-				}
-				if(m>=0&&rm>=0)
-				{
-					if(m_materials[m]->propEqual(*model->m_materials[rm],
-								  Model::PropType
-								| Model::PropLighting
-								| Model::PropClamp
-								| Model::PropPixels
-								| Model::PropDimensions,
-								tolerance))
-					{
-						match = true;
-					}
-				}
-
-				if(match)
-					groupMap[g].push_back(r);
+				match = true;
 			}
 		}
+
+		if(match)
+			groupMap[g].push_back(r);
 	}
 
 	model_ops_TriMatchMap triMap;

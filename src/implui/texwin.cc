@@ -118,15 +118,14 @@ void TextureWin::submit(int id)
 	int m = material; switch(id)
 	{
 	case id_init:
-	{
+	
 		column_nav.lock(false,true);
 
 		texture.setModel(model);
 
 		material.expand();
 
-		int iN = model->getTextureCount();
-		for(int i=0;i<iN;i++)				
+		for(int i=0,iN=model->getTextureCount();i<iN;i++)
 		material.add_item(i,model->getTextureName(i));
 
 		wrap_x.add_item(0,"Wrap X").add_item(1,"Clamp X");
@@ -142,15 +141,15 @@ void TextureWin::submit(int id)
 		.add_item(2,"Specular").add_item(3,"Emissive")
 		.add_item(4,"Shininess");
 
-		int_list l; model->getSelectedTriangles(l);
-		for(int_list::iterator it=l.begin(),itt=l.end();it<itt;it++)	
-		if(int g=model->getTriangleGroup(*it)+1)
+		for(int i=0,iN=model->getTriangleCount();i<iN;i++)
+		if(model->isTriangleSelected(i))
+		if(int g=model->getTriangleGroup(i)+1)
 		{
 			material.select_id(model->getGroupTextureId(g-1));
 			break;
 		}
 		//break;
-	}
+	
 	case id_item:
 
 		material_selected();		

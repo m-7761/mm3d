@@ -28,10 +28,12 @@
 static bool log_log_show_debug	= true;
 static bool log_log_show_warning = true;
 static bool log_log_show_error	= true;
+static bool log_log_show_output = true;
 #else
 static bool log_log_show_debug	= false;
 static bool log_log_show_warning = false;
 static bool log_log_show_error	= false;
+static bool log_log_show_output = false;
 #endif // CODE_DEBUG
 
 void log_enable_debug(bool o)
@@ -47,6 +49,23 @@ void log_enable_warning(bool o)
 void log_enable_error(bool o)
 {
 	log_log_show_error = o;
+}
+
+void log_enable_output(bool o)
+{
+	log_log_show_output = o;
+}
+
+void log_output(const char *fmt,...)
+{
+	if(log_log_show_output)
+	{
+		fprintf(stderr,"mm3d:	");
+
+		va_list ap;
+		va_start(ap,fmt);
+		vfprintf(stdout,fmt,ap);
+	}
 }
 
 void log_debug(const char *fmt,...)

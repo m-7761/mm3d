@@ -107,8 +107,8 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 			//log_debug("indices %d,%d,%d %d,%d,%d\n",t1a,t1b,t1c,t2a,t2b,t2c);
 
 			// For triangle 1:
-			int verts1[3] = {tri1_v,tri2_v,edge_v2};
-			int verts2[3] = {tri1_v,tri2_v,edge_v1};
+			unsigned verts1[3] = {tri1_v,tri2_v,edge_v2};
+			unsigned verts2[3] = {tri1_v,tri2_v,edge_v1};
 
 			//2020: Do texture coords and only change 1 vertex each?
 			//(There's probably a smarter way to do this but I don't

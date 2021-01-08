@@ -141,17 +141,17 @@ void Matrix::setRotation(const double *radians)
 		double srsp = sr *sp;
 		double crsp = cr *sp;
 
-		m_val[ 0] = cp *cy;
-		m_val[ 1] = cp *sy;
+		m_val[ 0] = cp*cy;
+		m_val[ 1] = cp*sy;
 		m_val[ 2] = -sp;
 
-		m_val[ 4] = (srsp *cy)-(cr *sy);
-		m_val[ 5] = (srsp *sy)+(cr *cy);
-		m_val[ 6] = (sr *cp);
+		m_val[ 4] = srsp*cy-cr*sy;
+		m_val[ 5] = srsp*sy+cr*cy;
+		m_val[ 6] = sr*cp;
 
-		m_val[ 8] = (crsp *cy)+(sr *sy);
-		m_val[ 9] = (crsp *sy)-(sr *cy);
-		m_val[10] = (cr *cp);
+		m_val[ 8] = crsp*cy+sr*sy;
+		m_val[ 9] = crsp*sy-sr*cy;
+		m_val[10] = cr*cp;
 	}
 }
 

@@ -1338,7 +1338,7 @@ class Model
 		// displayed in the status bar.
 		bool hasErrors()const{ return !m_loadErrors.empty(); }
 		void pushError(const std::string &err);
-		std::string popError();
+		bool popError(std::string &err);
 
 		// Use these functions to preserve data that MM3D doesn't support natively
 		int  addFormatData(FormatData *fd);
@@ -1352,7 +1352,7 @@ class Model
 		// ------------------------------------------------------------------
 
 		// Functions for rendering the model in a viewport
-		void draw(unsigned drawOptions = DO_TEXTURE,ContextT context = nullptr, float *viewPoint = nullptr);
+		void draw(unsigned drawOptions=DO_TEXTURE,ContextT context=nullptr, double viewPoint[3]=nullptr);
 		void drawLines(float alpha=1);
 		void drawVertices(float alpha=1);
 		void _drawPolygons(int,bool mark=false); //2019
@@ -1752,9 +1752,14 @@ class Model
 		int addVertex(double x, double y, double z);
 		int addTriangle(unsigned vert1, unsigned vert2, unsigned vert3);
 
-		//2020: this API leaves dangling references to vertices!
+		//2020: This API leaves dangling references to vertices!
 		void deleteVertex(unsigned vertex);
 		void deleteTriangle(unsigned triangle);
+
+		//2021: Manipulates drawing order for correcting for depth-test issues
+		//in games.
+		void prioritizeSelectedTriangles(bool to_begin_or_end);
+		void reverseOrderSelectedTriangle();
 
 		// No undo on this one
 		//void setVertexFree(unsigned v,bool o);
@@ -2167,6 +2172,7 @@ class Model
 
 		void insertTriangle(unsigned index,Triangle *triangle);
 		void removeTriangle(unsigned index);
+		void remapTrianglesIndices(const int_list&);
 
 		void insertGroup(unsigned index,Group *group);
 		void removeGroup(unsigned index);

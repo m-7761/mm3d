@@ -23,6 +23,7 @@
 #include "mm3dtypes.h" //PCH
 
 #include "glheaders.h"
+#include "glmath.h"
 #include "bsptree.h"
 #include "glmath.h"
 #include "log.h"
@@ -34,40 +35,9 @@ std::vector<BspTree::Node*> BspTree::Node::s_recycle;
 int BspTree::Poly::s_allocated = 0;
 int BspTree::Node::s_allocated = 0;
 
-void normalize(float *val)
+bool float_equiv(double rhs, double lhs)
 {
-	float mag = 0.0f;
-	int t;
-	for(t = 0; t<3; t++)
-	{
-		mag += val[t] *val[t];
-	}
-
-	mag = sqrt(mag);
-
-	for(t = 0; t<3; t++)
-	{
-		val[t] = val[t]/mag;
-	}
-}
-
-float dot_product(float *val1, float *val2)
-{
-	return (val1[0] *val2[0])
-	  + (val1[1] *val2[1])
-	  + (val1[2] *val2[2]);
-}
-
-bool float_equiv(float rhs, float lhs)
-{
-	if(fabs(rhs-lhs)<0.0001f)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	return fabs(rhs-lhs)<0.0001f;
 }
 
 static void bsptree_setMaterial(DrawingContext *context, int texture,Model::Material *material)
@@ -101,11 +71,11 @@ int BspTree::Poly::s_nextId = 0;
 
 void BspTree::Poly::calculateNormal()
 {
-	float A = coord[0][1] *(coord[1][2]-coord[2][2])+coord[1][1] *(coord[2][2]-coord[0][2])+coord[2][1] *(coord[0][2]-coord[1][2]);
-	float B = coord[0][2] *(coord[1][0]-coord[2][0])+coord[1][2] *(coord[2][0]-coord[0][0])+coord[2][2] *(coord[0][0]-coord[1][0]);
-	float C = coord[0][0] *(coord[1][1]-coord[2][1])+coord[1][0] *(coord[2][1]-coord[0][1])+coord[2][0] *(coord[0][1]-coord[1][1]);
+	double A = coord[0][1] *(coord[1][2]-coord[2][2])+coord[1][1] *(coord[2][2]-coord[0][2])+coord[2][1] *(coord[0][2]-coord[1][2]);
+	double B = coord[0][2] *(coord[1][0]-coord[2][0])+coord[1][2] *(coord[2][0]-coord[0][0])+coord[2][2] *(coord[0][0]-coord[1][0]);
+	double C = coord[0][0] *(coord[1][1]-coord[2][1])+coord[1][0] *(coord[2][1]-coord[0][1])+coord[2][0] *(coord[0][1]-coord[1][1]);
 
-	float len = sqrt((A *A)+(B *B)+(C *C));
+	double len = sqrt((A *A)+(B *B)+(C *C));
 
 	norm[0] = A/len;
 	norm[1] = B/len;
@@ -122,10 +92,9 @@ void BspTree::Poly::calculateD()
 	d = dot_product(coord[0],norm);
 }
 
-void BspTree::Poly::intersection(float *p1, float *p2, float *po, float &place)
+void BspTree::Poly::intersection(double *p1, double *p2, double *po, float &place)
 {
-	float interval = 0.25;
-	float dtemp	 = 0.0f;
+	double dtemp	 = 0.0f;
 
 	place	 = 0.5f;
 
@@ -153,8 +122,9 @@ void BspTree::Poly::intersection(float *p1, float *p2, float *po, float &place)
 		}
 	}
 
-	float diff[3];
+	double diff[3];
 	float oldPlace = place;
+	float interval = 0.25f;
 
 	diff[0] = p2[0]-p1[0];
 	diff[1] = p2[1]-p1[1];
@@ -204,8 +174,8 @@ void BspTree::Poly::render(DrawingContext *context)
 		for(int i = 0; i<3; i++)
 		{
 			glTexCoord2f(s[i],t[i]);
-			glNormal3fv(drawNormals[i]);
-			glVertex3fv(coord[i]);
+			glNormal3dv(drawNormals[i]);
+			glVertex3dv(coord[i]);
 		}
 	}
 }
@@ -223,18 +193,11 @@ void BspTree::addPoly(BspTree::Poly *p)
 {
 	Node *n = Node::get();
 	n->self = p;
-
-	if(m_root==nullptr)
-	{
-		m_root = n;
-	}
-	else
-	{
-		m_root->addChild(n);
-	}
+	if(!m_root) m_root = n;
+	else m_root->addChild(n);
 }
 
-void BspTree::render(float *point, DrawingContext *context)
+void BspTree::render(double *point, DrawingContext *context)
 {
 	if(m_root)
 	{
@@ -312,10 +275,10 @@ void BspTree::Node::release()
 }
 
 void BspTree::Node::splitNodes(int idx1, int idx2, int idx3,
-		float *p1, float *p2,
+		double *p1, double *p2,
 		BspTree::Node *n1,BspTree::Node *n2,
-		const float &place1,
-		const float &place2)
+		float place1,
+		float place2)
 {
 	n1->self = Poly::get();
 	//printf("split node poly: %d\n",n1->self->id);
@@ -385,8 +348,7 @@ void BspTree::Node::splitNodes(int idx1, int idx2, int idx3,
 }
 
 void BspTree::Node::splitNode(int idx1, int idx2, int idx3,
-		float *p1,BspTree::Node *n1,
-		const float &place)
+		double *p1, BspTree::Node *n1, float place)
 {
 	n1->self = Poly::get();
 	//printf("split node poly: %d\n",n1->self->id);
@@ -428,9 +390,9 @@ void BspTree::Node::splitNode(int idx1, int idx2, int idx3,
 
 void BspTree::Node::addChild(Node *n)
 {
-	float d1 = dot_product(self->norm,n->self->coord[0]);
-	float d2 = dot_product(self->norm,n->self->coord[1]);
-	float d3 = dot_product(self->norm,n->self->coord[2]);
+	double d1 = dot_product(self->norm,n->self->coord[0]);
+	double d2 = dot_product(self->norm,n->self->coord[1]);
+	double d3 = dot_product(self->norm,n->self->coord[2]);
 
 	int i1 = 0;
 	int i2 = 0;
@@ -478,8 +440,8 @@ void BspTree::Node::addChild(Node *n)
 
 	//printf("split\n");
 
-	float p1[3];
-	float p2[3];
+	double p1[3];
+	double p2[3];
 	float place1 = 0.0f;
 	float place2 = 0.0f;
 
@@ -704,9 +666,9 @@ void BspTree::Node::addChild(Node *n)
 	}
 }
 
-void BspTree::Node::render(float *point,DrawingContext *context)
+void BspTree::Node::render(double *point,DrawingContext *context)
 {
-	float d = dot_product(self->norm,point);
+	double d = dot_product(self->norm,point);
 
 	if(d<self->d)
 	{
