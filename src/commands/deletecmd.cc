@@ -65,7 +65,8 @@ bool DeleteCommand::activated(int arg,Model *model)
 		return false;
 	}*/
 
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Primitives deleted"));
+	//model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Primitives deleted"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Deleted"));
 	model->deleteSelected();
 	return true;
 }

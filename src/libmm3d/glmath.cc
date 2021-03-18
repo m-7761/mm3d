@@ -132,6 +132,8 @@ void Matrix::setRotation(const double *radians)
 {
 	if(radians)
 	{
+		//rpy? roll, pitch, yaw? seems wrong
+		//labels if so?
 		double cr = cos(radians[0]);
 		double sr = sin(radians[0]);
 		double cp = cos(radians[1]);
@@ -188,7 +190,9 @@ void Matrix::getRotation(double &x, double &y, double &z)const
 		sinYaw  = m_val[1] /cosPitch;
 		cosYaw  = m_val[0] /cosPitch;
 	}
-
+	
+	//rpy? roll, pitch, yaw? seems wrong
+	//labels if so?
 	z = atan2(sinYaw,cosYaw);
 	y = atan2(sinPitch,cosPitch);
 	x = atan2(sinRoll,cosRoll);
@@ -299,17 +303,17 @@ void Matrix::setRotationOnAxis(const double *pVect, double radians)
 
 void Matrix::setRotationQuaternion(const Quaternion &quat)
 {
-	float xx		= quat.get(0)*quat.get(0);
-	float xy		= quat.get(0)*quat.get(1);
-	float xz		= quat.get(0)*quat.get(2);
-	float xw		= quat.get(0)*quat.get(3);
+	double xx		= quat.get(0)*quat.get(0);
+	double xy		= quat.get(0)*quat.get(1);
+	double xz		= quat.get(0)*quat.get(2);
+	double xw		= quat.get(0)*quat.get(3);
 
-	float yy		= quat.get(1)*quat.get(1);
-	float yz		= quat.get(1)*quat.get(2);
-	float yw		= quat.get(1)*quat.get(3);
+	double yy		= quat.get(1)*quat.get(1);
+	double yz		= quat.get(1)*quat.get(2);
+	double yw		= quat.get(1)*quat.get(3);
 
-	float zz		= quat.get(2)*quat.get(2);
-	float zw		= quat.get(2)*quat.get(3);
+	double zz		= quat.get(2)*quat.get(2);
+	double zw		= quat.get(2)*quat.get(3);
 
 	m_val[0]  = 1-2 *(yy+zz);
 	m_val[4]  =	  2 *(xy-zw);
@@ -420,7 +424,7 @@ void Matrix::apply(float *pVec)const
 {
 	if(pVec)
 	{
-		float vec[4];
+		double vec[4];
 		for(int c = 0; c<4; c++)
 		{
 			vec[c] 
@@ -430,10 +434,10 @@ void Matrix::apply(float *pVec)const
 			  +pVec[3] *m_val[(3<<2)+c] ;
 		}
 
-		pVec[0] = vec[0];
-		pVec[1] = vec[1];
-		pVec[2] = vec[2];
-		pVec[3] = vec[3];
+		pVec[0] = (float)vec[0];
+		pVec[1] = (float)vec[1];
+		pVec[2] = (float)vec[2];
+		pVec[3] = (float)vec[3];
 	}
 }
 
@@ -467,7 +471,7 @@ void Matrix::apply3(float *pVec)const
 {
 	if(pVec)
 	{
-		float vec[4];
+		double vec[4];
 		for(int c = 0; c<3; c++)
 		{
 			vec[c] 
@@ -476,9 +480,9 @@ void Matrix::apply3(float *pVec)const
 			  +pVec[2] *m_val[(2<<2)+c];
 		}
 
-		pVec[0] = vec[0];
-		pVec[1] = vec[1];
-		pVec[2] = vec[2];
+		pVec[0] = (float)vec[0];
+		pVec[1] = (float)vec[1];
+		pVec[2] = (float)vec[2];
 	}
 }
 
@@ -510,7 +514,7 @@ void Matrix::apply3x(float *pVec)const
 {
 	if(pVec)
 	{
-		float vec[4];
+		double vec[4];
 		for(int c = 0; c<3; c++)
 		{
 			vec[c] 
@@ -520,9 +524,9 @@ void Matrix::apply3x(float *pVec)const
 			  +1.0f		*m_val[(3<<2)+c];
 		}
 
-		pVec[0] = vec[0];
-		pVec[1] = vec[1];
-		pVec[2] = vec[2];
+		pVec[0] = (float)vec[0];
+		pVec[1] = (float)vec[1];
+		pVec[2] = (float)vec[2];
 	}
 }
 
@@ -576,9 +580,9 @@ void Matrix::postMultiply(const Matrix &lhs)
 	}
 }
 
-float Matrix::getDeterminant3()const
+double Matrix::getDeterminant3()const
 {
-	float det = 
+	double det = 
 		  m_val[0] *(m_val[5]*m_val[10]-m_val[6]*m_val[9])
 	  -m_val[4] *(m_val[1]*m_val[10]-m_val[2]*m_val[9])
 	  +m_val[8] *(m_val[1]*m_val[6] -m_val[2]*m_val[5]);
@@ -586,16 +590,16 @@ float Matrix::getDeterminant3()const
 	return det;
 }
 
-float Matrix::getDeterminant()const
+double Matrix::getDeterminant()const
 {
-	float result = 0;
+	double result = 0;
 
 	Matrix msub3;
 	for(int n = 0,i = 1; n<4; n++,i *= -1)
 	{
 		getSubMatrix(msub3,0,n);
 
-		float det = msub3.getDeterminant3();
+		double det = msub3.getDeterminant3();
 		result += m_val[n] *det *i;
 	}
 
@@ -620,7 +624,7 @@ Matrix Matrix::getInverse()const
 {
 	Matrix mr;
 
-	float mdet = getDeterminant();
+	double mdet = getDeterminant();
 
 	if(fabs(mdet)<0.0005)
 	{
@@ -985,7 +989,7 @@ void Quaternion::setEulerAngles(const double *radians)
 	axis[2] = 1.0;
 	z.setRotationOnAxis(axis,radians[2]);
 
-	*this = z * y * x;
+	*this = z * y * x; //post-multiply?
 }
 
 void Quaternion::setRotationOnAxis(const double *axis, double radians)
@@ -1084,7 +1088,7 @@ static void glmath_EulerAnglesFromQuaternion(double vOut[3], const Quaternion &q
 	//! assuming normalized
 	Quaternion qOut(qIn[A],qIn[B],qIn[C],qIn[3]);	
 
-	float test = qOut[3]*qOut[1] + qOut[0]*qOut[2]*float(H);
+	double test = qOut[3]*qOut[1] + qOut[0]*qOut[2]*float(H);
 
 	//TESTING: these values are producing turbulence (86.3 degrees?)
 	//https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/jack.htm
@@ -1109,13 +1113,13 @@ static void glmath_EulerAnglesFromQuaternion(double vOut[3], const Quaternion &q
 		return;
 	}
 
-	float sqx = qOut[0]*qOut[0];
-	float sqy = qOut[1]*qOut[1];
-	float sqz = qOut[2]*qOut[2];
+	double sqx = qOut[0]*qOut[0];
+	double sqy = qOut[1]*qOut[1];
+	double sqz = qOut[2]*qOut[2];
 
-	vOut[0] = atan2f(2*qOut[3]*qOut[0]-2*qOut[1]*qOut[2]*H,1-2*sqx-2*sqy);
-	vOut[1] = asinf(2*test);
-	vOut[2] = atan2f(2*qOut[3]*qOut[2]-2*qOut[0]*qOut[1]*H,1-2*sqy-2*sqz);
+	vOut[0] = atan2(2*qOut[3]*qOut[0]-2*qOut[1]*qOut[2]*H,1-2*sqx-2*sqy);
+	vOut[1] = asin(2*test);
+	vOut[2] = atan2(2*qOut[3]*qOut[2]-2*qOut[0]*qOut[1]*H,1-2*sqy-2*sqz);
 } 
 void Quaternion::getEulerAngles(double radians[3])
 {

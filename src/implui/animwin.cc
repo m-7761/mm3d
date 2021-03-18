@@ -441,8 +441,15 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	}	
 }
 
+void AnimWin::modelChanged(int changeBits)
+{
+	if(changeBits&Model::AnimationProperty)
+	impl->frames_edited(model->getAnimTimeFrame(impl->anim));
+}
 void AnimWin::Impl::frames_edited(double n)
 {	
+	if(n==sidebar.frame.float_val()) return; //modelChanged?
+
 	bool op = model->setAnimTimeFrame(anim,n);
 	if(!op) n = model->getAnimTimeFrame(anim);
 	if(!op) shelf1.frames.set_float_val(n);

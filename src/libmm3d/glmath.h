@@ -95,8 +95,8 @@ class Matrix
 		//glMultMatrix(lhs);
 		void postMultiply(const Matrix &lhs);
 
-		float getDeterminant()const;
-		float getDeterminant3()const;
+		double getDeterminant()const;
+		double getDeterminant3()const;
 		Matrix getInverse()const;
 		void getSubMatrix(Matrix &ret, int i, int j)const;
 
@@ -107,12 +107,12 @@ class Matrix
 		friend Vector operator*(const Vector &lhs, const Matrix &rhs);
 		friend class Vector;
 
-		const double *getVector(int r)const { return m_val+r*4; };
+		const double *getVector(int r)const{ return m_val+r*4; };
 		double *getVector(int r){ return m_val+r*4; };
 
 	protected:
 
-		//const double *getMatrix()const { return m_val; }; //???
+		//const double *getMatrix()const{ return m_val; }; //???
 
 		double m_val[16];
 };

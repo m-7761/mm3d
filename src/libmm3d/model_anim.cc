@@ -1884,6 +1884,10 @@ void Model::Point::_resample(Model &model, unsigned pt)
 		{
 			for(int i=3;i-->0;)
 			{
+				//FIX ME
+				//I HAVE A FEELING THIS ISN'T ORTHONORMAL
+				//(AND MAY INTRODUCE A SCALING COMPONENT)
+				//ESPECIALLY IF BLENDING WEIGHTS
 				m_kfAbs[i] = mm.getVector(3)[i];
 				m_kfXyz[i] = normalize3(mm.getVector(i));		
 				if(fabs(1-m_kfXyz[i])<=0.000005)

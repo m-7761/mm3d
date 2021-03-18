@@ -321,7 +321,7 @@ Model *Model::copySelected(bool animated)const
 	m->calculateSkel(); m->calculateNormals(); return m;
 }
 
-bool Model::duplicateSelected(bool animated)
+bool Model::duplicateSelected(bool animated, bool separate)
 {
 	if(animated) validateAnim();
 
@@ -336,6 +336,8 @@ bool Model::duplicateSelected(bool animated)
 	unsigned pointbase = m_points.size();
 	unsigned projbase = m_projections.size();
 
+	unsigned tc = 0, jc = 0, pc = 0, tpc = 0;
+
 	//if(!tri.empty())
 	{
 		//model_status(model,StatusNormal,STATUSTIME_SHORT,
@@ -346,6 +348,8 @@ bool Model::duplicateSelected(bool animated)
 		for(unsigned v=0;v<vertbase;v++)
 		{
 			if(!m_vertices[v]->m_selected) continue;
+
+			//	vc++;
 
 			double coords[3]; if(animated)
 			{
@@ -365,6 +369,8 @@ bool Model::duplicateSelected(bool animated)
 		for(unsigned it=0;it<tribase;it++)
 		{
 			if(!m_triangles[it]->m_selected) continue;
+
+				tc++;
 
 			unsigned v[3];
 			getTriangleVertices(it,v[0],v[1],v[2]);
@@ -401,9 +407,7 @@ bool Model::duplicateSelected(bool animated)
 				// This works,even if triangle group==-1
 				int gid = getTriangleGroup(t);
 				if(gid>=0)
-				{
-					addTriangleToGroup(gid,triMap[t]);
-				}
+				addTriangleToGroup(gid,triMap[t]);
 			}
 		}
 
@@ -416,6 +420,8 @@ bool Model::duplicateSelected(bool animated)
 		for(unsigned p=0;p<pointbase;p++)
 		{
 			if(!m_points[p]->m_selected) continue;
+
+				pc++;
 
 			double coord[3],rot[3],xyz[3]; if(animated)
 			{
@@ -444,6 +450,8 @@ bool Model::duplicateSelected(bool animated)
 		for(unsigned j=0;j<jointbase;j++)
 		{
 			if(!m_joints[j]->m_selected) continue;
+
+				jc++;
 
 			int parent = getBoneJointParent(j);
 
@@ -505,6 +513,8 @@ bool Model::duplicateSelected(bool animated)
 		for(unsigned p=0;p<projbase;p++)
 		{
 			if(!m_projections[p]->m_selected) continue;
+
+				tpc++;
 		
 			double coord[3],rot[3];
 			getProjectionCoords(p,coord);
@@ -528,13 +538,24 @@ bool Model::duplicateSelected(bool animated)
 		return false;
 	}
 
-	unselectAll();
+	if(separate) //2021
+	{
+		unselectAllVertices();
+		deleteSelected();
+		//vertbase-=vc;
+		tribase-=tc;
+		jointbase-=jc;
+		pointbase-=pc;
+		projbase-=tpc;
+	}
+	else unselectAll();
 	
 	//2020: I'm quickly copying this from mergeModels 
 	//to remove old map containers
-	int n = getTriangleCount();
+	unsigned n = getTriangleCount();
 	while(n-->tribase) selectTriangle(n);
 	n = getVertexCount();
+	if(!separate)
 	while(n-->vertbase) selectVertex(n);
 	n = getBoneJointCount();
 	while(n-->jointbase) selectBoneJoint(n);

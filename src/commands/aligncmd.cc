@@ -32,7 +32,7 @@ struct AlignCommand : Command
 
 	virtual const char *getName(int)
 	{
-		return TRANSLATE_NOOP( "Command","Align Selected..."); 
+		return TRANSLATE_NOOP( "Command","Align Selection..."); 
 	}
 
 	virtual bool activated(int, Model *model)

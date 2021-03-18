@@ -60,10 +60,7 @@ void Model::insertVertex(unsigned index, Model::Vertex *vertex)
 			//count++;
 		}
 	}
-	else
-	{
-		log_error("insertVertex(%d)index out of range\n",index);
-	}
+	else log_error("insertVertex(%d)index out of range\n",index);	
 }
 
 void Model::removeVertex(unsigned index)
@@ -93,10 +90,7 @@ void Model::removeVertex(unsigned index)
 			//count++;
 		}
 	}
-	else
-	{
-		log_error("removeVertex(%d)index out of range\n",index);
-	}
+	else log_error("removeVertex(%d) index out of range\n",index);
 }
 
 void Model::insertTriangle(unsigned index, Model::Triangle *triangle)

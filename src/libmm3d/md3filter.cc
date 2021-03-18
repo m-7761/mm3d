@@ -42,7 +42,7 @@
 #define MD3_MAX_SHADERS 256
 #define MD3_MAX_VERTS 4096
 #define MD3_MAX_TRIANGLES 8192
-#define MD3_XYZ_SCALE (1.0/64)
+#define MD3_XYZ_SCALE (1/64.0f)
 
 //#include "md3filter.h"
 class Md3Filter : public ModelFilter
@@ -1126,10 +1126,10 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 						{
 							double coord[3];
 							m_model->getVertexCoords(m_meshVecInfos[mesh][vert].id,coord);
-							meshVec[0] = coord[0];
-							meshVec[1] = coord[1];
-							meshVec[2] = coord[2];
-							meshVec[3] = 1;
+							meshVec[0] = (float)coord[0];
+							meshVec[1] = (float)coord[1];
+							meshVec[2] = (float)coord[2];
+							meshVec[3] = (float)1;
 
 							invMatrix.apply(meshVec);
 						}
@@ -1228,16 +1228,16 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 						mat->m_name = shaderBaseName;
 						for(int m = 0; m<3; m++)
 						{
-							mat->m_ambient[m] = 0.2;
-							mat->m_diffuse[m] = 0.8;
-							mat->m_specular[m] = 0.0;
-							mat->m_emissive[m] = 0.0;
+							mat->m_ambient[m] = 0.2f;
+							mat->m_diffuse[m] = 0.8f;
+							mat->m_specular[m] = 0.0f;
+							mat->m_emissive[m] = 0.0f;
 						}
-						mat->m_ambient[3]  = 1.0;
-						mat->m_diffuse[3]  = 1.0;
-						mat->m_specular[3] = 1.0;
-						mat->m_emissive[3] = 1.0;
-						mat->m_shininess = 0.0;
+						mat->m_ambient[3]  = 1.0f;
+						mat->m_diffuse[3]  = 1.0f;
+						mat->m_specular[3] = 1.0f;
+						mat->m_emissive[3] = 1.0f;
+						mat->m_shininess = 0.0f;
 						mat->m_alphaFilename = "";
 						mat->m_name = getFileNameFromPath(textureFile.c_str());
 						mat->m_filename = textureFile;
@@ -1267,9 +1267,9 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 			// (user may load it manually)
 			for(int t = 0; t<meshTriangleCount; t++)
 			{
-				m_model->setTextureCoords(tri[t],0,m_meshVecInfos[mesh][triang[t][2]].s,1.0-m_meshVecInfos[mesh][triang[t][2]].t);
-				m_model->setTextureCoords(tri[t],1,m_meshVecInfos[mesh][triang[t][1]].s,1.0-m_meshVecInfos[mesh][triang[t][1]].t);
-				m_model->setTextureCoords(tri[t],2,m_meshVecInfos[mesh][triang[t][0]].s,1.0-m_meshVecInfos[mesh][triang[t][0]].t);
+				m_model->setTextureCoords(tri[t],0,m_meshVecInfos[mesh][triang[t][2]].s,1-m_meshVecInfos[mesh][triang[t][2]].t);
+				m_model->setTextureCoords(tri[t],1,m_meshVecInfos[mesh][triang[t][1]].s,1-m_meshVecInfos[mesh][triang[t][1]].t);
+				m_model->setTextureCoords(tri[t],2,m_meshVecInfos[mesh][triang[t][0]].s,1-m_meshVecInfos[mesh][triang[t][0]].t);
 			}
 		}
 
@@ -1292,21 +1292,19 @@ std::string Md3Filter::readFile_findTexture(std::string baseName, std::string sh
 	}
 	TextureManager *texmgr = TextureManager::getInstance();
 	//log_debug("looking for texture files with name like: %s\n",baseName.c_str());
-	char *noext = strdup(baseName.c_str());
+	//char *noext = strdup(baseName.c_str());
+	char *noext = (char*)baseName.c_str();
+	char *ext = strrchr(noext,'.');		
+	if(ext) *ext = '\0';
 
-	char *ext = strrchr(noext,'.');
-	if(ext)
-	{
-		ext[0] = '\0';
-	}
 	std::list<std::string> files;
 	getFileList(files,m_modelPath.c_str(),noext);
-	std::list<std::string>::iterator it;
 
-	free(noext);
+	//free(noext);
+	if(ext) *ext = '.';
 
 	// try current directory
-	for(it = files.begin(); it!=files.end(); it++)
+	for(auto it=files.begin();it!=files.end();it++)
 	{
 		std::string texturePath = m_modelPath+(*it);
 		texturePath = getAbsolutePath(m_modelPath.c_str(),texturePath.c_str());
@@ -1362,37 +1360,42 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 	//std::vector<Model::Material*> &modelMaterials = getMaterialList(m_model);
 	auto &modelMaterials = *(Model::_MaterialList*)&m_model->getMaterialList();
 
-	//Find all the skin files
+	//Find all the skin files	
+	//char *noext = (char*)m_modelBaseName.c_str();
+	//char *ext = strrchr(noext,'.');
+	//if(ext) *ext = '\0';
+	//char *base = (char *)malloc(sizeof(char)*(strlen(noext)+2));
+	//strcpy(base,noext);
+	//strcat(base,"_");	
+	std::string base = m_modelBaseName;
+	auto ext = base.rfind('.');
+	if(~ext) base.erase(ext); //C++
+
 	std::list<std::string> files;
-	std::list<std::string>::iterator it;
+	getFileList(files,m_modelPath.c_str(),base.c_str());
 
-	char *noext = strdup(m_modelBaseName.c_str());
-	char *ext = strrchr(noext,'.');
-	if(ext)
-	{
-		ext[0] = '\0';
-	}
-	char *base = (char *)malloc(sizeof(char)*(strlen(noext)+2));
-	strcpy(base,noext);
-	strcat(base,"_");
+	//free(base);
 
-	getFileList(files,m_modelPath.c_str(),base);
 	bool defaultSet = false;
-	for(it = files.begin(); it!=files.end(); it++)
+	for(auto it=files.begin();it!=files.end();it++)
 	{
 		bool isDefault = false;
-		std::string fileName = (*it);
+		std::string fileName = *it;
 		std::string fullName = m_modelPath+fileName;
 		fullName = getAbsolutePath(m_modelPath.c_str(),fullName.c_str());
 
-		//Only take the ones with .skin extension
-		noext = strdup(fileName.c_str());
-		ext = strrchr(noext,'.');
 		if(filenameEndsWith(fileName.c_str(),"_default.skin"))
 		{
 			log_debug("is default\n");
 			isDefault = true;
 		}
+		
+		//MEMORY LEAK?
+		//Only take the ones with .skin extension
+		//noext = strdup(fileName.c_str());
+		//ext = strrchr(noext,'.');
+		//if(PORT_strcasecmp(ext,".skin")==0)
+		if(auto ext=strrchr(fileName.c_str(),'.'))
 		if(PORT_strcasecmp(ext,".skin")==0)
 		{
 			Model::ModelErrorE err = Model::ERROR_NONE;
@@ -1435,10 +1438,7 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 				}
 			}
 
-			if(!file)
-			{
-				continue;
-			}
+			if(!file) continue;
 
 			//Whew!we have the file now lets load it up.
 			replaceBackslash(file);
@@ -1465,16 +1465,16 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 					mat->m_name = textureBaseName;
 					for(int m = 0; m<3; m++)
 					{
-						mat->m_ambient[m] = 0.2;
-						mat->m_diffuse[m] = 0.8;
-						mat->m_specular[m] = 0.0;
-						mat->m_emissive[m] = 0.0;
+						mat->m_ambient[m] = 0.2f;
+						mat->m_diffuse[m] = 0.8f;
+						mat->m_specular[m] = 0.0f;
+						mat->m_emissive[m] = 0.0f;
 					}
-					mat->m_ambient[3]  = 1.0;
-					mat->m_diffuse[3]  = 1.0;
-					mat->m_specular[3] = 1.0;
-					mat->m_emissive[3] = 1.0;
-					mat->m_shininess = 0.0;
+					mat->m_ambient[3]  = 1.0f;
+					mat->m_diffuse[3]  = 1.0f;
+					mat->m_specular[3] = 1.0f;
+					mat->m_emissive[3] = 1.0f;
+					mat->m_shininess = 0.0f;
 					mat->m_filename = textureFullName;
 					mat->m_alphaFilename = "";
 					mat->m_name = getFileNameFromPath(textureFullName.c_str());
@@ -1492,7 +1492,6 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 		}
 	}
 
-	free(base);
 	return matId;
 }
 
@@ -3022,7 +3021,8 @@ void Md3Filter::resetVertexNormals(Model *model, Mesh &mesh)
 			model->getNormal(ea.modelTri,i,n);
 
 			auto &v = mesh.vertices[ea.v[i]];
-			for(int i=0;i<3;i++) v.norm[i]+=n[i]; //HACK: averaging to be a little better.
+			for(int i=0;i<3;i++) 
+			v.norm[i]+=(float)n[i]; //HACK: averaging to be a little better.
 		}
 	}
 }

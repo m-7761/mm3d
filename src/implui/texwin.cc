@@ -125,7 +125,7 @@ void TextureWin::submit(int id)
 
 		material.expand();
 
-		for(int i=0,iN=model->getTextureCount();i<iN;i++)
+		for(int i=0;i<model->getTextureCount();i++)
 		material.add_item(i,model->getTextureName(i));
 
 		wrap_x.add_item(0,"Wrap X").add_item(1,"Clamp X");
@@ -141,7 +141,7 @@ void TextureWin::submit(int id)
 		.add_item(2,"Specular").add_item(3,"Emissive")
 		.add_item(4,"Shininess");
 
-		for(int i=0,iN=model->getTriangleCount();i<iN;i++)
+		for(int i=0;i<model->getTriangleCount();i++)
 		if(model->isTriangleSelected(i))
 		if(int g=model->getTriangleGroup(i)+1)
 		{
@@ -174,7 +174,7 @@ void TextureWin::submit(int id)
 	
 		model->deleteTexture(m);
 		material.delete_all().select_id(0);
-		for(int i=0,iN=model->getTextureCount();i<iN;i++)				
+		for(int i=0;i<model->getTextureCount();i++)
 		material.add_item(i,model->getTextureName(i));
 		material_selected();
 		break;
@@ -219,8 +219,6 @@ void TextureWin::source_texture(int id)
 	if(id==id_browse)
 	{
 		std::string verb = "Open: ";
-		//"all model formats" doesn't include parentheses ???
-		//verb.append(::tr("All Supported Formats (")); //Parenthesis?
 		verb+=::tr("All Supported Formats (","all texture formats");
 		verb+=TextureManager::getInstance()->getAllReadTypes();
 		verb+=')';
@@ -241,13 +239,13 @@ void TextureWin::source_texture(int id)
 	if(source.text().empty())
 	{
 		model->removeMaterialTexture(m);
-		log_debug("removed texture from material %d\n",m); //???
+		//log_debug("removed texture from material %d\n",m); //???
 		material_selected();
 	}
 	else if(Texture*tex=TextureManager::getInstance()->getTexture(source.c_str()))
 	{
 		model->setMaterialTexture(m,tex);
-		log_debug("changed texture %d to %s\n",m,source.c_str());
+		//log_debug("changed texture %d to %s\n",m,source.c_str());
 		texture.setTexture(m);
 	}
 	else
@@ -283,7 +281,7 @@ void TextureWin::new_material_or_name(int id)
 			material.add_item(m,name);
 			material.select_id(m);
 			material_selected();
-			log_debug("added %s as %d\n",name.c_str(),m); //???
+			//log_debug("added %s as %d\n",name.c_str(),m); //???
 		}
 		else assert(0);
 	}
@@ -326,8 +324,8 @@ void TextureWin::refresh_column2(int id)
 		case 3: err = model->getTextureEmissive(m,val); break;
 		case 4: err = model->getTextureShininess(m,val[0]); break;
 		}
-		if(!err)
-		log_error("could not get lighting values for %d\n",m); //???
+		//if(!err)
+		//log_error("could not get lighting values for %d\n",m); //???
 
 		bool hide = 4==column2.int_val();
 		if(hide) val[0]/=100;

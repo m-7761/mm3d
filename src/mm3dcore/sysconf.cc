@@ -39,7 +39,6 @@ static std::string s_docDir;
 static std::string s_i18nDir;
 static std::string s_pluginDir;
 static std::string s_sharedPluginDir;
-
 static std::string s_configFile;
 
 #ifdef WIN32
@@ -53,20 +52,18 @@ static std::string getExecutablePath()
 
 	length = GetModuleFileNameA(nullptr,execpath,sizeof(execpath));
 
-	if(length>=sizeof(execpath)){
+	if(length>=sizeof(execpath))
+	{
 		log_debug("getExecutablePath: Execuable path too long\n");
-	} else if(length==0){
-		log_debug("getExecutablePath: GetModuleFileNameA()failed: 0x%x\n",GetLastError());
-	} else {
-		char *ptr = strrchr(execpath,'\\');
-
-		if(ptr)
-		{
-			ptr[0] = '\0';
-			rval = execpath;
-		}
 	}
-
+	else if(length==0)
+	{
+		log_debug("getExecutablePath: GetModuleFileNameA()failed: 0x%x\n",GetLastError());
+	}
+	else if(char*ptr=strrchr(execpath,'\\'))
+	{
+		*ptr = '\0'; rval = execpath;
+	}
 	return rval;
 }
 
@@ -81,23 +78,21 @@ static std::string getExecutablePath()
 
 	size = sizeof(tmppath);
 
-	if(_NSGetExecutablePath(tmppath,&size)==0){
-		if(realpath(tmppath,actualpath)==nullptr){
-			log_debug("getExecutablePath: realpath(%s)failed: %s\n",tmppath,strerror(errno));
-			actualpath[0] = '.';
-			actualpath[1] = '\0';
-		}
-	} else {
+	if(0!=_NSGetExecutablePath(tmppath,&size))
+	{
 		log_debug("getExecutablePath: _NSGetExecutablePath()failed: %s\n",strerror(errno));
+		actualpath[0] = '.';
+		actualpath[1] = '\0';
+	}
+	else if(!realpath(tmppath,actualpath))
+	{
+		log_debug("getExecutablePath: realpath(%s)failed: %s\n",tmppath,strerror(errno));
 		actualpath[0] = '.';
 		actualpath[1] = '\0';
 	}
 
 	// Remove executable name and trailing directory separator
-	ptr = strrchr(actualpath,'/');
-	if(ptr){
-		ptr[0] = '\0';
-	}
+	if(ptr=strrchr(actualpath,'/')) *ptr = '\0';
 
 	return actualpath;
 }
@@ -109,10 +104,8 @@ static std::string getAppBundlePath()
 
 	// Check if executable is not in an app bundle
 	if(path.size()<endsWith.size()
-	  ||path.compare(path.size()-endsWith.size(),endsWith.size(),endsWith)!=0){
-		return "";
-	}
-
+	||0!=path.compare(path.size()-endsWith.size(),endsWith.size(),endsWith))
+	return "";
 	return path.substr(0,path.size()-endsWith.size()+strlen(".app"));
 }
 
@@ -120,15 +113,13 @@ static std::string getAppBundlePath()
 
 void init_sysconf()
 {
-	char *majorMinor = strdup(VERSION);  
+	/*char *majorMinor = strdup(VERSION);  
 	int off = strlen(majorMinor)-1;
-
 	while(off>0&&majorMinor[off]!='.')
-	{
-		off--;
-	}
-	majorMinor[off] = '\0';
-
+	off--;
+	majorMinor[off] = '\0';*/
+	std::string majorMinor = VERSION; 
+	majorMinor.erase(majorMinor.rfind('.'));
 
 #ifdef WIN32 
 	std::string path = getExecutablePath();
@@ -211,7 +202,7 @@ void init_sysconf()
 	log_debug("config file is %s\n",s_configFile.c_str());
 	*/
 
-	free(majorMinor);
+	//free(majorMinor);
 }
 
 const std::string &getConfigFile()

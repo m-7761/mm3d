@@ -30,7 +30,7 @@
 
 struct DuplicateCommand : Command
 {
-	DuplicateCommand():Command(2,
+	DuplicateCommand():Command(3,
 	TRANSLATE_NOOP("Command","Edit")){}
 
 	virtual const char *getName(int arg)
@@ -38,8 +38,10 @@ struct DuplicateCommand : Command
 		switch(arg)
 		{
 		default: assert(0);
-		case 0: return TRANSLATE_NOOP("Command","Duplicate"); 
-		case 1: return TRANSLATE_NOOP("Command","Duplicate Animated"); 
+		//NOTE: Delete occupies this space
+		case 0: return TRANSLATE_NOOP("Command","Separate Selected"); 
+		case 1: return TRANSLATE_NOOP("Command","Duplicate"); 
+		case 2: return TRANSLATE_NOOP("Command","Duplicate Animated"); 
 		}
 	}
 
@@ -48,8 +50,10 @@ struct DuplicateCommand : Command
 		switch(arg)
 		{
 		default: assert(0);
-		case 0: return "Ctrl+D"; 
-		case 1: return "Shift+Ctrl+D"; 
+		//NOTE: Delete occupies this space (Ctrl+Alt+D)
+		case 0: return "Shift+Ctrl+Alt+D"; 
+		case 1: return "Ctrl+D"; 
+		case 2: return "Shift+Ctrl+D"; 
 		}
 	}
 
@@ -60,14 +64,17 @@ extern Command *dupcmd(){ return new DuplicateCommand; }
 
 bool DuplicateCommand::activated(int arg, Model *model)
 {
-	if(!model->duplicateSelected(arg==1))
+	if(!model->duplicateSelected(arg==2,arg==0))
 	{
-		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","You must have at least 1 face,joint,or point selected to Duplicate"));
+		//model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Duplicate"));
+		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Select faces, joints, or points"));
 		return false;
 	}
 	else
 	{
-		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Duplicate complete"));
+		//borrowing Delete language
+		//model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Duplicate complete"));
+		model_status(model,StatusNormal,STATUSTIME_SHORT,arg==0?TRANSLATE("Command","Separated"):TRANSLATE("Command","Duplicated"));
 		return true;
 	}
 }

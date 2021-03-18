@@ -190,6 +190,10 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		glutext::glutMenuEnable(id_animate_mode,
 		model->inAnimationMode()?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK);
 	}
+	if(changeBits&Model::AnimationChange)
+	{
+		if(_animation_win) _animation_win->modelChanged(changeBits); //2021
+	}
 	
 	//Don't want to do this faster than the viewports are displayed.
 	//Plus the animation coordinates should be validated to be safe.

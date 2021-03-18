@@ -39,7 +39,7 @@ public:
 
 protected:
 
-	int addNeededAnimFrame(Model *model, const char *name);
+	//int addNeededAnimFrame(Model *model, const char *name);
 
 	std::string m_lastAnimFrame;
 	int			m_lastAnimIndex;
@@ -515,7 +515,36 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 			src->readBytes(name,16);
 
-			animIndex = addNeededAnimFrame(model,name);
+			//animIndex = addNeededAnimFrame(model,name);
+			{
+				//char *temp = strdup(name);
+				char *temp = name;
+
+				int t = strlen(temp)-1;
+				for(; t>0&&isdigit(temp[t]); t--)
+				{
+					temp[t] = '\0';
+				}
+				if(t>0&&temp[t]=='_'){
+					temp[t] = '\0';
+				}
+
+				if(m_lastAnimIndex==-1||PORT_strcasecmp(temp,m_lastAnimFrame.c_str())!=0)
+				{
+					m_lastAnimFrame = temp;
+					m_lastAnimIndex = model->addAnimation(Model::ANIMMODE_FRAME,temp);
+					model->setAnimFPS(m_lastAnimIndex,10.0);
+					m_animFrame = 0;
+				}
+				else
+				{
+					m_animFrame++;
+				}
+				model->setAnimFrameCount(m_lastAnimIndex,m_animFrame+1);
+
+				//free(temp); return m_lastAnimIndex;
+				animIndex = m_lastAnimIndex;
+			}
 
 			for(i = 0; i<numVertices; i++)
 			{
@@ -552,7 +581,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 		src->read(s);
 		src->read(t);
 		texCoordsList[i].s = (float)s/skinWidth;
-		texCoordsList[i].t = 1.0-(float)t/skinHeight;
+		texCoordsList[i].t = 1-(float)t/skinHeight;
 	}
 
 	// Create group for all triangles
@@ -631,15 +660,15 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 		for(int m = 0; m<3; m++)
 		{
-			mat->m_ambient[m] = 0.2;
-			mat->m_diffuse[m] = 0.8;
-			mat->m_specular[m] = 0.0;
-			mat->m_emissive[m] = 0.0;
+			mat->m_ambient[m] = 0.2f;
+			mat->m_diffuse[m] = 0.8f;
+			mat->m_specular[m] = 0.0f;
+			mat->m_emissive[m] = 0.0f;
 		}
-		mat->m_ambient[3]  = 1.0;
-		mat->m_diffuse[3]  = 1.0;
-		mat->m_specular[3] = 1.0;
-		mat->m_emissive[3] = 1.0;
+		mat->m_ambient[3]  = 1.0f;
+		mat->m_diffuse[3]  = 1.0f;
+		mat->m_specular[3] = 1.0f;
+		mat->m_emissive[3] = 1.0f;
 
 		mat->m_shininess = 0.0;
 
@@ -671,22 +700,19 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 	// If we don't have any skins,lets try to find some
 	if(modelMaterials.size()==0)
 	{
-		char *noext = strdup(modelBaseName.c_str());
-
+		//char *noext = strdup(modelBaseName.c_str());
+		char *noext = (char*)modelBaseName.c_str();
 		char *ext = strrchr(noext,'.');
-		if(ext)
-		{
-			ext[0] = '\0';
-		}
+		if(ext) *ext = '\0';
 
 		log_debug("no skins defined,looking for some....\n");
 		std::list<std::string> files;
 		getFileList(files,modelPath.c_str(),noext);
-		std::list<std::string>::iterator it;
 
-		free(noext);
+		//free(noext);
+		if(ext) *ext = '.';
 
-		for(it = files.begin(); it!=files.end(); it++)
+		for(auto it=files.begin();it!=files.end();it++)
 		{
 			std::string texturePath = modelPath+(*it);
 
@@ -705,17 +731,17 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 				for(int m = 0; m<3; m++)
 				{
-					mat->m_ambient[m] = 0.2;
-					mat->m_diffuse[m] = 0.8;
-					mat->m_specular[m] = 0.0;
-					mat->m_emissive[m] = 0.0;
+					mat->m_ambient[m] = 0.2f;
+					mat->m_diffuse[m] = 0.8f;
+					mat->m_specular[m] = 0.0f;
+					mat->m_emissive[m] = 0.0f;
 				}
-				mat->m_ambient[3]  = 1.0;
-				mat->m_diffuse[3]  = 1.0;
-				mat->m_specular[3] = 1.0;
-				mat->m_emissive[3] = 1.0;
+				mat->m_ambient[3]  = 1.0f;
+				mat->m_diffuse[3]  = 1.0f;
+				mat->m_specular[3] = 1.0f;
+				mat->m_emissive[3] = 1.0f;
 
-				mat->m_shininess = 0.0;
+				mat->m_shininess = 0.0f;
 
 				//replaceBackslash(material->m_texture);
 				//replaceBackslash(material->m_alphamap);
@@ -967,14 +993,6 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 		std::string fullName,fullPath,baseName;
 		normalizePath(modelMaterials[i]->m_filename.c_str(),fullName,fullPath,baseName);
 
-		char *noext = strdup(modelBaseName.c_str());
-
-		char *ext = strrchr(noext,'.');
-		if(ext)
-		{
-			ext[0] = '\0';
-		}
-
 		char md2path[64];
 		if(model->getMetaData("MD2_PATH",md2path,sizeof(md2path)))
 		{
@@ -982,14 +1000,22 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 		}
 		else
 		{
+			
+			//char *noext = strdup(modelBaseName.c_str());
+			char *noext = (char*)modelBaseName.c_str();
+
+			char *ext = strrchr(noext,'.');
+			if(ext) *ext = '\0';
+
 			// Assume player model
 			snprintf((char *)skinpath,sizeof(skinpath),"players/%s/%s",noext,baseName.c_str());
+
+			//free(noext);
+			if(ext) *ext = '.';
 		}
 		log_debug("writing skin %s as %s\n",baseName.c_str(),skinpath);
 
 		dst->writeBytes(skinpath,sizeof(skinpath));
-
-		free(noext);
 	}
 
 	// Write texture coordinates
@@ -1006,7 +1032,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 			uint16_t ti;
 			model->getTextureCoords(i,n,sd,td);
 
-			td = 1.0-td;
+			td = 1.0f-td;
 
 			si = (int16_t)(sd *(double)skinWidth);
 			dst->write(si);
@@ -1034,7 +1060,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	// Write Frames
 	offsetFrames = dst->offset();
 
-	https://github.com/zturtleman/mm3d/issues/109
+	//https://github.com/zturtleman/mm3d/issues/109
 	std::vector<float> vecNormals(3*numVertices);
 	float *avgNormals = vecNormals.data();
 
@@ -1086,7 +1112,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 					int avg = 3*model->getTriangleVertex(i,j);
 
 					for(int k=0;k<3;k++)
-					avgNormals[avg+k]+=n[k];
+					avgNormals[avg+k]+=(float)n[k];
 				}
 			}			
 
@@ -1240,35 +1266,6 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	model->operationComplete("Invert normals for save");
 
 	return Model::ERROR_NONE;
-}
-
-int Md2Filter::addNeededAnimFrame(Model *model, const char *name)
-{
-	char *temp = strdup(name);
-
-	int t = strlen(temp)-1;
-	for(; t>0&&isdigit(temp[t]); t--)
-	{
-		temp[t] = '\0';
-	}
-	if(t>0&&temp[t]=='_'){
-		temp[t] = '\0';
-	}
-
-	if(m_lastAnimIndex==-1||PORT_strcasecmp(temp,m_lastAnimFrame.c_str())!=0)
-	{
-		m_lastAnimFrame = temp;
-		m_lastAnimIndex = model->addAnimation(Model::ANIMMODE_FRAME,temp);
-		model->setAnimFPS(m_lastAnimIndex,10.0);
-		m_animFrame = 0;
-	}
-	else
-	{
-		m_animFrame++;
-	}
-	model->setAnimFrameCount(m_lastAnimIndex,m_animFrame+1);
-
-	free(temp); return m_lastAnimIndex;
 }
 
 extern ModelFilter *md2filter(ModelFilter::PromptF f)

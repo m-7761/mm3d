@@ -2059,7 +2059,7 @@ bool Model::selectAllVertices(bool how)
 
 	bool ret = false;
 
-	for(unsigned v = 0; v<m_vertices.size(); v++)
+	for(unsigned v=0;v<m_vertices.size();v++)
 	{
 		if(how==m_vertices[v]->m_selected) continue; //2020
 

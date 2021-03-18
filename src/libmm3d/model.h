@@ -1807,7 +1807,8 @@ class Model
 
 		Model *copySelected(bool animated=false)const;
 
-		bool duplicateSelected(bool animated=false); //2020 (dupcmd)
+		bool duplicateSelected(bool animated=false, bool separate=false); //2020 (dupcmd)
+		bool separateSelected(){ return duplicateSelected(false,true); } //2021
 
 		// A BSP tree is calculated for triangles that have textures with an alpha
 		// channel (transparency). It is used to determine in what order triangles

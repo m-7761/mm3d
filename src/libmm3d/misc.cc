@@ -44,76 +44,44 @@
 
 void replaceSlash(char *str)
 {
-	if(str)
+	if(str) for(int n=0;str[n];n++)
 	{
-		for(int n = 0; str[n]; n++)
-		{
-			if(str[n]=='/')
-			{
-				str[n] = '\\';
-			}
-		}
+		if(str[n]=='/') str[n] = '\\';
 	}
 }
 
 void replaceSlash(std::string &str)
 {
-	for(unsigned n = 0; n<str.size(); n++)
+	for(unsigned n=0;n<str.size();n++)
 	{
-		if(str[n]=='/')
-		{
-			str[n] = '\\';
-		}
+		if(str[n]=='/') str[n] = '\\';
 	}
 }
 
 void replaceBackslash(std::string &str)
 {
-	for(unsigned n = 0; n<str.size(); n++)
+	for(unsigned n=0;n<str.size();n++)
 	{
-		if(str[n]=='\\')
-		{
-			str[n] = '/';
-		}
+		if(str[n]=='\\') str[n] = '/';
 	}
 }
 
 void replaceBackslash(char *str)
 {
-	if(str)
+	if(str) for(int n=0;str[n];n++)
 	{
-		for(int n = 0; str[n]; n++)
-		{
-			if(str[n]=='\\')
-			{
-				str[n] = '/';
-			}
-		}
+		if(str[n]=='\\') str[n] = '/';
 	}
 }
 
 std::string getFilePathFromPath(const char *path)
 {
-	std::string rval;
-	char *temp = strdup(path);
-
-	rval = PORT_dirname(temp);
-
-	free(temp);
-
-	return rval;
+	return PORT_dirname(path);
 }
 
 std::string getFileNameFromPath(const char *path)
 {
-	std::string rval;
-	char *temp = strdup(path);
-
-	rval = PORT_basename(temp);
-
-	free(temp);
-
-	return rval;
+	return PORT_basename(path);
 }
 
 bool pathIsAbsolute(const char *path)
@@ -122,17 +90,13 @@ bool pathIsAbsolute(const char *path)
 	// FIXME?: PathIsRelativeW()returns FALSE for files without path.
 	std::wstring widePath = utf8PathToWide(path);
 	if(widePath.empty())
-		return false;
+	return false;
 	return (PathIsRelativeW(&widePath[0])==FALSE);
 #else
 	if(path==nullptr)
-	{
-		return false;
-	}
+	return false;	
 	if(isalpha(path[0])&&path[1]==':')
-	{
-		return true;
-	}
+	return true;
 	return (path[0]=='/'||path[0]=='\\');
 #endif
 }
@@ -141,51 +105,41 @@ std::string normalizePath(const char *path, const char *pwd)
 {
 	std::string rval;
 	std::string fullPath;
-
 	if(pathIsAbsolute(path))
 	{
 		fullPath = path;
 	}
+	else if(pwd)
+	{
+		fullPath  = pwd;
+		fullPath += DIR_SLASH;
+		fullPath += path;
+	}
 	else
 	{
-		if(pwd)
+		char *tempPwd = PORT_get_current_dir_name();
+
+		if(tempPwd)
 		{
-			fullPath  = pwd;
+			fullPath  = tempPwd;
 			fullPath += DIR_SLASH;
 			fullPath += path;
+
+			free(tempPwd);
 		}
 		else
 		{
-			char *tempPwd = PORT_get_current_dir_name();
-
-			if(tempPwd)
-			{
-				fullPath  = tempPwd;
-				fullPath += DIR_SLASH;
-				fullPath += path;
-
-				free(tempPwd);
-			}
-			else
-			{
-				fullPath  = ".";
-				fullPath += DIR_SLASH;
-				fullPath += path;
-			}
+			fullPath  = ".";
+			fullPath += DIR_SLASH;
+			fullPath += path;
 		}
 	}
-
 	char resolved[PATH_MAX];
 	if(PORT_realpath(fullPath.c_str(),resolved,PATH_MAX))
 	{
 		rval = resolved;
 	}
-	else
-	{
-		rval = path;
-	}
-
-	return rval;
+	else rval = path; return rval;
 }
 
 std::string getRelativePath(const char *b, const char *p)
@@ -207,22 +161,14 @@ std::string getRelativePath(const char *b, const char *p)
 			}
 
 			int lastSlash = 0;
-
-			int t = 0;
 			int len = (int)(base.size()<path.size())? base.size(): path.size();
-			for(t = 0; t<len; t++)
+			for(int t=0;t<len;t++)
 			{
-				if(base[t]!=path[t])
+				if(base[t]==path[t])
 				{
-					break;
+					if(base[t]=='/') lastSlash = t;
 				}
-				else
-				{
-					if(base[t]=='/')
-					{
-						lastSlash = t;
-					}
-				}
+				else break;
 			}
 
 			// Back up to lastSlash and prepend "../" for each '/' remaining in base
@@ -234,9 +180,10 @@ std::string getRelativePath(const char *b, const char *p)
 				rval += "../";
 			}
 
-			rval += &path[lastSlash+1];
+			rval+=&path[lastSlash+1];
 
-			log_debug("relative path is %s\n",rval.c_str());
+			//log_debug("relative path is %s\n",rval.c_str()); //???
+
 			return rval;
 		}
 		
@@ -420,17 +367,13 @@ std::string fixFileCase(const char *path, const char *file)
 	std::string rval = file;
 
 #ifndef WIN32 // TODO: Use Win32 API
-	DIR *dp = opendir(path);
-	if(dp)
+	if(DIR*dp=opendir(path))
 	{
-		struct dirent *d;
-		while((d = readdir(dp))!=nullptr)
+		for(struct dirent*d;d=readdir(dp);)
+		if(PORT_strcasecmp(d->d_name,file)==0)
 		{
-			if(PORT_strcasecmp(d->d_name,file)==0)
-			{
-				rval = d->d_name;
-				break;
-			}
+			rval = d->d_name;
+			break;
 		}
 		closedir(dp);
 	}
@@ -468,27 +411,26 @@ std::string removeExtension(const char *infile)
 	{
 		size_t slash = rval.rfind('/');
 		if(slash>len)
-			slash = rval.rfind('\\');
+		slash = rval.rfind('\\');
 
 		if(slash>len||i>slash+1)
-			rval.resize(i);
+		rval.resize(i);
 	}
 	return rval;
 }
 
 void getFileList(std::list<std::string> &l, const char *const path, const char *const name)
 {
-	sorted_list<std::string> sl;
+	//sorted_list<std::string> sl;
 
 	unsigned len = strlen(name);
 
 #ifdef WIN32
+
 	std::string searchPath;
 	searchPath += path;
 	if(searchPath[searchPath.size()-1]!=DIR_SLASH)
-	{
-		searchPath += DIR_SLASH;
-	}
+	searchPath += DIR_SLASH;
 	searchPath += '*';
 
 	std::wstring wideSearch = utf8PathToWide(searchPath.c_str());
@@ -503,13 +445,12 @@ void getFileList(std::list<std::string> &l, const char *const path, const char *
 	if(hFind==INVALID_HANDLE_VALUE)
 	{
 		if(GetLastError()!=ERROR_FILE_NOT_FOUND)
-		{
-			log_warning("getFileList(%s): FindFirstFile()failed,error 0x%x\n",path,GetLastError());
-		}
+		log_warning("getFileList(%s): FindFirstFile()failed,error 0x%x\n",path,GetLastError());		
 		return;
 	}
 
-	do {
+	do
+	{
 		DWORD utf8Size = WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,ffd.cFileName,-1,nullptr,0,nullptr,nullptr);
 
 		std::string filename(utf8Size,'\0');
@@ -521,46 +462,47 @@ void getFileList(std::list<std::string> &l, const char *const path, const char *
 
 		if(PORT_strncasecmp(filename.c_str(),name,len)==0)
 		{
-			sl.insert_sorted(filename);
+			//sl.insert_sorted(filename);
+			l.insert(l.end(),filename);
 		}
-	} while(FindNextFileW(hFind,&ffd)!=0);
+
+	}while(FindNextFileW(hFind,&ffd));
 
 	FindClose(hFind);
+
 #else
-	DIR *dp = opendir(path);
-	if(dp)
+
+	if(DIR*dp=opendir(path))
 	{
-		struct dirent *d;
-		while((d = readdir(dp))!=nullptr)
+		for(struct dirent*d;d=readdir(dp);)		
+		if(PORT_strncasecmp(d->d_name,name,len)==0)
 		{
-			if(PORT_strncasecmp(d->d_name,name,len)==0)
-			{
-				sl.insert_sorted(d->d_name);
-			}
+			//sl.insert_sorted(d->d_name);
+			l.insert(l.end(),filename);
 		}
 		closedir(dp);
 	}
+
 #endif
 
-	for(unsigned t  = 0; t<sl.size(); t++)
-	{
-		l.push_back(sl[t]);
-	}
+	//for(unsigned t=0;t<sl.size();t++) l.push_back(sl[t]);
+	l.sort();
 }
 
 bool file_modifiedtime(const char *filename,time_t *modifiedtime)
 {
 #ifdef WIN32
+
 	*modifiedtime = 0;
 
 	std::wstring wideString = utf8PathToWide(filename);
 	if(wideString.empty())
-		return false;
+	return false;
 
 	HANDLE handle = CreateFileW(&wideString[0],GENERIC_READ,FILE_SHARE_READ,nullptr,
 										  OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
 	if(handle==INVALID_HANDLE_VALUE)
-		return false;
+	return false;
 
 	FILETIME lastWriteTime;
 	if(GetFileTime(handle,nullptr,nullptr,&lastWriteTime)==FALSE)
@@ -578,7 +520,9 @@ bool file_modifiedtime(const char *filename,time_t *modifiedtime)
 
 	CloseHandle(handle);
 	return true;
+
 #else
+
 	struct stat statbuf;
 	if(lstat(filename,&statbuf)==0)
 	{
@@ -590,6 +534,7 @@ bool file_modifiedtime(const char *filename,time_t *modifiedtime)
 		*modifiedtime = 0;
 		return false;
 	}
+
 #endif
 }
 
@@ -598,20 +543,13 @@ bool file_exists(const char *filename)
 #ifdef WIN32
 	std::wstring wideString = utf8PathToWide(filename);
 	if(wideString.empty())
-		return false;
+	return false;
 
 	DWORD attr = GetFileAttributesW(&wideString[0]);
 	return attr!=INVALID_FILE_ATTRIBUTES&&!(attr &FILE_ATTRIBUTE_DIRECTORY);
 #else
 	struct stat statbuf;
-	if(lstat(filename,&statbuf)==0)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	return lstat(filename,&statbuf)==0;
 #endif
 }
 
@@ -620,21 +558,16 @@ bool is_directory(const char *filename)
 #ifdef WIN32
 	std::wstring wideString = utf8PathToWide(filename);
 	if(wideString.empty())
-		return false;
-
+	return false;
 	DWORD attr = GetFileAttributesW(&wideString[0]);
 	return attr!=INVALID_FILE_ATTRIBUTES&&(attr &FILE_ATTRIBUTE_DIRECTORY);
 #else
 	struct stat statbuf;
-	if(lstat(filename,&statbuf)==0)
+	if(lstat(filename,&statbuf)==0)	
+	if(DIR*dp=opendir(filename)) // Don't check S_ISDIR, could be symlink
 	{
-		DIR *dp = opendir(filename); // Don't check S_ISDIR,could be symlink
-		if(dp)
-		{
-			closedir(dp);
-			return true;
-		}
-	}
+		closedir(dp); return true;
+	}	
 	return false;
 #endif
 }
@@ -643,27 +576,24 @@ int mkpath(const char *filename, /*mode_t*/size_t mode)
 {
 	if(filename&&filename[0])
 	{
-		char *str = strdup(filename);
-		size_t len = strlen(filename);
-		size_t offset = 1;
-
-		do
+		char *str = strdup(filename); //PATH_MAX? (utf8PathToWide?)
+		size_t len = strlen(str);
+		size_t offset = 1; do
 		{
-			while( filename[offset]!='\0' 
-				  &&filename[offset]!='/' 
-				  &&filename[offset]!='\\')
-			{
-				offset++;
-			}
-			strcpy (str,filename);
-			str[offset] = '\0';
-
-			PORT_mkdir(str,mode);
-
+			while(str[offset]!='\0' 
+			&&str[offset]!='/'&&'\\'!=str[offset])
 			offset++;
-		} while(offset<=len);
+			//strcpy(str,filename);
+			char swap = str[offset];
+			str[offset] = '\0';
+			{
+				PORT_mkdir(str,mode);
+			}
+			str[offset] = swap;
 
-		free(str);
+		}while(offset++<=len);
+
+		free(str); //PATH_MAX? (utf8PathToWide?)
 	}
 
 	return 0;
@@ -671,21 +601,15 @@ int mkpath(const char *filename, /*mode_t*/size_t mode)
 
 void chomp(char *str)
 {
-	int len = 0;
-	len = strlen(str)-1;
-
+	int len = strlen(str)-1;
 	while(len>=0&&isspace(str[len]))
-	{
-		str[len] = '\0';
-		len--;
-	}
+	str[len--] = '\0';
 }
 
 bool filenameEndsWith(const char *filename, const char *tail)
 {
 	size_t filenameLength = strlen(filename);
 	size_t tailLength = strlen(tail);
-
 	return (filenameLength>tailLength+1&&PORT_strcasecmp(&filename[filenameLength-tailLength],tail)==0);
 }
 
@@ -696,13 +620,8 @@ size_t utf8len(const char *str)
 	while(str&&str[pos]!=0)
 	{
 		unsigned char ch = ((unsigned char)str[pos])&0xc0;
-
-		if(	 ch==0 
-			  ||ch==0x40 
-			  ||ch==0xc0)
-		{
-			len++;
-		}
+		if(ch==0||ch==0x40||ch==0xc0)
+		len++;
 		pos++;
 	}
 	return len;
@@ -725,7 +644,7 @@ void utf8strtrunc(char *str, size_t len)
 		{
 			unsigned char ch = ((unsigned char)str[pos])&0xc0;
 
-			if((ch &0xc0)==0xc0)
+			if((ch&0xc0)==0xc0)
 			{
 				n++;
 				ch = str[pos];
@@ -738,8 +657,7 @@ void utf8strtrunc(char *str, size_t len)
 			}
 			else
 			{
-				n++;
-				pos++;
+				n++; pos++;
 			}
 		}
 		utf8chrtrunc(str,pos);
@@ -755,7 +673,7 @@ void utf8strtrunc(std::string &str, size_t len)
 	{
 		unsigned char ch = ((unsigned char)str[pos])&0xc0;
 
-		if((ch &0xc0)==0xc0)
+		if((ch&0xc0)==0xc0)
 		{
 			n++;
 			ch = str[pos];
@@ -768,8 +686,7 @@ void utf8strtrunc(std::string &str, size_t len)
 		}
 		else
 		{
-			n++;
-			pos++;
+			n++; pos++;
 		}
 	}
 	utf8chrtrunc(str,pos);
@@ -779,23 +696,16 @@ void utf8strtrunc(std::string &str, size_t len)
 void utf8chrtrunc(char *str, size_t len)
 {
 	// If we're truncating
-	while(len>0 
-		  &&(((unsigned char)str[len] &0xc0))==0x80)
-	{
-		len--;
-	}
+	while(len>0&&(((unsigned char)str[len] &0xc0))==0x80)
+	len--;
 	str[len] = '\0';
 }
 
 void utf8chrtrunc(std::string &str, size_t len)
 {
-	while(len>0 
-		  &&(((unsigned char)str[len] &0xc0))==0x80)
-	{
-		len--;
-	}
-	if(len<str.size())
-		str.resize(len);
+	while(len>0&&(((unsigned char)str[len]&0xc0))==0x80)
+	len--;
+	if(len<str.size()) str.resize(len);
 }
 
 #ifdef WIN32
@@ -809,7 +719,7 @@ std::wstring utf8PathToWide(const char *filename)
 		return std::wstring();
 	}
 
-	// Use \\?\ prefix to tell Windows API to use more than MAX_PATH (260)characters.
+	// Use \\?\ prefix to tell Windows API to use more than MAX_PATH (260) characters.
 	std::wstring wideString(wideSize+4,'\0');
 	wcscpy(&wideString[0],L"\\\\?\\");
 	if(MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,filename,-1,&wideString[4],wideSize)==0)
@@ -820,13 +730,7 @@ std::wstring utf8PathToWide(const char *filename)
 	}
 
 	// MM3D always uses slash for directory separator
-	for(size_t n = 0; n<wideString.size(); n++)
-	{
-	  if(wideString[n]==L'/')
-	  {
-		  wideString[n] = L'\\';
-	  }
-	}
+	for(auto&ea:wideString) if(ea==L'/') ea = L'\\';
 
 	return wideString;
 }

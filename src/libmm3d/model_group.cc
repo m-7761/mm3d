@@ -330,29 +330,20 @@ const int_list &Model::getGroupTriangles(unsigned groupNumber)const
 
 int Model::getTriangleGroup(unsigned triangleNumber)const
 {
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	for(unsigned g=0;g<m_groups.size();g++)
 	{
 		auto &c = m_groups[g]->m_triangleIndices;
 		if(c.end()!=std::find(c.begin(),c.end(),triangleNumber))
-		{
-			return g;
-		}
-	}
-	
-	// Triangle is not in a group
-	return -1;
+		return g;
+	}	
+	return -1; // Triangle is not in a group
 }
 
 const char *Model::getGroupName(unsigned groupNum)const
 {
 	if(groupNum>=0&&groupNum<m_groups.size())
-	{
-		return m_groups[groupNum]->m_name.c_str();
-	}
-	else
-	{
-		return nullptr;
-	}
+	return m_groups[groupNum]->m_name.c_str();
+	return nullptr;
 }
 
 int Model::getGroupByName(const char *const groupName,bool ignoreCase)const

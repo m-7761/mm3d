@@ -621,7 +621,11 @@ int Model::addBoneJoint(const char *name, double x, double y, double z, int pare
 	//Need to do this before the joint is added.
 	if(parent!=-1) validateSkel();
 
-	if(-1==addBoneJoint(name,parent)) return -1;
+	if(-1==addBoneJoint(name,parent))
+	{
+		assert(0); //copySelected got -1, I see now reason why???
+		return -1;
+	}
 
 	Joint *joint = m_joints.back();
 
@@ -1284,23 +1288,23 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 	//TODO: Remove the frame if no keys remain. This can be
 	//done manually with the clear operation until a counter
 	//is added/managed.
-	auto anim = m_currentAnim, frame = m_currentFrame;
+	auto ca = m_currentAnim, cf = m_currentFrame;
 	if(!e) //Programmer error? 
 	{
-		if(m_currentTime!=getAnimFrameTime(anim,frame))
+		if(m_currentTime!=getAnimFrameTime(ca,cf))
 		return;
 	}
-	else frame = makeCurrentAnimationFrame(); 
+	else cf = makeCurrentAnimationFrame(); 
 	
 	Keyframe kf;
 	kf.m_isRotation = KeyType2020E(1<<d);
-	kf.m_frame = frame;
+	kf.m_frame = cf;
 
 	if(e) validateAnim(); //setKeyframe/setFrameAnimVertexCoords/InterpolateCopy
 
 	m_changeBits|=MoveGeometry;
 
-	for(int pass=1;pass<=2;pass++) if(pass&m_anims[anim]->_type)
+	for(int pass=1;pass<=2;pass++) if(pass&m_anims[ca]->_type)
 	{
 		Position j{pass==1?PT_Joint:PT_Point,(unsigned)-1};
 		auto &vec = *(std::vector<Object2020*>*)(pass==1?(void*)&m_joints:&m_points);
@@ -1309,7 +1313,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 			j++; if(ea->m_selected)
 			{		
 				const double *coord = ea->getParams(d);
-				setKeyframe(anim,frame,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
+				setKeyframe(ca,cf,j,kf.m_isRotation,coord[0],coord[1],coord[2],e);
 			}
 		}
 	}
@@ -1327,12 +1331,12 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 			i++; if(ea->m_selected)
 			{
 				if(0==~fp) _anim_valloc(fa);
-				auto vf = ea->m_frames[fp+frame];
+				auto vf = ea->m_frames[fp+cf];
 				auto &cmp = vf->m_interp2020;
 				if(cmp!=e) 
 				{
 					if(ue&&!undo)
-					undo = new MU_InterpolateSelected(e,anim,frame);
+					undo = new MU_InterpolateSelected(e,ca,cf);
 					if(ue) undo->addVertex(cmp); 
 				
 					//HACK: Maybe this value should already be stored.
@@ -1385,7 +1389,7 @@ void Model::translateSelected(const double vec[3])
 				{
 					sel = true;
 
-					makeCurrentAnimationFrame(); //2020
+					cf = makeCurrentAnimationFrame(); //2020
 				}
 
 				//HACK? Need to update m_final matrix.
@@ -1425,7 +1429,7 @@ void Model::translateSelected(const double vec[3])
 				{
 					sel = true;
 
-					makeCurrentAnimationFrame(); //2020
+					cf = makeCurrentAnimationFrame(); //2020
 
 					if(skel) validateAnim(); //Need real m_kfCoord? _resample?
 				}
@@ -1457,7 +1461,7 @@ void Model::translateSelected(const double vec[3])
 				{
 					sel = true;
 
-					makeCurrentAnimationFrame(); //2020
+					cf = makeCurrentAnimationFrame(); //2020
 
 					if(skel) validateAnim(); //Need real m_kfAbs? _resample?
 				}
@@ -1638,7 +1642,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				{
 					sel = true;
 
-					makeCurrentAnimationFrame(); //2020
+					cf = makeCurrentAnimationFrame(); //2020
 
 					//HACK? Need to update m_final matrix.
 					validateAnimSkel();
@@ -1678,7 +1682,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				{
 					sel = true;
 
-					makeCurrentAnimationFrame(); //2020
+					cf = makeCurrentAnimationFrame(); //2020
 
 					if(skel) validateAnim(); //Need real m_kfCoord? _resample?
 				}
@@ -1707,7 +1711,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				{
 					sel = true;
 
-					makeCurrentAnimationFrame(); //2020
+					cf = makeCurrentAnimationFrame(); //2020
 
 					if(skel) validateAnim(); //Need real m_kfAbs? _resample?
 				}

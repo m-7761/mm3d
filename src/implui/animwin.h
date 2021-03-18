@@ -35,6 +35,8 @@ struct AnimWin : Win
 
 	void setModel(){ open(true); }
 
+	void modelChanged(int); //2021
+
 	AnimWin(class MainWin &model, int menu)
 		:
 	Win(::tr("Animator")), //::tr("Animations")

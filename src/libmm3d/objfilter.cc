@@ -396,7 +396,7 @@ bool ObjFilter::writeMaterials()
 {
 	if(m_model->getTextureCount()>0)
 	{
-		char *base = strdup(m_modelBaseName.c_str());
+		/*char *base = strdup(m_modelBaseName.c_str());
 		int baseLen = strlen(base);
 		for(int t = baseLen-1; t>=0; t--)
 		{
@@ -407,7 +407,11 @@ bool ObjFilter::writeMaterials()
 			}
 		}
 		m_materialFile = std::string(base)+".mtl";
-		free(base);
+		free(base);*/
+		m_materialFile = m_modelBaseName;
+		auto ext = m_materialFile.rfind('.');
+		if(~ext) m_materialFile.erase(ext); //C++
+		m_materialFile.append(".mtl");
 
 		m_materialFullFile = m_modelPath+std::string("/")+m_materialFile;
 
@@ -464,11 +468,13 @@ bool ObjFilter::writeMaterials()
 			if(m_model->getMaterialType(m)==Model::Material::MATTYPE_TEXTURE)
 			{
 				std::string filename = getRelativePath(m_modelPath.c_str(),m_model->getTextureFilename(m));
-				char *filecpy = strdup(filename.c_str());
-				replaceSlash(filecpy);
-				writeStripped("\tmap_Kd %s",
-						((strncmp(filecpy,".\\",2)==0)? &filecpy[2] : filecpy));
-				free(filecpy);
+				//char *filecpy = strdup(filename.c_str());
+				//replaceSlash(filecpy);
+				auto filecpy = filename.c_str(); 
+				//https://github.com/zturtleman/mm3d/issues/152
+				//writeStripped("\tmap_Kd %s",
+				writeLine( "\tmap_Kd %s",filecpy+(strncmp(filecpy,".\\",2)?0:2));
+				//free(filecpy);
 			}
 
 			writeLine("");
@@ -583,22 +589,25 @@ bool ObjFilter::writeGroups()
 		}
 	}
 
+	std::string _str;
 	for(g = 0; g<gcount; g++)
 	{
 		tris = m_model->getGroupTriangles(g);
 
 		if(tris.size())
 		{
-			char *grpStr = strdup(m_model->getGroupName(g));
+			/*char *grpStr = strdup(m_model->getGroupName(g));
 			unsigned grpStrLen = strlen(grpStr);
-
 			for(unsigned n = 0; n<grpStrLen; n++)
 			{
 				if(isspace(grpStr[n]))
 				{
 					grpStr[n] = '_';
 				}
-			}
+			}*/
+			for(auto&ea:_str=m_model->getGroupName(g))
+			if(isspace(ea)) ea = '_';
+			auto grpStr = _str.c_str();
 
 			writeLine("# %s,%d grouped triangles",grpStr,tris.size());
 			writeLine("");
@@ -613,7 +622,7 @@ bool ObjFilter::writeGroups()
 			writeLine("g %s",grpStr);
 			writeLine("");
 
-			free(grpStr);
+			//free(grpStr);
 
 			if(m_options->m_saveNormals)
 			{
@@ -882,33 +891,37 @@ bool ObjFilter::readGroup(char *line)
 
 	line = skipSpace(line);
 
-	char *temp = strdup(line);
-	char *ptr = temp;
+	//char *temp = strdup(line);
+	//char *ptr = temp;
+	char *ptr = line;
 
-	while(!isspace(ptr[0]))
+	while(*ptr&&!isspace(*ptr))
 	{
 		ptr++;
 	}
-	ptr[0] = '\0';
+	//*ptr = '\0';
+	m_groupName.assign(line,ptr-line);
 
 	m_curGroup = -1;
 
-	if(temp[0]=='\0')
+	//if(temp[0]=='\0')
+	if(m_groupName.empty())
 	{
 		m_curGroup = m_model->getGroupByName("default");
 		if(m_curGroup<0)
 		{
 			m_curGroup = m_model->addGroup("default");
-			m_groupName = "default";
+			//m_groupName = "default";
 		}
+		m_groupName = "default"; //2021
 	}
 	else
 	{
-		m_groupName = temp;
-		m_curGroup = m_model->getGroupByName(temp);
+		//m_groupName = temp;
+		m_curGroup = m_model->getGroupByName(m_groupName.c_str()); //temp
 		if(m_curGroup<0)
 		{
-			m_curGroup = m_model->addGroup(temp);
+			m_curGroup = m_model->addGroup(m_groupName.c_str()); //temp
 		}
 	}
 
@@ -930,7 +943,7 @@ bool ObjFilter::readGroup(char *line)
 		m_mgList.push_back(mg);
 	}
 
-	free(temp);
+	//free(temp);
 
 	return true;
 }
@@ -939,20 +952,17 @@ bool ObjFilter::readLibrary(char *line)
 {
 	char filename[256];
 
-	char *temp = strdup(line);
-	char *ptr = temp;
+	//I don't see where is it modified?
+	//char *temp = strdup(line);
+	//char *ptr = temp;
+	char *ptr = line; do 
+	{
+		while(*ptr&&!isspace(*ptr))
+		ptr++;
+		while(*ptr&&isspace(*ptr))
+		ptr++;
 
-	do {
-		while(ptr[0]&&!isspace(ptr[0]))
-		{
-			ptr++;
-		}
-		while(ptr[0]&&isspace(ptr[0]))
-		{
-			ptr++;
-		}
-
-		if(ptr[0])
+		if(*ptr)
 		{
 			unsigned len = 0;
 			if(sscanf(ptr,"%[^ \t\r\n]%n",filename,(int*)&len)>0)
@@ -960,39 +970,35 @@ bool ObjFilter::readLibrary(char *line)
 				std::string fullFilename = m_modelPath+std::string("/")+filename;
 				log_debug("material library: %s\n",fullFilename.c_str());
 				readMaterialLibrary(fullFilename.c_str());
-				ptr += len;
+				ptr+=len;
 			}
 		}
 
-	} while(ptr[0]);
+	}while(*ptr);
 
-	free(temp);
+	//free(temp);
 
 	return true;
 }
 
 bool ObjFilter::readMaterial(char *line)
 {
-	char *temp = strdup(line);
-	char *ptr = temp;
-	while(ptr[0]&&!isspace(ptr[0]))
+	//char *temp = strdup(line);
+	//char *ptr = temp;
+	char *ptr = line;
+	while(*ptr&&!isspace(*ptr))
+	ptr++;
+	while(*ptr&&isspace(*ptr))
+	ptr++;
+	if(*ptr)
 	{
+		char *filename = ptr;
+		while(*ptr&&!isspace(*ptr))
 		ptr++;
-	}
-	while(ptr[0]&&isspace(ptr[0]))
-	{
-		ptr++;
-	}
-	char *filename = ptr;
-	while(ptr[0]&&!isspace(ptr[0]))
-	{
-		ptr++;
-	}
-	ptr[0] = '\0';
-
-	if(filename[0])
-	{
+		char swap = *ptr;
+		*ptr = '\0';
 		m_curMaterial = m_model->getMaterialByName(filename);
+		*ptr = swap;
 		m_needGroup = true;
 
 		unsigned count = m_mgList.size();
@@ -1007,17 +1013,13 @@ bool ObjFilter::readMaterial(char *line)
 			}
 		}
 	}
-	else
-	{
-		m_curMaterial = m_model->getMaterialByName("default");
-	}
+	else m_curMaterial = m_model->getMaterialByName("default");
 
 	if(m_needGroup)
-	{
-		log_debug("need group for %d %d\n",m_curGroup,m_curMaterial);
-	}
+	log_debug("need group for %d %d\n",m_curGroup,m_curMaterial);
 
-	free(temp);
+	//free(temp);
+
 	return true;
 }
 
@@ -1124,12 +1126,12 @@ bool ObjFilter::readMaterialLibrary(const char *filename)
 		else if(strncmp("Ns ",ptr,3)==0)
 		{
 			ptr += 3;
-			objmat->shininess = atof(ptr);
+			objmat->shininess = (float)atof(ptr);
 		}
 		else if(strncmp("d ",ptr,2)==0||strncmp("Tr ",ptr,3)==0)
 		{
 			ptr += 2;
-			objmat->alpha = atof(ptr);
+			objmat->alpha = (float)atof(ptr);
 		}
 	}
 
