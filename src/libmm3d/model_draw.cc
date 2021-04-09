@@ -326,14 +326,14 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	//https://github.com/zturtleman/mm3d/issues/56
 	drawOptions|=m_drawOptions;
 
-	if(drawOptions &DO_WIREFRAME)
+	if(0!=(drawOptions&DO_WIREFRAME))
 	{
 		glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
 	}
 	else
 	{
 #ifdef MM3D_EDIT //???
-		if(drawOptions &DO_BACKFACECULL)
+		if(0!=(drawOptions&DO_BACKFACECULL))
 		{
 			glEnable(GL_CULL_FACE);
 			glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
@@ -371,15 +371,13 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	}
 
 
-	if(drawOptions &DO_ALPHA)
+	if(!m_validBspTree)
+	if(drawOptions&DO_ALPHA)
 	{
-		if(!m_validBspTree)
-		{
-			calculateBspTree();
-		}
+		calculateBspTree();
 	}
 
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	for(unsigned t=m_triangles.size();t-->0;)
 	{
 		m_triangles[t]->m_marked = false;
 	}
@@ -393,20 +391,20 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	//https://github.com/zturtleman/mm3d/issues/98
 	//bool colorSelected = false;
 	int colorSelected;
-	for(unsigned m = 0; m<m_groups.size(); m++)
+	for(unsigned m=0;m<m_groups.size();m++)
 	{
 		Group *grp = m_groups[m];
 
-		if(drawOptions &DO_TEXTURE)
+		if(0!=(drawOptions&DO_TEXTURE))
 		{
-			glColor3f(1.0,1.0,1.0);
+			glColor3f(1,1,1);
 			if(grp->m_materialIndex>=0)
 			{
 				int index = grp->m_materialIndex;
 
 				if((drawOptions &DO_ALPHA)
-						&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-						&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
+				&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
+				&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
 				{
 					// Alpha blended groups are drawn by bspTree later
 					for(unsigned triIndex:grp->m_triangleIndices)
@@ -417,42 +415,28 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					continue;
 				}
 
-				glMaterialfv(GL_FRONT,GL_AMBIENT,
-						m_materials[index]->m_ambient);
-				glMaterialfv(GL_FRONT,GL_DIFFUSE,
-						m_materials[index]->m_diffuse);
-				glMaterialfv(GL_FRONT,GL_SPECULAR,
-						m_materials[index]->m_specular);
-				glMaterialfv(GL_FRONT,GL_EMISSION,
-						m_materials[index]->m_emissive);
-				glMaterialf(GL_FRONT,GL_SHININESS,
-						m_materials[index]->m_shininess);
+				glMaterialfv(GL_FRONT,GL_AMBIENT,m_materials[index]->m_ambient);
+				glMaterialfv(GL_FRONT,GL_DIFFUSE,m_materials[index]->m_diffuse);
+				glMaterialfv(GL_FRONT,GL_SPECULAR,m_materials[index]->m_specular);
+				glMaterialfv(GL_FRONT,GL_EMISSION,m_materials[index]->m_emissive);
+				glMaterialf(GL_FRONT,GL_SHININESS,m_materials[index]->m_shininess);
 
 				if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-						&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions &DO_BADTEX)))
+				&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions&DO_BADTEX)))
 				{
-					if(drawContext)
-					{
-						glBindTexture(GL_TEXTURE_2D,
-								drawContext->m_matTextures[grp->m_materialIndex]);
-					}
+					if(drawContext)					
+					glBindTexture(GL_TEXTURE_2D,drawContext->m_matTextures[grp->m_materialIndex]);
 					else
-					{
-						glBindTexture(GL_TEXTURE_2D,
-								m_materials[grp->m_materialIndex]->m_texture);
-					}
+					glBindTexture(GL_TEXTURE_2D,m_materials[grp->m_materialIndex]->m_texture);
 
 					glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
-							(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
+					(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
 					glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
-							(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
+					(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
 
 					glEnable(GL_TEXTURE_2D);
 				}
-				else
-				{
-					glDisable(GL_TEXTURE_2D);
-				}
+				else glDisable(GL_TEXTURE_2D);
 			}
 			else goto defmat;
 		}
@@ -479,7 +463,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					//if(colorSelected==false)
 					if(colorSelected!=(int)true)
 					{
-						if(!(drawOptions &DO_TEXTURE))
+						if(0==(drawOptions&DO_TEXTURE))
 						{
 							glColor3f(1,0,0);
 						}
@@ -495,7 +479,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					//if(colorSelected==true)
 					if(colorSelected!=(int)false)
 					{
-						if(!(drawOptions &DO_TEXTURE))
+						if(0==(drawOptions&DO_TEXTURE))
 						{
 							glColor3f(0.9f,0.9f,0.9f);
 						}
@@ -507,12 +491,12 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					}						
 				}
 
-				for(int v = 0; v<3; v++)
+				for(int v=0;v<3;v++)
 				{
 					Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
 
 					glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
-					if((drawOptions &DO_SMOOTHING))
+					if(0!=(drawOptions&DO_SMOOTHING))
 					{
 						glNormal3dv(triangle->m_normalSource[v]);
 					}
@@ -536,58 +520,54 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		model_draw_defaultMaterial();
 		glDisable(GL_TEXTURE_2D);
 		glBegin(GL_TRIANGLES);
-		for(unsigned t = 0; t<m_triangles.size(); t++)
+		for(auto*triangle:m_triangles) if(!triangle->m_marked)
 		{
-			if(m_triangles[t]->m_marked==false )
-			{
-				Triangle *triangle = m_triangles[t];
-				triangle->m_marked = true;
+			triangle->m_marked = true;
 
-				if(triangle->m_visible)
+			if(triangle->m_visible)
+			{
+				if(triangle->m_selected)
 				{
-					if(triangle->m_selected)
+					//if(colorSelected==false)
+					if(colorSelected!=(int)true)
 					{
-						//if(colorSelected==false)
-						if(colorSelected!=(int)true)
-						{
-							glColor3f(1,0,0);
-							glEnd();
-							glDisable(GL_LIGHT0);
-							glEnable(GL_LIGHT1);
-							glBegin(GL_TRIANGLES);
-							colorSelected = true;
-						}
+						glColor3f(1,0,0);
+						glEnd();
+						glDisable(GL_LIGHT0);
+						glEnable(GL_LIGHT1);
+						glBegin(GL_TRIANGLES);
+						colorSelected = true;
+					}
+				}
+				else
+				{
+					//if(colorSelected==true)
+					if(colorSelected!=(int)false)
+					{
+						glColor3f(0.9f,0.9f,0.9f);
+						glEnd();
+						glDisable(GL_LIGHT1);
+						glEnable(GL_LIGHT0);
+						glBegin(GL_TRIANGLES);
+						colorSelected = false;
+					}							
+				}
+
+				for(int v=0;v<3;v++)
+				{
+					Vertex *vertex = m_vertices[triangle->m_vertexIndices[v]];
+
+					if(0!=(drawOptions&DO_SMOOTHING))
+					{
+						glNormal3dv(triangle->m_normalSource[v]);
 					}
 					else
 					{
-						//if(colorSelected==true)
-						if(colorSelected!=(int)false)
-						{
-							glColor3f(0.9f,0.9f,0.9f);
-							glEnd();
-							glDisable(GL_LIGHT1);
-							glEnable(GL_LIGHT0);
-							glBegin(GL_TRIANGLES);
-							colorSelected = false;
-						}							
+						glNormal3dv(triangle->m_flatSource);
 					}
-
-					for(int v = 0; v<3; v++)
-					{
-						Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
-
-						if(drawOptions &DO_SMOOTHING)
-						{
-							glNormal3dv(triangle->m_normalSource[v]);
-						}
-						else
-						{
-							glNormal3dv(triangle->m_flatSource);
-						}
 							
-						glVertex3dv(vertex->m_absSource);
-					}
-				}
+					glVertex3dv(vertex->m_absSource);
+				}				
 			}
 		}
 		glEnd();
@@ -596,7 +576,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	}
 
 	// Draw depth-sorted alpha blended polys last
-	if((drawOptions &DO_ALPHA)&&viewPoint)
+	if(0!=(drawOptions&DO_ALPHA)&&viewPoint)
 	{
 		glEnable(GL_BLEND);
 		m_bspTree.render(viewPoint,drawContext);

@@ -1111,6 +1111,7 @@ void ModelViewport::wheelEvent(int wh, int bs, int x, int y)
 	getRawParentXYValue(x-m_viewportX,y-m_viewportY,xDiff,yDiff);
 	zoom(wh>0,xDiff+m_scroll[0],yDiff+m_scroll[1]);
 }
+bool ModelViewport::_rmb_rotates_view = false; //2021
 bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 {
 	//printf("press = %d\n",e->button());
@@ -1164,8 +1165,10 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 			//if(def&&bt==Tool::BS_Left||bs&Tool::BS_Ctrl)
 			if((def||bs&Tool::BS_Ctrl)&&~bs&Tool::BS_Alt)
 			{
-				//FIX ME: Make this behavior configurable.
-				m_operation = bt&Tool::BS_Right?MO_Pan:MO_Rotate;
+				bool pan = (bt&Tool::BS_Right)!=0;
+				if(_rmb_rotates_view) pan = !pan;
+
+				m_operation = pan?MO_Pan:MO_Rotate;
 				m_scrollStartPosition = {x,y};
 			}
 			else

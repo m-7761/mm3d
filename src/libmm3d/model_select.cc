@@ -1667,11 +1667,16 @@ void Model::getSelectedBoneJoints(int_list &joints)const
 {
 	joints.clear();
 
-	for(unsigned t = 0; t<m_joints.size(); t++)
+	//FIXING copySelected
+	//this way some algorithms don't have to be rewritten
+	//to be order independent but it's not very transparent
+	//for(unsigned t=0;t<m_joints.size();t++)
+	for(auto&ea:m_joints2)
 	{
-		if(m_joints[t]->m_selected)
+		//if(m_joints[t]->m_selected)
+		if(ea.second->m_selected)
 		{
-			joints.push_back(t);
+			joints.push_back(ea.first); //t
 		}
 	}
 }

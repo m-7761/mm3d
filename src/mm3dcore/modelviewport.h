@@ -48,6 +48,7 @@ public:
 	//Note: These Qt events are now made to take
 	//Tool::ButtonState values to be independent.
 	virtual void getXY(int &x, int &y);
+	static bool _rmb_rotates_view; //2021: fix me?
 	virtual bool mousePressEvent(int bt, int bs, int x, int y);
 	virtual void mouseReleaseEvent(int bt, int bs, int x, int y);
 	virtual void mouseMoveEvent(int bs, int x, int y);

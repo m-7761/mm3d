@@ -623,7 +623,7 @@ int Model::addBoneJoint(const char *name, double x, double y, double z, int pare
 
 	if(-1==addBoneJoint(name,parent))
 	{
-		assert(0); //copySelected got -1, I see now reason why???
+		assert(0); //copySelected got -1, I see no reason why???
 		return -1;
 	}
 

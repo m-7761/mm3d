@@ -68,6 +68,7 @@ enum
 	id_file_run_script,
 	id_file_plugins,
 	id_file_prefs, //wxOSX needs to be Preferences.
+	id_file_prefs_rmb,
 	id_file_quit, //wxOSX needs to be Quit.
 
 	/*View->Snap menu*/

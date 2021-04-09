@@ -38,7 +38,7 @@ struct AlignWin : Win
 
 	AlignWin(Model *model)
 	    :
-	Win("Align Selection"),
+	Win("Align Selected"),
 	model(model),
 	nav(main),
 	x(nav,"Align &X Now"),

@@ -39,6 +39,8 @@ Model *Model::copySelected(bool animated)const
 	int_list tri;
 	getSelectedTriangles(tri);
 	int_list joints;
+	//WARNING: Only copySelected uses this internally, but to
+	//fix this algorithm I've changed it so it uses m_joints2.
 	getSelectedBoneJoints(joints);
 	int_list points;
 	getSelectedPoints(points);
@@ -259,7 +261,7 @@ Model *Model::copySelected(bool animated)const
 		{
 			int parent = getBoneJointParent(*lit);
 
-			if(!isBoneJointSelected(parent))
+			if(isBoneJointSelected(parent))
 			{
 				parent = jointMap[parent];
 			}

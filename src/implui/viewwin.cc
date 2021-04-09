@@ -67,6 +67,9 @@ viewwin_toolbar = 0;
 extern int 
 viewwin_joints100=1;
 
+//TODO: Need an elaborate API for this I guess
+static bool &viewwin_rmb = ModelViewport::_rmb_rotates_view;
+
 std::vector<MainWin*> viewwin_list(0); //extern
 
 static utf8 viewwin_title = "Untitled"; //"Maverick Model 3D"
@@ -466,8 +469,11 @@ void MainWin::_init_menu_toolbar() //2019
 	#endif
 	glutAddMenuEntry(E(file_plugins,"Plugins...","File|Plugins"));
 	//Will wxWidgets detection ignore the ellipsis?
-	glutAddMenuEntry(E(file_prefs,"&Preferences...","")); //wxOSX requires this.
+	glutAddMenuEntry(E(file_prefs,"&Preferences...","")); //wxOSX requires this.	
 	glutext::glutMenuEnable(id_file_prefs,0); //UNIMPLEMENTED
+	//I'm making this true so it appears as a checkbox on Windows.
+	viewwin_rmb = config.get("ui_prefs_rmb",false);
+	glutAddMenuEntry(X(!viewwin_rmb,file_prefs_rmb,"LMB Rotates View","",""));
 	glutAddMenuEntry();
 	//REMINDER: Alt+F4 closes a window according to the system menu.
 	glutAddMenuEntry(E(file_quit,"&Quit","File|Quit","Ctrl+Alt+Q"));
@@ -1843,6 +1849,11 @@ void MainWin::perform_menu_action(int id)
 		
 		extern void pluginwin(); 
 		pluginwin(); return;
+
+	case id_file_prefs_rmb:
+
+		config.set("ui_prefs_rmb",viewwin_rmb=!viewwin_rmb);
+		return;
 
 	case id_file_quit: 
 		

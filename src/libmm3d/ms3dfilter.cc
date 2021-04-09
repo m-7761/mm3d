@@ -140,7 +140,7 @@ struct MS3DMaterial
 	 float32_t m_diffuse[4];
 	 float32_t m_specular[4];
 	 float32_t m_emissive[4];
-	 float32_t m_shininess;	// 0.0f-128.0f
+	 float32_t m_shininess;	// 0.0f-128.0f (MM3D is 0-100)
 	 float32_t m_transparency;	// 0.0f-1.0f
 	 uint8_t m_mode;	// 0,1,2 is unused now
 	 char m_texture[128];
@@ -468,6 +468,9 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		mat->m_emissive[2] = material.m_emissive[2];
 		mat->m_emissive[3] = material.m_emissive[3];
 		mat->m_shininess	= material.m_shininess;
+		//2021: https://github.com/zturtleman/mm3d/issues/157
+		//OpenGL's range is 128 but MM3D's is 100
+		mat->m_shininess = std::min(100.0f,mat->m_shininess); //128
 
 		mat->m_type = Model::Material::MATTYPE_TEXTURE;
 		if(material.m_texture[0]=='\0')

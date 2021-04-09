@@ -666,18 +666,20 @@ void ObjFilter::addObjMaterial(ObjMaterial *objmat)
 		mat->m_name	  = objmat->name;
 		mat->m_filename = objmat->textureMap;
 
-		if(mat->m_filename.size()!=0)
+		if(!mat->m_filename.empty())
 		{
 			mat->m_type = Model::Material::MATTYPE_TEXTURE;
 		}
 
-		for(int t = 0; t<4; t++)
+		for(int t=0;t<4;t++)
 		{
 			mat->m_diffuse[t]  = objmat->diffuse[t];
 			mat->m_ambient[t]  = objmat->ambient[t];
 			mat->m_specular[t] = objmat->specular[t];
 			mat->m_emissive[t] = 0.0f;
-			mat->m_shininess	= objmat->shininess;
+			//2021: https://github.com/zturtleman/mm3d/issues/157
+			//OpenGL's range is 128 but MM3D's is 100
+			mat->m_shininess = std::min(100.0f,objmat->shininess); //128
 		}
 
 		//FIX ME
@@ -687,14 +689,7 @@ void ObjFilter::addObjMaterial(ObjMaterial *objmat)
 
 char *ObjFilter::skipSpace(char *str)
 {
-	if(str)
-	{
-		while(isspace(str[0]))
-		{
-			str++;
-		}
-	}
-	return str;
+	if(str) while(isspace(str[0])) str++; return str;
 }
 
 bool ObjFilter::readLine(char *line)

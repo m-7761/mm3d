@@ -2227,6 +2227,8 @@ class Model
 		//2020: I've put PT_Vertex on the back of the
 		//Position lists. See definition for thinking.
 		void getSelectedPositions(pos_list &l)const;
+		//2021: only copySelected uses this... I've 
+		//changed it to to use m_joints2's ordering.
 		void getSelectedBoneJoints(int_list &l)const;
 		void getSelectedPoints(int_list &l)const;
 		void getSelectedProjections(int_list &l)const;
