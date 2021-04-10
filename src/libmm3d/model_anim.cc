@@ -1076,7 +1076,7 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 		}
 	}
 
-	int to = getAnimationIndex(e)+getAnimationCount(e);
+	auto to = getAnimationIndex(e)+getAnimationCount(e);
 
 	if(to>anim) to--; //Complicated :(
 
@@ -1918,7 +1918,7 @@ bool Model::_skel_xform_abs(int inv, infl_list &l, Vector &io)
 		Vector vert = io;
 		vert.transform((m_joints[ea.m_boneId]->*mf)());
 		for(int i=3;i-->0;)
-		sum[i] = ea.m_weight*vert[i];
+		sum[i]+= ea.m_weight*vert[i];
 		total += ea.m_weight;
 	}
 	if(total) //zero divide?

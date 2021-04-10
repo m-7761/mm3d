@@ -461,7 +461,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(file_save,"&Save","File|Save","Ctrl+Alt+S"));
 	glutAddMenuEntry(E(file_save_as,"Save &As...","File|Save As","Shift+Ctrl+Alt+S"));
 	glutAddMenuEntry(E(file_export,"&Export...","File|Export","Ctrl+Alt+E"));
-	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected","Shift+Ctrl+Alt+E"));	
+	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected","Shift+Ctrl+Alt+E"));
 	glutAddMenuEntry();		
 	#ifdef HAVE_LUALIB //UNUSED
 	glutAddMenuEntry(E(file_run_script,"Run &Script...","File|Run Script"));

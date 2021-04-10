@@ -379,13 +379,8 @@ const char *Model::errorToString(Model::ModelErrorE e,Model *model)
 			return TRANSLATE_NOOP("LowLevel","Write not supported,try \"Export...\"");
 		case ERROR_FILTER_SPECIFIC:
 			if(model)
-			{
-				return model->getFilterSpecificError();
-			}
-			else
-			{
-				return getLastFilterSpecificError();
-			}
+			return model->getFilterSpecificError();			
+			return getLastFilterSpecificError();			
 		case ERROR_UNKNOWN:
 			return TRANSLATE_NOOP("LowLevel","Unknown error" );
 	}
@@ -395,7 +390,7 @@ const char *Model::errorToString(Model::ModelErrorE e,Model *model)
 
 bool Model::operationFailed(Model::ModelErrorE err)
 {
-	return (err!=ERROR_NONE&&err!=ERROR_CANCEL);
+	return err!=ERROR_NONE&&err!=ERROR_CANCEL;
 }
 
 void Model::pushError(const std::string &err)
@@ -809,35 +804,13 @@ void Model::deleteBoneJoint(unsigned joint)
 		
 	unsigned count = m_joints.size();
 
-	// Break out early if this is a root joint and it has a child
-	if(m_joints[joint]->m_parent<0)		
-	for(unsigned j=0;j<count;j++)
-	if(j!=joint&&m_joints[j]->m_parent==(int)joint)
-	{
-		model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","Cannot delete root joint"));
-		return;
-	}
-
 	m_changeBits |= AddOther; //2020
 
-	for(unsigned v = 0; v<m_vertices.size(); v++)
-	{
-		removeVertexInfluence(v,joint);
-	}
+	for(unsigned v=0;v<m_vertices.size();v++)	
+	removeVertexInfluence(v,joint);
+	for(unsigned p=0;p<m_points.size();p++)
+	removePointInfluence(p,joint);
 
-	for(unsigned p = 0; p<m_points.size(); p++)
-	{
-		removePointInfluence(p,joint);
-	}
-
-	/*NONSENSE
-	https://github.com/zturtleman/mm3d/issues/132
-	int parent = joint; do
-	{
-		parent = m_joints[parent]->m_parent;
-	}
-	while(parent>=0&&m_joints[parent]->m_selected); //???
-	*/
 	int new_parent = m_joints[joint]->m_parent;
 		
 	validateSkel(); //Need m_absolute to be correct below.
@@ -2191,7 +2164,7 @@ void Model::reverseOrderSelectedTriangle()
 {
 	auto *tris = m_triangles.data();
 
-	unsigned sz = getTriangleCount();
+	int sz = getTriangleCount();
 
 	int_list map(sz);
 
@@ -3335,16 +3308,12 @@ Model::FormatData *Model::getFormatData(unsigned index)const
 Model::FormatData *Model::getFormatDataByFormat(const char *format, unsigned index)const
 {
 	unsigned count = m_formatData.size();
-	for(unsigned n = 0; n<count; n++)
+	for(unsigned n=0;n<count;n++)
 	{
 		FormatData *fd = m_formatData[n];
-
 		if(PORT_strcasecmp(fd->format.c_str(),format)==0&&fd->index==index)
-		{
-			return fd;
-		}
+		return fd;
 	}
-
 	return nullptr;
 }
 
@@ -3353,6 +3322,12 @@ bool Model::setBoneJointParent(unsigned joint, int parent, bool validate)
 	if(joint>=m_joints.size()) return false;
 	
 	if(parent==m_joints[joint]->m_parent) return true;
+
+	if(joint==parent)
+	{
+		model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","Same joint"));
+		return false;
+	}
 
 	if(validate) validateSkel();
 
@@ -3371,7 +3346,18 @@ bool Model::setBoneJointParent(unsigned joint, int parent, bool validate)
 }
 void Model::parentBoneJoint(unsigned index, int parent, Matrix &m)
 {
+	if(index>=m_joints.size()) return;
+
 	auto jt = m_joints[index];
+	
+	for(int cmp,i=parent;i>=0;i=cmp) //2021: cyclic?
+	{
+		cmp = m_joints[i]->m_parent; if(index==cmp)
+		{
+			setBoneJointParent(i,m_joints[index]->m_parent,false);
+			break;
+		}
+	}
 
 	if(m_undoEnabled) //WARNING! m MODIFIED BELOW!
 	{

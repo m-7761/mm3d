@@ -164,7 +164,8 @@ void SideBar::AnimPanel::refresh_list()
 		cmp = model->getAnimType(i); 
 		if(cmp!=sep&&sep)
 		{
-			auto it = new li::item;
+			//2021: -2 can be removed in future builds.
+			auto it = new li::item(-2);
 			if(cmp==z) r->insert_item(it,ins,li::behind);
 			else r->add_item(it);
 		}

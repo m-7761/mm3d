@@ -1942,7 +1942,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 					if(e<=Model::InterpolateCopy) 
 					{
 						if(e==Model::InterpolateCopy)
-						for(auto fp=fa->m_frame0+f;v<vN;v++)
+						for(auto fp=fa->_frame0(model)+f;v<vN;v++)
 						{
 							//FIX ME
 							//UNSAFE: Need an API for this!
@@ -2204,7 +2204,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 					if(e<=Model::InterpolateCopy) 
 					{
 						if(e==Model::InterpolateCopy)
-						for(auto fp=ab->m_frame0+f;v<vN;v++)
+						for(auto fp=ab->_frame0(model)+f;v<vN;v++)
 						{
 							//FIX ME
 							//UNSAFE: Need an API for this!

@@ -337,13 +337,6 @@ void Model::removeBoneJoint(unsigned index)
 	{
 		if(i.m_boneId>(signed)index) i.m_boneId--;
 	}				
-	
-	//2020: let BS_RIGHT add a new root?
-	if(index==0&&1!=m_joints.size())
-	{
-		for(int i=3;i-->0;) 
-		m_joints[1]->m_rel[i]+=m_joints[0]->m_rel[i];
-	}
 
 	// Adjust parent relationships
 	for(size_t j=m_joints.size();j-->0;)
