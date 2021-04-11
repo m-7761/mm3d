@@ -67,10 +67,16 @@ void ViewBar::StatusBar::timer_expired()
 	TextQueueItemT tqi = m_queue.front();
 	m_queue.pop_front();
 
+	//2021: for some reason there's extra beeps
+	//when using movetool.cc that I can't seem
+	//to eliminate by removing duplicates from
+	//the queue
+	bool beep = tqi.str!=text.text();
+
 	setText(tqi.str.c_str());
 	if(tqi.type==StatusError)
 	{
-		text.select_all(); event.beep();
+		text.select_all(); if(beep) event.beep();
 	}
 
 	m_queueDisplay = true;
@@ -105,15 +111,6 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 	}
 	else //FIX ME (Looks like errors are hidden from user?)
 	{
-		//2020: Mouse tools are generating too many errors.		
-		if(!m_queue.empty())
-		{
-			if(//tqi==m_queue.back()
-			m_queue.back().type==type&&
-			m_queue.back().ms==ms&&
-			m_queue.back().str==str) return;
-		}
-
 		// Clear non-errors first
 		size_t max_queue_size = 2;
 		bool removing = true;
@@ -129,8 +126,17 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 			else it++;
 		}
 
+		//2020: Mouse tools are generating too many errors.		
+		if(!m_queue.empty())
+		{
+			if(//tqi==m_queue.back()
+			//m_queue.back().type==type&& //seems unnecessary
+			//m_queue.back().ms==ms&& //ditto
+			m_queue.back().str==str) return;
+		}
+
 		// If we still have more than max_queue_size in the queue,and the
-		// new message is an error,start removing the oldest errors.
+		// new message is an error, start removing the oldest errors.
 		if(m_queue.size()>max_queue_size)
 		{
 			if(type==StatusError)

@@ -102,7 +102,7 @@ bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 		return true;
 	}
 
-	if(il->size()<MAX_INFLUENCES)
+	//if(il->size()<MAX_INFLUENCES) //2021
 	{
 		InfluenceT inf;
 		inf.m_boneId = (int)joint;
@@ -407,7 +407,7 @@ bool Model::autoSetPointInfluences(unsigned point, double sensitivity, bool sele
 	return autoSetPositionInfluences({PT_Point,point},sensitivity,selected);
 }
 
-bool Model::autoSetCoordInfluences(double *coord, double sensitivity,bool selected,int_list &infList)
+bool Model::autoSetCoordInfluences(double *coord, double sensitivity, bool selected, int_list &infList)
 {
 	int bcount = m_joints.size(); if(bcount<=0) return false;
 
@@ -417,83 +417,65 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity,bool select
 	double bestDist = 0;
 	double bestDot  = 0;
 
-	for(int joint = 0; joint<bcount; joint++)
+	for(int joint=0;joint<bcount;joint++)	
+	if(!selected||m_joints[joint]->m_selected)
 	{
-		if(!selected||m_joints[joint]->m_selected)
+		int child = -1;
+		double cdist = 0;
+		for(int b=0;b<bcount;b++)		
+		if(getBoneJointParent(b)==(int)joint)
 		{
-			int child = -1;
-			double cdist = 0.0;
-			for(int b = 0; b<bcount; b++)
+			double ccoord[3];
+			getBoneJointCoords(b,ccoord);
+			double d = distance(ccoord,coord);
+			if(child<0||d<cdist)
 			{
-				if(getBoneJointParent(b)==(int)joint)
-				{
-					double ccoord[3];
-					getBoneJointCoords(b,ccoord);
-					double d = distance(ccoord,coord);
-
-					if(child<0||d<cdist)
-					{
-						child = b;
-						cdist = d;
-					}
-				}
+				child = b; cdist = d;
 			}
+		}
 
-			double bvec[3] = { 0,0,0 };
-			double pvec[3] = { 0,0,0 };
+		double bvec[3] = {};
+		double pvec[3] = {};
 
-			getBoneVector(joint,bvec,coord);
+		getBoneVector(joint,bvec,coord);
 
-			double jcoord[3] = { 0,0,0 };
-			getBoneJointCoords(joint,jcoord);
+		double jcoord[3] = {};
+		getBoneJointCoords(joint,jcoord);
 
-			pvec[0] = coord[0]-jcoord[0];
-			pvec[1] = coord[1]-jcoord[1];
-			pvec[2] = coord[2]-jcoord[2];
+		for(int i=3;i-->0;)
+		pvec[i] = coord[i]-jcoord[i];
+		normalize3(pvec);
 
-			normalize3(pvec);
+		double dist = distance(coord,jcoord);
 
-			double dist = distance(coord,jcoord);
+		// get cos from point to bone vector
+		double bcos = dot3(pvec,bvec);		
+		dist*= bcos>0?0.667:2; // *= bcos;
 
-			// get cos from point to bone vector
-			double bcos = dot3(pvec,bvec);
-			if(bcos>0.0)
-			{
-				dist *= 0.667;// *= bcos;
-			}
-			else
-			{
-				dist *= 2.0;
-			}
-
-			if(bestJoint<0||dist<bestDist)
-			{
-				bestJoint = joint;
-				bestDist  = dist;
-				bestChild = child;
-				bestChildDist = cdist;
-				bestDot	= bcos;
-			}
+		if(bestJoint<0||dist<bestDist)
+		{
+			bestJoint = joint;
+			bestDist  = dist;
+			bestChild = child;
+			bestChildDist = cdist;
+			bestDot	= bcos;
 		}
 	}
 
 	if(bestJoint>=0)
 	{
 		infList.push_back(bestJoint);
-		if(bestChild>=0)
+		if(bestChild>=0)		
+		if(bestChildDist*(1-sensitivity)<bestDist*0.5)
 		{
-			if((bestChildDist *(1.0-sensitivity))<(bestDist *0.5))
-			{
-				infList.push_back(bestChild);
-			}
+			infList.push_back(bestChild);
 		}
+		
 		int parent = getBoneJointParent(bestJoint);
 		if(parent>0)
+		if((bestDot-1)*sensitivity<-0.080)
 		{
-			if((bestDot-1.0)*sensitivity<-0.080)
-			{
-				infList.push_back(parent);
-			}
+			infList.push_back(parent);
 		}
 		return true;
 	}

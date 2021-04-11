@@ -55,6 +55,9 @@ anim_panel(model.sidebar,model),
 prop_panel(model.sidebar,model),
 bool_panel(model.sidebar,model)
 {
+	prop_panel.infl.grow_igv();
+	prop_panel.infl.igv[0]->joint.lock(false,false);
+
 	clip(true,false,true);
 
 	dropdown *ll[] = //HACK
@@ -64,10 +67,7 @@ bool_panel(model.sidebar,model)
 	&prop_panel.group.group.menu,
 	&prop_panel.group.material.menu,
 	&prop_panel.group.projection.menu,
-	&prop_panel.infl.i0.joint,
-	&prop_panel.infl.i1.joint,
-	&prop_panel.infl.i2.joint,
-	&prop_panel.infl.i3.joint,
+	&prop_panel.infl.igv[0]->joint,
 	};
 	//for(size_t i=std::size(ll);i-->0;)
 	for(size_t i=sizeof(ll)/sizeof(*ll);i-->0;)
@@ -93,18 +93,32 @@ void SideBar::submit(control *c)
 		if(c!=anim_panel.nav) anim_panel.submit(c);
 		else config.set("ui_anim_sidebar",(bool)*c);
 	}
-	if(v>=&bool_panel&&v<&bool_panel+1)
+	else if(v>=&bool_panel&&v<&bool_panel+1)
 	{
 		int i = *c;
 		if(c!=bool_panel.nav) bool_panel.submit(c);
 		else config.set("ui_bool_sidebar",(bool)*c);
 	}
-	if(v>=&prop_panel&&v<&prop_panel+1)
+	else if(v>=&prop_panel&&v<&prop_panel+1)
 	{
 		if(c!=prop_panel.nav) prop_panel.submit(c);
 		else if(config.set("ui_prop_sidebar",(bool)*c))
 		{
 			prop_panel.modelChanged(~0); //OPTIMIZATION
+		}
+	}
+	else if(!prop_panel.infl.nav.hidden())
+	{
+		size_t i = (size_t)(c->id()-'0');
+		if(i<prop_panel.infl.igv.size())
+		{
+			auto *cmp = prop_panel.infl.igv[i];
+			if(v>=cmp&&v<cmp+1)
+			{
+				sidebar_updater raii; //REMOVE ME
+				prop_panel.stop(); 
+				prop_panel.infl.submit(c);
+			}
 		}
 	}
 }
@@ -369,10 +383,10 @@ void SideBar::PropPanel::submit(control *c)
 		model.perform_menu_action(id);
 		break;
 
-	case '0': case '1': case '2': case '3':
+	/*case '0': case '1': case '2': case '3':
 	
 		stop(); 
-		infl.submit(c); break;
+		infl.submit(c); break;*/
 
 	case id_up: //2021
 
@@ -968,6 +982,10 @@ static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int
 	}
 	v.set_int_val(type); //v.select_id(type); 
 
+	//HACK: editing textbox out from under user?
+	//(suppress callback)
+	Win::event.set_edited(); 
+
 	if(enable!=v.enabled()) v.parent()->enable(enable);
 }
 void SideBar::PropPanel::infl_props::change(int changeBits)
@@ -979,8 +997,6 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 	{
 		return; // Only change if group or selection change	
 	}
-	
-	index_group *groups = &i0;
 
 	int bonesN = model->getBoneJointCount();
 
@@ -997,14 +1013,12 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		parent_joint.add_item(-1,::tr("<None>"));
 		for(int i=0;i<bonesN;i++)
 		parent_joint.add_item(i,model->getBoneJointName(i));
-	}	
-	for(int i=0;i<Model::MAX_INFLUENCES;i++) 
-	{
-		groups[i].joint.clear();
-		//groups[i].joint.enable(enable);
-		groups[i].weight.disable();	
-		//if(enable) //NEW
-		groups[i].joint.reference(parent_joint);
+			
+		for(size_t i=0;i<igv.size();i++) //MAX_INFLUENCES
+		{
+			igv[i]->joint.clear();
+			igv[i]->joint.reference(parent_joint);
+		}
 	}
 		
 	// Update influence fields		
@@ -1042,8 +1056,10 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		else jcl[bone].weight = 100;
 	}
 
-	for(int i=0;i<Model::MAX_INFLUENCES;i++)
+	for(size_t i=0;;i++) //MAX_INFLUENCES
 	{
+		if(i==igv.size()) grow_igv();
+
 		int maxVal = 0, bone = -1;
 
 		for(int b=0;b<bonesN;b++)		
@@ -1055,19 +1071,19 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		// No more influences; done.
 		if(maxVal<=0) 
 		{
-			int ii = i; //NEW
+			size_t ii = i; //NEW
 
-			for(;i<Model::MAX_INFLUENCES;i++)
+			for(;i<igv.size();i++) //MAX_INFLUENCES
 			{
-				groups[i].joint.select_id(-1);
-				groups[i].v.select_id(-1);
-				groups[i].prev_joint = -1;
+				igv[i]->joint.select_id(-1);
+				igv[i]->v.select_id(-1);
+				igv[i]->prev_joint = -1;
 
-				groups[i].joint.set_hidden();
-				groups[i].weight.set_hidden();
+				igv[i]->joint.set_hidden();
+				igv[i]->weight.set_hidden();
 			}
-			if(ii<Model::MAX_INFLUENCES)
-			groups[ii].joint.set_hidden(false);
+			//if(ii<Model::MAX_INFLUENCES)
+			igv[ii]->joint.set_hidden(false);
 
 			break; 
 		}
@@ -1076,25 +1092,27 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 
 		//REMOVE ME (will crash)
 		//if(!enable) //NEW 
-		//groups[i].joint.add_item(bone,model->getBoneJointName(bone));
-		groups[i].joint.select_id(bone);
-		groups[i].prev_joint = bone;
+		//igv[i]->joint.add_item(bone,model->getBoneJointName(bone));
+		igv[i]->joint.select_id(bone);
+		igv[i]->prev_joint = bone;
 
 		//NEW: It looks weird for 'weight' to be disabled but 'joint'
 		//to be enabled.
-		groups[i].joint.set_hidden(false);
-		groups[i].weight.set_hidden(false);
+		igv[i]->joint.set_hidden(false);
+		igv[i]->weight.set_hidden(false);
 
 		log_debug("bone i %d is bone ID %d\n",i,bone); //???
 
-		sidebar_update_weight_v(groups[i].v,true,jcl[bone].typeIndex,jcl[bone].weight);
+		sidebar_update_weight_v(igv[i]->v,true,jcl[bone].typeIndex,jcl[bone].weight);
 	}
 }
 void SideBar::PropPanel::infl_props::submit(control *c)
 {
-	int index = c->id()-'0';
+	size_t index = size_t(c->id()-'0'); 
+	
+	assert(index<igv.size());
 
-	index_group *groups = &i0, &group = groups[index];
+	index_group &group = *igv[index];
 
 	int j = group.joint; bool updateRemainders = false;
 
@@ -1105,41 +1123,49 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		bool enable = j>=0; int jj = group.prev_joint;
 
 		if(enable)
-		for(int i=0;i<Model::MAX_INFLUENCES;i++) if(i!=index)
+		for(size_t i=0;i<igv.size();i++) if(i!=index) //MAX_INFLUENCES
 		{
-			int compile[4==Model::MAX_INFLUENCES]; (void)compile;
+			//int compile[4==Model::MAX_INFLUENCES]; (void)compile;
 
-			if(groups[i].prev_joint==j)
+			if(igv[i]->prev_joint==j)
 			{
 				// trying to assign new joint when we already have that joint
 				// in one of the edit boxes. Change the selection back. This
 				// will cause some nasty bugs and probably confuse the user.
 				// Change the selection back.	
-				return (void)group.joint.select_id(jj);
+				(void)group.joint.select_id(jj);
+				return event.beep();
 			}
 		}
 		group.prev_joint = j;
 
-		bool hide; if(jj>=0)
+		if(jj>=0)
 		{
 			for(auto&i:l)
 			model->removePositionInfluence(i,jj);
 			jcl[jj].count = 0;
-
-			hide = true;
 		}
-		else hide = false;
 
+		bool hide = j<0;
+		bool compacted = false;
+		//doing this even when hiding simplifies
+		//the following code greatly
+		if(index+1==(int)igv.size()) grow_igv();
 		//NEW: Hide joints removed from the back
 		//of the list, but don't attempt to move
 		//joints around because that's too messy.
-		if(index+1==Model::MAX_INFLUENCES
-		||!hide||groups[index+1].weight.hidden())
+		if(!hide||igv[index+1]->weight.hidden())
+		{	
+			igv[index]->weight.set_hidden(hide);			
+			igv[index+1]->joint.set_hidden(hide);
+		}
+		else if(hide) //2021: Remove from middle?
 		{
-			//Should be the last of them.
-			groups[index].weight.set_hidden(hide);
-			if(index+1<Model::MAX_INFLUENCES)
-			groups[index+1].joint.set_hidden(hide);
+			assert(!enable);
+
+			compacted = true;
+
+			change(Model::SelectionJoints); //HACK
 		}
 
 		if(enable)
@@ -1173,6 +1199,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		}		
 		model->operationComplete(::tr("Change Joint Assignment","operation complete"));
 
+		if(!compacted)
 		sidebar_update_weight_v(group.v,enable,enable?jcl[j].typeIndex:-1,enable?jcl[j].weight:0);
 	}
 	else if(c==group.weight) /* Weight text edited? */
@@ -1230,8 +1257,8 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		sidebar_update_weight_v(group.v,true,jcl[j].typeIndex,jcl[j].weight);
 	}
 
-	for(int i=0;i<Model::MAX_INFLUENCES;i++)	
-	if(groups[i].v.int_val()==Model::IT_Remainder)
+	for(size_t i=0;i<igv.size();i++) //MAX_INFLUENCES
+	if(igv[i]->v.int_val()==Model::IT_Remainder)
 	if(j>=0&&j<(int)model->getBoneJointCount()) //???
 	{
 		log_debug("getting remainder weight for joint %d\n",j); //???

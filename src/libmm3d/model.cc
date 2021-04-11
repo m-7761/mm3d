@@ -1027,6 +1027,18 @@ bool Model::movePositionUnanimated(const Position &pos, double x, double y, doub
 	if(swap) m_animationMode = swap; return ret;
 }
 
+static bool model_inv_infls_msg(Model *m, int n) //2021
+{
+	//NOTE: Even if this could be solved in an acceptable way
+	//it's not likely to be reversible without saving the old
+	//coordinates so that undo operations can restore them :(
+
+	if(m->getUndoEnabled())
+	model_status(m,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel",
+	"%d multiply influenced vertices not transformed"),n);
+	return false;
+}
+
 bool Model::moveVertex(unsigned index, double x, double y, double z)
 {
 	if(index>=m_vertices.size()) return false;
@@ -1038,6 +1050,7 @@ bool Model::moveVertex(unsigned index, double x, double y, double z)
 		{
 			x = tmp[0]; y = tmp[1]; z = tmp[2];
 		}
+		else return model_inv_infls_msg(this,1); //:(
 	}
 
 	if(inFrameAnimMode())
@@ -1079,6 +1092,7 @@ bool Model::movePoint(unsigned index, double x, double y, double z)
 		{
 			x = tmp[0]; y = tmp[1]; z = tmp[2];
 		}
+		else return model_inv_infls_msg(this,1); //:(
 	}
 
 	if(inFrameAnimMode())
@@ -1339,6 +1353,7 @@ void Model::translateSelected(const double vec[3])
 
 	if(!vec[0]&&!vec[1]&&!vec[2]) return; //2020
 
+	int multi = 0; //2021
 	bool skel = inSkeletalMode();
 	bool fram = inFrameAnimMode();
 	
@@ -1417,7 +1432,10 @@ void Model::translateSelected(const double vec[3])
 					for(int i=3;i-->0;)
 					coord[i] = vt->m_kfCoord[i]+vec[i];
 					coord[3] = 1;
-					_skel_xform_abs(-1,vt->m_influences,*(Vector*)coord);
+					if(!_skel_xform_abs(-1,vt->m_influences,*(Vector*)coord))
+					{
+						multi++; continue;
+					}
 				}
 				else
 				{			
@@ -1449,7 +1467,10 @@ void Model::translateSelected(const double vec[3])
 					for(int i=3;i-->0;)
 					coord[i] = pt->m_kfAbs[i]+vec[i];
 					coord[3] = 1;
-					_skel_xform_abs(-1,pt->m_influences,*(Vector*)coord);
+					if(!_skel_xform_abs(-1,pt->m_influences,*(Vector*)coord))
+					{
+						multi++; continue;
+					}
 				}
 				else
 				{
@@ -1468,16 +1489,23 @@ void Model::translateSelected(const double vec[3])
 
 			for(auto*v:m_vertices) if(v->m_selected)
 			{
-				sel = true;
+				if(!sel)
+				{
+					sel = true;
+
+					if(skel) validateAnim(); //Need real m_kfCoord? _resample?
+				}
 
 				if(skel&&!v->m_influences.empty())
 				{
-					validateAnim(); //Need real m_kfCoord? _resample?
 					double coord[3+1];
 					for(int i=3;i-->0;)
 					coord[i] = v->m_kfCoord[i]+vec[i];
 					coord[3] = 1;
-					_skel_xform_abs(-1,v->m_influences,*(Vector*)coord);
+					if(!_skel_xform_abs(-1,v->m_influences,*(Vector*)coord))
+					{
+						multi++; continue;
+					}
 					for(int i=3;i-->0;) v->m_coord[i] = coord[i];
 				}
 				else for(int i=3;i-->0;) v->m_coord[i]+=vec[i];
@@ -1535,21 +1563,28 @@ void Model::translateSelected(const double vec[3])
 		{
 			for(auto*p:m_points) if(p->m_selected)
 			{
-				sel = true;
+				if(!sel)
+				{
+					sel = true;
 
-				m_changeBits |= MoveOther; //2020
+					if(skel) validateAnim(); //Need real m_kfAbs? _resample?
+				}
 
 				if(skel&&!p->m_influences.empty())
 				{
-					validateAnim(); //Need real m_kfAbs? _resample?
 					double coord[3+1];
 					for(int i=3;i-->0;)
 					coord[i] = p->m_kfAbs[i]+vec[i];
 					coord[3] = 1;
-					_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
+					if(!_skel_xform_abs(-1,p->m_influences,*(Vector*)coord))
+					{
+						multi++; continue;
+					}
 					for(int i=3;i-->0;) p->m_abs[i] = coord[i];
 				}
 				else for(int i=3;i-->0;) p->m_abs[i]+=vec[i];
+
+				m_changeBits |= MoveOther; //2020
 			}
 		}
 
@@ -1580,6 +1615,8 @@ void Model::translateSelected(const double vec[3])
 		}
 	}
 
+	if(multi) model_inv_infls_msg(this,multi);
+
 	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
 }
 void Model::rotateSelected(const Matrix &m, const double point[3])
@@ -1592,6 +1629,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 
 	//LOG_PROFILE(); //???
 
+	int multi = 0 ; //2021
 	bool skel = inSkeletalMode();
 	bool fram = inFrameAnimMode();
 
@@ -1673,8 +1711,14 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				for(int i=3;i-->0;) coord[i]-=point[i];
 				coord.transform(m);
 				for(int i=3;i-->0;) coord[i]+=point[i];
-				if(infl) _skel_xform_abs(-1,vt->m_influences,coord);
-				setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
+				if(infl) 
+				{
+					if(!_skel_xform_abs(-1,vt->m_influences,coord))
+					{
+						multi++; continue;
+					}					
+				}
+				else setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
 			}
 
 			for(Position p{PT_Point,0};p<m_points.size();p++)
@@ -1706,8 +1750,12 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 				pm = pm * m;
 				//pm.getTranslation(coord);
 				for(int i=3;i-->0;) coord[i]+=point[i];				
-				if(infl) _skel_xform_abs(-1,pt->m_influences,*(Vector*)coord);
-				if(infl) _skel_xform_rot(-1,pt->m_influences,pm);
+				if(infl)				
+				if(!_skel_xform_abs(-1,pt->m_influences,*(Vector*)coord))
+				{
+					multi++; continue;
+				}
+				else _skel_xform_rot(-1,pt->m_influences,pm);
 				pm.getRotation(rot);
 				setKeyframe(ca,cf,p,KeyTranslate,coord[0],coord[1],coord[2]);
 				setKeyframe(ca,cf,p,KeyRotate,rot[0],rot[1],rot[2]);
@@ -1721,19 +1769,26 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			bool verts = false;
 			for(auto*v:m_vertices) if(v->m_selected)
 			{
-				verts = sel = true; 
+				if(!sel)
+				{
+					sel = true;
+
+					if(skel) validateAnim(); //Need real m_kfCoord? _resample?
+				} 
 
 				bool infl = skel&&!v->m_influences.empty();
-
-				if(infl) validateAnim(); //Need real m_kfCoord? _resample?
-
 				Vector coord(infl?v->m_kfCoord:v->m_coord);
 				for(int i=3;i-->0;) coord[i]-=point[i];
 				coord.transform(m);
 				for(int i=3;i-->0;) coord[i]+=point[i];
-				if(infl) _skel_xform_abs(-1,v->m_influences,coord);
+				if(infl&&!_skel_xform_abs(-1,v->m_influences,coord))
+				{
+					multi++; continue;
+				}
 				for(int i=3;i-->0;)
 				v->m_coord[i] = coord[i];
+
+				verts = true;
 			}
 			if(verts)
 			{
@@ -1812,14 +1867,15 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 		{
 			for(auto*p:m_points) if(p->m_selected)
 			{
-				sel = true;
+				if(!sel)
+				{
+					sel = true;
 
-				m_changeBits|=MoveOther; //2020
+					if(skel) validateAnim(); //Need real m_kfAbs? _resample?
+				}
 
 				if(skel&&!p->m_influences.empty())
 				{
-					validateAnim(); //Need real m_kfAbs? _resample?
-
 					Matrix pm;
 					double *coord = pm.getVector(3);
 					for(int i=3;i-->0;) 
@@ -1828,13 +1884,18 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 					pm.setRotation(p->m_kfRot);
 					pm = pm * m;
 					//pm.getTranslation(coord);
-					for(int i=3;i-->0;) coord[i]+=point[i];				
-					_skel_xform_abs(-1,p->m_influences,*(Vector*)coord);
+					for(int i=3;i-->0;) coord[i]+=point[i];					
+					if(!_skel_xform_abs(-1,p->m_influences,*(Vector*)coord))
+					{
+						multi++; continue;
+					}
 					_skel_xform_rot(-1,p->m_influences,pm);
 					pm.getRotation(p->m_rot);
 					for(int i=3;i-->0;) p->m_abs[i] = coord[i];
 				}
 				else f(*p);
+
+				m_changeBits|=MoveOther; //2020
 			}
 		}
 
@@ -1862,6 +1923,8 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			sendUndo(undo/*,true*/);
 		}
 	}
+
+	if(multi) model_inv_infls_msg(this,multi);
 
 	if(!sel) model_status(this,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel","No selection"));
 }
@@ -3346,8 +3409,6 @@ bool Model::setBoneJointParent(unsigned joint, int parent, bool validate)
 }
 void Model::parentBoneJoint(unsigned index, int parent, Matrix &m)
 {
-	if(index>=m_joints.size()) return;
-
 	auto jt = m_joints[index];
 	
 	for(int cmp,i=parent;i>=0;i=cmp) //2021: cyclic?
@@ -3364,6 +3425,30 @@ void Model::parentBoneJoint(unsigned index, int parent, Matrix &m)
 		auto undo = new MU_SetJointParent(index,parent,m,jt);
 		sendUndo(undo);
 	}
+
+	//readFile calls this if it can't create the joints in
+	//parental order
+	parentBoneJoint2(index,parent);
+
+	//TODO: Matrix::decompose or something?
+	bool scale = false;
+	m.getScale(jt->m_xyz); //2021
+	{
+		for(int i=3;i-->0;)	
+		if(fabs(1-jt->m_xyz[i])>0.000005)
+		{
+			scale = true;
+		}
+		else jt->m_xyz[i] = 1;
+
+		if(scale) m.normalizeRotation(); //MODIFYING!
+	}
+	m.getRotation(jt->m_rot);
+	m.getTranslation(jt->m_rel); invalidateSkel(); 
+}
+void Model::parentBoneJoint2(unsigned index, int parent)
+{
+	auto jt = m_joints[index];
 
 	m_changeBits |= MoveOther|AddGeometry;
 
@@ -3388,21 +3473,6 @@ void Model::parentBoneJoint(unsigned index, int parent, Matrix &m)
 		}
 	}
 
-	//TODO: Matrix::decompose or something?
-	bool scale = false;
-	m.getScale(jt->m_xyz); //2021
-	{
-		for(int i=3;i-->0;)	
-		if(fabs(1-jt->m_xyz[i])>0.000005)
-		{
-			scale = true;
-		}
-		else jt->m_xyz[i] = 1;
-
-		if(scale) m.normalizeRotation(); //MODIFYING!
-	}
-	m.getRotation(jt->m_rot);
-	m.getTranslation(jt->m_rel); invalidateSkel(); 
 }
 
 int Model::getBoneJointParent(unsigned j)const

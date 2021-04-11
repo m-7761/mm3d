@@ -1263,7 +1263,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		for(unsigned j = 0; j<count; j++)
+		std::vector<int> j2; //2021
+
+		for(unsigned j=0;j<count;j++)
 		{
 			log_debug("reading joint %d/%d\n",j,count);
 
@@ -1310,6 +1312,13 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			int jn = model->addBoneJoint(fileJoint.name,fileJoint.parentIndex);	
 
+			if(jn==-1) //out of order?
+			{
+				jn = model->addBoneJoint(fileJoint.name,-1);	
+
+				j2.push_back(jn); j2.push_back(fileJoint.parentIndex);
+			}
+
 			//HACK: Previously addBoneJoint was bypassed. 
 			auto joint = (Model::Joint*)modelJoints[jn];
 			for(int i=3;i-->0;)
@@ -1327,6 +1336,16 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			if(jointFlags&MF_VERTFREE) //2020 (draw as line?)
 			joint->m_bone = false;
 		}
+
+		//I messed up by not seeing that joints are reordered
+		//however it's probably for the best to do this since
+		//it's more flexible. It might be nice to reorder the
+		//joints in writeFile, but it will also need to remap
+		//all references to joints if so... I think it's best
+		//to think of it as an isolated implementation detail.
+		for(unsigned i=0;i<j2.size();i+=2)
+		model->parentBoneJoint2(j2[i],j2[i+1]);
+		if(!j2.empty()) model->validateSkel();
 
 		log_debug("read %d joints\n",count);
 	}
@@ -2868,7 +2887,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		writeHeaderB(0x0000,count,FILE_JOINT_SIZE);
 
-		for(unsigned j = 0; j<count; j++)
+		for(unsigned j=0;j<count;j++)
 		{
 			MM3DFILE_JointT fileJoint;
 			auto joint = modelJoints[j];

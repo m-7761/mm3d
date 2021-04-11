@@ -191,10 +191,10 @@ class Model
 			PropKeyframes = PropCoords|PropRotation|PropScale|PropTime|PropType, //2021
 		};
 
-		enum //REMOVE ME 
+		/*enum //REMOVE ME 
 		{
 			MAX_INFLUENCES = 4
-		};
+		};*/
 
 		enum PositionTypeE
 		{
@@ -2181,6 +2181,7 @@ class Model
 		void insertBoneJoint(unsigned index,Joint *joint);
 		void removeBoneJoint(unsigned index);
 		void parentBoneJoint(unsigned index, int parent, Matrix &mutated); //2021
+		void parentBoneJoint2(unsigned index, int parent);
 
 		void insertInfluence(const Position &pos, unsigned index, const InfluenceT &influence);
 		void removeInfluence(const Position &pos, unsigned index);

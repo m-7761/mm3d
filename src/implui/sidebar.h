@@ -321,14 +321,17 @@ struct SideBar : Win
 			infl_props(PropPanel &p)
 				:
 			props_base(p),
-			i0(nav,'0'),i1(nav,'1'),i2(nav,'2'),i3(nav,'3'),
 			parent_joint(p.nav,"Parent",id_up)
 			{
-				//i0.joint.place(bottom).name("Joint");
-				//i0.weight.place(bottom).name("Weight");
 				nav.name("Joints");
-
 				parent_joint.place(bottom).expand();
+			}
+			~infl_props()
+			{
+				while(!igv.empty())
+				{
+					delete igv.back(); igv.pop_back();
+				}
 			}
 
 			struct index_group
@@ -340,10 +343,11 @@ struct SideBar : Win
 
 				index_group(node *frame, int id)
 					:
-				joint(frame,"1",id),
+				joint(frame,"",id),
 				weight(frame,"",id),v(weight,id)
 				{						
-					joint.expand().name()[0]+=id-'0';
+					joint.expand();
+					joint.name().format("%d",1+id-'0');
 					joint.compact();
 					weight.expand();
 					for(int i=0;i<4;i++)
@@ -352,7 +356,14 @@ struct SideBar : Win
 					}
 				}
 			};
-			index_group i0,i1,i2,i3;
+			//index_group i0,i1,i2,i3; //MAX_INFLUENCES?
+			std::vector<index_group*> igv; 
+			void grow_igv()
+			{
+				igv.push_back(new index_group(nav,'0'+igv.size()));
+				igv.back()->joint.lock(igv[0]->joint.span(),false);
+				igv.back()->joint.reference(parent_joint);
+			}
 
 			struct JointCount
 			{

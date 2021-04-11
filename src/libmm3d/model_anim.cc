@@ -1910,10 +1910,27 @@ void Model::Point::_resample(Model &model, unsigned pt)
 }
 bool Model::_skel_xform_abs(int inv, infl_list &l, Vector &io)
 {
-	auto mf = inv==-1?&Joint::getSkinverseMatrix:&Joint::getSkinMatrix;
+	auto mf = &Joint::getSkinMatrix;
+
+	if(inv==-1)
+	{
+		mf = &Joint::getSkinverseMatrix;
+
+		//REMOVE ME
+		//Unfortunately there's not a single solution
+		//in this case and the problem appears pretty
+		//intractible?
+		if(l.size()>1) //return false;
+		{
+			//TODO: Is there a reversible algorithm??
+			//Maybe just move on highest/even weight?
+
+			return false;
+		}
+	}
 
 	double sum[3] = {}, total = 0;
-	for(auto&ea:l) if(ea.m_weight>0.00001)
+	for(auto&ea:l) //if(ea.m_weight>0.00001) //???
 	{
 		Vector vert = io;
 		vert.transform((m_joints[ea.m_boneId]->*mf)());
@@ -1932,7 +1949,18 @@ bool Model::_skel_xform_abs(int inv, infl_list &l, Vector &io)
 }
 bool Model::_skel_xform_rot(int inv, infl_list &l, Matrix &io)
 {
-	auto mf = inv==-1?&Joint::getSkinverseMatrix:&Joint::getSkinMatrix;
+	auto mf = &Joint::getSkinMatrix;
+
+	if(inv==-1)
+	{
+		mf = &Joint::getSkinverseMatrix;
+
+		//REMOVE ME
+		//Unfortunately there's not a single solution
+		//in this case and the problem appears pretty
+		//intractible?
+		if(l.size()>1) return false;
+	}
 
 	//NOTE: Historically this was done with matrices.
 	//Componentwise would probably be an improvement.
@@ -1958,14 +1986,25 @@ bool Model::_skel_xform_rot(int inv, infl_list &l, Matrix &io)
 }
 bool Model::_skel_xform_mat(int inv, infl_list &l, Matrix &io)
 {
-	auto mf = inv==-1?&Joint::getSkinverseMatrix:&Joint::getSkinMatrix;
+	auto mf = &Joint::getSkinMatrix;
+
+	if(inv==-1)
+	{
+		mf = &Joint::getSkinverseMatrix;
+
+		//REMOVE ME
+		//Unfortunately there's not a single solution
+		//in this case and the problem appears pretty
+		//intractible?
+		if(l.size()>1) return false;
+	}
 
 	//NOTE: Historically this was done with matrices.
 	//Componentwise would probably be an improvement.
 	bool nonzero = false;
 	double axis[3+1][3] = {}, total = 0; 
 	Matrix m;
-	for(auto&ea:l) if(ea.m_weight>0.00001)
+	for(auto&ea:l) //if(ea.m_weight>0.00001) //???
 	{
 		m = io * (m_joints[ea.m_boneId]->*mf)();
 		double wt = ea.m_weight;
