@@ -1486,8 +1486,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 				log_debug("adding position influence %d,%d,%f\n",
 						pos.index,(int)type,(float)weight);
-				model->addPositionInfluence(pos,
-						fileWi.infIndex,type,weight);
+
+				model->setPositionInfluence(pos,fileWi.infIndex,type,weight);
 			}
 		}
 	}
@@ -1523,7 +1523,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			if(vertexIndex<vcount&&(unsigned)jointIndex<modelJoints.size())
 			{
 				//modelVerts[vertexIndex]->m_boneId = jointIndex;
-				model->addVertexInfluence(vertexIndex,jointIndex,Model::IT_Custom,1.0);
+				model->setVertexInfluence(vertexIndex,jointIndex,Model::IT_Custom,1.0);
 			}
 			else
 			{

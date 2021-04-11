@@ -192,7 +192,7 @@ void JointWin::submit(control *c)
 			else //2020 (standard way of auto-assignment elsewhere)
 			{
 				double w = model->calculatePositionInfluenceWeight(i,j);
-				model->addPositionInfluence(i,j,Model::IT_Auto,w);
+				model->setPositionInfluence(i,j,Model::IT_Auto,w);
 			}
 			break;
 		}}

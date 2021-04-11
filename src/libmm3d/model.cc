@@ -3473,6 +3473,19 @@ void Model::parentBoneJoint2(unsigned index, int parent)
 		}
 	}
 
+	//Recursively move any descendents that were leap-frogged
+	//over to be after this parent
+	restart: for(auto&ea:m_joints2)
+	{
+		if(ea.first==index) break;
+
+		if(ea.second->m_parent==index)
+		{
+			parentBoneJoint2(ea.first,index); 
+			
+			goto restart; //iterator is invalidated
+		}
+	}
 }
 
 int Model::getBoneJointParent(unsigned j)const

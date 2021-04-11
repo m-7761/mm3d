@@ -64,21 +64,20 @@ Model *Model::copySelected(bool animated)const
 
 	bool ret = false;
 
-	int_list::iterator lit;
-	for(lit = proj.begin(); lit!=proj.end(); ++lit)
+	for(auto i:proj)
 	{
-		const char *name = getProjectionName(*lit);
-		int type = getProjectionType(*lit);
+		const char *name = getProjectionName(i);
+		int type = getProjectionType(i);
 
 		double pos[3];
 		double rot[3];
 		double scale;
 		double range[2][2];
 
-		getProjectionCoords(*lit,pos);
-		getProjectionRotation(*lit,rot);
-		scale = getProjectionScale(*lit);
-		getProjectionRange(*lit,range[0][0],range[0][1],range[1][0],range[1][1]);
+		getProjectionCoords(i,pos);
+		getProjectionRotation(i,rot);
+		scale = getProjectionScale(i);
+		getProjectionRange(i,range[0][0],range[0][1],range[1][0],range[1][1]);
 
 		int np = m->addProjection(name,type,pos[0],pos[1],pos[2]);
 		m->setProjectionRotation(np,rot);
@@ -88,7 +87,7 @@ Model *Model::copySelected(bool animated)const
 		//??? //Paste/mergeModels does this afterwards.
 		//m->selectProjection(np);
 
-//			projMap[*lit] = np; //UNUSED???
+//			projMap[i] = np; //UNUSED???
 
 		//FIX ME: Assign copied faces?!
 	}
@@ -100,53 +99,52 @@ Model *Model::copySelected(bool animated)const
 
 		// Copy vertices
 		log_debug("Copying %d vertices\n",vert.size());
-		for(lit = vert.begin(); lit!=vert.end(); lit++)
+		for(auto i:vert)
 		{
 			double coords[3]; if(animated)
 			{
-				getVertexCoords(*lit,coords);
+				getVertexCoords(i,coords);
 			}
-			else getVertexCoordsUnanimated(*lit,coords);
+			else getVertexCoordsUnanimated(i,coords);
 
 			int nv = m->addVertex(coords[0],coords[1],coords[2]);
 
 			//??? //Paste/mergeModels does this afterwards.
 			//m->selectVertex(nv);
 
-			//m->setVertexFree(nv,isVertexFree(*lit));
+			//m->setVertexFree(nv,isVertexFree(i));
 
-			vertMap[*lit] = nv;
+			vertMap[i] = nv;
 		}
 
 		// Copy faces
 		log_debug("Copying %d faces\n",tri.size());
-		for(lit = tri.begin(); lit!=tri.end(); lit++)
+		for(auto i:tri)
 		{
 			unsigned v[3];
 
-			for(int t = 0; t<3; t++)
+			for(int t=0;t<3;t++)
 			{
-				v[t] = getTriangleVertex(*lit,t);
+				v[t] = getTriangleVertex(i,t);
 			}
-			int nt = m->addTriangle(vertMap[v[0]] ,vertMap[v[1]],vertMap[v[2]]);
+			int nt = m->addTriangle(vertMap[v[0]],vertMap[v[1]],vertMap[v[2]]);
 
 			//??? //Paste/mergeModels does this afterwards.
 			//m->selectTriangle(nt);
 
-			triMap[*lit] = nt;
+			triMap[i] = nt;
 		}
 
 		// Copy texture coords
 		log_debug("Copying %d face texture coordinates\n",tri.size());
-		for(lit = tri.begin(); lit!=tri.end(); lit++)
+		for(auto i:tri)
 		{
-			float s;
-			float t;
+			float s,t;
 
-			for(unsigned i = 0; i<3; i++)
+			for(unsigned j=0;j<3;j++)
 			{
-				getTextureCoords((unsigned)*lit,i,s,t);
-				m->setTextureCoords((unsigned)triMap[*lit],i,s,t);
+				getTextureCoords((unsigned)i,j,s,t);
+				m->setTextureCoords((unsigned)triMap[i],j,s,t);
 			}
 		}
 
@@ -210,13 +208,13 @@ Model *Model::copySelected(bool animated)const
 		{
 			// Set groups
 			log_debug("Setting %d triangle groups\n",tri.size());
-			for(lit = tri.begin(); lit!=tri.end(); lit++)
+			for(auto i:tri)
 			{
 				// This works,even if triangle group==-1
-				int gid = getTriangleGroup(*lit);
+				int gid = getTriangleGroup(i);
 				if(gid>=0)
 				{
-					m->addTriangleToGroup(gid,triMap[*lit]);
+					m->addTriangleToGroup(gid,triMap[i]);
 				}
 			}
 		}
@@ -227,26 +225,26 @@ Model *Model::copySelected(bool animated)const
 	{
 		// Copy points
 		log_debug("Copying %d points\n",points.size());
-		for(lit = points.begin(); lit!=points.end(); lit++)
+		for(auto i:points)
 		{
 			double coord[3],rot[3],xyz[3];
 			if(animated)
 			{
-				getPointCoords(*lit,coord);
-				getPointRotation(*lit,rot);
-				getPointScale(*lit,xyz);				
+				getPointCoords(i,coord);
+				getPointRotation(i,rot);
+				getPointScale(i,xyz);				
 			}
 			else
 			{
-				getPointCoordsUnanimated(*lit,coord);
-				getPointRotationUnanimated(*lit,rot);
-				getPointScaleUnanimated(*lit,xyz);				
+				getPointCoordsUnanimated(i,coord);
+				getPointRotationUnanimated(i,rot);
+				getPointScaleUnanimated(i,xyz);				
 			}
 
-			int np = m->addPoint(getPointName(*lit),
+			int np = m->addPoint(getPointName(i),
 			coord[0],coord[1],coord[2],rot[0],rot[1],rot[2]);
 			memcpy(m->m_points[np]->m_xyz,xyz,sizeof(xyz));
-			pointMap[*lit] = np;
+			pointMap[i] = np;
 
 			//??? //Paste/mergeModels does this afterwards.
 			//m->selectPoint(np);
@@ -257,9 +255,9 @@ Model *Model::copySelected(bool animated)const
 	{
 		// Copy joints
 		log_debug("Copying %d joints\n",joints.size());
-		for(lit=joints.begin();lit!=joints.end();lit++)
+		for(auto i:joints)
 		{
-			int parent = getBoneJointParent(*lit);
+			int parent = getBoneJointParent(i);
 
 			if(isBoneJointSelected(parent))
 			{
@@ -278,20 +276,20 @@ Model *Model::copySelected(bool animated)const
 
 			if(animated)
 			{
-				getBoneJointCoords(*lit,coord);
-				getBoneJointRotation(*lit,rot); //2020
-				getBoneJointScale(*lit,xyz);
+				getBoneJointCoords(i,coord);
+				getBoneJointRotation(i,rot); //2020
+				getBoneJointScale(i,xyz);
 			}
 			else
 			{
-				getBoneJointCoordsUnanimated(*lit,coord);
-				getBoneJointRotationUnanimated(*lit,rot); //2020
-				getBoneJointScaleUnanimated(*lit,xyz);
+				getBoneJointCoordsUnanimated(i,coord);
+				getBoneJointRotationUnanimated(i,rot); //2020
+				getBoneJointScaleUnanimated(i,xyz);
 			}
 
-			int nj = m->addBoneJoint(getBoneJointName(*lit),
+			int nj = m->addBoneJoint(getBoneJointName(i),
 			coord[0],coord[1],coord[2]/*,rot[0],rot[1],rot[2]*/,parent);
-			jointMap[*lit] = nj;
+			jointMap[i] = nj;
 			memcpy(m->m_joints[nj]->m_rot,rot,sizeof(rot));
 			memcpy(m->m_joints[nj]->m_xyz,xyz,sizeof(xyz));
 			
@@ -304,7 +302,7 @@ Model *Model::copySelected(bool animated)const
 			for(auto&ea:getVertexInfluences(it->first))
 			{
 				if(isBoneJointSelected(ea.m_boneId))
-				m->addVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+				m->setVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 
@@ -313,7 +311,7 @@ Model *Model::copySelected(bool animated)const
 			for(auto&ea:getPointInfluences(it->first))
 			{
 				if(isBoneJointSelected(ea.m_boneId))
-				m->addVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+				m->setVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 	}
@@ -494,7 +492,7 @@ bool Model::duplicateSelected(bool animated, bool separate)
 			for(auto&ea:getVertexInfluences(it->first))
 			{
 				if(isBoneJointSelected(ea.m_boneId))
-				addVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+				setVertexInfluence(it->second,jointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 
@@ -503,7 +501,7 @@ bool Model::duplicateSelected(bool animated, bool separate)
 			for(auto&ea:getPointInfluences(it->first))
 			{
 				if(isBoneJointSelected(ea.m_boneId))
-				addVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+				setVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 	}

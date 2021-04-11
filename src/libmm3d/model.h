@@ -1966,9 +1966,13 @@ class Model
 		bool setVertexBoneJoint(unsigned vertex, int joint);
 		bool setPointBoneJoint(unsigned point, int joint);
 
-		bool addPositionInfluence(const Position &pos, unsigned joint,InfluenceTypeE type, double weight);
-		bool addVertexInfluence(unsigned vertex, unsigned joint,InfluenceTypeE type, double weight);
-		bool addPointInfluence(unsigned point, unsigned joint,InfluenceTypeE type, double weight);
+		//These were "add" but it seems like most (all) setting operations really
+		//ought to add and "autoSetPositionInfluences" is really adding. It seems
+		//like there's too many APIs around influences, that maybe just one might
+		//be enough for adding/setting?
+		bool setPositionInfluence(const Position &pos, unsigned joint, InfluenceTypeE type, double weight);
+		bool setVertexInfluence(unsigned vertex, unsigned joint, InfluenceTypeE type, double weight);
+		bool setPointInfluence(unsigned point, unsigned joint, InfluenceTypeE type, double weight);
 
 		bool removePositionInfluence(const Position &pos, unsigned joint);
 		bool removeVertexInfluence(unsigned vertex, unsigned joint);
@@ -2032,10 +2036,10 @@ class Model
 		bool setVertexInfluenceWeight(unsigned vertex, unsigned joint, double weight);
 		bool setPointInfluenceWeight(unsigned point, unsigned joint, double weight);
 
-		bool autoSetPositionInfluences(const Position &pos, double sensitivity,bool selected);
-		bool autoSetVertexInfluences(unsigned vertex, double sensitivity,bool selected);
-		bool autoSetPointInfluences(unsigned point, double sensitivity,bool selected);
-		bool autoSetCoordInfluences(double *coord, double sensitivity,bool selected,int_list &infList);
+		bool autoSetPositionInfluences(const Position &pos, double sensitivity, bool selected);
+		bool autoSetVertexInfluences(unsigned vertex, double sensitivity, bool selected);
+		bool autoSetPointInfluences(unsigned point, double sensitivity, bool selected);
+		bool autoSetCoordInfluences(double *coord, double sensitivity, bool selected, int_list &infList);
 
 		bool setBoneJointName(unsigned joint, const char *name);
 		bool setBoneJointParent(unsigned joint, int parent=-1, bool validate=true);

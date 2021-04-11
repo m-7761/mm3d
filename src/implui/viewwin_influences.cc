@@ -82,9 +82,9 @@ static void viewwin_influences_jointAssignSelectedToJoint(MainWin &model)
 			extern int viewwin_joints100; if(!viewwin_joints100)
 			{
 				double w = model->calculatePositionInfluenceWeight(i,j);
-				model->addPositionInfluence(i,j,Model::IT_Auto,w);
+				model->setPositionInfluence(i,j,Model::IT_Auto,w);
 			}
-			else model->addPositionInfluence(i,j,Model::IT_Custom,1);
+			else model->setPositionInfluence(i,j,Model::IT_Custom,1);
 		}
 	}
 

@@ -1454,7 +1454,7 @@ bool Ms3dFilter::readVertexWeightSection()
 			m_model->removeAllVertexInfluences(v);
 			for(it = weightList.begin(); it!=weightList.end(); it++)
 			{
-				m_model->addVertexInfluence(v,it->boneId,
+				m_model->setVertexInfluence(v,it->boneId,
 						Model::IT_Custom,((double)it->weight)/100.0);
 			}
 		}

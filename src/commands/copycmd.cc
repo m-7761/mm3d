@@ -91,12 +91,24 @@ bool CopyCommand::activated(int arg, Model *model)
 	{
 		Model *m = model->copySelected(arg==0); if(!m)
 		{
-			/*2021: Copy model?
-			//It's easier to unselect evertyhing than to select evertyhing.
-			model_status(model,StatusError,STATUSTIME_LONG,
-			TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Copy"));
-			return false;*/
-			m = model;
+			if(arg==0) //Copy animation pose?
+			{
+				bool swap = 
+				model->setUndoEnabled(false);
+				model->selectAll();
+				m = model->copySelected(arg==0);
+				model->unselectAll();
+				model->setUndoEnabled(swap);
+			}
+			if(!m)
+			{
+				/*2021: Copy model?
+				//It's easier to unselect evertyhing than to select evertyhing.
+				model_status(model,StatusError,STATUSTIME_LONG,
+				TRANSLATE("Command","You must have at least 1 face, joint, or point selected to Copy"));
+				return false;*/
+				m = model;
+			}
 			model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Model copied to clipboard"));
 		}
 		else 

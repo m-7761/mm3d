@@ -591,9 +591,9 @@ bool Model::equivalent(const Model *model, double tolerance)const
 							a,time,sb->m_timetable2020[f]);
 					return false;
 				}
-				for(Position b{PT_Joint,0};b<lhsBCount;b++)
+				for(Position b{PT_Joint,0};b<(unsigned)lhsBCount;b++)
 				{
-					Position rb{PT_Joint,jointMap[b]};
+					Position rb{PT_Joint,(unsigned)jointMap[b]};
 				
 					//NOTE: These omit model-> so would always fail.
 					//I want to retire interpSkelAnimKeyframe usage.
@@ -770,7 +770,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 
 	std::string dstr;
 
-	if(partBits &(PartVertices|PartFrameAnims/*2020*/))
+	if(partBits&(PartVertices|PartFrameAnims/*2020*/))
 	{
 		if(numVertices!=model->m_vertices.size())
 		{
@@ -793,7 +793,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartFaces)
+	if(partBits&PartFaces)
 	{
 		if(numTriangles!=model->m_triangles.size())
 		{
@@ -816,7 +816,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartGroups)
+	if(partBits&PartGroups)
 	{
 		if(numGroups!=(unsigned)model->getGroupCount())
 		{
@@ -839,7 +839,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartJoints)
+	if(partBits&PartJoints)
 	{
 		if(numJoints!=model->m_joints.size())
 		{
@@ -862,7 +862,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartPoints)
+	if(partBits&PartPoints)
 	{
 		if(numPoints!=model->m_points.size())
 		{
@@ -885,7 +885,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &(PartMaterials | PartTextures))
+	if(partBits&(PartMaterials | PartTextures))
 	{
 		if(numTextures!=model->m_materials.size())
 		{
@@ -909,7 +909,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartProjections)
+	if(partBits&PartProjections)
 	{
 		if(numProjections!=model->m_projections.size())
 		{
@@ -935,7 +935,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartSkelAnims)
+	if(partBits&PartSkelAnims)
 	{
 		auto cmp = model->getAnimationCount(ANIMMODE_SKELETAL);
 		if(numSkelAnims!=cmp)
@@ -954,7 +954,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 			}
 		}
 	}
-	if(partBits &PartFrameAnims)
+	if(partBits&PartFrameAnims)
 	{
 		auto cmp = model->getAnimationCount(ANIMMODE_FRAME);
 		if(numFrameAnims!=cmp)
@@ -972,7 +972,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 			}
 		}
 	}
-	if(partBits &PartAnims)
+	if(partBits&PartAnims)
 	{
 		auto cmp = model->getAnimationCount(ANIMMODE);
 		if(numFrameAnims!=cmp)
@@ -992,7 +992,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartMeta)
+	if(partBits&PartMeta)
 	{
 		if(getMetaDataCount()!=model->getMetaDataCount())
 		{
@@ -1027,7 +1027,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 		}
 	}
 
-	if(partBits &PartBackgrounds)
+	if(partBits&PartBackgrounds)
 	{
 		for(unsigned int b = 0; b<MAX_BACKGROUND_IMAGES; ++b)
 		{
@@ -1260,14 +1260,14 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 	unsigned n,count;
 	count = model->m_vertices.size();
-	for(n = 0; n<count; n++)
+	for(n=0;n<count;n++)
 	{
 		Vertex *v = model->m_vertices[n];		
 		addVertex(v->m_coord[0],v->m_coord[1],v->m_coord[2]);
 	}
 
 	count = model->m_triangles.size();
-	for(n = 0; n<count; n++)
+	for(n=0;n<count;n++)
 	{
 		Triangle *tri = model->m_triangles[n];
 		addTriangle(tri->m_vertexIndices[0]+vertbase,
@@ -1280,7 +1280,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 	//if(textures)
 	{
 		count = model->m_groups.size();
-		for(n = 0; n<count; n++)
+		for(n=0;n<count;n++)
 		{
 			if(emptyGroups||!model->getGroupTriangles(n).empty())
 			{
@@ -1296,9 +1296,10 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 	count = model->m_joints.size(); 
 	if(count>0) model->validateSkel();
-	for(n = 0; n<count; n++)
+	for(n=0;n<count;n++)
 	{
-		Joint *joint = model->m_joints[n];
+		//Joint *joint = model->m_joints[n];
+		Joint *joint = model->m_joints2[n].second;
 			
 		int parent = joint->m_parent;
 		if(parent>=0) parent+=jointbase;
@@ -1313,7 +1314,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 	}
 
 	count = model->m_points.size(); 	
-	for(n = 0; n<count; n++)
+	for(n=0;n<count;n++)
 	{
 		Point *point = model->m_points[n];
 
@@ -1324,16 +1325,16 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 		for(auto&ea:model->m_points[n]->m_influences)
 		{
-			addPointInfluence(pnum,ea.m_boneId+jointbase,ea.m_type,ea.m_weight);
+			setPointInfluence(pnum,ea.m_boneId+jointbase,ea.m_type,ea.m_weight);
 		}
 	}
 
 	count = model->m_vertices.size();
-	for(n = 0; n<count; n++)
+	for(n=0;n<count;n++)
 	{
 		for(auto&ea:model->m_vertices[n]->m_influences)
 		{
-			addVertexInfluence(n+vertbase,ea.m_boneId+jointbase,ea.m_type,ea.m_weight);
+			setVertexInfluence(n+vertbase,ea.m_boneId+jointbase,ea.m_type,ea.m_weight);
 		}
 	}
 
@@ -1342,7 +1343,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		TextureManager *texmgr = TextureManager::getInstance();
 
 		count = model->getTextureCount();
-		for(n = 0; n<count; n++)
+		for(n=0;n<count;n++)
 		{
 			if(materialsNeeded.find(n)!=materialsNeeded.end())
 			{
@@ -1382,7 +1383,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		}
 
 		count = model->m_groups.size();
-		for(n = 0; n<count; n++)
+		for(n=0;n<count;n++)
 		{
 			if(groupMap.find(n)!=groupMap.end())
 			{
@@ -1394,7 +1395,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 	//if(textures) //2020: why rope this in?
 	{
 		count = model->getProjectionCount();
-		for(n = 0; n<count; n++)
+		for(n=0;n<count;n++)
 		{
 			const char *name = model->getProjectionName(n);
 			int type = model->getProjectionType(n);
@@ -1420,7 +1421,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		count = model->getTriangleCount();
 		float s = 0.0;
 		float t = 0.0;
-		for(n = 0; n<count; n++)
+		for(n=0;n<count;n++)
 		{
 			for(unsigned i = 0; i<3; i++)
 			{

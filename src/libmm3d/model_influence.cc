@@ -35,7 +35,7 @@
 bool Model::setPositionBoneJoint(const Position &pos, int joint)
 {
 	removeAllPositionInfluences(pos);
-	return addPositionInfluence(pos,joint,IT_Custom,1.0);
+	return setPositionInfluence(pos,joint,IT_Custom,1);
 }
 bool Model::setVertexBoneJoint(unsigned vertex, int joint)
 {
@@ -73,7 +73,7 @@ void Model::getBoneJointVertices(int joint, int_list &rval)const
 	}
 }*/
 
-bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceTypeE type, double weight)
+bool Model::setPositionInfluence(const Position &pos, unsigned joint, InfluenceTypeE type, double weight)
 {	
 	if(joint>=m_joints.size()) return false;
 
@@ -123,13 +123,13 @@ bool Model::addPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 
 	return false;
 }
-bool Model::addVertexInfluence(unsigned vertex, unsigned joint, InfluenceTypeE type, double weight)
+bool Model::setVertexInfluence(unsigned vertex, unsigned joint, InfluenceTypeE type, double weight)
 {
-	return addPositionInfluence({PT_Vertex,vertex},joint,type,weight);
+	return setPositionInfluence({PT_Vertex,vertex},joint,type,weight);
 }
-bool Model::addPointInfluence(unsigned point, unsigned joint, InfluenceTypeE type, double weight)
+bool Model::setPointInfluence(unsigned point, unsigned joint, InfluenceTypeE type, double weight)
 {
-	return addPositionInfluence({PT_Point,point},joint,type,weight);
+	return setPositionInfluence({PT_Point,point},joint,type,weight);
 }
 
 bool Model::removePositionInfluence(const Position &pos, unsigned joint)
@@ -225,7 +225,7 @@ int Model::getPrimaryPointInfluence(unsigned point)const
 	return getPrimaryPositionInfluence({PT_Point,point});
 }
 
-bool Model::setPositionInfluenceType(const Position &pos, unsigned int joint,InfluenceTypeE type)
+bool Model::setPositionInfluenceType(const Position &pos, unsigned int joint, InfluenceTypeE type)
 {
 	if(joint>=m_joints.size()) return false;
 
@@ -392,7 +392,7 @@ bool Model::autoSetPositionInfluences(const Position &pos, double sensitivity,bo
 		for(int i:l)
 		{
 			double w = calculatePositionInfluenceWeight(pos,i);
-			addPositionInfluence(pos,i,Model::IT_Auto,w);
+			setPositionInfluence(pos,i,Model::IT_Auto,w);
 		}
 		return true;
 	}

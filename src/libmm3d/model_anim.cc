@@ -1815,7 +1815,7 @@ void Model::calculateAnimSkel()
 
 			//FIX ME: What if a parent is later in the joint list?
 
-			auto jt = m_joints[j];
+			auto jt = ea.second;
 			int jp = jt->m_parent;			
 			Matrix &b = jt->m_relative;
 			Matrix &c = jp>=0?m_joints[jp]->m_final:m_localMatrix;

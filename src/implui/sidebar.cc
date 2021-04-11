@@ -488,6 +488,8 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	&&mode!=Model::ANIMMODE_FRAME)
 	show = sn[Model::PT_Vertex]||sn[Model::PT_Point];
 	else show = false;
+	if(!model->inSkeletalMode()) //2021: Too much information!
+	show = false;
 	infl.nav.set_hidden(!show);
 	bool show2 = sz&&sz==sn[Model::PT_Joint];
 	infl.parent_joint.set_hidden(!show2);
@@ -993,6 +995,11 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 	int watchlist = Model::SelectionChange;
 	watchlist&=~Model::SelectionJoints;
 	watchlist&=~Model::SelectionProjections;
+	//2021: Until now weights were shown during regular
+	//editing, but it seems like too much information for
+	//regular animation work and too much processing burden
+	//when selecting a large number of vertices
+	watchlist|=Model::AnimationMode; 
 	if(0==(changeBits&(Model::AddOther|watchlist)))
 	{
 		return; // Only change if group or selection change	
@@ -1020,6 +1027,8 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 			igv[i]->joint.reference(parent_joint);
 		}
 	}
+
+	if(nav.hidden()) return;
 		
 	// Update influence fields		
 	JointCount def = {};
@@ -1175,7 +1184,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 			extern int viewwin_joints100; if(viewwin_joints100)
 			{
 				for(auto&i:l)
-				model->addPositionInfluence(i,j,Model::IT_Custom,1);
+				model->setPositionInfluence(i,j,Model::IT_Custom,1);
 				jcl[j].weight = 100;
 				jcl[j].typeIndex = Model::IT_Custom;
 			}
@@ -1187,7 +1196,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 
 					//log_debug("influence = %f\n",w); //???
 
-					model->addPositionInfluence(i,j,Model::IT_Auto,w);
+					model->setPositionInfluence(i,j,Model::IT_Auto,w);
 
 					weight+=(int)lround(w*100);
 				}
@@ -1204,19 +1213,14 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 	}
 	else if(c==group.weight) /* Weight text edited? */
 	{
-		//FIX ME
-		auto &yuck = group.weight.text();
-		if(yuck.empty()||isdigit(yuck[0]))
+		if(isdigit(group.weight.text()[0]))
 		{
 			double weight = std::max(0,std::min<int>(100,group.weight))/100.0;
 
 			log_debug("setting joint %d weight to %f\n",j,weight); //???
 
-			for(auto&i:l)
-			{
-				model->setPositionInfluenceType(i,j,Model::IT_Custom);
-				model->setPositionInfluenceWeight(i,j,weight);
-			}
+			for(auto&i:l) model->setPositionInfluence(i,j,Model::IT_Custom,weight);
+
 			model->operationComplete(::tr("Change Influence Weight","operation complete"));
 		}
 		else model_status(model,StatusError,STATUSTIME_LONG,"Please input a plain number");
@@ -1233,17 +1237,16 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		log_debug("setting joint %d type to %d\n",j,(int)type); //???
 
 		double weight = type==Model::IT_Auto?0:jcl[j].weight/100.0;
+		double w = weight;
 
 		for(auto&i:l)
 		{
-			model->setPositionInfluenceType(i,j,type);
 			if(type==Model::IT_Auto)
 			{
-				double w = model->calculatePositionInfluenceWeight(i,j);
-				model->setPositionInfluenceWeight(i,j,w);
+				w = model->calculatePositionInfluenceWeight(i,j);
 				weight+=(int)lround(w*100);
 			}
-			else model->setPositionInfluenceWeight(i,j,weight);
+			model->setPositionInfluence(i,j,type,w);
 		}
 		model->operationComplete(::tr("Change Influence Type","operation complete"));
 

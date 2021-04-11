@@ -175,7 +175,7 @@ void unweldSelectedVertices(Model *model, int &unweldnum, int &weldnum)
 				for(infl_list::const_iterator it = inf.begin();
 						it!=inf.end(); ++it)
 				{
-					model->addVertexInfluence(temp,
+					model->setVertexInfluence(temp,
 							it->m_boneId,it->m_type,it->m_weight);
 				}
 

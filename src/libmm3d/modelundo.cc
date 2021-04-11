@@ -2321,18 +2321,12 @@ void MU_SetPositionInfluence::setPositionInfluence(bool isAdd,
 
 void MU_UpdatePositionInfluence::undo(Model *model)
 {
-	model->setPositionInfluenceType(
-			m_pos,m_oldInf.m_boneId,m_oldInf.m_type);
-	model->setPositionInfluenceWeight(
-			m_pos,m_oldInf.m_boneId,m_oldInf.m_weight);
+	model->setPositionInfluence(m_pos,m_oldInf.m_boneId,m_oldInf.m_type,m_oldInf.m_weight);
 }
 
 void MU_UpdatePositionInfluence::redo(Model *model)
 {
-	model->setPositionInfluenceType(
-			m_pos,m_newInf.m_boneId,m_newInf.m_type);
-	model->setPositionInfluenceWeight(
-			m_pos,m_newInf.m_boneId,m_newInf.m_weight);
+	model->setPositionInfluence(m_pos,m_newInf.m_boneId,m_newInf.m_type,m_newInf.m_weight);
 }
 
 bool MU_UpdatePositionInfluence::combine(Undo *u)
