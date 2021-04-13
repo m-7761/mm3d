@@ -36,29 +36,28 @@ int Model::addGroup(const char *name)
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= AddOther;
+	m_changeBits |= AddOther; 
 
-	if(name)
+	//2021: preventing surprise (MM3D)
+	//doesn't allow setting names to a
+	//blank but filters can.
+	//https://github.com/zturtleman/mm3d/issues/158
+	if(!name[0]) name = "_";
+	
+	int num = m_groups.size();
+
+	Group *group = Group::get();
+	group->m_name = name;
+	m_groups.push_back(group);
+
+	if(m_undoEnabled)
 	{
-		int num = m_groups.size();
-
-		Group *group = Group::get();
-		group->m_name = name;
-		m_groups.push_back(group);
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_AddGroup();
-			undo->addGroup(num,group);
-			sendUndo(undo);
-		}
-
-		return num;
+		auto undo = new MU_AddGroup();
+		undo->addGroup(num,group);
+		sendUndo(undo);
 	}
-	else
-	{
-		return -1;
-	}
+
+	return num;
 }
 
 void Model::deleteGroup(unsigned groupNum)
@@ -105,7 +104,7 @@ bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 		{
 			auto undo = new MU_SetGroupAngle;
 			undo->setGroupAngle(groupNum,angle,m_groups[groupNum]->m_angle);
-			sendUndo(undo/*,true*/);
+			sendUndo(undo);
 		}
 
 		m_groups[groupNum]->m_angle = angle;
@@ -117,9 +116,9 @@ bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 
 bool Model::setGroupName(unsigned groupNum, const char *name)
 {
-	if(groupNum>=0&&groupNum<m_groups.size()&&name)
+	if(groupNum>=0&&groupNum<m_groups.size()&&name&&name[0])
 	{
-		if(name!=m_groups[groupNum]->m_name)
+		if(m_groups[groupNum]->m_name!=name)
 		{
 			m_changeBits|=AddOther; //2020
 
@@ -141,7 +140,7 @@ void Model::setSelectedAsGroup(unsigned groupNum)
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= AddOther;
+	m_changeBits |= SetGroup; //AddOther
 
 	invalidateNormals(); //OVERKILL
 
@@ -159,7 +158,7 @@ void Model::setSelectedAsGroup(unsigned groupNum)
 		}
 
 		// Put selected triangles into group groupNum
-		for(t = 0; t<m_triangles.size(); t++)
+		for(t=0;t<m_triangles.size();t++)
 		{
 			if(m_triangles[t]->m_selected)
 			{
@@ -168,16 +167,14 @@ void Model::setSelectedAsGroup(unsigned groupNum)
 		}
 
 		// Remove selected triangles from other groups
-		for(t = 0; t<m_triangles.size(); t++)
+		for(t=0;t<m_triangles.size();t++)
 		{
-			if(m_triangles[t]->m_selected)
+			if(m_triangles[t]->m_selected)			
+			for(unsigned g=0;g<m_groups.size();g++)
 			{
-				for(unsigned g = 0; g<m_groups.size(); g++)
+				if(g!=groupNum)
 				{
-					if(g!=groupNum)
-					{
-						removeTriangleFromGroup(g,t);
-					}
+					removeTriangleFromGroup(g,t);
 				}
 			}
 		}
@@ -188,7 +185,7 @@ void Model::addSelectedToGroup(unsigned groupNum)
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= AddOther;
+	m_changeBits |= SetGroup; //AddOther
 
 	invalidateNormals(); //OVERKILL
 
@@ -216,7 +213,7 @@ void Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= AddOther;
+	m_changeBits |= SetGroup; //AddOther
 
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{

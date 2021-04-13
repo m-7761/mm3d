@@ -377,7 +377,7 @@ void Model::removeBoneJoint(unsigned index)
 
 void Model::insertInfluence(const Position &pos, unsigned index, const InfluenceT &influence)
 {
-	m_changeBits |= AddOther;
+	m_changeBits |= SetInfluence; //AddOther
 
 	infl_list *l = nullptr;
 	if(pos.type==PT_Vertex)
@@ -407,7 +407,7 @@ void Model::insertInfluence(const Position &pos, unsigned index, const Influence
 
 void Model::removeInfluence(const Position &pos, unsigned index)
 {
-	m_changeBits |= AddOther;
+	m_changeBits |= SetInfluence; //AddOther
 
 	infl_list *l = nullptr;
 	if(pos.type==PT_Vertex)

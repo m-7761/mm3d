@@ -79,9 +79,11 @@ bool_panel(model.sidebar,model)
 	bool_panel.nav.set(config.get("ui_bool_sidebar",true));
 	prop_panel.nav.set(config.get("ui_prop_sidebar",true));
 
+	prop_panel.infl.nav.set(config.get("ui_infl_sidebar",true));
+
 	active_callback = &SideBar::submit;
 
-	//Do this after faces.menu is initalized
+	//Do this after faces menu is initalized
 	//so its options won't change its size.
 	prop_panel.init();
 }
@@ -106,9 +108,16 @@ void SideBar::submit(control *c)
 		{
 			prop_panel.modelChanged(~0); //OPTIMIZATION
 		}
+		if(c==prop_panel.infl.nav)
+		if(config.set("ui_infl_sidebar",(bool)*c))
+		{
+			prop_panel.modelChanged(~0); //OPTIMIZATION
+		}
 	}
 	else if(!prop_panel.infl.nav.hidden())
 	{
+		assert(prop_panel.infl.nav);
+
 		size_t i = (size_t)(c->id()-'0');
 		if(i<prop_panel.infl.igv.size())
 		{
@@ -116,7 +125,7 @@ void SideBar::submit(control *c)
 			if(v>=cmp&&v<cmp+1)
 			{
 				sidebar_updater raii; //REMOVE ME
-				prop_panel.stop(); 
+				
 				prop_panel.infl.submit(c);
 			}
 		}
@@ -300,15 +309,6 @@ void SideBar::BoolPanel::init()
 	button_b.disable();
 }
 
-void SideBar::PropPanel::stop()
-{
-	double t = model.sidebar.anim_panel.frame;
-	
-	if(t!=model->getCurrentAnimationFrameTime())
-	{
-		model.perform_menu_action(id_animate_stop);
-	}
-}
 void SideBar::PropPanel::init()
 {
 	pos.dimensions.disable();
@@ -348,7 +348,6 @@ void SideBar::PropPanel::submit(control *c)
 
 	case 'X': case 'Y': case 'Z':
 
-		stop();
 		if(auto cc=c->parent())
 		{
 			if(cc==&pos.nav) pos.change();
@@ -360,7 +359,6 @@ void SideBar::PropPanel::submit(control *c)
 
 	case 't': 
 
-		stop();
 		interp.change(0,c); break;
 
 	case -id_projection_settings:
@@ -385,12 +383,10 @@ void SideBar::PropPanel::submit(control *c)
 
 	/*case '0': case '1': case '2': case '3':
 	
-		stop(); 
 		infl.submit(c); break;*/
 
 	case id_up: //2021
 
-		stop();
 		for(unsigned i:model.selection)
 		model->setBoneJointParent(i,infl.parent_joint);
 		model->operationComplete(::tr("Reparent","operation complete"));
@@ -410,11 +406,15 @@ void SideBar::PropPanel::modelChanged()
 }
 void SideBar::PropPanel::modelChanged(int changeBits)
 {	
+	//THIS COMMENT IS NO LONGER TRUE
 	//NOTE: This can happen now because AnimationFrame
 	//is suppressed during animation playback. Because
 	//changes are deferred it's not possible to filter
 	//it here.
-	if(!changeBits) return;
+	if(!changeBits) 
+	{
+		return; //FIX ME
+	}
 	
 	if(sidebar_updating) return; //REMOVE ME
 
@@ -484,16 +484,13 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	if(show) proj.change(changeBits);
 	
 	// Only show influences if there are influences to show
-	if(model->getBoneJointCount()
-	&&mode!=Model::ANIMMODE_FRAME)
+	if(model->getBoneJointCount())
 	show = sn[Model::PT_Vertex]||sn[Model::PT_Point];
 	else show = false;
-	if(!model->inSkeletalMode()) //2021: Too much information!
-	show = false;
 	infl.nav.set_hidden(!show);
 	bool show2 = sz&&sz==sn[Model::PT_Joint];
 	infl.parent_joint.set_hidden(!show2);
-	if(show||show2||changeBits&Model::AddOther)
+	if(show||changeBits&Model::AddOther)
 	{
 		infl.change(changeBits);	
 	}
@@ -992,14 +989,13 @@ static void sidebar_update_weight_v(Widgets95::li &v, bool enable, int type, int
 }
 void SideBar::PropPanel::infl_props::change(int changeBits)
 {
-	int watchlist = Model::SelectionChange;
-	watchlist&=~Model::SelectionJoints;
-	watchlist&=~Model::SelectionProjections;
+	int watchlist = 
+	Model::SelectionVertices|Model::SelectionPoints
 	//2021: Until now weights were shown during regular
 	//editing, but it seems like too much information for
 	//regular animation work and too much processing burden
 	//when selecting a large number of vertices
-	watchlist|=Model::AnimationMode; 
+	|Model::AnimationMode; 
 	if(0==(changeBits&(Model::AddOther|watchlist)))
 	{
 		return; // Only change if group or selection change	
@@ -1028,7 +1024,7 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		}
 	}
 
-	if(nav.hidden()) return;
+	if(!nav||nav.hidden()) return;
 		
 	// Update influence fields		
 	JointCount def = {};
@@ -1159,7 +1155,12 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		bool compacted = false;
 		//doing this even when hiding simplifies
 		//the following code greatly
-		if(index+1==(int)igv.size()) grow_igv();
+		if(index+1==(int)igv.size()) 
+		{
+			grow_igv();
+			igv.back()->joint.select_id(-1);
+			igv.back()->weight.set_hidden();
+		}
 		//NEW: Hide joints removed from the back
 		//of the list, but don't attempt to move
 		//joints around because that's too messy.

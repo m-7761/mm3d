@@ -68,7 +68,7 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 	{
 		const Model::Triangle *t1,*t2; 
 		
-		int s1,s2,d1,d2,v1,v2;
+		int s1,s2,d1,d2; unsigned v1,v2;
 	};
 	std::vector<st> vst;
 

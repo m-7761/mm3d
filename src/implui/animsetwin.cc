@@ -169,7 +169,7 @@ struct AnimEditWin : Win //EditWin
 		type.reference(win.type);
 		type.select_id(win.type);
 
-		double c1 = 30; int c2 = !1; if(i)
+		double c1 = 30, c2 = !1; if(i)
 		{
 			//It's a problem if merely "focused".
 			//i->select();
@@ -177,7 +177,7 @@ struct AnimEditWin : Win //EditWin
 			utf8 row[3]; i->text().c_row(row);
 			name.set_text(row[0]);
 			c1 = strtod(row[1],nullptr);
-			c2 = atoi(row[2]);
+			c2 = strtod(row[2],nullptr);
 		}
 		else if(id==id_name)
 		{
@@ -187,7 +187,7 @@ struct AnimEditWin : Win //EditWin
 			name.disable();
 		}
 		fps.edit<double>(1,c1,120);
-		frames.edit<int>(!1,c2,INT_MAX);
+		frames.edit<double>(!1,c2,INT_MAX);
 
 		//HACK: Cleared boxes mean don't change.
 		//This is essential for multi-selection.
@@ -296,7 +296,8 @@ void AnimConvertWin::submit(int id)
 		//Assuming table will be auto-sized.
 		header.add_item("Skeletal Animation"); //200
 		header.add_item("Frame Animation"); //200
-		header.add_item("Frame Count"); //30
+		//header.add_item("Frame Count"); //30
+		header.add_item("Samples Count"); //30
 		owner.table^[&](li::multisel ea)
 		{
 			auto row = new li::item(ea->id());
@@ -318,8 +319,7 @@ void AnimConvertWin::submit(int id)
 			utf8 row2[3]; b->text().c_row(row2);
 			switch(int col=header)
 			{
-			//case 2: return atoi(row1[col])<atoi(row2[col]);
-			case 2: return strtod(row1[col],0)<strtod(row2[col],0);
+			case 2: return atoi(row1[col])<atoi(row2[col]);
 			default: return strcmp(row1[col],row2[col])<0;
 			}
 		});
@@ -423,7 +423,7 @@ void AnimSetWin::submit(int id)
 				textbox modal(table); switch(header)
 				{
 				case 1: modal.edit<double>(1,120); break;
-				case 2: modal.edit<int>(!1,INT_MAX); break;
+				case 2: modal.edit<double>(!1,INT_MAX); break;
 				}
 
 				if(modal.move_into_place())
@@ -431,7 +431,7 @@ void AnimSetWin::submit(int id)
 				{
 				case 0: model->setAnimName((int)table,modal); break;
 				case 1: model->setAnimFPS((int)table,modal); break;
-				case 2: model->setAnimTimeFrame((int)table,(int)modal); break;
+				case 2: model->setAnimTimeFrame((int)table,modal); break;
 				}
 			}
 			return;		
@@ -470,7 +470,7 @@ void AnimSetWin::submit(int id)
 				if(!e.fps.text().empty())
 				model->setAnimFPS(ea->id(),e.fps);
 				if(!e.frames.text().empty())
-				model->setAnimTimeFrame(ea->id(),(int)e.frames);
+				model->setAnimTimeFrame(ea->id(),e.frames);
 				format_item(ea,c_str,e.fps,e.frames);
 				if(e.conv)
 				{
@@ -490,7 +490,7 @@ void AnimSetWin::submit(int id)
 			if(!e.fps.text().empty())
 			model->setAnimFPS(i,e.fps);
 			if(!e.frames.text().empty())
-			model->setAnimTimeFrame(i,(int)e.frames);
+			model->setAnimTimeFrame(i,e.frames);
 			if(j==-1) j = i;
 			if(mode==e.conv) 
 			{

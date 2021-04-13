@@ -74,7 +74,7 @@ void ViewBar::StatusBar::timer_expired()
 	bool beep = tqi.str!=text.text();
 
 	setText(tqi.str.c_str());
-	if(tqi.type==StatusError)
+	if(tqi.type!=StatusNormal) //StatusError
 	{
 		text.select_all(); if(beep) event.beep();
 	}
@@ -102,7 +102,7 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 		m_queueDisplay = true;
 
 		setText(str);
-		if(type==StatusError)
+		if(type!=StatusNormal) //StatusError
 		{
 			text.select_all(); event.beep();
 		}
@@ -118,7 +118,7 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 		{
 			removing = false;
 			for(auto it=m_queue.begin();it!=m_queue.end();)			
-			if(it->type!=StatusError)
+			if(it->type==StatusNormal)
 			{
 				removing = true;
 				it = m_queue.erase(it);				
@@ -139,7 +139,7 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 		// new message is an error, start removing the oldest errors.
 		if(m_queue.size()>max_queue_size)
 		{
-			if(type==StatusError)
+			if(type!=StatusNormal)
 			while(m_queue.size()>max_queue_size)
 			m_queue.pop_front();
 			else return;

@@ -369,13 +369,13 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 			writeLine(dst,"\tloop");
 			writeLine(dst,"");
 
-			for(unsigned frame = 0; frame<frameCount; frame++)
+			for(unsigned frame=0;frame<frameCount;frame++)
 			{
 			//	double frameTime = frame/(double)fps;
 
 				writeLine(dst,"frame");
 
-				for(unsigned bone = 0; bone<boneCount; bone++)
+				for(unsigned bone=0;bone<boneCount;bone++)
 				{
 					int parent = model->getBoneJointParent(bone);
 

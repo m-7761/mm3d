@@ -111,7 +111,7 @@ bool Model::selectGroup(unsigned m)
 		if(!m_selecting) //2020: make foolproof?
 		{
 			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionGroups; //2019
+			m_changeBits |= SelectionGroups|SelectionVertices|SelectionFaces; //2019
 		
 			if(m_undoEnabled)
 			{
@@ -456,13 +456,13 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 
 	Vector vert;
 
-	for(unsigned v = 0; v<m_vertices.size(); v++)
+	for(unsigned v=0;v<m_vertices.size();v++)
 	{
 		if(m_vertices[v]->m_selected!=select)
 		{
 			vert.setAll(m_vertices[v]->m_absSource,3);
 			
-			vert[3] = 1.0;
+			vert[3] = 1;
 
 			viewMat.apply(vert);
 
@@ -1566,45 +1566,42 @@ void Model::endSelectionDifference()
 
 void Model::getSelectedPositions(pos_list &positions)const
 {
-	unsigned count;
-	unsigned t;
+	unsigned count,t;
 
 	positions.clear();
 	
+	//DUPLICATE
+	//getSelectedBoneJoints use m_joints2 now
 	count = m_joints.size();
-	for(t = 0; t<count; t++)
+	//for(t=0;t<count;t++)	
+	for(auto&ea:m_joints2)
+	if(ea.second->m_selected)
 	{
-		if(m_joints[t]->m_selected)
-		{
-			Position p;
-			p.type = PT_Joint;
-			p.index = t;
-			positions.push_back(p);
-		}
+		Position p;
+		p.type = PT_Joint;
+		//p.index = t;
+		p.index = ea.first;
+		positions.push_back(p);
 	}
 
 	count = m_points.size();
-	for(t = 0; t<count; t++)
+	for(t=0;t<count;t++)
+	if(m_points[t]->m_selected)
 	{
-		if(m_points[t]->m_selected)
-		{
-			Position p;
-			p.type = PT_Point;
-			p.index = t;
-			positions.push_back(p);
-		}
+		Position p;
+		p.type = PT_Point;
+		p.index = t;
+		positions.push_back(p);
 	}
 
 	count = m_projections.size();
-	for(t = 0; t<count; t++)
+	for(t=0;t<count;t++)
+	if(m_projections[t]->m_selected)
 	{
-		if(m_projections[t]->m_selected)
-		{
-			Position p;
-			p.type = PT_Projection;
-			p.index = t;
-			positions.push_back(p);
-		}
+		Position p;
+		p.type = PT_Projection;
+		p.index = t;
+		positions.push_back(p);
 	}
 
 	//2020: Making PT_Vertex last in list since there
@@ -1612,16 +1609,14 @@ void Model::getSelectedPositions(pos_list &positions)const
 	//able to get at the non-vertex data and skip the
 	//rest without using backward iteration semantics.
 	count = m_vertices.size();
-	for(t = 0; t<count; t++)
+	for(t=0;t<count;t++)	
+	if(m_vertices[t]->m_selected)
 	{
-		if(m_vertices[t]->m_selected)
-		{
-			Position p;
-			p.type = PT_Vertex;
-			p.index = t;
-			positions.push_back(p);
-		}
-	}
+		Position p;
+		p.type = PT_Vertex;
+		p.index = t;
+		positions.push_back(p);
+	}	
 }
 
 void Model::getSelectedVertices(int_list &vertices)const
@@ -1668,8 +1663,9 @@ void Model::getSelectedBoneJoints(int_list &joints)const
 	joints.clear();
 
 	//FIXING copySelected
-	//this way some algorithms don't have to be rewritten
-	//to be order independent but it's not very transparent
+	//This way some algorithms don't have to be rewritten
+	//to be order independent but it's not very transparent.
+	//DUPLICATE: getSelectedPositions should reflect this too.
 	//for(unsigned t=0;t<m_joints.size();t++)
 	for(auto&ea:m_joints2)
 	{

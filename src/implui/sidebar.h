@@ -133,8 +133,6 @@ struct SideBar : Win
 	{
 		void submit(control*),init();
 
-		void stop();
-
 		void modelChanged(); //RENAME ME
 		void modelChanged(int changeBits);
 
@@ -312,18 +310,24 @@ struct SideBar : Win
 			}
 			textbox name;
 		};
-		struct infl_props : props_base
+		struct infl_props //: props_base
 		{	
+				MainWin &model;
+
+				rollout nav; //props_base
+
 			void change(int);
 
 			void submit(control*);
 
 			infl_props(PropPanel &p)
 				:
-			props_base(p),
+			//props_base(p),
+				model(p.model),
+				nav(p.nav.parent(),"Influences"),
 			parent_joint(p.nav,"Parent",id_up)
 			{
-				nav.name("Joints");
+				//nav.name("Joints"); //"Influences"
 				parent_joint.place(bottom).expand();
 			}
 			~infl_props()

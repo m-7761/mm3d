@@ -35,9 +35,7 @@
 int Model::getProjectionType(unsigned proj)const
 {
 	if(proj<m_projections.size())
-	{
-		return m_projections[proj]->m_type;
-	}
+	return m_projections[proj]->m_type;	
 	return -1;
 }
 

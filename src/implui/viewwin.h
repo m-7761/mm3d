@@ -107,8 +107,6 @@ public:
 	unsigned nselection[Model::PT_MAX];
 	int_list fselection;
 
-	bool playing;
-
 	void open_texture_window();	
 	void open_animation_system();
 	void sync_animation_system();

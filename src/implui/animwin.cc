@@ -79,7 +79,7 @@ struct AnimWin::Impl
 	//sep_animation(sidebar.sep_animation),
 	model(win.model),
 	mode(),soft_mode(-1),anim(),soft_anim(~0),frame(),
-	playing(win.model.playing),autoplay()
+	playing(),autoplay()
 	{
 		//See AnimPanel::refresh_list.
 		//It's easier to let the animation window manage this since
@@ -107,7 +107,7 @@ struct AnimWin::Impl
 	unsigned soft_anim;
 	unsigned frame;	
 	double soft_frame;
-	bool &playing,autoplay;
+	bool playing,autoplay;
 	int step_t0;
 	int step_ms;
 	
@@ -470,45 +470,31 @@ void AnimWin::Impl::frames_edited(double n)
 
 void AnimWin::Impl::set_frame(double i)
 {
-	bool ok = true; if(playing) 
+	bool ok = true;
+	
+	//REMINDER: These are coming faster than the views
+	//refresh rate. Guessing it's just the mouse speed.
+
+	//if(model->setCurrentAnimationFrame(i,Model::Model::AT_invalidateAnim))
+	if(ok=model->setCurrentAnimationFrameTime(i,Model::Model::AT_invalidateAnim))
 	{
-		if(&win==event.active_control_ui) //HACK
-		{
-			//YUCK: Put AnimWin back at the begginging so the 
-			//slider is not out of reach.
-			i = 0;
-		}
-		else
-		{
-			//New: Playing ends at the end now, which is useful
-			//to show the length of the animation and puts the
-			//slider closer to the Animation panel.
-			i = model->getAnimTimeFrame(anim);
-		}
+		//2021: I can't recall why I did this but it seems like it
+		//can probably be removed. The API does it but only for BSP
+		//insurance.
+
+		//REMOVE ME?
+		//HACK: The slider can be manually dragged faster than the
+		//animation can be displayed right now.
+		model->invalidateAnimNormals();
 	}
-	else
-	{
-		//REMINDER: These are coming faster than the views
-		//refresh rate. Guessing it's just the mouse speed.
+	else i = 0; 
 
-		//if(model->setCurrentAnimationFrame(i,Model::Model::AT_invalidateAnim))
-		if(ok=model->setCurrentAnimationFrameTime(i,Model::Model::AT_invalidateAnim))
-		{
-			//2021: I can't recall why I did this but it seems like it
-			//can probably be removed. The API does it but only for BSP
-			//insurance.
+	//setCurrentAnimationFrameTime doesn't call this because
+	//normally operationComplete does that.
+	//https://github.com/zturtleman/mm3d/issues/90
+	//DecalManager::getInstance()->modelUpdated(model); //???
+	model->updateObservers();
 
-			//REMOVE ME?
-			//HACK: The slider can be manually dragged faster than the
-			//animation can be displayed right now.
-			model->invalidateAnimNormals();
-		}
-		else i = 0; 
-
-		//https://github.com/zturtleman/mm3d/issues/90
-		//DecalManager::getInstance()->modelUpdated(model); //???
-		model->updateObservers();
-	}
 	if(ok)
 	{
 		if((int)i==i)
@@ -641,7 +627,7 @@ void AnimWin::Impl::paste(bool values)
 	int made = false;
 
 	if(mode==Model::ANIMMODE_SKELETAL
-	 ||mode&Model::ANIMMODE_SKELETAL&&!copy1.empty())
+	||mode&Model::ANIMMODE_SKELETAL&&!copy1.empty())
 	{
 		if(copy1.empty())
 		{
@@ -730,11 +716,6 @@ void AnimWin::Impl::play(int id)
 	return model_status(model,StatusError,STATUSTIME_LONG,
 	sidebar.new_animation?"Animation unset":"Animation absent");
 
-	//shelf2.play.enable(stop); 
-	//shelf2.stop.enable(!stop);
-	shelf1.frames.enable(stopping);
-	shelf2.timeline.enable(stopping);
-
 	//MainWin::modelChanged uses playing to 
 	//filter AnimationFrame.
 	//if(playing=!stop)
@@ -766,12 +747,12 @@ void AnimWin::Impl::play(int id)
 	}
 	else
 	{
-		autoplay = false;
+		playing = autoplay = false;
+		
+		win.model.views.playing1 = 0;
 
 		model->setCurrentAnimationFrameTime(shelf2.timeline,Model::AT_invalidateAnim);
 		model->updateObservers();
-
-		playing = false;
 	}
 
 	//TODO: How to differentiate the pausing from stopping?
@@ -807,7 +788,13 @@ bool AnimWin::Impl::step()
 	//REMINDER: Inverting these to work like play/pause just isn't as intuitive.
 	int loop = autoplay?0:sidebar.loop.picture()==pics[pic_loop];
 
-	if(!model->setCurrentAnimationTime(t/1000.0,loop,Model::AT_invalidateAnim))
+	if(1) //EXPERIMENTAL
+	{
+		//Attempting to decouple m_currentFrame from playback.
+		win.model.views.playing1 = ~loop;
+		win.model.views.playing2 = t/1000.0;
+	}
+	else if(!model->setCurrentAnimationTime(t/1000.0,loop,Model::AT_invalidateAnim))
 	{		
 		stop();
 	}
@@ -819,63 +806,62 @@ bool AnimWin::Impl::step()
 
 void AnimWin::Impl::refresh_item()
 {
-	log_debug("refresh anim window page\n"); //???
+	//log_debug("refresh anim window page\n"); //???
 
-	bool loop = false;
+	bool wrap = false;
 	double fps = 0;
 	double frames = 0;
-
 	if(!new_animation
 	||-1==shelf1.animation.int_val()) //NEW
 	{	
-		win.disable();
-		shelf1.animation.enable();		
-
-		//Leave pressable.
-		shelf2.play.enable();
-		shelf2.loop.enable();
-
-		//hitting this on deleting last animation?
-		//assert(!frame);
-		//frame = 0;
-
+		shelf1.nav.disable();
+		shelf1.animation.enable();
 		shelf1.fps.limit();
-		shelf1.frames.limit();
 	}
 	else
 	{
-		shelf1.fps.limit(1,120); //???
-		shelf1.frames.limit(0,INT_MAX);
-
-		shelf1.del.enable();
-		shelf1.fps.enable();
-		shelf1.loop.enable();
-		shelf1.frames.enable(!playing);
-		//shelf2.play.enable(!playing);
-		//shelf2.stop.enable(playing);
-		shelf2.timeline.enable(!playing);
+		shelf1.nav.enable();
+		shelf1.fps.limit(1,120);
 
 		fps = model->getAnimFPS(anim);
-		loop = model->getAnimWrap(anim);
+		wrap = model->getAnimWrap(anim);
 		frames = model->getAnimTimeFrame(anim);
 	}
-
 	shelf1.fps.set_float_val(fps);
-	shelf1.loop.set(loop);
+	shelf1.wrap.set(wrap);
 	shelf1.frames.set_float_val(frames);	
 	shelf2.timeline.set_range(0,frames);
 	sidebar.frame.limit(0,frames);
 	win.model.views.timeline.set_range(0,frames);
-	//IMPLEMENT ME? (QSlider API)
-	//shelf2.timeline.setTickInterval(animwin_tick_interval(frames));
 
 	//set_frame(frame)
-	if(mode&&anim!=soft_anim)
+	double f; if(mode&&anim!=soft_anim)
 	{
 		soft_anim = anim;
-		set_frame(model->getCurrentAnimationFrameTime());	
+
+		//HACK: First frame logic on animation change?		
+		if(playing)
+		{
+			//Counter-argument? Maybe ending on the final
+			//articulation should trump other concerns?
+			//Or maybe the Animator window shouldn't play
+			//the animation automatically?
+			
+			//Rationale: When setting the animation it's
+			//useful to see its frame count, so this sets
+			//it to the end. Whereas on the Animator view
+			//the count is already displayed and it's set
+			//up is on the left side, so it's better to be
+			//at the beginning to be closer to the slider.
+			//(which is true in both cases.)
+			if(&win==event.active_control_ui)
+			f = 0;
+			else
+			f = model->getAnimTimeFrame(anim);
+		}
+		else f = model->getCurrentAnimationFrameTime();
 	}
-	else set_frame(soft_frame);
+	else f = soft_frame; set_frame(f);
 
 	if(mode!=soft_mode) switch(soft_mode=mode)
 	{
@@ -958,9 +944,8 @@ void AnimWin::submit(int id)
 		
 		log_debug("AnimWidget constructor\n"); //???
 		
-		shelf1.fps.edit(0.0);
-		shelf1.frames.edit(0.0);
-		shelf1.frames.limit(0,INT_MAX).compact();
+		shelf1.fps.edit<double>(0,0);
+		shelf1.frames.edit<double>(0,INT_MAX).compact();
 		shelf2.play.span(60).picture(pics[pic_play]);
 		shelf2.loop.span(60).picture(pics[pic_stop]);		
 		shelf2.timeline.spin(0.0); //NEW (2020)
@@ -980,7 +965,7 @@ void AnimWin::submit(int id)
 		//shelf2.timeline.drop(shelf2.play.drop());
 		shelf2.timeline.space<top>(3).drop()+=7;
 		shelf1.fps.space<top>(4);
-		shelf1.loop.space<top>(5);
+		shelf1.wrap.space<top>(5);
 		shelf1.frames.space<top>(4);
 
 		assert(!impl);
@@ -1050,7 +1035,7 @@ void AnimWin::submit(int id)
 	case id_check: //id_anim_loop
 
 		//log_debug("toggling loop\n"); //???
-		model->setAnimWrap(impl->anim,shelf1.loop);
+		model->setAnimWrap(impl->anim,shelf1.wrap);
 		model->operationComplete(::tr("Set Wrap","Change whether animation wraps operation complete"));
 		//WHAT'S THIS DOING HERE??? (DISABLING)
 		//model->setCurrentAnimationFrame((int)shelf2.timeline,Model::AT_invalidateNormals);		

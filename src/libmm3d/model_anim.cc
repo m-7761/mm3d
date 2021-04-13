@@ -132,6 +132,12 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 
 	if(!name||(unsigned)m>3) return num; //-1
 
+	//2021: preventing surprise (MM3D)
+	//doesn't allow setting names to a
+	//blank but filters can.
+	//https://github.com/zturtleman/mm3d/issues/158
+	if(!name[0]) name = "_";
+
 	//2021: Enforce partitions.
 	num = (unsigned)m_anims.size();
 	while(num&&m_anims[num-1]->_type>m)
@@ -184,9 +190,9 @@ void Model::deleteAnimation(unsigned index)
 
 bool Model::setAnimName(unsigned anim, const char *name)
 {
-	if(auto*ab=_anim(anim))
+	if(name&&name[0]) if(auto*ab=_anim(anim))
 	{
-		if(name!=ab->m_name)
+		if(ab->m_name!=name)
 		{
 			m_changeBits|=AddAnimation; //2020
 
@@ -1043,6 +1049,20 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 	int td = e-ab->_type; if(!td) return anim;
 
 	m_changeBits|=AddAnimation;
+	
+	//HACK: It's really not ideal to do this on the user's behalf.
+	//But it's not ideal to lose state either.
+	if(anim==m_currentAnim&&inAnimationMode())
+	{		
+		m_changeBits|=AnimationMode;
+
+		m_animationMode = e; 
+
+		invalidateAnim();
+
+		model_status(this,StatusNotice, //StatusError
+		STATUSTIME_LONG,TRANSLATE("LowLevel","Animation mode set to current animation's new type"));
+	}
 
 	if(e!=ANIMMODE&&ab->_frame_count())
 	{
@@ -1613,9 +1633,10 @@ bool Model::setCurrentAnimationTime(double seconds, int loop, AnimationTimeE cal
 {
 	double t = seconds*getAnimFPS(m_currentAnim);
 	double len = getAnimTimeFrame(m_currentAnim);
-	//while(t>=len)
-	while((float)t>len) //Truncate somewhat.
+	if((float)t>=len) //Truncate somewhat.
 	{
+		t = fmod(t,len); //Note, len may be zero.
+
 		switch(loop) //2019
 		{
 		case -1:
@@ -1627,7 +1648,6 @@ bool Model::setCurrentAnimationTime(double seconds, int loop, AnimationTimeE cal
 				
 		default: case 1: break;
 		}
-		t-=len;
 	}	
 	return setCurrentAnimationFrameTime(t,calc);
 }
@@ -1636,6 +1656,8 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 {
 	auto anim = m_currentAnim;
 	auto am = m_animationMode; if(!am) return false;
+
+	double len = getAnimTimeFrame(anim);
 	
 	/*2020
 	//This should be based on getAnimTimeFrame but
@@ -1646,15 +1668,29 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	}
 	else time = 0;*/
 	if(time>0) //Best practice?
-	time = std::min(time,getAnimTimeFrame(anim));
+	time = std::min(time,len);
 	else time = 0;
 	
-	m_changeBits |= AnimationFrame;
+	unsigned f = time?getAnimFrame(anim,time):0;
+
+	//2020: Stop animating still images?
+	//(Don't emit AnimationFrame change) 
+	if(f==m_currentFrame&&time==m_currentTime)
+	{
+		if(calc&AT_calculateNormals)
+		validateAnim();
+		if(calc==AT_calculateNormals)
+		validateNormals();
+
+		return len?true:false; 
+	}
+	
+	m_changeBits |= AnimationFrame; 
 
 	m_validBspTree = false;
 
 	//m_currentFrame = (unsigned)(frameTime/spf);
-	m_currentFrame = time?getAnimFrame(anim,time):0;
+	m_currentFrame = f;
 	m_currentTime = time;
 	
 	if(calc!=AT_invalidateAnim) 

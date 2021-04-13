@@ -29,7 +29,8 @@
 enum StatusTypeE
 {
 	StatusNormal,
-	StatusError
+	StatusError,
+	StatusNotice //2021: Like error but shouldn't use the term "error".
 };
 
 class StatusObject

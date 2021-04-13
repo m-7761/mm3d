@@ -363,11 +363,32 @@ void ViewPanel::draw()
 	int l = m!=n&&y*2!=hh;
 	if(l) y++; 
 
+	double swap; int swap2;
+
+	if(playing1) //EXPERIMENTAL
+	{
+		swap = model->getCurrentAnimationFrameTime();
+		swap2 = model->getChangeBits();
+
+		if(!model->setCurrentAnimationTime(playing2,~playing1,Model::AT_invalidateAnim))
+		{
+			model.perform_menu_action(id_animate_stop);	
+
+			assert(!playing1);
+		}	
+	}
+
 	for(int i=0;i<m;i++,x+=w)
 	{
 		if(m!=n)
 		ports[viewsM-1-i].draw(x,/*h*/y,w,h);
 		ports[viewsN-1-i].draw(x,/*0*/l,w,h);
+	}
+
+	if(playing1)
+	{
+		model->setChangeBits(swap2);
+		model->setCurrentAnimationFrameTime(swap,Model::AT_invalidateAnim);
 	}
 
 	Widgets95::window::set_ortho_projection(ww,hh);	
@@ -401,7 +422,7 @@ ViewPanel::ViewPanel(MainWin &model)
 :
 model(model),shape(),
 bar1(model),bar2(model),
-params(bar1),timeline(bar1.exterior_row),
+params(bar1),timeline(bar1.exterior_row),playing1(),
 status(bar2)
 {
 	timeline.id(id_bar).expand();

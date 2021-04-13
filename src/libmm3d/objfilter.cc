@@ -831,8 +831,8 @@ bool ObjFilter::readFace(char *line)
 		return false;
 	}
 
-	bool addTextureCoords = (vtlist.size()==vlist.size())? true : false;
-	for(unsigned n = 0; n+2<vlist.size(); n++)
+	bool addTextureCoords = vtlist.size()==vlist.size();
+	for(unsigned n=0;n+2<vlist.size();n++)
 	{
 		int tri = m_model->addTriangle(vlist[0],vlist[n+1],vlist[n+2]);
 
@@ -840,8 +840,12 @@ bool ObjFilter::readFace(char *line)
 		{
 			int count = m_mgList.size();
 			std::string name = m_groupName.c_str();
-			if(count>0) //???
+			//2021: Empty group names seem common, these show up as
+			//an initial gap in the editor.
+			if(count>0||name.empty()) //???
 			{
+				//I think this needs more thought
+				//https://github.com/zturtleman/mm3d/issues/158
 				char temp[32];
 				snprintf(temp,32,"%d",count+1);
 				name += temp;

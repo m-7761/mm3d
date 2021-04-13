@@ -74,11 +74,11 @@ struct AnimWin : Win
 		animation(nav,"Animation",id_item), //"Animations"
 		del(nav,"Delete",id_delete), //"X"
 		fps(nav,"FPS",id_anim_fps),
-		loop(nav,"Wrap",id_check), //"Loop"
+		wrap(nav,"Wrap",id_check), //"Loop"
 		frames(nav,"Frame&s",id_anim_frames) //Not Frame!
 		{
 			nav.expand();
-			loop.space<top>(3);
+			wrap.space<top>(3);
 
 			//HACK: Force single increment over
 			//huge INT_MAX range.
@@ -88,8 +88,8 @@ struct AnimWin : Win
 		row nav;
 		dropdown animation;
 		button del;
-		textbox fps;
-		boolean loop;
+		spinbox fps;
+		boolean wrap;
 		spinbox frames; 
 	};
 	struct shelf2_group

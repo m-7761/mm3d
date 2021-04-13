@@ -74,25 +74,24 @@ bool FlattenCommand::activated(int index, Model *model)
 		return false;
 	}
 
-	float newVal	= 0.0f;
+	float newVal = 0;
 	int	countVal = 0;
-
 	double coords[3];
-	pos_list::iterator it;
-	for(it = posList.begin(); it!=posList.end(); it++)
-	{
-		model->getPositionCoords(*it,coords);
-		newVal += coords[index];
+	
+	for(auto i:posList)
+	{		
+		model->getPositionCoords(i,coords);
+		newVal+=(float)coords[index];
 		countVal++;
 	}
 
-	newVal = newVal/(float)countVal;
+	newVal/=(float)countVal;
 
-	for(it = posList.begin(); it!=posList.end(); it++)
+	for(auto i:posList)
 	{
-		model->getPositionCoords(*it,coords);
+		model->getPositionCoords(i,coords);
 		coords[index] = newVal;
-		model->movePosition(*it,coords[0],coords[1],coords[2]);
+		model->movePosition(i,coords[0],coords[1],coords[2]);
 	}
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives flattened"));

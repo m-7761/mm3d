@@ -88,31 +88,36 @@ class Model
 		// about the model.
 		enum ChangeBits
 		{
-			SelectionChange      = 0x000000FF, // General selection change			
+			SelectionChange      = 0x000000FF, // Non-UV selection change
 			SelectionVertices    = 0x00000001, // Vertices selection changed
 			SelectionFaces       = 0x00000002, // Faces selection changed
 			SelectionGroups      = 0x00000004, // Groups selection changed
 			SelectionJoints	     = 0x00000008, // Joints selection changed
 			SelectionPoints      = 0x00000010, // Points selection changed
 			SelectionProjections = 0x00000020, // Projections selection changed
-			SelectionUv          = 0x00000040, // setSelectedUv			
-			AddGeometry          = 0x00000100, // Added or removed objects
-			AddAnimation		 = 0x00000200, // Added/moved/named/deleted animation
-			AddOther			 = 0x00000400, // Added or removed something else
-			MoveGeometry		 = 0x00000800, // Model shape changed
-			MoveNormals			 = 0x00001000, // Model surface normals changed
-			MoveTexture			 = 0x00002000, // Model texture map changed
-			MoveOther			 = 0x00004000, // Something non-geometric was moved
-			AnimationMode        = 0x00008000, // Changed animation mode
-			AnimationSet		 = 0x00010000, // Changed current animation			
-			AnimationFrame       = 0x00020000, // Changed current animation frame
-			AnimationProperty    = 0x00040000, // Set animation times/frames/fps/wrap
-			ShowJoints           = 0x00080000, // Joints forced visible
-			ShowProjections      = 0x00100000, // Projections forced visible
-			ChangeAll			 = 0xFFFFFFFF,	// All of the above
+			SelectionUv          = 0x00000100, // setSelectedUv			
+			AddGeometry          = 0x00000200, // Add/removed verts/faces/indices
+			AddAnimation		 = 0x00000400, // Add/name/move/removed animation
+			AddOther			 = 0x00000800, // Add/name/removed object/group/material
+			SetGroup			 = 0x00001000, // Group membership changed
+			SetInfluence         = 0x00002000, // Vertex/point weight changed
+			MoveGeometry		 = 0x00004000, // Moved vertex
+			MoveNormals			 = 0x00008000, // Surface normals changed
+			MoveTexture			 = 0x00010000, // Texture map changed
+			MoveOther			 = 0x00020000, // Moved object
+			AnimationMode        = 0x00040000, // Changed animation mode
+			AnimationSet		 = 0x00080000, // Changed current animation
+			AnimationFrame       = 0x00100000, // Changed current animation frame
+			AnimationProperty    = 0x00200000, // Set animation times/frames/fps/wrap
+			ShowJoints           = 0x00400000, // Joints forced visible
+			ShowProjections      = 0x00800000, // Projections forced visible
+			ChangeAll			 = 0xFFFFFFFF, // All of the above
 
 			AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty,
 		};
+		//EXPERIMENTAL
+		unsigned getChangeBits(){ return m_changeBits; }
+		void setChangeBits(unsigned cb){ m_changeBits = cb; }
 
 		// FIXME remove this when new equal routines are ready
 		enum CompareBits
@@ -1848,8 +1853,11 @@ class Model
 		bool setGroupName(unsigned groupNum, const char *groupName);
 
 		inline int getGroupCount()const { return m_groups.size(); };
-		int getGroupByName(const char *groupName, bool ignoreCase = false)const;
-		int getMaterialByName(const char *materialName, bool ignoreCase = false)const;
+
+		//REMOVE US?
+		int getGroupByName(const char *groupName, bool ignoreCase=false)const;
+		int getMaterialByName(const char *materialName, bool ignoreCase=false)const;
+
 		Material::MaterialTypeE getMaterialType(unsigned materialIndex)const;
 
 		//REMOVE ME
@@ -1877,7 +1885,7 @@ class Model
 		uint8_t getGroupAngle(unsigned groupNum)const;
 		bool setGroupAngle(unsigned groupNum,uint8_t angle);
 
-		void setTextureName(unsigned textureId, const char *name);
+		bool setTextureName(unsigned textureId, const char *name);
 		const char *getTextureName(unsigned textureId)const;
 
 		const char *getTextureFilename(unsigned textureId)const;
@@ -2075,6 +2083,7 @@ class Model
 
 		void deletePoint(unsigned point);
 
+		//REMOVE ME?
 		int getPointByName(const char *name)const;
 
 		const char *getPointName(unsigned point)const;

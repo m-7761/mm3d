@@ -87,6 +87,9 @@ public: //slots:
 	ViewBar::ParamsBar params;
 	Win::bar timeline;
 
+	int playing1; 
+	double playing2; //EXPERIMENTAL
+
 	//enum{ portsN=3*2 };
 	//ModelViewport ports[portsN];
 

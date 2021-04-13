@@ -147,11 +147,12 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 
 	toolbox.getCurrentTool()->modelChanged(changeBits);
 		
+	/*REFERENCE
 	//TODO: May want to implement this in Model somehow.
 	//This is to keep the Properties panel from updating
 	//mid playback. I'm not sure how or if Maverick Model
 	//3D avoids that.
-	if(playing) changeBits&=~Model::AnimationFrame;
+	if(playing&&!views.playing1) changeBits&=~Model::AnimationFrame;*/
 
 	//REMINDER: Can't defer these because of m_ignoreChange pattern
 	if(_projection_win) _projection_win->modelChanged(changeBits);
@@ -1008,7 +1009,6 @@ animation_mode(3),
 //Makes parent/child relationships headaches.
 views(*this),sidebar(*this),
 nselection(),fselection(),
-playing(),
 _animation_win(),
 _transform_win(),
 _projection_win(),
@@ -2198,7 +2198,8 @@ void MainWin::perform_menu_action(int id)
 	case id_animate_delete: delete2:	
 
 	case id_animate_mode:
-	case id_animate_play: 
+	case id_animate_play:
+	case id_animate_stop:
 	case id_animate_loop:
 		
 		if(!_animation_win)
@@ -2453,17 +2454,21 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 	}
 	else
 	{
-		if(i==-1)
-		{
-			i = m->getAnimFrame(a,t);
-		}
-		if(i<(int)m->getAnimFrameCount(a))
+		if(i==-1) i = m->getAnimFrame(a,t);
+
+		int fc = m->getAnimFrameCount(a);
+
+		if(i<fc) 
 		{
 			t = m->getAnimFrameTime(a,i);
 		}
 		else if(e)
 		{
-			t = 0; //assuming new animation
+			//Note, bar::do_click probes +1.
+			if(i!=fc)
+			{
+				t = 0; //New animation?
+			}
 		}
 		else return -1; 
 	}

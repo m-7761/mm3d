@@ -53,7 +53,7 @@ void model_status(Model *model, StatusTypeE type, int ms, const char *fmt,...)
 	{
 		bar->addText(type,ms,temp);
 	}
-	else if(type==StatusError)
+	else if(type!=StatusNormal) //StatusError
 	{
 		if(!model)
 		{

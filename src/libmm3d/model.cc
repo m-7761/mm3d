@@ -591,6 +591,12 @@ int Model::addBoneJoint(const char *name, int parent)
 		return -1;
 	}
 
+	//2021: preventing surprise (MM3D)
+	//doesn't allow setting names to a
+	//blank but filters can.
+	//https://github.com/zturtleman/mm3d/issues/158
+	if(!name[0]) name = "_";
+
 	m_changeBits |= AddOther;
 
 	int num = m_joints.size();
@@ -640,6 +646,12 @@ int Model::addPoint(const char *name, double x, double y, double z,
 {
 	if(!name) return -1; //TODO? Disallow ""?
 
+	//2021: preventing surprise (MM3D)
+	//doesn't allow setting names to a
+	//blank but filters can.
+	//https://github.com/zturtleman/mm3d/issues/158
+	if(!name[0]) name = "_";
+
 	m_changeBits |= AddOther;
 
 	int num = m_points.size();
@@ -675,6 +687,12 @@ int Model::addPoint(const char *name, double x, double y, double z,
 int Model::addProjection(const char *name, int type, double x, double y, double z)
 {
 	if(name==nullptr) return -1;
+
+	//2021: preventing surprise (MM3D)
+	//doesn't allow setting names to a
+	//blank but filters can.
+	//https://github.com/zturtleman/mm3d/issues/158
+	if(!name[0]) name = "_";
 
 	m_changeBits |= AddOther;
 
@@ -1289,8 +1307,6 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 	if(e) validateAnim(); //setKeyframe/setFrameAnimVertexCoords/InterpolateCopy
 
-	m_changeBits|=MoveGeometry;
-
 	for(int pass=1;pass<=2;pass++) if(pass&m_anims[ca]->_type)
 	{
 		Position j{pass==1?PT_Joint:PT_Point,(unsigned)-1};
@@ -1313,6 +1329,8 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 		auto fa = m_anims[m_currentAnim];
 		unsigned i=0, fp = fa->m_frame0;
 		
+		bool verts = false;
+
 		if(e||~fp) for(auto*ea:m_vertices) 
 		{
 			i++; if(ea->m_selected)
@@ -1322,6 +1340,8 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 				auto &cmp = vf->m_interp2020;
 				if(cmp!=e) 
 				{
+					verts = true;
+
 					if(ue&&!undo)
 					undo = new MU_InterpolateSelected(e,ca,cf);
 					if(ue) undo->addVertex(cmp); 
@@ -1334,6 +1354,8 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 				}
 			}
 		}
+
+		if(verts) m_changeBits|=MoveGeometry;
 
 		sendUndo(undo);
 	}
@@ -3319,15 +3341,18 @@ void Model::appendUndo(Undo *undo)
 
 int Model::addFormatData(FormatData *fd)
 {
-	m_changeBits |= AddOther;
+	//2021: I think it's safe to not notify
+	//of this change since this data isn't
+	//meaningful to MM3D
+	//NOTE: deleteFormatData would need to
+	//notify if restored
+	//m_changeBits |= AddOther; //Misfit
 
-	int n = -1;
-	if(fd)
+	int n = -1; if(fd)
 	{
 		n = m_formatData.size();
 		m_formatData.push_back(fd);
 	}
-
 	return n;
 }
 
@@ -3450,7 +3475,7 @@ void Model::parentBoneJoint2(unsigned index, int parent)
 {
 	auto jt = m_joints[index];
 
-	m_changeBits |= MoveOther|AddGeometry;
+	m_changeBits |= MoveOther|AddOther; //???
 
 	jt->m_parent = parent; 
 
@@ -3495,14 +3520,9 @@ int Model::getBoneJointParent(unsigned j)const
 
 int Model::getPointByName(const char *name)const
 {
-	for(unsigned int point = 0; point<m_points.size(); point++)
-	{
-		if(strcmp(name,m_points[point]->m_name.c_str())==0)
-		{
-			return point;
-		}
-	}
-	return -1;
+	for(unsigned int point=0;point<m_points.size();point++)	
+	if(0==strcmp(name,m_points[point]->m_name.c_str()))
+	return point; return -1;
 }
 
 bool Model::getVertexCoords(unsigned vertexNumber, double *coord)const
