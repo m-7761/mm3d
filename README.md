@@ -7,6 +7,7 @@ https://github.com/mick-p1982/mm3d/releases/tag/win32-demo2
 ![MM3D headeater smaller](https://user-images.githubusercontent.com/18209495/77861427-77816780-71da-11ea-895b-965de28f11ce.png)
 
 # build
+0) FindwxWidgets issue: https://gitlab.kitware.com/cmake/cmake/-/issues/21544
 1) Use CMake to build/install Widgets 95 (https://sourceforge.net/p/widgets-95).
 2) Use CMake to build/install MM3d that depends on Widgets 95 being installed.
 3) The CMake scripts are for Linux. Widgets 95 is tested with wxGTK3. They work
