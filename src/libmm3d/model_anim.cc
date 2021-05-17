@@ -1048,22 +1048,6 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 
 	int td = e-ab->_type; if(!td) return anim;
 
-	m_changeBits|=AddAnimation;
-	
-	//HACK: It's really not ideal to do this on the user's behalf.
-	//But it's not ideal to lose state either.
-	if(anim==m_currentAnim&&inAnimationMode())
-	{		
-		m_changeBits|=AnimationMode;
-
-		m_animationMode = e; 
-
-		invalidateAnim();
-
-		model_status(this,StatusNotice, //StatusError
-		STATUSTIME_LONG,TRANSLATE("LowLevel","Animation mode set to current animation's new type"));
-	}
-
 	if(e!=ANIMMODE&&ab->_frame_count())
 	{
 		for(auto&ea:ab->m_keyframes)
@@ -1103,6 +1087,19 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 	_moveAnimation(anim,to,td);
 
 	if(m_undoEnabled) sendUndo(new MU_MoveAnimation(anim,to,td));
+
+	
+	m_changeBits|=AddAnimation;
+	
+	//HACK: It's really not ideal to do this on the user's behalf.
+	//But it's not ideal to lose state either.
+	if(anim==m_currentAnim&&inAnimationMode())
+	{
+		model_status(this,StatusNotice, //StatusError
+		STATUSTIME_LONG,TRANSLATE("LowLevel","Animation mode set to current animation's new type"));
+
+		setAnimationMode(e);
+	}
 
 	return to;
 }
@@ -1684,6 +1681,7 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 
 		return len?true:false; 
 	}
+	else assert(len);
 	
 	m_changeBits |= AnimationFrame; 
 

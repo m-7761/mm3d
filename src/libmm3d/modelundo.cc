@@ -36,8 +36,8 @@ bool MU_TranslateSelected::combine(Undo *u)
 	if(undo)
 	{
 		//m_matrix = m_matrix *undo->m_matrix;
-		for(int i=3;i-->0;) m_vec[i]+=undo->m_vec[i];
-		return true;
+		for(int i=3;i-->0;) 
+		m_vec[i]+=undo->m_vec[i]; return true;
 	}
 	return false;
 }
@@ -102,11 +102,10 @@ void MU_RotateSelected::redo(Model *model)
 bool MU_ApplyMatrix::combine(Undo *u)
 {
 	if(auto undo=dynamic_cast<MU_ApplyMatrix*>(u))
+	if(undo->m_scope==m_scope)
 	{
-		if(undo->m_scope==m_scope)
-		{
-			m_matrix = m_matrix*undo->m_matrix; return true;
-		}
+		m_matrix = m_matrix*undo->m_matrix; 
+		return true;
 	}
 	return false;
 }
@@ -118,12 +117,9 @@ void MU_ApplyMatrix::setMatrix(const Matrix &m, Model::OperationScopeE scope)
 
 void MU_ApplyMatrix::undo(Model *model)
 {
-	log_debug("undo apply matrix\n");
-	Matrix m;
+	//log_debug("undo apply matrix\n"); //???
 
-	m = m_matrix.getInverse();
-
-	model->applyMatrix(m,m_scope,true);
+	model->applyMatrix(m_matrix.getInverse(),m_scope,true);
 }
 
 void MU_ApplyMatrix::redo(Model *model)
@@ -133,14 +129,14 @@ void MU_ApplyMatrix::redo(Model *model)
 
 void MU_SelectionMode::undo(Model *model)
 {
-	log_debug("undo selection mode %d\n",m_oldMode);
+	//log_debug("undo selection mode %d\n",m_oldMode); //???
 
 	model->setSelectionMode(m_oldMode);
 }
 
 void MU_SelectionMode::redo(Model *model)
 {
-	log_debug("redo selection mode %d\n",m_mode);
+	//log_debug("redo selection mode %d\n",m_mode); //???
 
 	model->setSelectionMode(m_mode);
 }
@@ -357,133 +353,97 @@ unsigned MU_SetSelectedUv::size()
 
 void MU_SetSelectedUv::setSelectedUv(const std::vector<int> &newUv, const std::vector<int> &oldUv)
 {
-	m_newUv = newUv;
-	m_oldUv = oldUv;
+	m_newUv = newUv; m_oldUv = oldUv;
 }
 
 void MU_Hide::undo(Model *model)
 {
-	log_debug("undo hide\n");
-
-	HideDifferenceList::iterator it;
+	//log_debug("undo hide\n"); //???
 
 	// Invert visible from our list
-	for(it = m_diff.begin(); it!=m_diff.end(); it++)
+	for(auto it = m_diff.begin(); it!=m_diff.end(); it++)
 	{
-		if(it->visible)
+		if(it->visible) switch (m_mode)
 		{
-			switch (m_mode)
-			{
-				case Model::SelectVertices:
-					model->hideVertex(it->number);
-					break;
-				case Model::SelectTriangles:
-					model->hideTriangle(it->number);
-					break;
-				case Model::SelectJoints:
-					model->hideJoint(it->number);
-					break;
-				case Model::SelectPoints:
-					model->hidePoint(it->number);
-					break;
-				case Model::SelectNone:
-				default:
-					break;
-			}
+		case Model::SelectVertices:
+			model->hideVertex(it->number);
+			break;
+		case Model::SelectTriangles:
+			model->hideTriangle(it->number);
+			break;
+		case Model::SelectJoints:
+			model->hideJoint(it->number);
+			break;
+		case Model::SelectPoints:
+			model->hidePoint(it->number);
+			break;
 		}
-		else
+		else switch (m_mode)
 		{
-			switch (m_mode)
-			{
-				case Model::SelectVertices:
-					model->unhideVertex(it->number);
-					break;
-				case Model::SelectTriangles:
-					model->unhideTriangle(it->number);
-					break;
-				case Model::SelectJoints:
-					model->unhideJoint(it->number);
-					break;
-				case Model::SelectPoints:
-					model->unhidePoint(it->number);
-					break;
-				case Model::SelectNone:
-				default:
-					break;
-			}
+		case Model::SelectVertices:
+			model->unhideVertex(it->number);
+			break;
+		case Model::SelectTriangles:
+			model->unhideTriangle(it->number);
+			break;
+		case Model::SelectJoints:
+			model->unhideJoint(it->number);
+			break;
+		case Model::SelectPoints:
+			model->unhidePoint(it->number);
+			break;
 		}
 	}
 }
 
 void MU_Hide::redo(Model *model)
 {
-	HideDifferenceList::iterator it;
-
 	// Set visible from our list
-	for(it = m_diff.begin(); it!=m_diff.end(); it++)
+	for(auto it = m_diff.begin(); it!=m_diff.end(); it++)
 	{
-		if(it->visible)
+		if(it->visible) switch (m_mode)
 		{
-			switch (m_mode)
-			{
-				case Model::SelectVertices:
-					model->unhideVertex(it->number);
-					break;
-				case Model::SelectTriangles:
-					model->unhideTriangle(it->number);
-					break;
-				case Model::SelectJoints:
-					model->unhideJoint(it->number);
-					break;
-				case Model::SelectPoints:
-					model->unhidePoint(it->number);
-					break;
-				case Model::SelectNone:
-				default:
-					break;
-			}
+		case Model::SelectVertices:
+			model->unhideVertex(it->number);
+			break;
+		case Model::SelectTriangles:
+			model->unhideTriangle(it->number);
+			break;
+		case Model::SelectJoints:
+			model->unhideJoint(it->number);
+			break;
+		case Model::SelectPoints:
+			model->unhidePoint(it->number);
+			break;
 		}
-		else
+		else switch (m_mode)
 		{
-			switch (m_mode)
-			{
-				case Model::SelectVertices:
-					model->hideVertex(it->number);
-					break;
-				case Model::SelectTriangles:
-					model->hideTriangle(it->number);
-					break;
-				case Model::SelectJoints:
-					model->hideJoint(it->number);
-					break;
-				case Model::SelectPoints:
-					model->hidePoint(it->number);
-					break;
-				case Model::SelectNone:
-				default:
-					break;
-			}
+		case Model::SelectVertices:
+			model->hideVertex(it->number);
+			break;
+		case Model::SelectTriangles:
+			model->hideTriangle(it->number);
+			break;
+		case Model::SelectJoints:
+			model->hideJoint(it->number);
+			break;
+		case Model::SelectPoints:
+			model->hidePoint(it->number);
+			break;
 		}
 	}
 }
 
 bool MU_Hide::combine(Undo *u)
 {
-	MU_Hide *undo = dynamic_cast<MU_Hide*>(u);
-
-	if(undo&&getSelectionMode()==undo->getSelectionMode())
+	if(auto*undo=dynamic_cast<MU_Hide*>(u))
+	if(getSelectionMode()==undo->getSelectionMode())
 	{
-		HideDifferenceList::iterator it;
-		for(it = undo->m_diff.begin(); it!=undo->m_diff.end(); it++)
-		{
-			setHideDifference(it->number,it->visible);
-		}
+		for(auto it = undo->m_diff.begin(); it!=undo->m_diff.end(); it++)		
+		setHideDifference(it->number,it->visible);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_Hide::size()
@@ -493,16 +453,11 @@ unsigned MU_Hide::size()
 
 void MU_Hide::setHideDifference(int number,bool visible)
 {
-	HideDifferenceList::iterator it;
-
 	// Change selection state if it exists in our list
-	for(it = m_diff.begin(); it!=m_diff.end(); it++)
+	for(auto it = m_diff.begin(); it!=m_diff.end(); it++)
+	if(it->number==number)
 	{
-		if(it->number==number)
-		{
-			it->visible = visible;
-			return;
-		}
+		it->visible = visible; return;
 	}
 
 	// add selection state to our list
@@ -515,41 +470,27 @@ void MU_Hide::setHideDifference(int number,bool visible)
 
 void MU_InvertNormal::undo(Model *model)
 {
-	log_debug("undo invert normal\n");
-	int_list::iterator it;
-	for(it = m_triangles.begin(); it!=m_triangles.end(); it++)
-	{
-		model->invertNormals(*it);
-	}
+	//log_debug("undo invert normal\n"); //???
+	
+	for(auto it = m_triangles.begin(); it!=m_triangles.end(); it++)
+	model->invertNormals(*it);
 }
 
 void MU_InvertNormal::redo(Model *model)
 {
-	int_list::reverse_iterator it;
-	for(it = m_triangles.rbegin(); it!=m_triangles.rend(); it++)
-	{
-		model->invertNormals(*it);
-	}
+	for(auto it = m_triangles.rbegin(); it!=m_triangles.rend(); it++)	
+	model->invertNormals(*it);	
 }
 
 bool MU_InvertNormal::combine(Undo *u)
 {
-	MU_InvertNormal *undo = dynamic_cast<MU_InvertNormal*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_InvertNormal*>(u))
 	{
-		int_list::iterator it;
-		for(it = undo->m_triangles.begin(); it!=undo->m_triangles.end(); it++)
-		{
-			addTriangle(*it);
-		}
-
+		for(auto it = undo->m_triangles.begin(); it!=undo->m_triangles.end(); it++)		
+		addTriangle(*it);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_InvertNormal::size()
@@ -559,26 +500,21 @@ unsigned MU_InvertNormal::size()
 
 void MU_InvertNormal::addTriangle(int triangle)
 {
-	int_list::iterator it;
-
-	for(it = m_triangles.begin(); it!=m_triangles.end(); it++)
+	for(auto it = m_triangles.begin(); it!=m_triangles.end(); it++)
+	if(triangle==*it)
 	{
-		if(triangle==*it)
-		{
-			/*2020: WRONG RIGHT?
-			//m_triangles.remove(triangle);
-			m_triangles.erase(it);
-			*/
-			return;
-		}
+		/*2020: WRONG RIGHT?
+		//m_triangles.remove(triangle);
+		m_triangles.erase(it);
+		*/
+		return;
 	}
-
 	m_triangles.push_back(triangle);
 }
 
 void MU_MoveUnanimated::undo(Model *model)
 {
-	log_debug("undo move vertex\n");
+	//log_debug("undo move vertex\n"); //???
 	
 	for(auto&ea:m_objects)
 	model->movePositionUnanimated(ea,ea.oldx,ea.oldy,ea.oldz);
@@ -591,13 +527,10 @@ void MU_MoveUnanimated::redo(Model *model)
 }
 bool MU_MoveUnanimated::combine(Undo *u)
 {
-	MU_MoveUnanimated *undo = dynamic_cast<MU_MoveUnanimated*>(u);
-
-	if(undo)
+	if(MU_MoveUnanimated*undo=dynamic_cast<MU_MoveUnanimated*>(u))
 	{
 		for(auto&ea:undo->m_objects)
 		addPosition(ea,ea.x,ea.y,ea.z,ea.oldx,ea.oldy,ea.oldz);
-
 		return true;
 	}
 	return false;
@@ -655,8 +588,8 @@ void MU_SetObjectUnanimated::_call_setter(Model *model, double *xyz)
 }
 bool MU_SetObjectUnanimated::combine(Undo *u)
 {
-	MU_SetObjectUnanimated *undo = dynamic_cast<MU_SetObjectUnanimated*>(u);
-	if(undo&&undo->pos==pos&&undo->vec==vec)
+	if(auto*undo=dynamic_cast<MU_SetObjectUnanimated*>(u))
+	if(undo->pos==pos&&undo->vec==vec)
 	{
 		memcpy(v,undo->v,sizeof(v)); return true;
 	}
@@ -682,44 +615,27 @@ void MU_SetObjectUnanimated::setXYZ(Model *m, double object[3], const double xyz
 
 void MU_SetTexture::undo(Model *model)
 {
-	log_debug("undo set texture\n");
-	SetTextureList::iterator it;
+	//log_debug("undo set texture\n"); //???
 
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setGroupTextureId(it->groupNumber,it->oldTexture);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)	
+	model->setGroupTextureId(it->groupNumber,it->oldTexture);
 }
 
 void MU_SetTexture::redo(Model *model)
 {
-	SetTextureList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setGroupTextureId(it->groupNumber,it->newTexture);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)	
+	model->setGroupTextureId(it->groupNumber,it->newTexture);	
 }
 
 bool MU_SetTexture::combine(Undo *u)
 {
-	MU_SetTexture *undo = dynamic_cast<MU_SetTexture*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetTexture*>(u))
 	{
-		SetTextureList::iterator it;
-
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			setTexture(it->groupNumber,it->newTexture,it->oldTexture);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)		
+		setTexture(it->groupNumber,it->newTexture,it->oldTexture);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetTexture::size()
@@ -729,15 +645,11 @@ unsigned MU_SetTexture::size()
 
 void MU_SetTexture::setTexture(unsigned groupNumber, int newTexture, int oldTexture)
 {
-	SetTextureList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->groupNumber==groupNumber)
 	{
-		if(it->groupNumber==groupNumber)
-		{
-			it->newTexture = newTexture;
-			return;
-		}
+		it->newTexture = newTexture;
+		return;
 	}
 
 	SetTextureT st;
@@ -749,50 +661,33 @@ void MU_SetTexture::setTexture(unsigned groupNumber, int newTexture, int oldText
 
 void MU_AddVertex::undo(Model *model)
 {
-	log_debug("undo add vertex\n");
+	//log_debug("undo add vertex\n"); //???
 
-	AddVertexList::reverse_iterator it;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->removeVertex(it->index);
-	}
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
+	model->removeVertex(it->index);
 }
 
 void MU_AddVertex::redo(Model *model)
 {
-	AddVertexList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->insertVertex(it->index,it->vertex);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)	
+	model->insertVertex(it->index,it->vertex);
 }
 
 bool MU_AddVertex::combine(Undo *u)
 {
-	MU_AddVertex *undo = dynamic_cast<MU_AddVertex*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_AddVertex*>(u))
 	{
-		AddVertexList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			addVertex(it->index,it->vertex);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		addVertex(it->index,it->vertex);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_AddVertex::redoRelease()
 {
-	AddVertexList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->vertex->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->vertex->release();
 }
 
 unsigned MU_AddVertex::size()
@@ -804,59 +699,41 @@ void MU_AddVertex::addVertex(unsigned index,Model::Vertex *vertex)
 {
 	if(vertex)
 	{
-		AddVertexT v;
-		v.index  = index;
-		v.vertex = vertex;
+		AddVertexT v; v.index  = index; v.vertex = vertex;
+
 		m_list.push_back(v);
 	}
 }
 
 void MU_AddTriangle::undo(Model *model)
 {
-	log_debug("undo add triangle\n");
+	//log_debug("undo add triangle\n"); //???
 
-	AddTriangleList::reverse_iterator it;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->removeTriangle(it->index);
-	}
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->removeTriangle(it->index);	
 }
 
 void MU_AddTriangle::redo(Model *model)
 {
-	AddTriangleList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->insertTriangle(it->index,it->triangle);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->insertTriangle(it->index,it->triangle);
 }
 
 bool MU_AddTriangle::combine(Undo *u)
 {
-	MU_AddTriangle *undo = dynamic_cast<MU_AddTriangle*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_AddTriangle*>(u))
 	{
-		AddTriangleList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			addTriangle(it->index,it->triangle);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		addTriangle(it->index,it->triangle);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_AddTriangle::redoRelease()
 {
-	AddTriangleList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->triangle->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->triangle->release();
 }
 
 unsigned MU_AddTriangle::size()
@@ -868,58 +745,41 @@ void MU_AddTriangle::addTriangle(unsigned index,Model::Triangle *triangle)
 {
 	if(triangle)
 	{
-		AddTriangleT v;
-		v.index  = index;
-		v.triangle = triangle;
+		AddTriangleT v; v.index  = index; v.triangle = triangle;
+
 		m_list.push_back(v);
 	}
 }
 
 void MU_AddGroup::undo(Model *model)
 {
-	log_debug("undo add group\n");
-	AddGroupList::reverse_iterator it;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->removeGroup(it->index);
-	}
+	///log_debug("undo add group\n"); //???
+	
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->removeGroup(it->index);
 }
 
 void MU_AddGroup::redo(Model *model)
 {
-	AddGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->insertGroup(it->index,it->group);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->insertGroup(it->index,it->group);
 }
 
 bool MU_AddGroup::combine(Undo *u)
 {
-	MU_AddGroup *undo = dynamic_cast<MU_AddGroup*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_AddGroup*>(u))
 	{
-		AddGroupList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			addGroup(it->index,it->group);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		addGroup(it->index,it->group);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_AddGroup::redoRelease()
 {
-	AddGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->group->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->group->release();
 }
 
 unsigned MU_AddGroup::size()
@@ -931,58 +791,41 @@ void MU_AddGroup::addGroup(unsigned index,Model::Group *group)
 {
 	if(group)
 	{
-		AddGroupT v;
-		v.index  = index;
-		v.group  = group;
+		AddGroupT v; v.index  = index; v.group  = group;
+
 		m_list.push_back(v);
 	}
 }
 
 void MU_AddTexture::undo(Model *model)
 {
-	log_debug("undo add texture\n");
-	AddTextureList::reverse_iterator it;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->removeTexture(it->index);
-	}
+	//log_debug("undo add texture\n"); //???
+
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->removeTexture(it->index);
 }
 
 void MU_AddTexture::redo(Model *model)
 {
-	AddTextureList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->insertTexture(it->index,it->texture);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->insertTexture(it->index,it->texture);
 }
 
 bool MU_AddTexture::combine(Undo *u)
 {
-	MU_AddTexture *undo = dynamic_cast<MU_AddTexture*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_AddTexture*>(u))
 	{
-		AddTextureList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			addTexture(it->index,it->texture);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		addTexture(it->index,it->texture);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_AddTexture::redoRelease()
 {
-	AddTextureList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->texture->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->texture->release();
 }
 
 unsigned MU_AddTexture::size()
@@ -994,49 +837,33 @@ void MU_AddTexture::addTexture(unsigned index,Model::Material *texture)
 {
 	if(texture)
 	{
-		AddTextureT v;
-		v.index  = index;
-		v.texture  = texture;
+		AddTextureT v; v.index  = index; v.texture  = texture;
+
 		m_list.push_back(v);
 	}
 }
 
 void MU_SetTextureCoords::undo(Model *model)
 {
-	STCList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setTextureCoords(it->triangle,it->vertexIndex,it->oldS,it->oldT);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setTextureCoords(it->triangle,it->vertexIndex,it->oldS,it->oldT);
 }
 
 void MU_SetTextureCoords::redo(Model *model)
 {
-	STCList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setTextureCoords(it->triangle,it->vertexIndex,it->s,it->t);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setTextureCoords(it->triangle,it->vertexIndex,it->s,it->t);
 }
 
 bool MU_SetTextureCoords::combine(Undo *u)
 {
-	MU_SetTextureCoords *undo = dynamic_cast<MU_SetTextureCoords*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetTextureCoords*>(u))
 	{
-		STCList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			addTextureCoords(it->triangle,it->vertexIndex,
-					it->s,it->t,it->oldS,it->oldT);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		addTextureCoords(it->triangle,it->vertexIndex,it->s,it->t,it->oldS,it->oldT);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetTextureCoords::size()
@@ -1068,40 +895,27 @@ void MU_SetTextureCoords::addTextureCoords(unsigned triangle, unsigned vertexInd
 
 void MU_AddToGroup::undo(Model *model)
 {
-	log_debug("undo add to group\n");
-	AddToGroupList::reverse_iterator it;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->removeTriangleFromGroup(it->groupNum,it->triangleNum);
-	}
+	//log_debug("undo add to group\n"); //???
+
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
+	model->removeTriangleFromGroup(it->groupNum,it->triangleNum);
 }
 
 void MU_AddToGroup::redo(Model *model)
 {
-	AddToGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->addTriangleToGroup(it->groupNum,it->triangleNum);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->addTriangleToGroup(it->groupNum,it->triangleNum);
 }
 
 bool MU_AddToGroup::combine(Undo *u)
 {
-	MU_AddToGroup *undo = dynamic_cast<MU_AddToGroup*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_AddToGroup*>(u))
 	{
-		AddToGroupList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			addToGroup(it->groupNum,it->triangleNum);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		addToGroup(it->groupNum,it->triangleNum);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_AddToGroup::size()
@@ -1111,58 +925,40 @@ unsigned MU_AddToGroup::size()
 
 void MU_AddToGroup::addToGroup(unsigned groupNum, unsigned triangleNum)
 {
-	AddToGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->triangleNum==triangleNum)
 	{
-		if(it->triangleNum==triangleNum)
-		{
-			it->groupNum = groupNum;
-			return;
-		}
+		it->groupNum = groupNum; return;
 	}
 
-	AddToGroupT add;
-	add.groupNum	 = groupNum;
-	add.triangleNum = triangleNum;
-	m_list.push_back(add);
+	AddToGroupT v; v.groupNum = groupNum; v.triangleNum = triangleNum;
+
+	m_list.push_back(v);
 }
 
 void MU_RemoveFromGroup::undo(Model *model)
 {
-	log_debug("undo remove from group\n");
-	RemoveFromGroupList::reverse_iterator it;
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->addTriangleToGroup(it->groupNum,it->triangleNum);
-	}
+	//log_debug("undo remove from group\n"); //???
+
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
+	model->addTriangleToGroup(it->groupNum,it->triangleNum);
 }
 
 void MU_RemoveFromGroup::redo(Model *model)
 {
-	RemoveFromGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->removeTriangleFromGroup(it->groupNum,it->triangleNum);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)	
+	model->removeTriangleFromGroup(it->groupNum,it->triangleNum);
 }
 
 bool MU_RemoveFromGroup::combine(Undo *u)
 {
-	MU_RemoveFromGroup *undo = dynamic_cast<MU_RemoveFromGroup*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_RemoveFromGroup*>(u))
 	{
-		RemoveFromGroupList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			removeFromGroup(it->groupNum,it->triangleNum);
-		}
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		removeFromGroup(it->groupNum,it->triangleNum);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_RemoveFromGroup::size()
@@ -1172,72 +968,48 @@ unsigned MU_RemoveFromGroup::size()
 
 void MU_RemoveFromGroup::removeFromGroup(unsigned groupNum, unsigned triangleNum)
 {
-	/*
-	RemoveFromGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	/*???
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->triangleNum==triangleNum)
 	{
-		if(it->triangleNum==triangleNum)
-		{
-			it->groupNum = groupNum;
-			return;
-		}
+		it->groupNum = groupNum; return;
 	}
 	*/
 
-	RemoveFromGroupT add;
-	add.groupNum	 = groupNum;
-	add.triangleNum = triangleNum;
-	m_list.push_back(add);
+	RemoveFromGroupT v; v.groupNum = groupNum; v.triangleNum = triangleNum;
+
+	m_list.push_back(v);
 }
 
 void MU_DeleteTriangle::undo(Model *model)
 {
-	log_debug("undo delete triangle\n");
-	DeleteTriangleList::reverse_iterator it;
+	//log_debug("undo delete triangle\n"); //???
 
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->insertTriangle(it->triangleNum,it->triangle);
-	}
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->insertTriangle(it->triangleNum,it->triangle);
 }
 
 void MU_DeleteTriangle::redo(Model *model)
 {
-	DeleteTriangleList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->removeTriangle(it->triangleNum);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->removeTriangle(it->triangleNum);
 }
 
 bool MU_DeleteTriangle::combine(Undo *u)
 {
-	MU_DeleteTriangle *undo = dynamic_cast<MU_DeleteTriangle*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_DeleteTriangle*>(u))
 	{
-		DeleteTriangleList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			deleteTriangle(it->triangleNum,it->triangle);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		deleteTriangle(it->triangleNum,it->triangle);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_DeleteTriangle::undoRelease()
 {
-	DeleteTriangleList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->triangle->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->triangle->release();
 }
 
 unsigned MU_DeleteTriangle::size()
@@ -1247,62 +1019,40 @@ unsigned MU_DeleteTriangle::size()
 
 void MU_DeleteTriangle::deleteTriangle(unsigned triangleNum,Model::Triangle *triangle)
 {
-	DeleteTriangleT del;
+	DeleteTriangleT v; v.triangleNum = triangleNum; v.triangle = triangle;
 
-	del.triangleNum = triangleNum;
-	del.triangle	 = triangle;
-
-	m_list.push_back(del);
+	m_list.push_back(v);
 }
 
 void MU_DeleteVertex::undo(Model *model)
 {
-	log_debug("undo delete vertex\n");
-	DeleteVertexList::reverse_iterator it;
+	//log_debug("undo delete vertex\n"); //???
 
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->insertVertex(it->vertexNum,it->vertex);
-	}
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->insertVertex(it->vertexNum,it->vertex);
 }
 
 void MU_DeleteVertex::redo(Model *model)
 {
-	DeleteVertexList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->removeVertex(it->vertexNum);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->removeVertex(it->vertexNum);
 }
 
 bool MU_DeleteVertex::combine(Undo *u)
 {
-	MU_DeleteVertex *undo = dynamic_cast<MU_DeleteVertex*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_DeleteVertex*>(u))
 	{
-		DeleteVertexList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			deleteVertex(it->vertexNum,it->vertex);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		deleteVertex(it->vertexNum,it->vertex);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_DeleteVertex::undoRelease()
 {
-	DeleteVertexList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->vertex->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->vertex->release();
 }
 
 unsigned MU_DeleteVertex::size()
@@ -1322,52 +1072,33 @@ void MU_DeleteVertex::deleteVertex(unsigned vertexNum,Model::Vertex *vertex)
 
 void MU_DeleteGroup::undo(Model *model)
 {
-	log_debug("undo delete group\n");
-	DeleteGroupList::reverse_iterator it;
-
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->insertGroup(it->groupNum,it->group);
-	}
+	//log_debug("undo delete group\n"); //???
+	
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->insertGroup(it->groupNum,it->group);
 }
 
 void MU_DeleteGroup::redo(Model *model)
 {
-	DeleteGroupList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->removeGroup(it->groupNum);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->removeGroup(it->groupNum);
 }
 
 bool MU_DeleteGroup::combine(Undo *u)
 {
-	MU_DeleteGroup *undo = dynamic_cast<MU_DeleteGroup*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_DeleteGroup*>(u))
 	{
-		DeleteGroupList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			deleteGroup(it->groupNum,it->group);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		deleteGroup(it->groupNum,it->group);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_DeleteGroup::undoRelease()
 {
-	DeleteGroupList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->group->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->group->release();
 }
 
 unsigned MU_DeleteGroup::size()
@@ -1377,62 +1108,40 @@ unsigned MU_DeleteGroup::size()
 
 void MU_DeleteGroup::deleteGroup(unsigned groupNum,Model::Group *group)
 {
-	DeleteGroupT del;
+	DeleteGroupT v; v.groupNum = groupNum; v.group = group;
 
-	del.groupNum = groupNum;
-	del.group	 = group;
-
-	m_list.push_back(del);
+	m_list.push_back(v);
 }
 
 void MU_DeleteTexture::undo(Model *model)
 {
-	log_debug("undo delete texture\n");
-	DeleteTextureList::reverse_iterator it;
+	//log_debug("undo delete texture\n"); //???
 
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->insertTexture(it->textureNum,it->texture);
-	}
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)	
+	model->insertTexture(it->textureNum,it->texture);
 }
 
 void MU_DeleteTexture::redo(Model *model)
 {
-	DeleteTextureList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->removeTexture(it->textureNum);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->removeTexture(it->textureNum);
 }
 
 bool MU_DeleteTexture::combine(Undo *u)
 {
-	MU_DeleteTexture *undo = dynamic_cast<MU_DeleteTexture*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_DeleteTexture*>(u))
 	{
-		DeleteTextureList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			deleteTexture(it->textureNum,it->texture);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		deleteTexture(it->textureNum,it->texture);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 void MU_DeleteTexture::undoRelease()
 {
-	DeleteTextureList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		it->texture->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	it->texture->release();
 }
 
 unsigned MU_DeleteTexture::size()
@@ -1442,89 +1151,54 @@ unsigned MU_DeleteTexture::size()
 
 void MU_DeleteTexture::deleteTexture(unsigned textureNum,Model::Material *texture)
 {
-	DeleteTextureT del;
+	DeleteTextureT v; v.textureNum = textureNum; v.texture = texture;
 
-	del.textureNum = textureNum;
-	del.texture	 = texture;
-
-	m_list.push_back(del);
+	m_list.push_back(v);
 }
 
 void MU_SetLightProperties::undo(Model *model)
 {
-	log_debug("undo set light properties\n");
-	LightPropertiesList::reverse_iterator it;
+	//log_debug("undo set light properties\n"); //???
 
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
 	{
 		if(it->isSet[0])
-		{
-			model->setTextureAmbient(it->textureNum,it->oldLight[0]);
-		}
+		model->setTextureAmbient(it->textureNum,it->oldLight[0]);		
 		if(it->isSet[1])
-		{
-			model->setTextureDiffuse(it->textureNum,it->oldLight[1]);
-		}
+		model->setTextureDiffuse(it->textureNum,it->oldLight[1]);		
 		if(it->isSet[2])
-		{
-			model->setTextureSpecular(it->textureNum,it->oldLight[2]);
-		}
+		model->setTextureSpecular(it->textureNum,it->oldLight[2]);
 		if(it->isSet[3])
-		{
-			model->setTextureEmissive(it->textureNum,it->oldLight[3]);
-		}
+		model->setTextureEmissive(it->textureNum,it->oldLight[3]);
 	}
 }
 
 void MU_SetLightProperties::redo(Model *model)
 {
-	LightPropertiesList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
 	{
-		if(it->isSet[0])
-		{
-			model->setTextureAmbient(it->textureNum,it->newLight[0]);
-		}
-		if(it->isSet[1])
-		{
-			model->setTextureDiffuse(it->textureNum,it->newLight[1]);
-		}
-		if(it->isSet[2])
-		{
-			model->setTextureSpecular(it->textureNum,it->newLight[2]);
-		}
-		if(it->isSet[3])
-		{
-			model->setTextureEmissive(it->textureNum,it->newLight[3]);
-		}
+		if(it->isSet[0])		
+		model->setTextureAmbient(it->textureNum,it->newLight[0]);		
+		if(it->isSet[1])		
+		model->setTextureDiffuse(it->textureNum,it->newLight[1]);		
+		if(it->isSet[2])		
+		model->setTextureSpecular(it->textureNum,it->newLight[2]);		
+		if(it->isSet[3])		
+		model->setTextureEmissive(it->textureNum,it->newLight[3]);
 	}
 }
 
 bool MU_SetLightProperties::combine(Undo *u)
 {
-	MU_SetLightProperties *undo = dynamic_cast<MU_SetLightProperties*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetLightProperties*>(u))
 	{
-		LightPropertiesList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			for(int t = 0; t<LightTypeMax; t++)
-			{
-				if(it->isSet[t])
-				{
-					setLightProperties(it->textureNum,(LightTypeE)t,it->newLight[t],it->oldLight[t]);
-				}
-			}
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		for(int t = 0; t<LightTypeMax; t++)
+		if(it->isSet[t])
+		setLightProperties(it->textureNum,(LightTypeE)t,it->newLight[t],it->oldLight[t]);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetLightProperties::size()
@@ -1534,29 +1208,25 @@ unsigned MU_SetLightProperties::size()
 
 void MU_SetLightProperties::setLightProperties(unsigned textureNum,LightTypeE type, const float *newLight, const float *oldLight)
 {
-	LightPropertiesList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->textureNum==textureNum)
 	{
-		if(it->textureNum==textureNum)
+		// Set old light if this is the first time we set this type
+		if(!it->isSet[type])
 		{
-			// Set old light if this is the first time we set this type
-			if(!it->isSet[type])
-			{
-				for(int n = 0; n<4; n++)
-				{
-					it->oldLight[type][n] = oldLight[n];
-				}
-			}
-
-			// Set new light for this type
-			it->isSet[type] = true;
 			for(int n = 0; n<4; n++)
 			{
-				it->newLight[type][n] = newLight[n];
+				it->oldLight[type][n] = oldLight[n];
 			}
-			return;
 		}
+
+		// Set new light for this type
+		it->isSet[type] = true;
+		for(int n = 0; n<4; n++)
+		{
+			it->newLight[type][n] = newLight[n];
+		}
+		return;
 	}
 
 	// Add new LightPropertiesT to list
@@ -1580,43 +1250,27 @@ void MU_SetLightProperties::setLightProperties(unsigned textureNum,LightTypeE ty
 
 void MU_SetShininess::undo(Model *model)
 {
-	log_debug("undo set shininess\n");
-	ShininessList::reverse_iterator it;
-
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
-	{
-		model->setTextureShininess(it->textureNum,it->oldValue);
-	}
+	//log_debug("undo set shininess\n"); //???
+	
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
+	model->setTextureShininess(it->textureNum,it->oldValue);
 }
 
 void MU_SetShininess::redo(Model *model)
 {
-	ShininessList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setTextureShininess(it->textureNum,it->newValue);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setTextureShininess(it->textureNum,it->newValue);
 }
 
 bool MU_SetShininess::combine(Undo *u)
 {
-	MU_SetShininess *undo = dynamic_cast<MU_SetShininess*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetShininess*>(u))
 	{
-		ShininessList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			setShininess(it->textureNum,it->newValue,it->oldValue);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		setShininess(it->textureNum,it->newValue,it->oldValue);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetShininess::size()
@@ -1626,15 +1280,11 @@ unsigned MU_SetShininess::size()
 
 void MU_SetShininess::setShininess(unsigned textureNum, const float &newValue, const float &oldValue)
 {
-	ShininessList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->textureNum==textureNum)
 	{
-		if(it->textureNum==textureNum)
-		{
-			it->newValue = newValue;
-			return;
-		}
+		it->newValue = newValue;
+		return;
 	}
 
 	// Add new ShininessT to list
@@ -1649,7 +1299,8 @@ void MU_SetShininess::setShininess(unsigned textureNum, const float &newValue, c
 
 void MU_SetTextureName::undo(Model *model)
 {
-	log_debug("undo set texture name\n");
+	//log_debug("undo set texture name\n"); //???
+
 	model->setTextureName(m_textureNum,m_oldName.c_str());
 }
 
@@ -1660,17 +1311,13 @@ void MU_SetTextureName::redo(Model *model)
 
 bool MU_SetTextureName::combine(Undo *u)
 {
-	MU_SetTextureName *undo = dynamic_cast<MU_SetTextureName*>(u);
-
+	if(auto*undo=dynamic_cast<MU_SetTextureName*>(u))
 	if(undo&&undo->m_textureNum==m_textureNum)
 	{
 		m_newName = undo->m_newName;
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetTextureName::size()
@@ -1680,17 +1327,14 @@ unsigned MU_SetTextureName::size()
 
 void MU_SetTextureName::setTextureName(unsigned textureNum, const char *newName, const char *oldName)
 {
-	m_textureNum = textureNum;
-	m_newName	 = newName;
-	m_oldName	 = oldName;
+	m_textureNum = textureNum; m_newName = newName; m_oldName = oldName;
 }
 
 void MU_SetTriangleVertices::undo(Model *model)
 {
-	log_debug("undo set triangle vertices\n");
-	TriangleVerticesList::reverse_iterator it;
-
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
+	//log_debug("undo set triangle vertices\n"); //???
+	
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
 	{
 		model->setTriangleVertices(it->triangleNum,
 				it->oldVertices[0],
@@ -1701,9 +1345,7 @@ void MU_SetTriangleVertices::undo(Model *model)
 
 void MU_SetTriangleVertices::redo(Model *model)
 {
-	TriangleVerticesList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
 	{
 		model->setTriangleVertices(it->triangleNum,
 				it->newVertices[0],
@@ -1714,12 +1356,9 @@ void MU_SetTriangleVertices::redo(Model *model)
 
 bool MU_SetTriangleVertices::combine(Undo *u)
 {
-	MU_SetTriangleVertices *undo = dynamic_cast<MU_SetTriangleVertices*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetTriangleVertices*>(u))
 	{
-		TriangleVerticesList::iterator it;
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
 		{
 			setTriangleVertices(it->triangleNum,
 					it->newVertices[0],
@@ -1729,13 +1368,9 @@ bool MU_SetTriangleVertices::combine(Undo *u)
 					it->oldVertices[1],
 					it->oldVertices[2]);
 		}
-
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetTriangleVertices::size()
@@ -1747,17 +1382,13 @@ void MU_SetTriangleVertices::setTriangleVertices(unsigned triangleNum,
 		unsigned newV1, unsigned newV2, unsigned newV3,
 		unsigned oldV1, unsigned oldV2, unsigned oldV3)
 {
-	TriangleVerticesList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)	
+	if(it->triangleNum==triangleNum)
 	{
-		if(it->triangleNum==triangleNum)
-		{
-			it->newVertices[0] = newV1;
-			it->newVertices[1] = newV2;
-			it->newVertices[2] = newV3;
-			return;
-		}
+		it->newVertices[0] = newV1;
+		it->newVertices[1] = newV2;
+		it->newVertices[2] = newV3;
+		return;
 	}
 
 	// Add new ShininessT to list
@@ -1791,19 +1422,15 @@ bool MU_SubdivideSelected::combine(Undo *u)
 
 void MU_SubdivideTriangle::undo(Model *model)
 {
-	log_debug("undo subdivide\n");
+	//log_debug("undo subdivide\n"); //???
 
-	SubdivideTriangleList::reverse_iterator it;
-
-	for(it = m_list.rbegin(); it!=m_list.rend(); it++)
+	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
 	{
 		//model->unsubdivideTriangles(it->a,it->b,it->c,it->d);
 		model->subdivideSelectedTriangles_undo(it->a,it->b,it->c,it->d);
 	}
 
-	std::vector<unsigned>::reverse_iterator iit;
-
-	for(iit = m_vlist.rbegin(); iit!=m_vlist.rend(); iit++)
+	for(auto iit = m_vlist.rbegin(); iit!=m_vlist.rend(); iit++)
 	{
 		model->deleteVertex(*iit);
 	}
@@ -1811,7 +1438,7 @@ void MU_SubdivideTriangle::undo(Model *model)
 
 bool MU_SubdivideTriangle::combine(Undo *u)
 {
-	if(auto undo=dynamic_cast<MU_SubdivideTriangle*>(u))
+	if(auto*undo=dynamic_cast<MU_SubdivideTriangle*>(u))
 	{
 		for(auto&ea:undo->m_list)
 		subdivide(ea.a,ea.b,ea.c,ea.d);
@@ -1823,14 +1450,14 @@ bool MU_SubdivideTriangle::combine(Undo *u)
 
 		return true;
 	}
-	else return false;
+	return false;
 }
 
 unsigned MU_SubdivideTriangle::size()
 {
 	return sizeof(MU_SubdivideTriangle)
-	  +m_list.size()*sizeof(SubdivideTriangleT)
-	  +m_vlist.size()*sizeof(int);
+	+m_list.size()*sizeof(SubdivideTriangleT)
+	+m_vlist.size()*sizeof(int);
 }
 
 void MU_SubdivideTriangle::subdivide(unsigned a, unsigned b, unsigned c, unsigned d)
@@ -1957,9 +1584,8 @@ void MU_SetAnimFPS::redo(Model *model)
 
 bool MU_SetAnimFPS::combine(Undo *u)
 {
-	MU_SetAnimFPS *undo = dynamic_cast<MU_SetAnimFPS*>(u);
-
-	if(undo&&undo->m_animNum==m_animNum)
+	if(auto*undo=dynamic_cast<MU_SetAnimFPS*>(u))
+	if(undo->m_animNum==m_animNum)
 	{
 		m_newFPS = undo->m_newFPS; return true;
 	}
@@ -1973,9 +1599,7 @@ unsigned MU_SetAnimFPS::size()
 
 void MU_SetAnimFPS::setFPS(unsigned animNum, double newFps, double oldFps)
 {
-	m_animNum	 = animNum;
-	m_newFPS	  = newFps;
-	m_oldFPS	  = oldFps;
+	m_animNum = animNum; m_newFPS = newFps; m_oldFPS = oldFps;
 }
 
 void MU_SetAnimWrap::undo(Model *model)
@@ -1988,9 +1612,8 @@ void MU_SetAnimWrap::redo(Model *model)
 }
 bool MU_SetAnimWrap::combine(Undo *u)
 {
-	MU_SetAnimWrap *undo = dynamic_cast<MU_SetAnimWrap*>(u);
-
-	if(undo&&undo->m_animNum==m_animNum)
+	if(auto*undo=dynamic_cast<MU_SetAnimWrap*>(u))
+	if(undo->m_animNum==m_animNum)
 	{
 		m_newLoop = undo->m_newLoop; return true;
 	}
@@ -2019,9 +1642,8 @@ void MU_SetAnimTime::redo(Model *model)
 }
 bool MU_SetAnimTime::combine(Undo *u)
 {
-	MU_SetAnimTime *undo = dynamic_cast<MU_SetAnimTime*>(u);
-
-	if(undo&&undo->m_animNum==m_animNum&&m_animFrame==undo->m_animFrame)
+	if(auto*undo=dynamic_cast<MU_SetAnimTime*>(u))
+	if(undo->m_animNum==m_animNum&&m_animFrame==undo->m_animFrame)
 	{
 		m_newTime = undo->m_newTime; return true;
 	}
@@ -2036,20 +1658,17 @@ void MU_SetAnimTime::setAnimFrameTime(unsigned animNum, unsigned frame, double n
 
 void MU_SetObjectKeyframe::undo(Model *model)
 {
-	for(auto&ea:m_keyframes)
+	for(auto&ea:m_keyframes) if(ea.isNew)
 	{
-		if(ea.isNew)
-		{
-			//log_debug("undoing new keyframe\n"); //???
+		//log_debug("undoing new keyframe\n"); //???
 			
-			model->removeKeyframe(m_anim,m_frame,ea,m_isRotation,true);			
-		}
-		else
-		{
-			//log_debug("undoing existing keyframe\n"); //???
+		model->removeKeyframe(m_anim,m_frame,ea,m_isRotation,true);			
+	}
+	else
+	{
+		//log_debug("undoing existing keyframe\n"); //???
 			
-			model->setKeyframe(m_anim,m_frame,ea,m_isRotation,ea.oldx,ea.oldy,ea.oldz,ea.olde);			
-		}
+		model->setKeyframe(m_anim,m_frame,ea,m_isRotation,ea.oldx,ea.oldy,ea.oldz,ea.olde);			
 	}
 
 	if(m_anim==model->getCurrentAnimation()) 
@@ -2066,11 +1685,10 @@ void MU_SetObjectKeyframe::redo(Model *model)
 }
 bool MU_SetObjectKeyframe::combine(Undo *u)
 {
-	MU_SetObjectKeyframe *undo = dynamic_cast<MU_SetObjectKeyframe*>(u);
-
-	if(undo&&undo->m_anim==m_anim&&undo->m_frame==m_frame&&m_isRotation==undo->m_isRotation)
+	if(auto*undo=dynamic_cast<MU_SetObjectKeyframe*>(u))
+	if(undo->m_anim==m_anim&&undo->m_frame==m_frame&&m_isRotation==undo->m_isRotation)
 	{
-		for(auto&ea:m_keyframes)
+		for(auto&ea:undo->m_keyframes)
 		addKeyframe(ea,ea.isNew,ea.x,ea.y,ea.z,ea.e,ea.oldx,ea.oldy,ea.oldz,ea.olde);
 		return true;
 	}
@@ -2126,21 +1744,18 @@ void MU_DeleteObjectKeyframe::redo(Model *model)
 }
 bool MU_DeleteObjectKeyframe::combine(Undo *u)
 {
-	MU_DeleteObjectKeyframe *undo = dynamic_cast<MU_DeleteObjectKeyframe*>(u);
-
-	if(undo&&m_anim==undo->m_anim&&m_frame==undo->m_frame)
+	if(auto*undo=dynamic_cast<MU_DeleteObjectKeyframe*>(u))
+	if(m_anim==undo->m_anim&&m_frame==undo->m_frame)
 	{
-		for(auto*ea:undo->m_list) deleteKeyframe(ea); return true;
+		for(auto*ea:undo->m_list) 
+		deleteKeyframe(ea); return true;
 	}
 	return false;
 }
 void MU_DeleteObjectKeyframe::undoRelease()
 {
-	DeleteKeyframeList::iterator it;
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		(*it)->release();
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	(*it)->release();
 }
 unsigned MU_DeleteObjectKeyframe::size()
 {
@@ -2174,8 +1789,7 @@ unsigned MU_SetObjectName::size()
 
 void MU_SetObjectName::setName(const char *newName, const char *oldName)
 {
-	m_newName = newName;
-	m_oldName = oldName;
+	m_newName = newName; m_oldName = oldName;
 }
 
 void MU_SetProjectionType::undo(Model *model)
@@ -2200,15 +1814,11 @@ unsigned MU_SetProjectionType::size()
 
 void MU_SetProjectionType::setType(unsigned projection, int newType, int oldType)
 {
-	m_projection = projection;
-	m_newType	 = newType;
-	m_oldType	 = oldType;
+	m_projection = projection; m_newType = newType; m_oldType = oldType;
 }
 
 void MU_MoveFrameVertex::undo(Model *model)
 {
-	MoveFrameVertexList::iterator it;
-
 	// Modify a vertex we already have
 	for(auto&ea:m_vertices)
 	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.oldx,ea.oldy,ea.oldz,ea.olde);	
@@ -2218,8 +1828,6 @@ void MU_MoveFrameVertex::undo(Model *model)
 }
 void MU_MoveFrameVertex::redo(Model *model)
 {
-	MoveFrameVertexList::iterator it;
-
 	// Modify a vertex we already have
 	for(auto&ea:m_vertices)
 	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.x,ea.y,ea.z,ea.e);
@@ -2229,11 +1837,11 @@ void MU_MoveFrameVertex::redo(Model *model)
 }
 bool MU_MoveFrameVertex::combine(Undo *u)
 {
-	MU_MoveFrameVertex *undo = dynamic_cast<MU_MoveFrameVertex*>(u);
-
-	if(undo&&undo->m_frame==m_frame&&undo->m_anim==m_anim)	
+	if(auto*undo=dynamic_cast<MU_MoveFrameVertex*>(u))
+	if(undo->m_frame==m_frame&&undo->m_anim==m_anim)	
 	{
-		for(auto&ea:undo->m_vertices) addVertex(ea); return true;
+		for(auto&ea:undo->m_vertices) 
+		addVertex(ea); return true;
 	}
 	return false;
 }
@@ -2281,10 +1889,7 @@ void MU_SetPositionInfluence::undo(Model *model)
 	{
 		model->removeInfluence(m_pos,m_index);
 	}
-	else
-	{
-		model->insertInfluence(m_pos,m_index,m_influence);
-	}
+	else model->insertInfluence(m_pos,m_index,m_influence);	
 }
 
 void MU_SetPositionInfluence::redo(Model *model)
@@ -2293,10 +1898,7 @@ void MU_SetPositionInfluence::redo(Model *model)
 	{
 		model->insertInfluence(m_pos,m_index,m_influence);
 	}
-	else
-	{
-		model->removeInfluence(m_pos,m_index);
-	}
+	else model->removeInfluence(m_pos,m_index);
 }
 
 bool MU_SetPositionInfluence::combine(Undo *u)
@@ -2343,9 +1945,7 @@ void MU_UpdatePositionInfluence::updatePositionInfluence(const Model::Position &
 		const Model::InfluenceT &newInf,
 		const Model::InfluenceT &oldInf)
 {
-	m_pos = pos;
-	m_newInf = newInf;
-	m_oldInf = oldInf;
+	m_pos = pos; m_newInf = newInf; m_oldInf = oldInf;
 }
 
 /*UNUSED
@@ -2480,44 +2080,27 @@ void MU_SetPointBoneJoint::setPointBoneJoint(const unsigned &point,
 
 void MU_SetTriangleProjection::undo(Model *model)
 {
-	log_debug("undo set triangle projection\n");
-	SetProjectionList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setTriangleProjection(it->triangle,it->oldProj);
-	}
+	//log_debug("undo set triangle projection\n"); //???
+	
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setTriangleProjection(it->triangle,it->oldProj);
 }
 
 void MU_SetTriangleProjection::redo(Model *model)
 {
-	SetProjectionList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setTriangleProjection(it->triangle,it->newProj);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setTriangleProjection(it->triangle,it->newProj);
 }
 
 bool MU_SetTriangleProjection::combine(Undo *u)
 {
-	MU_SetTriangleProjection *undo = dynamic_cast<MU_SetTriangleProjection*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetTriangleProjection*>(u))
 	{
-		SetProjectionList::iterator it;
-
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			setTriangleProjection(it->triangle,it->newProj,it->oldProj);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		setTriangleProjection(it->triangle,it->newProj,it->oldProj);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetTriangleProjection::size()
@@ -2528,15 +2111,10 @@ unsigned MU_SetTriangleProjection::size()
 void MU_SetTriangleProjection::setTriangleProjection(const unsigned &triangle,
 		const int &newProj, const int &oldProj)
 {
-	SetProjectionList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->triangle==triangle)
 	{
-		if(it->triangle==triangle)
-		{
-			it->newProj = newProj;
-			return;
-		}
+		it->newProj = newProj; return;
 	}
 
 	SetProjectionT sj;
@@ -2560,7 +2138,7 @@ bool MU_AddAnimation::combine(Undo *u)
 }
 void MU_AddAnimation::redoRelease()
 {
-	log_debug("releasing animation in redo\n");
+	//log_debug("releasing animation in redo\n"); //???
 	
 	if(m_animp) m_animp->release();
 }
@@ -2734,8 +2312,7 @@ unsigned MU_AddBoneJoint::size()
 }
 void MU_AddBoneJoint::addBoneJoint(unsigned jointNum,Model::Joint *joint)
 {
-	m_jointNum = jointNum;
-	m_joint	 = joint;
+	m_jointNum = jointNum; m_joint = joint;
 }
 
 void MU_AddPoint::undo(Model *model)
@@ -2765,8 +2342,7 @@ unsigned MU_AddPoint::size()
 
 void MU_AddPoint::addPoint(unsigned pointNum,Model::Point *point)
 {
-	m_pointNum = pointNum;
-	m_point	 = point;
+	m_pointNum = pointNum; m_point = point;
 }
 
 void MU_AddProjection::undo(Model *model)
@@ -2796,19 +2372,20 @@ unsigned MU_AddProjection::size()
 
 void MU_AddProjection::addProjection(unsigned projNum,Model::TextureProjection *proj)
 {
-	m_projNum = projNum;
-	m_proj	 = proj;
+	m_projNum = projNum; m_proj = proj;
 }
 
 void MU_DeleteBoneJoint::undo(Model *model)
 {
-	log_debug("undo delete joint\n");
+	//log_debug("undo delete joint\n"); //???
+
 	model->insertBoneJoint(m_jointNum,m_joint);
 }
 
 void MU_DeleteBoneJoint::redo(Model *model)
 {
-	log_debug("redo delete joint\n");
+	//log_debug("redo delete joint\n"); //???
+
 	model->removeBoneJoint(m_jointNum);
 }
 
@@ -2829,19 +2406,20 @@ unsigned MU_DeleteBoneJoint::size()
 
 void MU_DeleteBoneJoint::deleteBoneJoint(unsigned jointNum,Model::Joint *joint)
 {
-	m_jointNum = jointNum;
-	m_joint	 = joint;
+	m_jointNum = jointNum; m_joint = joint;
 }
 
 void MU_DeletePoint::undo(Model *model)
 {
-	log_debug("undo delete point\n");
+	//log_debug("undo delete point\n"); //???
+
 	model->insertPoint(m_pointNum,m_point);
 }
 
 void MU_DeletePoint::redo(Model *model)
 {
-	log_debug("redo delete point\n");
+	//log_debug("redo delete point\n"); //???
+
 	model->removePoint(m_pointNum);
 }
 
@@ -2862,19 +2440,20 @@ unsigned MU_DeletePoint::size()
 
 void MU_DeletePoint::deletePoint(unsigned pointNum,Model::Point *point)
 {
-	m_pointNum = pointNum;
-	m_point	 = point;
+	m_pointNum = pointNum; m_point = point;
 }
 
 void MU_DeleteProjection::undo(Model *model)
 {
-	log_debug("undo delete proj\n");
+	//log_debug("undo delete proj\n"); //???
+
 	model->insertProjection(m_projNum,m_proj);
 }
 
 void MU_DeleteProjection::redo(Model *model)
 {
-	log_debug("redo delete proj\n");
+	//log_debug("redo delete proj\n"); //???
+
 	model->removeProjection(m_projNum);
 }
 
@@ -2895,49 +2474,30 @@ unsigned MU_DeleteProjection::size()
 
 void MU_DeleteProjection::deleteProjection(unsigned projNum,Model::TextureProjection *proj)
 {
-	m_projNum = projNum;
-	m_proj	 = proj;
+	m_projNum = projNum; m_proj = proj;
 }
 
 void MU_SetGroupSmooth::undo(Model *model)
 {
-	SetSmoothList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setGroupSmooth(it->group,it->oldSmooth);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setGroupSmooth(it->group,it->oldSmooth);
 }
 
 void MU_SetGroupSmooth::redo(Model *model)
 {
-	SetSmoothList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setGroupSmooth(it->group,it->newSmooth);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setGroupSmooth(it->group,it->newSmooth);
 }
 
 bool MU_SetGroupSmooth::combine(Undo *u)
 {
-	MU_SetGroupSmooth *undo = dynamic_cast<MU_SetGroupSmooth*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetGroupSmooth*>(u))
 	{
-		SetSmoothList::iterator it;
-
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			setGroupSmooth(it->group,it->newSmooth,it->oldSmooth);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		setGroupSmooth(it->group,it->newSmooth,it->oldSmooth);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetGroupSmooth::size()
@@ -2948,15 +2508,11 @@ unsigned MU_SetGroupSmooth::size()
 void MU_SetGroupSmooth::setGroupSmooth(const unsigned &group,
 		const uint8_t &newSmooth, const uint8_t &oldSmooth)
 {
-	SetSmoothList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->group==group)
 	{
-		if(it->group==group)
-		{
-			it->newSmooth = newSmooth;
-			return;
-		}
+		it->newSmooth = newSmooth;
+		return;
 	}
 
 	SetSmoothT ss;
@@ -2968,43 +2524,25 @@ void MU_SetGroupSmooth::setGroupSmooth(const unsigned &group,
 
 void MU_SetGroupAngle::undo(Model *model)
 {
-	SetAngleList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setGroupAngle(it->group,it->oldAngle);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)	
+	model->setGroupAngle(it->group,it->oldAngle);
 }
 
 void MU_SetGroupAngle::redo(Model *model)
 {
-	SetAngleList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
-	{
-		model->setGroupAngle(it->group,it->newAngle);
-	}
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	model->setGroupAngle(it->group,it->newAngle);	
 }
 
 bool MU_SetGroupAngle::combine(Undo *u)
 {
-	MU_SetGroupAngle *undo = dynamic_cast<MU_SetGroupAngle*>(u);
-
-	if(undo)
+	if(auto*undo=dynamic_cast<MU_SetGroupAngle*>(u))
 	{
-		SetAngleList::iterator it;
-
-		for(it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
-		{
-			setGroupAngle(it->group,it->newAngle,it->oldAngle);
-		}
-
+		for(auto it = undo->m_list.begin(); it!=undo->m_list.end(); it++)
+		setGroupAngle(it->group,it->newAngle,it->oldAngle);
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetGroupAngle::size()
@@ -3015,15 +2553,11 @@ unsigned MU_SetGroupAngle::size()
 void MU_SetGroupAngle::setGroupAngle(const unsigned &group,
 		const uint8_t &newAngle, const uint8_t &oldAngle)
 {
-	SetAngleList::iterator it;
-
-	for(it = m_list.begin(); it!=m_list.end(); it++)
+	for(auto it = m_list.begin(); it!=m_list.end(); it++)
+	if(it->group==group)
 	{
-		if(it->group==group)
-		{
-			it->newAngle = newAngle;
-			return;
-		}
+		it->newAngle = newAngle;
+		return;
 	}
 
 	SetAngleT ss;
@@ -3045,17 +2579,12 @@ void MU_SetGroupName::redo(Model *model)
 
 bool MU_SetGroupName::combine(Undo *u)
 {
-	MU_SetGroupName *undo = dynamic_cast<MU_SetGroupName*>(u);
-
-	if(undo&&undo->m_groupNum==m_groupNum)
+	if(auto*undo=dynamic_cast<MU_SetGroupName*>(u))
+	if(undo->m_groupNum==m_groupNum)
 	{
-		m_newName = undo->m_newName;
-		return true;
+		m_newName = undo->m_newName; return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 unsigned MU_SetGroupName::size()
@@ -3136,10 +2665,7 @@ void MU_SetMaterialClamp::undo(Model *model)
 	{
 		model->setTextureSClamp(m_material,m_oldClamp);
 	}
-	else
-	{
-		model->setTextureTClamp(m_material,m_oldClamp);
-	}
+	else model->setTextureTClamp(m_material,m_oldClamp);
 }
 
 void MU_SetMaterialClamp::redo(Model *model)
@@ -3148,10 +2674,7 @@ void MU_SetMaterialClamp::redo(Model *model)
 	{
 		model->setTextureSClamp(m_material,m_newClamp);
 	}
-	else
-	{
-		model->setTextureTClamp(m_material,m_newClamp);
-	}
+	else model->setTextureTClamp(m_material,m_newClamp);
 }
 
 bool MU_SetMaterialClamp::combine(Undo *u)
@@ -3179,10 +2702,7 @@ void MU_SetMaterialTexture::undo(Model *model)
 	{
 		model->setMaterialTexture(m_material,m_oldTexture);
 	}
-	else
-	{
-		model->removeMaterialTexture(m_material);
-	}
+	else model->removeMaterialTexture(m_material);
 }
 
 void MU_SetMaterialTexture::redo(Model *model)
@@ -3191,10 +2711,7 @@ void MU_SetMaterialTexture::redo(Model *model)
 	{
 		model->setMaterialTexture(m_material,m_newTexture);
 	}
-	else
-	{
-		model->removeMaterialTexture(m_material);
-	}
+	else model->removeMaterialTexture(m_material);
 }
 
 bool MU_SetMaterialTexture::combine(Undo *u)
@@ -3210,9 +2727,7 @@ unsigned MU_SetMaterialTexture::size()
 void MU_SetMaterialTexture::setMaterialTexture(const unsigned &material,
 		Texture *newTexture,Texture *oldTexture)
 {
-	m_material = material;
-	m_newTexture = newTexture;
-	m_oldTexture = oldTexture;
+	m_material = material; m_newTexture = newTexture; m_oldTexture = oldTexture;
 }
 
 void MU_AddMetaData::undo(Model *model)
@@ -3238,8 +2753,7 @@ unsigned MU_AddMetaData::size()
 void MU_AddMetaData::addMetaData(const std::string &key,
 		const std::string &value)
 {
-	m_key	= key;
-	m_value = value;
+	m_key = key; m_value = value;
 }
 
 void MU_UpdateMetaData::undo(Model *model)
@@ -3265,9 +2779,7 @@ unsigned MU_UpdateMetaData::size()
 void MU_UpdateMetaData::updateMetaData(const std::string &key,
 		const std::string &newValue, const std::string &oldValue)
 {
-	m_key	= key;
-	m_newValue = newValue;
-	m_oldValue = oldValue;
+	m_key = key; m_newValue = newValue; m_oldValue = oldValue;
 }
 
 void MU_ClearMetaData::undo(Model *model)
@@ -3293,8 +2805,7 @@ unsigned MU_ClearMetaData::size()
 	Model::MetaDataList::iterator it;
 	for(it = m_list.begin(); it!=m_list.end(); it++)
 	{
-		s += it->key.size();
-		s += it->value.size();
+		s+=it->key.size()+it->value.size();
 	}
 	return s;
 }

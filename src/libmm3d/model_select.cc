@@ -58,7 +58,7 @@ bool Model::selectVertex(unsigned v)
 			{
 				auto undo = new MU_Select(SelectVertices);
 				undo->setSelectionDifference(v,true,false);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -89,7 +89,7 @@ bool Model::selectTriangle(unsigned t)
 			{
 				auto undo = new MU_Select(SelectTriangles);
 				undo->setSelectionDifference(t,true,false);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 		else for(int i:m_triangles[t]->m_vertexIndices)
@@ -110,14 +110,14 @@ bool Model::selectGroup(unsigned m)
 	{
 		if(!m_selecting) //2020: make foolproof?
 		{
-			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionGroups|SelectionVertices|SelectionFaces; //2019
+			//m_changeBits |= SelectionChange;			
+			m_changeBits |= SelectionGroups; //2019
 		
 			if(m_undoEnabled)
 			{
 				auto undo = new MU_Select(SelectGroups);
 				undo->setSelectionDifference(m,true,false);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -145,7 +145,7 @@ bool Model::selectBoneJoint(unsigned j)
 			{
 				auto undo = new MU_Select(SelectJoints);
 				undo->setSelectionDifference(j,true,false);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -169,7 +169,7 @@ bool Model::selectPoint(unsigned p)
 			{
 				auto undo = new MU_Select(SelectPoints);
 				undo->setSelectionDifference(p,true,false);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -193,7 +193,7 @@ bool Model::selectProjection(unsigned p)
 			{
 				auto undo = new MU_Select(SelectProjections);
 				undo->setSelectionDifference(p,true,false);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 
 		}
@@ -235,7 +235,7 @@ bool Model::unselectVertex(unsigned v)
 			{
 				auto undo = new MU_Select(SelectVertices);
 				undo->setSelectionDifference(v,false,true);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -259,7 +259,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 			{
 				auto undo = new MU_Select(SelectTriangles);
 				undo->setSelectionDifference(t,false,true);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -305,7 +305,7 @@ bool Model::unselectGroup(unsigned m)
 			{
 				auto undo = new MU_Select(SelectGroups);
 				undo->setSelectionDifference(m,false,true);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}					
 		bool o = setUndoEnabled(false);
@@ -338,7 +338,7 @@ bool Model::unselectBoneJoint(unsigned j)
 			{
 				auto undo = new MU_Select(SelectJoints);
 				undo->setSelectionDifference(j,false,true);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -362,7 +362,7 @@ bool Model::unselectPoint(unsigned p)
 			{
 				auto undo = new MU_Select(SelectPoints);
 				undo->setSelectionDifference(p,false,true);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -386,7 +386,7 @@ bool Model::unselectProjection(unsigned p)
 			{
 				auto undo = new MU_Select(SelectProjections);
 				undo->setSelectionDifference(p,false,true);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 		}
 
@@ -1540,7 +1540,7 @@ namespace
 				for(;i<iN;i++)			
 				if(l[i]->m_selected!=l[i]->m_marked)
 				undo->setSelectionDifference(i,l[i]->m_selected,l[i]->m_marked);
-				//sendUndo(undo/*,true*/);
+				//sendUndo(undo);
 			}
 		}
 	};
@@ -2081,7 +2081,7 @@ bool Model::selectAllVertices(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionVertices; //2020
 
-	sendUndo(undo/*,true*/); return true;
+	sendUndo(undo); return true;
 }
 bool Model::selectAllTriangles(bool how)
 {
@@ -2113,7 +2113,7 @@ bool Model::selectAllTriangles(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionFaces; //2020
 	
-	sendUndo(undo/*,true*/); return true;
+	sendUndo(undo); return true;
 }
 bool Model::selectAllGroups(bool how)
 {
@@ -2145,7 +2145,7 @@ bool Model::selectAllGroups(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionGroups; //2020
 
-	sendUndo(undo/*,true*/); return true;
+	sendUndo(undo); return true;
 }
 bool Model::selectAllBoneJoints(bool how)
 {
@@ -2177,7 +2177,7 @@ bool Model::selectAllBoneJoints(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionJoints; //2020
 
-	sendUndo(undo/*,true*/); return ret;
+	sendUndo(undo); return ret;
 }
 bool Model::selectAllPoints(bool how)
 {
@@ -2209,7 +2209,7 @@ bool Model::selectAllPoints(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionPoints; //2020
 
-	sendUndo(undo/*,true*/); return ret;
+	sendUndo(undo); return ret;
 }
 bool Model::selectAllProjections(bool how)
 {
@@ -2241,7 +2241,7 @@ bool Model::selectAllProjections(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionProjections; //2020
 
-	sendUndo(undo/*,true*/); return ret;
+	sendUndo(undo); return ret;
 }
 bool Model::selectAllPositions(PositionTypeE pt, bool how)
 {
