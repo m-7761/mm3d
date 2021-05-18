@@ -2,7 +2,7 @@
 Simplified fork of Maverick/Misfit Model 3D meant for improving core data model.
 
 # demo for Windows users
-https://github.com/mick-p1982/mm3d/releases/tag/win32-demo2
+https://github.com/mick-p1982/mm3d/releases/tag/win32-demo2c
 
 ![MM3D headeater smaller](https://user-images.githubusercontent.com/18209495/77861427-77816780-71da-11ea-895b-965de28f11ce.png)
 
