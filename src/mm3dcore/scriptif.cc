@@ -177,8 +177,7 @@ int scriptif_modelCreateBoneJoint(Model *model, const char *name,
 // Primitive Manipulation
 //-----------------------------------------------------------------------------
 
-void scriptif_vertexSetCoords(Model *model, unsigned vertexIndex,
-		double x, double y, double z)
+void scriptif_vertexSetCoords(Model *model, unsigned vertexIndex, double x, double y, double z)
 {
 	model->moveVertex(vertexIndex,x,y,z);
 }
@@ -202,11 +201,10 @@ void scriptif_groupSetTexture(Model *model, unsigned groupId, unsigned textureId
 void scriptif_faceSetTextureCoords(Model *model, unsigned faceId, unsigned vertexIndex,
 	  double s, double t)
 {
-	model->setTextureCoords(faceId,vertexIndex,s,t);
+	model->setTextureCoords(faceId,vertexIndex,(float)s,(float)t);
 }
 
-void scriptif_selectedRotate(Model *model,
-		double x, double y, double z)
+void scriptif_selectedRotate(Model *model, double x, double y, double z)
 {
 	double rot[3] = { 0,0,0 };
 	double vec[3] = { 0,0,0 };
@@ -220,8 +218,7 @@ void scriptif_selectedRotate(Model *model,
 	model->rotateSelected(m,vec);
 }
 
-void scriptif_selectedTranslate(Model *model,
-		double x, double y, double z)
+void scriptif_selectedTranslate(Model *model, double x, double y, double z)
 {
 	double trans[3] = { x,y,z };
 
@@ -231,8 +228,7 @@ void scriptif_selectedTranslate(Model *model,
 	model->translateSelected(trans);
 }
 
-void scriptif_selectedScale(Model *model,
-		double x, double y, double z)
+void scriptif_selectedScale(Model *model, double x, double y, double z)
 {
 	double scale[3] = { 0,0,0 };
 
@@ -486,7 +482,7 @@ void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
 					model->setFrameAnimVertexCoords(animIndex,dest,v,x,y,z,e);
 				}
 				#ifdef NDEBUG
-				#error And points?
+//				#error And points?
 				#endif
 			}
 			break;

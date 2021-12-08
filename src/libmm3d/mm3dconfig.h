@@ -24,7 +24,7 @@
 //#include "config.h" //PREFIX //REMOVE ME
 #include "copyright.h" //MM3D_PRODUCT/COPYRIGHT
 
-#ifdef WIN32
+#ifdef _WIN32
 //#define HOME_MM3D				 "/Maverick Model 3D" 
 #define HOME_MM3D				 "/" MM3D_PRODUCT
 #elif defined __APPLE__
@@ -32,9 +32,9 @@
 #define HOME_MM3D				 "/Library/Application Support/" MM3D_PRODUCT
 #else
 #define HOME_MM3D				 "/.mm3d"
-#endif // WIN32
+#endif // _WIN32
 
-#ifdef WIN32
+#ifdef _WIN32
 #define SHARED_PLUGINS		  "/plugins" //"\\plugins"
 #define HOME_PLUGINS			 "/plugins" //"\\plugins"
 #else
@@ -43,15 +43,15 @@
 #define SHARED_PLUGINS		  PREFIX "/share/mm3d/plugins"
 #endif
 #define HOME_PLUGINS			 "/plugins"
-#endif // WIN32
+#endif // _WIN32
 
-#ifdef WIN32
+#ifdef _WIN32
 #define HOME_RC					"/mm3drc" //"\\mm3drc"
 #else
 #define HOME_RC					"/mm3drc"
-#endif // WIN32
+#endif // _WIN32
 
-#ifdef WIN32
+#ifdef _WIN32
 #define DOC_ROOT				"/doc/html"  //"\\doc\\html"
 #define I18N_ROOT				"/i18n" //"\\i18n"
 #else
@@ -60,13 +60,13 @@
 #define DOC_ROOT				  PREFIX "/share/doc/mm3d/html"
 #endif
 #define I18N_ROOT				 PREFIX "/share/mm3d/i18n"
-#endif // WIN32
+#endif // _WIN32
 
 #define DIR_SLASH				 '/'
 
-#ifdef WIN32
+#ifdef _WIN32
 #define FILE_NEWLINE			 "\r\n"
 #else
 #define FILE_NEWLINE			 "\n"
-#endif // WIN32
+#endif // _WIN32
 

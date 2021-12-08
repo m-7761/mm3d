@@ -25,7 +25,7 @@
 #include "filedatasource.h"
 #include "misc.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 FileDataSource::FileDataSource(const char *filename)
 	: m_mustClose(false)
 {
@@ -212,5 +212,5 @@ bool FileDataSource::internalReadAt(off_t offset, const uint8_t ** buf, size_t *
 	*bufLen = bytes;
 	return true;
 }
-#endif // WIN32
+#endif // _WIN32
 

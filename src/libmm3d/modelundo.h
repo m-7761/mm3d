@@ -1472,7 +1472,7 @@ class MU_SetFrameAnimPointCount : public ModelUndo
 		unsigned m_oldCount;
 };*/
 
-class MU_SetMaterialClamp : public ModelUndo
+class MU_SetMaterialBool : public ModelUndo //MU_SetMaterialClamp
 {
 	public:
 
@@ -1482,14 +1482,14 @@ class MU_SetMaterialClamp : public ModelUndo
 
 		unsigned size();
 
-		void setMaterialClamp(const unsigned &material, const bool &isS,
-				const bool &newClamp, const bool &oldClamp);
+		MU_SetMaterialBool(unsigned material, char how, bool newBool, bool oldBool);
 
 	private:
 		unsigned m_material;
-		bool m_isS;
-		bool m_oldClamp;
-		bool m_newClamp;
+		//bool m_isS;
+		char m_how;
+		bool m_old;
+		bool m_new;
 };
 
 class MU_SetMaterialTexture : public ModelUndo

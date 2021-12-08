@@ -58,6 +58,7 @@ struct TextureWin : Win
 	wrap_nav(column_nav),
 	wrap_x(wrap_nav,"",'X'),
 	wrap_y(wrap_nav,"",'Y'),
+	accumulate(wrap_nav,"",'A'), //2021
 	browse_nav(main),
 	source(browse_nav,"",id_source),
 	browse(browse_nav,"...",id_browse),
@@ -77,6 +78,15 @@ struct TextureWin : Win
 		browse_nav.expand().space(0);
 		source.expand();
 		browse.ralign().span(0).drop(source.drop());
+
+		//2021
+		accumulate.expand(); 
+		wrap_nav.expand();
+		column_nav.expand();
+		r.expand();
+		g.expand();
+		b.expand();
+		a.expand();
 
 		active_callback = &TextureWin::submit;
 
@@ -98,6 +108,7 @@ struct TextureWin : Win
 	canvas void1;
 	row wrap_nav;
 	dropdown wrap_x,wrap_y;
+	dropdown accumulate;
 	f1_ok_cancel_panel f1_ok_cancel;
 
 	Widget texture;
@@ -130,6 +141,8 @@ void TextureWin::submit(int id)
 
 		wrap_x.add_item(0,"Wrap X").add_item(1,"Clamp X");
 		wrap_y.add_item(0,"Wrap Y").add_item(1,"Clamp Y");
+
+		accumulate.add_item(0,"Alpha Blend").add_item(1,"Accumulate");
 		
 		column1.select_id(config.get("ui_texwin_preview_index",false))
 		.add_item(false,"Flat Preview")
@@ -193,6 +206,11 @@ void TextureWin::submit(int id)
 		
 		model->setTextureTClamp(m,wrap_y&1);
 		texture.setTClamp(wrap_y&1);
+		break;
+
+	case 'A': //2021
+
+		model->setTextureBlendMode(m,1==(int)accumulate);
 		break;
 
 	case id_scene:
@@ -305,6 +323,8 @@ void TextureWin::material_selected()
 
 		texture.setSClamp(1&wrap_x.select_id(model->getTextureSClamp(m)));
 		texture.setTClamp(1&wrap_y.select_id(model->getTextureTClamp(m)));
+
+		accumulate.select_id(model->getTextureBlendMode(m));
 	}	
 	texture.setTexture(m);
 	source.set_text(model->getTextureFilename(m));

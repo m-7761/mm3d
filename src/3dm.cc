@@ -63,7 +63,8 @@ extern int main(int argc, char *argv[])
 {
 	int rval = 0;
 	
-	#ifdef WIN32
+	/*2021: ui.cc now has code that does this... it may conflict
+	#ifdef _WIN32
 	// If started from command prompt,print messages there.
 	// TODO: If AttachConsole()returns 0 and specified arguments
 	// --debug,--warnings,or --errors run AllocConsole()
@@ -74,7 +75,7 @@ extern int main(int argc, char *argv[])
 		freopen("CONOUT$","w",stdout);
 		freopen("CONOUT$","w",stderr);
 	}
-	#endif
+	#endif*/
 
 	log_profile_init("profile_data.txt");
 

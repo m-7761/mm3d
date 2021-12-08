@@ -240,7 +240,7 @@ static bool win_widget_wheel(Widgets95::ui *ui, int wh, int x, int y, int cm)
 //Reminder: Theoretically this is a moving target since 
 //the size may change a few times before it's displayed.
 static void win_reshape(Widgets95::ui *ui, int w, int h)
-{	
+{
 	if(!ui->seen()) if(1) //Mouse?
 	{
 		glutSetWindow(ui->glut_window_id());

@@ -370,9 +370,14 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		loadTextures();
 	}
 
-
-	if(!m_validBspTree)
-	if(drawOptions&DO_ALPHA)
+	//2021: BspTree::render requires viewPoint
+	//(can viewPoint be nonzero?)
+	//
+	// TODO! if models just use additive blending
+	// bspTree is overkill (two passes can do it)
+	//
+	bool alpha = drawOptions&DO_ALPHA&&viewPoint;
+	if(alpha&&!m_validBspTree)
 	{
 		calculateBspTree();
 	}
@@ -395,16 +400,14 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	{
 		Group *grp = m_groups[m];
 
-		if(0!=(drawOptions&DO_TEXTURE))
+		if(drawOptions&DO_TEXTURE)
 		{
 			glColor3f(1,1,1);
 			if(grp->m_materialIndex>=0)
 			{
 				int index = grp->m_materialIndex;
 
-				if((drawOptions &DO_ALPHA)
-				&&m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-				&&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
+				if(alpha&&m_materials[index]->needsAlpha())
 				{
 					// Alpha blended groups are drawn by bspTree later
 					for(unsigned triIndex:grp->m_triangleIndices)
@@ -422,7 +425,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 				glMaterialf(GL_FRONT,GL_SHININESS,m_materials[index]->m_shininess);
 
 				if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-				&&(!m_materials[index]->m_textureData->m_isBad||(drawOptions&DO_BADTEX)))
+				&&(!m_materials[index]->m_textureData->m_isBad||drawOptions&DO_BADTEX))
 				{
 					if(drawContext)					
 					glBindTexture(GL_TEXTURE_2D,drawContext->m_matTextures[grp->m_materialIndex]);
@@ -576,13 +579,12 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	}
 
 	// Draw depth-sorted alpha blended polys last
-	if(0!=(drawOptions&DO_ALPHA)&&viewPoint)
+	if(alpha)
 	{
 		glEnable(GL_BLEND);
 		m_bspTree.render(viewPoint,drawContext);
 		glDisable(GL_BLEND);
-	}
-	
+	}	
 
 	glDisable(GL_TEXTURE_2D);
 }
@@ -992,13 +994,6 @@ void Model::drawJoints(float a, float axis)
 			//Vector face(0,1,0);
 			Vector point = jvec-pvec;
 			double length = distance(pvec,jvec);
-
-			//TODO: The octohedrons can spin noticeably 
-			//under animation, since the positions move.
-			//In theory it would work to transform them.
-			#ifdef NDEBUG
-			#error Try to stabilize drawJoints in animation.
-			#endif
 
 			/*FIX ME
 			//This rolls around in the Top view.

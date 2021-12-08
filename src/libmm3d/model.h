@@ -31,6 +31,7 @@
 #include "bsptree.h"
 #include "drawcontext.h"
 #include "sorted_list.h"
+#include "texture.h"
 
 #ifdef MM3D_EDIT
 #include "undomgr.h"
@@ -573,33 +574,44 @@ class Model
 				MaterialTypeE m_type;			// See MaterialTypeE above
 
 				// Lighting values (RGBA,0.0 to 1.0)
-				float			m_ambient[4];
-				float			m_diffuse[4];
-				float			m_specular[4];
-				float			m_emissive[4];
+				float m_ambient[4];
+				float m_diffuse[4];
+				float m_specular[4];
+				float m_emissive[4];
 
 				// Lighting value 0 to 100.0
-				float			m_shininess;
+				float m_shininess;
 
-				uint8_t		 m_color[4][4];  // Unused
+				uint8_t m_color[4][4];  // Unused
 
 
 				// The clamp properties determine if the texture map wraps when crossing
 				// the 0.0 or 1.0 boundary (false)or if the pixels along the edge are
 				// used for coordinates outside the 0.0-1.0 limits (true).
-				bool			 m_sClamp;  // horizontal wrap/clamp
-				bool			 m_tClamp;  // vertical wrap/clamp
+				bool m_sClamp;  // horizontal wrap/clamp
+				bool m_tClamp;  // vertical wrap/clamp
+
+				bool m_accumulate; //2021: standard "additive" blend model
 
 				// Open GL texture index (not actually used in model editing
 				// viewports since each viewport needs its own texture index)
-				GLuint		  m_texture;
+				GLuint m_texture;
 
 				std::string	m_filename;		 // Absolute path to texture file (for MATTYPE_TEXTURE)
-				std::string	m_alphaFilename;  // Unused
-				Texture	  *m_textureData;	 // Texture data (for MATTYPE_TEXTURE)
+				std::string	m_alphaFilename;  // Unused (ms3dfilter.cc)
+				Texture *m_textureData;	 // Texture data (for MATTYPE_TEXTURE)
 
 				bool propEqual(const Material &rhs, int propBits=PropAll, double tolerance=0.00001)const;
 				bool operator==(const Material &rhs)const{ return propEqual(rhs); }
+
+				//2021: model_draw.cc was only considering RGBA textures
+				bool needsAlpha() 
+				{
+					//Note, glMaterial docs say only diffuse alpha matters
+					return m_accumulate||m_diffuse[3]!=1.0f
+					||m_type==MATTYPE_TEXTURE //m_textureData?
+					&&m_textureData->m_format==Texture::FORMAT_RGBA;
+				}
 
 			protected:
 				Material(),~Material();
@@ -1909,6 +1921,12 @@ class Model
 		bool getTextureTClamp(unsigned textureId)const;
 		bool setTextureSClamp(unsigned textureId, bool clamp);
 		bool setTextureTClamp(unsigned textureId, bool clamp);
+		//2021: true enables "additive" blending.
+		//NOTE: Other modes are pretty uncommon but if needed this
+		//can be promoted to an enum type... bear in mind bool can
+		//be saved as a "flag" in the MM3D format.
+		bool getTextureBlendMode(unsigned textureId)const;
+		bool setTextureBlendMode(unsigned textureId, bool accumulate);		
 
 		int_list getUngroupedTriangles()const;
 		//int_list getGroupTriangles(unsigned groupNumber)const;
@@ -2137,7 +2155,7 @@ class Model
 		double &xmin, double &ymin, double &xmax, double &ymax)const;
 
 		#ifdef NDEBUG
-		#error Need int_list versioin of setTriangleProjection
+//		#error Need int_list versioin of setTriangleProjection
 		#endif
 		void setTriangleProjection(unsigned triangleNum, int proj);
 		int getTriangleProjection(unsigned triangleNum)const;
@@ -2469,13 +2487,12 @@ class Model
 		void beginHideDifference();
 		void endHideDifference();
 
-		// When primitives of one type are hidden,other primitives may need to
+		// When primitives of one type are hidden, other primitives may need to
 		// be hidden at the same time.
-		void hideVerticesFromTriangles();
-		void unhideVerticesFromTriangles();
-
-		void hideTrianglesFromVertices();
-		void unhideTrianglesFromVertices();
+		void hideVerticesFromTriangles(); //UNUSED
+		void unhideVerticesFromTriangles(); //UNUSED
+		void hideTrianglesFromVertices(); //2021: this was modified //UNUSED
+		void unhideTrianglesFromVertices(); //UNUSED
 
 		// ------------------------------------------------------------------
 		// Selection

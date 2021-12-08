@@ -24,7 +24,7 @@
 #ifndef __PLUGINMGR_H
 #define __PLUGINMGR_H
 
-/*#ifdef WIN32
+/*#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif*/
@@ -32,7 +32,7 @@
 #include "mm3dtypes.h"
 #include "mm3dconfig.h"
 
-/*#ifdef WIN32
+/*#ifdef _WIN32
 typedef HMODULE LibHandle;
 #else
 typedef void *LibHandle;

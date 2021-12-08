@@ -2659,41 +2659,40 @@ void MU_SetFrameAnimPointCount::setCount(const unsigned &newCount, const unsigne
 	m_oldCount = oldCount;
 }*/
 
-void MU_SetMaterialClamp::undo(Model *model)
+void MU_SetMaterialBool::undo(Model *model)
 {
-	if(m_isS)
+	switch(m_how)
 	{
-		model->setTextureSClamp(m_material,m_oldClamp);
+	case 'S': model->setTextureSClamp(m_material,m_old); break;
+	case 'T': model->setTextureTClamp(m_material,m_old); break;
+	case 'A': model->setTextureBlendMode(m_material,m_old); break;
+	default: assert(0);
 	}
-	else model->setTextureTClamp(m_material,m_oldClamp);
 }
-
-void MU_SetMaterialClamp::redo(Model *model)
+void MU_SetMaterialBool::redo(Model *model)
 {
-	if(m_isS)
+	switch(m_how)
 	{
-		model->setTextureSClamp(m_material,m_newClamp);
+	case 'S': model->setTextureSClamp(m_material,m_new); break;
+	case 'T': model->setTextureTClamp(m_material,m_new); break;
+	case 'A': model->setTextureBlendMode(m_material,m_new); break;
+	default: assert(0);
 	}
-	else model->setTextureTClamp(m_material,m_newClamp);
 }
-
-bool MU_SetMaterialClamp::combine(Undo *u)
+bool MU_SetMaterialBool::combine(Undo *u)
 {
 	return false;
 }
-
-unsigned MU_SetMaterialClamp::size()
+unsigned MU_SetMaterialBool::size()
 {
-	return sizeof(MU_SetMaterialClamp);
+	return sizeof(MU_SetMaterialBool);
 }
-
-void MU_SetMaterialClamp::setMaterialClamp(const unsigned &material, const bool &isS,
-		const bool &newClamp, const bool &oldClamp)
+MU_SetMaterialBool::MU_SetMaterialBool(unsigned material, char how, bool newBool, bool oldBool)
 {
 	m_material = material;
-	m_isS = isS;
-	m_newClamp = newClamp;
-	m_oldClamp = oldClamp;
+	m_how = how;
+	m_new = newBool;
+	m_old = oldBool;
 }
 
 void MU_SetMaterialTexture::undo(Model *model)

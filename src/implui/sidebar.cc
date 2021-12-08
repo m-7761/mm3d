@@ -210,9 +210,9 @@ void SideBar::AnimPanel::refresh_list()
 	}
 	animation.select_id(m?a:-1);
 
-	//This is for AnimSetWin id_ok closure.
-	//It would probably be more kosher for
-	//AnimPanel to monitor Model::Observer.
+	//Note: This is causing the animation
+	//to begin playing, which an observer
+	//update does not
 	model.sync_animation_system();
 }
 

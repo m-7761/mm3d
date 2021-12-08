@@ -22,14 +22,14 @@
 
 #include "mm3dtypes.h" //PCH
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "Shellapi.h"
 #pragma comment(lib,"shlwapi.lib")
 #pragma comment(lib,"opengl32.lib")
 #pragma comment(lib,"glu32.lib")  
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -292,7 +292,7 @@ struct StdTexFilter : TextureFilter
 TextureFilter *ui_texfilter(){ return new StdTexFilter; }
 
 //Console "assert" always terminates :(
-#ifdef WIN32
+#ifdef _WIN32
 BOOL WINAPI wWinMain_CONSOLE_HandlerRoutine(DWORD dwCtrlType)
 {
 	switch(dwCtrlType)
@@ -317,8 +317,9 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 {
 	extern int main(int argc, char *argv[]);
 
-	#ifdef _DEBUG //compiler
 	_set_error_mode(_OUT_TO_MSGBOX); 
+
+	#ifdef _DEBUG //compiler
 	//Turns on windows heap debugging
 	#if HEAP_DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF|_CRTDBG_CHECK_CRT_DF/*|_CRTDBG_DELAY_FREE_MEM_DF*/);
@@ -328,8 +329,6 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 	//_crtDbgFlag|=_CRTDBG_CHECK_ALWAYS_DF; //careful
 	#endif
 	#endif
-
-#ifdef _CONSOLE
 
 	//Convert UTF16_LE to UTF8 and do CONSOLE stuff before main().
 	int argc = 0;
@@ -380,6 +379,5 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 	SetConsoleCtrlHandler(wWinMain_CONSOLE_HandlerRoutine,1);
 	UINT cp = GetConsoleOutputCP(); SetConsoleOutputCP(65001);	
 	int exit_code = main(argc,argv); SetConsoleOutputCP(cp); return exit_code;
-	#endif
 }
 #endif

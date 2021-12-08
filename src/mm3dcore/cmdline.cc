@@ -22,6 +22,8 @@
 
 #include "mm3dtypes.h" //PCH
 
+#include "copyright.h" //MM3D_PRODUCT
+
 #include "pluginmgr.h"
 #include "cmdline.h"
 #include "cmdlinemgr.h"
@@ -58,7 +60,8 @@ static cmdline_ModelList cmdline_models;
 
 static void cmdline_print_version()
 {
-	printf("\nMaverick Model 3D,version %s\n\n",VERSION_STRING);
+	//printf("\nMaverick Model 3D, version %s\n\n",VERSION_STRING);
+	puts("\n" MM3D_PRODUCT ", version " VERSION_STRING "\n\n");
 }
 
 static void cmdline_print_help(const char *progname)
@@ -95,9 +98,10 @@ static void cmdline_print_help(const char *progname)
 
 static void cmdline_print_sysinfo()
 {
-	printf("\nMaverick Model 3D,version %s\n\n",VERSION_STRING);
+	//printf("\nMaverick Model 3D,version %s\n\n",VERSION_STRING);
+	cmdline_print_version();
 
-#ifdef WIN32
+#ifdef _WIN32
 	// TODO: Get Windows version
 #else
 	FILE *fp = nullptr;

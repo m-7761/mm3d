@@ -112,7 +112,7 @@ struct AnimWin::Impl
 	int step_ms;
 	
 	void open2(bool undo);
-	void refresh_item();
+	void refresh_item(bool undo=false);
 	void refresh_undo();
 
 	void close();
@@ -443,6 +443,8 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 
 void AnimWin::modelChanged(int changeBits)
 {
+	if(changeBits&(Model::AnimationMode|Model::AnimationSet))
+	impl->refresh_undo();
 	if(changeBits&Model::AnimationProperty)
 	impl->frames_edited(model->getAnimTimeFrame(impl->anim));
 }
@@ -804,7 +806,7 @@ bool AnimWin::Impl::step()
 	return playing;
 }
 
-void AnimWin::Impl::refresh_item()
+void AnimWin::Impl::refresh_item(bool undo)
 {
 	//log_debug("refresh anim window page\n"); //???
 
@@ -835,7 +837,7 @@ void AnimWin::Impl::refresh_item()
 	win.model.views.timeline.set_range(0,frames);
 
 	//set_frame(frame)
-	double f; if(mode&&anim!=soft_anim)
+	double f; if(!undo&&mode&&anim!=soft_anim)
 	{
 		soft_anim = anim;
 
@@ -894,7 +896,7 @@ void AnimWin::Impl::refresh_undo()
 	model->setCurrentAnimation(anim,mode);
 	model->setCurrentAnimationFrame(frame,Model::AT_invalidateNormals); //???*/
 
-	refresh_item();
+	refresh_item(true);
 }
 
 void AnimWin::Impl::close()
@@ -1003,17 +1005,8 @@ void AnimWin::submit(int id)
 		model->operationComplete(::tr("Clear frame","Remove animation data from frame,operation complete"));
 		break;	
 
-	case id_edit_undo: //REMOVE ME
-		
-		log_debug("anim undo request\n"); //???
-		model->undo(); impl->refresh_undo();
-		break;
-
-	case id_edit_redo: //REMOVE ME
-		
-		log_debug("anim redo request\n"); //???
-		model->redo(); impl->refresh_undo();
-		break;
+	case id_edit_undo: assert(!id_edit_undo); break; //REMOVE ME
+	case id_edit_redo: assert(!id_edit_redo); break; //REMOVE ME
 			
 	case id_item:
 
@@ -1050,7 +1043,14 @@ void AnimWin::submit(int id)
 		break;
 
 	case id_animate_play: 
-		if(!impl->mode) submit(id_animate_mode);
+		if(!impl->mode)
+		{
+			if(!model->getAnimationCount())
+			return event.beep();
+			model.sidebar.anim_panel.nav.set();
+			impl->soft_anim = ~0; 
+			return impl->anim_selected(0);
+		}
 		//break;
 	case id_animate_stop: //This is now pseudo.
 

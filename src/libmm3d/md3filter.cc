@@ -1238,7 +1238,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 						mat->m_specular[3] = 1.0f;
 						mat->m_emissive[3] = 1.0f;
 						mat->m_shininess = 0.0f;
-						mat->m_alphaFilename = "";
+					//	mat->m_alphaFilename = "";
 						mat->m_name = getFileNameFromPath(textureFile.c_str());
 						mat->m_filename = textureFile;
 						modelMaterials.push_back(mat);
@@ -1476,7 +1476,7 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 					mat->m_emissive[3] = 1.0f;
 					mat->m_shininess = 0.0f;
 					mat->m_filename = textureFullName;
-					mat->m_alphaFilename = "";
+				//	mat->m_alphaFilename = "";
 					mat->m_name = getFileNameFromPath(textureFullName.c_str());
 					modelMaterials.push_back(mat);
 					if(!defaultSet)
@@ -2240,7 +2240,8 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 			}
 			//log_debug("Frame radius: %f\n",((float)radius));
 			m_dst->write((float)radius);
-			char name[16] = "MaverickModel3D"; // this is what other exporters do
+			//char name[16] = "MaverickModel3D"; // this is what other exporters do
+			char name[] = "Multimedia3D(MM3D)"; // this is what other exporters do
 			snprintf(name,sizeof(name),"%s%02d",animName.c_str(),t);
 			m_dst->writeBytes(name,sizeof(name));
 		}

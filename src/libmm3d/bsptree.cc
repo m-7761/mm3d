@@ -40,30 +40,29 @@ bool float_equiv(double rhs, double lhs)
 	return fabs(rhs-lhs)<0.0001f;
 }
 
-static void bsptree_setMaterial(DrawingContext *context, int texture,Model::Material *material)
+static void bsptree_setMaterial(DrawingContext *context, int texture, Model::Material *material)
 {
-	glMaterialfv(GL_FRONT,GL_AMBIENT,
-			material->m_ambient);
-	glMaterialfv(GL_FRONT,GL_DIFFUSE,
-			material->m_diffuse);
-	glMaterialfv(GL_FRONT,GL_SPECULAR,
-			material->m_specular);
-	glMaterialfv(GL_FRONT,GL_EMISSION,
-			material->m_emissive);
-	glMaterialf(GL_FRONT,GL_SHININESS,
-			material->m_shininess);
+	//2021: these modes are supported by Assimp and needed by games
+	int dst = material->m_accumulate?GL_ONE:GL_ONE_MINUS_SRC_ALPHA;
+	glBlendFunc(GL_SRC_ALPHA,dst);
 
-	context->m_currentTexture = texture;
+	glMaterialfv(GL_FRONT,GL_AMBIENT,material->m_ambient);
+	glMaterialfv(GL_FRONT,GL_DIFFUSE,material->m_diffuse);
+	glMaterialfv(GL_FRONT,GL_SPECULAR,material->m_specular);
+	glMaterialfv(GL_FRONT,GL_EMISSION,material->m_emissive);
+	glMaterialf(GL_FRONT,GL_SHININESS,material->m_shininess);
+
+	if(context) context->m_currentTexture = texture;
 
 	if(material->m_type==Model::Material::MATTYPE_TEXTURE)
 	{
-		glBindTexture(GL_TEXTURE_2D,
-				context->m_matTextures[context->m_currentTexture]);
+		if(context)
+		glBindTexture(GL_TEXTURE_2D,context->m_matTextures[context->m_currentTexture]);
+		else
+		glBindTexture(GL_TEXTURE_2D,material->m_texture); //2021
 
-		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
-				material->m_sClamp ? GL_CLAMP : GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
-				material->m_tClamp ? GL_CLAMP : GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,material->m_sClamp?GL_CLAMP:GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,material->m_tClamp?GL_CLAMP:GL_REPEAT);
 	}
 }
 
@@ -155,12 +154,16 @@ void BspTree::Poly::intersection(double *p1, double *p2, double *po, float &plac
 	place = oldPlace;
 }
 
-void BspTree::Poly::render(DrawingContext *context)
+void *BspTree::Poly::render(DrawingContext *context, void *compare)
 {
 	//printf("render triangle %d\n",id);
 
-	if(context->m_currentTexture!=texture)
+	//2021: this can't get other alpha sources
+	//if(context->m_currentTexture!=texture)
+	if(compare!=material)
 	{
+		compare = material;
+
 		glEnd();
 
 		bsptree_setMaterial(context,texture,static_cast<Model::Material*>(material));
@@ -178,6 +181,8 @@ void BspTree::Poly::render(DrawingContext *context)
 			glVertex3dv(coord[i]);
 		}
 	}
+
+	return compare; //2021
 }
 
 void BspTree::Poly::print()
@@ -201,14 +206,18 @@ void BspTree::render(double *point, DrawingContext *context)
 {
 	if(m_root)
 	{
-		bsptree_setMaterial(context,m_root->self->texture,static_cast<Model::Material*>(m_root->self->material));
+		bsptree_setMaterial(context,m_root->self->texture,
+		static_cast<Model::Material*>(m_root->self->material));
 		glEnable(GL_TEXTURE_2D); //???
 		{
 			glBegin(GL_TRIANGLES);
-			m_root->render(point,context);
+			m_root->render(point,context,m_root->self->material);
 			glEnd();
 		}
 		glDisable(GL_TEXTURE_2D); //NEW
+
+		//2021: restore in case m_accumulate used GL_ONE
+		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 	}
 }
 
@@ -666,7 +675,7 @@ void BspTree::Node::addChild(Node *n)
 	}
 }
 
-void BspTree::Node::render(double *point,DrawingContext *context)
+void *BspTree::Node::render(double *point, DrawingContext *context, void *compare)
 {
 	double d = dot_product(self->norm,point);
 
@@ -674,26 +683,32 @@ void BspTree::Node::render(double *point,DrawingContext *context)
 	{
 		if(right)
 		{
-			right->render(point,context);
+			compare = right->render(point,context,compare);
 		}
-		self->render(context);
+
+		compare = self->render(context,compare);
+
 		if(left)
 		{
-			left->render(point,context);
+			compare = left->render(point,context,compare);
 		}
 	}
 	else
 	{
 		if(left)
 		{
-			left->render(point,context);
+			compare = left->render(point,context,compare);
 		}
-		self->render(context);
+
+		compare = self->render(context,compare);
+
 		if(right)
 		{
-			right->render(point,context);
+			compare = right->render(point,context,compare);
 		}
 	}
+
+	return compare; //2021
 }
 
 void BspTree::Poly::stats()

@@ -41,16 +41,22 @@ static std::string s_pluginDir;
 static std::string s_sharedPluginDir;
 static std::string s_configFile;
 
-#ifdef WIN32
+#ifdef _WIN32
 
 // Gets the path to the current process's exe file
 static std::string getExecutablePath()
 {
 	std::string rval = "";
 	char execpath[MAX_PATH];
+	char execpath2[MAX_PATH];
 	DWORD length;
 
-	length = GetModuleFileNameA(nullptr,execpath,sizeof(execpath));
+	length = GetModuleFileNameA(nullptr,execpath2,sizeof(execpath));
+
+	//2021: Visual Studio generated paths fail FindFirstFile
+	//https://github.com/zturtleman/mm3d/issues/163
+	if(PathCanonicalizeA(execpath,execpath2))
+	length = strlen(execpath);
 
 	if(length>=sizeof(execpath))
 	{
@@ -121,7 +127,7 @@ void init_sysconf()
 	std::string majorMinor = VERSION; 
 	majorMinor.erase(majorMinor.rfind('.'));
 
-#ifdef WIN32 
+#ifdef _WIN32 
 	std::string path = getExecutablePath();
 
 	if(path.size()==0)

@@ -45,8 +45,8 @@ public:
 		double drawNormals[3][3];
 
 		int	texture;
-		void *material; // Yeah,yeah,I know... it's hackish
-		void *triangle; // Yeah,yeah,I know... it's hackish
+		void *material; // Yeah, yeah, I know... it's hackish
+		void *triangle; // Yeah, yeah, I know... it's hackish
 
 		float s[3];	 // texture coordinates
 		float t[3];
@@ -58,7 +58,7 @@ public:
 		void calculateD();
 		void intersection(double *p1, double *p2, double *po, float &place);
 
-		void render(DrawingContext *context);
+		void *render(DrawingContext *context, void *currentMaterial2021);
 
 		void print();
 
@@ -85,7 +85,7 @@ public:
 		static void stats();
 
 		void addChild(Node *n);
-		void render(double *point, DrawingContext *context);
+		void *render(double *point, DrawingContext *context, void *currentMaterial);
 
 		void splitNodes(int idx1, int idx2, int idx3,
 				double *p1, double *p2,Node *n1, Node *n2,
@@ -114,7 +114,7 @@ public:
 	~BspTree(){ clear(); };
 
 	void addPoly(Poly *p);
-	void render(double *point,DrawingContext *context);
+	void render(double *point, DrawingContext *context);
 
 	void clear();
 

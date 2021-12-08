@@ -683,7 +683,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 		mat->m_filename  = texturePath;
 
-		mat->m_alphaFilename = "";
+	//	mat->m_alphaFilename = "";
 
 		if(texmgr->getTexture(texturePath.c_str()))
 		{
@@ -750,7 +750,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 				mat->m_filename  = texturePath;
 
-				mat->m_alphaFilename = "";
+			//	mat->m_alphaFilename = "";
 
 				modelMaterials.push_back(mat);
 			}

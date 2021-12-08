@@ -22,7 +22,7 @@
 
 #include "mm3dtypes.h" //PCH
 
-#ifdef WIN32
+#ifdef _WIN32
 //#define WIN32_LEAN_AND_MEAN
 //#include <windows.h>
 //#include <shlwapi.h>
@@ -86,7 +86,7 @@ std::string getFileNameFromPath(const char *path)
 
 bool pathIsAbsolute(const char *path)
 {
-#if 0 //#ifdef WIN32
+#if 0 //#ifdef _WIN32
 	// FIXME?: PathIsRelativeW()returns FALSE for files without path.
 	std::wstring widePath = utf8PathToWide(path);
 	if(widePath.empty())
@@ -270,7 +270,7 @@ std::string fixAbsolutePath(const char *base, const char *path)
 				if(temp[0])
 				{
 					std::string rval = temp;
-#ifndef WIN32 // TODO: Use Win32 API
+#ifndef _WIN32 // TODO: Use Win32 API
 					DIR *dp = opendir(base);
 					if(dp)
 					{
@@ -289,7 +289,7 @@ std::string fixAbsolutePath(const char *base, const char *path)
 					{
 						log_error("%s: %s\n",base,strerror(errno));
 					}
-#endif // WIN32
+#endif // _WIN32
 					return rval;
 				}
 			}
@@ -366,7 +366,7 @@ std::string fixFileCase(const char *path, const char *file)
 {
 	std::string rval = file;
 
-#ifndef WIN32 // TODO: Use Win32 API
+#ifndef _WIN32 // TODO: Use Win32 API
 	if(DIR*dp=opendir(path))
 	{
 		for(struct dirent*d;d=readdir(dp);)
@@ -425,7 +425,7 @@ void getFileList(std::list<std::string> &l, const char *const path, const char *
 
 	unsigned len = strlen(name);
 
-#ifdef WIN32
+#ifdef _WIN32
 
 	std::string searchPath;
 	searchPath += path;
@@ -491,7 +491,7 @@ void getFileList(std::list<std::string> &l, const char *const path, const char *
 
 bool file_modifiedtime(const char *filename,time_t *modifiedtime)
 {
-#ifdef WIN32
+#ifdef _WIN32
 
 	*modifiedtime = 0;
 
@@ -540,7 +540,7 @@ bool file_modifiedtime(const char *filename,time_t *modifiedtime)
 
 bool file_exists(const char *filename)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	std::wstring wideString = utf8PathToWide(filename);
 	if(wideString.empty())
 	return false;
@@ -555,7 +555,7 @@ bool file_exists(const char *filename)
 
 bool is_directory(const char *filename)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	std::wstring wideString = utf8PathToWide(filename);
 	if(wideString.empty())
 	return false;
@@ -708,7 +708,7 @@ void utf8chrtrunc(std::string &str, size_t len)
 	if(len<str.size()) str.resize(len);
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 std::wstring utf8PathToWide(const char *filename)
 {
 	size_t wideSize = MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,filename,-1,nullptr,0);

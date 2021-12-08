@@ -368,6 +368,8 @@ namespace
 		// Type-specific flags
 		MF_MAT_CLAMP_S = 16,
 		MF_MAT_CLAMP_T = 32,
+
+		MF_MAT_ACCUMULATE = 256, //2021 (mm3d2021)
 	};
 
 	enum MisfitFrameAnimFlagsE
@@ -1047,27 +1049,29 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				break;
 			}
 
-			mat->m_sClamp = ((flags &MF_MAT_CLAMP_S)!=0);
-			mat->m_tClamp = ((flags &MF_MAT_CLAMP_T)!=0);
+			mat->m_sClamp = 0!=(flags&MF_MAT_CLAMP_S);
+			mat->m_tClamp = 0!=(flags&MF_MAT_CLAMP_T);
+			if(mm3d2021) //2021
+			mat->m_accumulate = 0!=(flags&MF_MAT_ACCUMULATE);
 
 			unsigned i = 0;
 			float32_t lightProp = 0;
-			for(i = 0; i<4; i++)
+			for(i=0;i<4;i++)
 			{
 				m_src->read(lightProp);
 				mat->m_ambient[i] = lightProp;
 			}
-			for(i = 0; i<4; i++)
+			for(i=0;i<4;i++)
 			{
 				m_src->read(lightProp);
 				mat->m_diffuse[i] = lightProp;
 			}
-			for(i = 0; i<4; i++)
+			for(i=0;i<4;i++)
 			{
 				m_src->read(lightProp);
 				mat->m_specular[i] = lightProp;
 			}
-			for(i = 0; i<4; i++)
+			for(i=0;i<4;i++)
 			{
 				m_src->read(lightProp);
 				mat->m_emissive[i] = lightProp;
@@ -1244,8 +1248,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			model->setBackgroundImage(cb.viewIndex,fileStr.c_str());
 			model->setBackgroundScale(cb.viewIndex,cb.scale);
-			model->setBackgroundCenter(cb.viewIndex,
-					cb.center[0],cb.center[1],cb.center[2]);
+			model->setBackgroundCenter(cb.viewIndex,cb.center[0],cb.center[1],cb.center[2]);
 		}
 	}
 
@@ -2635,6 +2638,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 			if(mat->m_sClamp) flags |= MF_MAT_CLAMP_S;
 			if(mat->m_tClamp) flags |= MF_MAT_CLAMP_T;
+			//if(mm3d2021) //2021
+			if(mat->m_accumulate) flags |= MF_MAT_ACCUMULATE;
 
 			m_dst->write(matSize);
 			m_dst->write(flags);

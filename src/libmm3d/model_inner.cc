@@ -508,6 +508,7 @@ void Model::Material::init()
 	m_type			 = MATTYPE_TEXTURE;
 	m_sClamp		  = false;
 	m_tClamp		  = false;
+	m_accumulate = false; //2021
 }
 
 int Model::Material::flush()

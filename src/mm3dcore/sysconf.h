@@ -25,7 +25,7 @@
 #define __SYSCONF_H
 
 /*???
-#ifndef WIN32
+#ifndef _WIN32
 #define HAVE_BASENAME
 #define HAVE_DIRNAME
 #endif*/

@@ -155,7 +155,7 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 void ViewBar::StatusBar::setStats()
 {
 	auto &sn = model.nselection;
-	int d[6][2] = 
+	unsigned int d[6][2] = //C4838
 	{
 		{m_model->getVertexCount(),sn[Model::PT_Vertex]},
 		{m_model->getTriangleCount(),model.fselection.size()},

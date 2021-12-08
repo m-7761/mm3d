@@ -55,7 +55,7 @@ typedef float float32_t;
 #include <assert.h> //2019
 
 //2019: Assuming have precompiled header.
-#ifdef WIN32
+#ifdef _WIN32
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN //sysconf.cc
 #include <Windows.h> //NEW

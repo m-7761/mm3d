@@ -25,7 +25,7 @@
 #include "filedatadest.h"
 #include "misc.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 FileDataDest::FileDataDest(const char *filename)
 	: m_startOffset(0),
 	  m_mustClose(false)
@@ -204,5 +204,5 @@ bool FileDataDest::internalWrite(const uint8_t *buf, size_t bufLen)
 
 	return true;
 }
-#endif // WIN32
+#endif // _WIN32
 

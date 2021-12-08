@@ -25,7 +25,7 @@
 
 #include "mm3dconfig.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 #define PLUGIN_API extern "C" __declspec(dllexport)
 #elif __GNUC__>=4
 #define PLUGIN_API extern "C" __attribute__((visibility("default")))

@@ -29,10 +29,10 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#endif // WIN32
+#endif // _WIN32
 
 #include "datadest.h"
 
@@ -57,11 +57,11 @@ class FileDataDest : public DataDest
 	private:
 		void sendErrno(int err);
 
-#ifdef WIN32
+#ifdef _WIN32
 		HANDLE m_handle;
 #else
 		FILE *m_fp;
-#endif // WIN32
+#endif // _WIN32
 		size_t m_startOffset;
 		bool m_mustClose;
 };

@@ -23,7 +23,7 @@
 //#include "config.h"
 #include "mm3dtypes.h" //PCH
 
-#ifdef WIN32
+#ifdef _WIN32
 //#define WIN32_LEAN_AND_MEAN
 //#include <windows.h>
 // FIXME: This requires Windows Vista.
@@ -38,7 +38,7 @@
 // TODO: Cache this instead of mallocing each time but still have some way to free it at shutdown.
 char *PORT_get_current_dir_name(void)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	DWORD length = GetCurrentDirectoryW(0,nullptr);
 	if(length==0)
 	{
@@ -127,7 +127,7 @@ char *PORT_get_current_dir_name(void)
 // realpath fails because the directories don't exist).
 char *PORT_realpath(const char *path,char *resolved_path, size_t len)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	char *rval = nullptr;
 	std::wstring widePath = utf8PathToWide(path);
 	if(!widePath.empty())
@@ -149,7 +149,7 @@ char *PORT_realpath(const char *path,char *resolved_path, size_t len)
 	}
 #else
 	char *rval = realpath(path,resolved_path);
-#endif // WIN32
+#endif // _WIN32
 	if(!rval)
 	{
 		if(len>0)
@@ -228,7 +228,7 @@ char *PORT_realpath(const char *path,char *resolved_path, size_t len)
 
 struct tm *PORT_localtime_r(const time_t *timep,struct tm *result)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	*result = *localtime(timep);
 #else
 	localtime_r(timep,result);
@@ -254,7 +254,7 @@ void PORT_gettimeofday(PORT_timeval *tv)
 
 char *PORT_asctime_r(const struct tm *tmval,char *buf)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	char *tmptmstr = asctime(tmval);
 	strcpy(buf,tmptmstr);
 #else
@@ -266,17 +266,17 @@ char *PORT_asctime_r(const struct tm *tmval,char *buf)
 /*
 int PORT_symlink(const char *oldpath, const char *newpath)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	return 0;
 #else
 	return symlink(oldpath,newpath);
-#endif // WIN32
+#endif // _WIN32
 }*/
 
 //mode_t requires a configuration script. It's hardly used.
 int PORT_mkdir(const char *pathname, /*mode_t*/size_t mode)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	(void)mode;
 	std::wstring widePath = utf8PathToWide(pathname);
 	if(widePath.empty())
@@ -295,7 +295,7 @@ int PORT_mkdir(const char *pathname, /*mode_t*/size_t mode)
 	return -1;
 #else
 	return mkdir(pathname,(mode_t)(0xFFFF&mode));
-#endif // WIN32
+#endif // _WIN32
 }
 
 /*STANDARD

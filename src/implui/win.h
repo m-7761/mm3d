@@ -294,6 +294,11 @@ struct Win : Widgets95::ui
 		
 		textbox value; //spinbox value; //FIX ME
 
+		void expand() //TESTING
+		{
+			value.ralign(); nav.expand(); slider.expand();
+		}
+
 		void set(int val)
 		{
 			slider.set_int_val(val); value.set_int_val(val);

@@ -1788,6 +1788,9 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 
 void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2)
 {
+	/*lock just seems to do better with deep models, and the
+	//results are unpredictable when "lock" is disabled above
+	//when drag-dropping models onto a single perspective view
 	if(lock) //2019
 	{
 		//HACK: This is just avoiding locking if 
@@ -1816,7 +1819,7 @@ void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double
 				}
 			}
 		}
-	}
+	}*/
 
 	//CAUTION: This is the only way to set Z translation
 	//for ortho views. The Rotate Tool sets its pivot on
@@ -1836,7 +1839,8 @@ void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double
 	m_viewMatrix.apply3(m_scroll);
 	m_viewMatrix.apply3(bounds);
 
-	width = fabs(bounds[0]); height = fabs(bounds[1]);
+	width = fabs(bounds[0]);
+	height = fabs(bounds[1]);
 
 	//NEW: Make zoom consistent for all viewports? Certainly
 	//looks better?

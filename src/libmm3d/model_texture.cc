@@ -475,37 +475,47 @@ void Model::removeMaterialTexture(unsigned textureId)
 	}
 }
 
-bool Model::setTextureSClamp(unsigned textureId,bool clamp)
+bool Model::setTextureSClamp(unsigned textureId, bool clamp)
 {
 	if(textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
 		{
-			auto undo = new MU_SetMaterialClamp;
-			undo->setMaterialClamp(textureId,true,clamp,
-					m_materials[textureId]->m_sClamp);
+			auto undo = new MU_SetMaterialBool
+			(textureId,'S',clamp,m_materials[textureId]->m_sClamp);
 			sendUndo(undo/*,true*/);
 		}
-
 		m_materials[textureId]->m_sClamp = clamp;
 		return true;
 	}
 	return false;
 }
-
-bool Model::setTextureTClamp(unsigned textureId,bool clamp)
+bool Model::setTextureTClamp(unsigned textureId, bool clamp)
 {
 	if(textureId<m_materials.size())
 	{
 		if(m_undoEnabled)
 		{
-			auto undo = new MU_SetMaterialClamp;
-			undo->setMaterialClamp(textureId,false,clamp,
-					m_materials[textureId]->m_tClamp);
+			auto undo = new MU_SetMaterialBool
+			(textureId,'T',clamp,m_materials[textureId]->m_tClamp);
 			sendUndo(undo/*,true*/);
 		}
-
 		m_materials[textureId]->m_tClamp = clamp;
+		return true;
+	}
+	return false;
+}
+bool Model::setTextureBlendMode(unsigned textureId, bool accumulate)
+{
+	if(textureId<m_materials.size())
+	{
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_SetMaterialBool
+			(textureId,'A',accumulate,m_materials[textureId]->m_accumulate);
+			sendUndo(undo/*,true*/);
+		}
+		m_materials[textureId]->m_accumulate = accumulate;
 		return true;
 	}
 	return false;
@@ -614,7 +624,6 @@ bool Model::getTextureSClamp(unsigned textureId)const
 	//return false; //2019
 	return true;
 }
-
 bool Model::getTextureTClamp(unsigned textureId)const
 {
 	if(textureId<m_materials.size())
@@ -622,6 +631,12 @@ bool Model::getTextureTClamp(unsigned textureId)const
 	//https://github.com/zturtleman/mm3d/issues/103
 	//return false; //2019
 	return true; 
+}
+bool Model::getTextureBlendMode(unsigned textureId)const
+{
+	if(textureId<m_materials.size())
+	return m_materials[textureId]->m_accumulate;
+	return false;
 }
 
 const char *Model::getTextureName(unsigned textureId)const

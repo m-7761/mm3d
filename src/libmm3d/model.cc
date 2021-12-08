@@ -2866,73 +2866,58 @@ void Model::hideTrianglesFromVertices()
 	//LOG_PROFILE(); //???
 
 	// Hide triangles with at least one vertex hidden
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	for(auto*ea:m_triangles)	
+	if(!m_vertices[ea->m_vertexIndices[0]]->m_visible
+	 ||!m_vertices[ea->m_vertexIndices[1]]->m_visible
+	 ||!m_vertices[ea->m_vertexIndices[2]]->m_visible )
 	{
-		if(	!m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_visible
-			  ||!m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_visible
-			  ||!m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_visible
-		  )
-		{
-			m_triangles[t]->m_visible = false;
-		}
+		ea->m_visible = false;
 	}
 }
-
 void Model::unhideTrianglesFromVertices()
 {
 	//LOG_PROFILE(); //???
 
 	// Hide triangles with at least one vertex hidden
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	for(auto*ea:m_triangles)	
+	if(m_vertices[ea->m_vertexIndices[0]]->m_visible
+	 &&m_vertices[ea->m_vertexIndices[1]]->m_visible
+	 &&m_vertices[ea->m_vertexIndices[2]]->m_visible)
 	{
-		if(	m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_visible
-			  &&m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_visible
-			  &&m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_visible
-		  )
-		{
-			m_triangles[t]->m_visible = true;
-		}
+		ea->m_visible = true;
 	}
 }
-
 void Model::hideVerticesFromTriangles()
 {
 	//LOG_PROFILE(); //???
 
+	/*REFERENCE
+	* 
+	* 2021: This is how this was implemented
+	* (refactored for readability)
+	* 
 	// Hide vertices with all triangles hidden
-	unsigned t;
+	for(auto*ea:m_vertices) ea->m_visible = false; //???
 
-	for(t = 0; t<m_vertices.size(); t++)
+	unhideVerticesFromTriangles();*/
+	//2021
+	//I'm not sure this is better but at least
+	//it has the same semantics as the others
+	for(auto*ea:m_triangles)
+	if(!ea->m_visible) for(int i:ea->m_vertexIndices)
 	{
-		m_vertices[t]->m_visible = false;
-	}
-
-	for(t = 0; t<m_triangles.size(); t++)
-	{
-		if(m_triangles[t]->m_visible)
-		{
-			for(int v = 0; v<3; v++)
-			{
-				m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_visible = true;
-			}
-		}
-	}
+		m_vertices[i]->m_visible = false;
+	}	
 }
-
 void Model::unhideVerticesFromTriangles()
 {
 	//LOG_PROFILE(); //???
 
 	// Unhide vertices with at least one triangle visible
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	for(auto*ea:m_triangles)	
+	if(ea->m_visible) for(int i:ea->m_vertexIndices)
 	{
-		if(m_triangles[t]->m_visible)
-		{
-			for(int v = 0; v<3; v++)
-			{
-				m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_visible = true;
-			}
-		}
+		m_vertices[i]->m_visible = true;
 	}
 }
 
@@ -4125,40 +4110,37 @@ void Model::calculateBspTree()
 		{
 			int index = grp->m_materialIndex;
 
-			if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-				  &&m_materials[index]->m_textureData->m_format==Texture::FORMAT_RGBA)
+			if(m_materials[index]->needsAlpha())			
+			for(int ti:grp->m_triangleIndices)
 			{
-				for(int ti:grp->m_triangleIndices)
-				{
-					Triangle *triangle = m_triangles[ti];
-					triangle->m_marked = true;
+				Triangle *triangle = m_triangles[ti];
+				triangle->m_marked = true;
 
-					BspTree::Poly *poly = BspTree::Poly::get();
+				BspTree::Poly *poly = BspTree::Poly::get();
 					
-					for(int i=0;i<3;i++)
-					{
-						poly->coord[0][i] = m_vertices[triangle->m_vertexIndices[0]]->m_absSource[i];
-						poly->coord[1][i] = m_vertices[triangle->m_vertexIndices[1]]->m_absSource[i];
-						poly->coord[2][i] = m_vertices[triangle->m_vertexIndices[2]]->m_absSource[i];
+				for(int i=0;i<3;i++)
+				{
+					poly->coord[0][i] = m_vertices[triangle->m_vertexIndices[0]]->m_absSource[i];
+					poly->coord[1][i] = m_vertices[triangle->m_vertexIndices[1]]->m_absSource[i];
+					poly->coord[2][i] = m_vertices[triangle->m_vertexIndices[2]]->m_absSource[i];
 
-						poly->drawNormals[0][i] = triangle->m_normalSource[0][i];
-						poly->drawNormals[1][i] = triangle->m_normalSource[1][i];
-						poly->drawNormals[2][i] = triangle->m_normalSource[2][i];
+					poly->drawNormals[0][i] = triangle->m_normalSource[0][i];
+					poly->drawNormals[1][i] = triangle->m_normalSource[1][i];
+					poly->drawNormals[2][i] = triangle->m_normalSource[2][i];
 
-						poly->norm[i] = triangle->m_flatSource[i];
-					}
-
-					for(int i = 0; i<3; i++)
-					{
-						poly->s[i] = triangle->m_s[i];
-						poly->t[i] = triangle->m_t[i];
-					}
-					poly->texture = index;
-					poly->material = static_cast<void*>(m_materials[index]);
-					poly->triangle = static_cast<void*>(triangle);
-					poly->calculateD();
-					m_bspTree.addPoly(poly);
+					poly->norm[i] = triangle->m_flatSource[i];
 				}
+
+				for(int i = 0; i<3; i++)
+				{
+					poly->s[i] = triangle->m_s[i];
+					poly->t[i] = triangle->m_t[i];
+				}
+				poly->texture = index;
+				poly->material = static_cast<void*>(m_materials[index]);
+				poly->triangle = static_cast<void*>(triangle);
+				poly->calculateD();
+				m_bspTree.addPoly(poly);
 			}
 		}
 	}

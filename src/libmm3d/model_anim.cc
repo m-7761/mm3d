@@ -1500,6 +1500,13 @@ bool Model::setCurrentAnimation(const RestorePoint &rp)
 }
 bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 {
+	//2021: calculateAnim is asserting/aborting on having the
+	//animation mode nonzero with no animations.
+	if(m&&m_anims.empty())
+	{
+		m = ANIMMODE_NONE; //I can't remember if this is best? 
+	}
+
 	//NOTE: It's important to not generate redundant undo
 	//objects since they may be used to determine if users
 	//should be prompted about losing work.
@@ -2482,7 +2489,7 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 				Quaternion vb; vb.setEulerAngles(dp);
 
 				#ifdef NDEBUG
-				#error Should use slerp algorithm!
+//				#error Should use slerp algorithm!
 				https://github.com/zturtleman/mm3d/issues/125
 				#endif				
 

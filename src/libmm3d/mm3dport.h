@@ -31,7 +31,7 @@
 #include <time.h>
 #include <stdarg.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #define PATH_MAX MAX_PATH //2019
 #endif
 
@@ -57,9 +57,9 @@ struct PORT_timeval
 void PORT_gettimeofday(PORT_timeval *tv);*/
 
 /*UNUSED
-#ifdef WIN32
+#ifdef _WIN32
 inline bool S_ISLNK(mode_t m){ return false; }
-#endif // WIN32
+#endif // _WIN32
 */
 
 //STANDARD

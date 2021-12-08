@@ -259,7 +259,7 @@ static void viewwin_mru(int id, char *add=nullptr)
 		if(len>sizeof(buf)-1) return; //FIX ME
 
 		memcpy(buf,add,len);
-		#ifdef WIN32
+		#ifdef _WIN32
 		for(char*p=buf+len;p-->buf;)
 		{
 			if(*p=='\\') *p = '/';
@@ -1047,7 +1047,7 @@ _prev_view(),_curr_view()
 		
 	viewwin_toolboxfunc(id_tool_none);	
 
-	//#ifdef WIN32
+	//#ifdef _WIN32
 	//The toolbar is 1px too close for comfort.
 	//Making room for shadow rules.
 	views.bar1.main->space<3>(2);
@@ -1080,7 +1080,7 @@ MainWin::~MainWin()
 	{
 		#ifdef _DEBUG
 		config.flush(); //keycfg.flush();
-		#ifdef WIN32
+		#ifdef _WIN32
 		//wxFileConfig and Model::Background sometimes crash
 		//deallocating std::string.
 		TerminateProcess(GetModuleHandle(nullptr),0); //Fast. 
@@ -1552,16 +1552,7 @@ void MainWin::undo()
 		//This string doesn't persist after the operation... might be a bug?
 		std::string buf = model->getUndoOpName();
 
-		if(!model->inAnimationMode()) //REMOVE ME
-		{
-			model->undo();
-
-			if(model->inAnimationMode()) //REMOVE ME
-			{
-				sync_animation_system();
-			}
-		}
-		else _animation_win->submit(id_edit_undo); //REMOVE ME
+		model->undo();
 		
 		model_status(model,StatusNormal,STATUSTIME_SHORT,::tr("Undo %s"),buf.c_str()); //"Undo %1"		
 
@@ -1586,16 +1577,7 @@ void MainWin::redo()
 		//This string doesn't persist after the operation... might be a bug?
 		std::string buf = model->getRedoOpName();
 
-		if(!model->inAnimationMode()) //REMOVE ME
-		{
-			model->redo();
-
-			if(model->inAnimationMode()) //REMOVE ME
-			{
-				sync_animation_system();
-			}
-		}
-		else _animation_win->submit(id_edit_redo); //REMOVE ME
+		model->redo();
 
 		/*REMOVE ME
 		if(model->getSelectedBoneJointCount()) 
@@ -2171,7 +2153,7 @@ void MainWin::perform_menu_action(int id)
 			bool &b = m->getJointList()[ea.index]->m_bone;
 			b = !b;
 			#ifdef NDEBUG
-			#error need undo/redo for id_joint_draw_bone 
+//			#error need undo/redo for id_joint_draw_bone 
 			#endif
 			//m->setSaved(false); //Doesn't do anything?
 		}
@@ -2384,7 +2366,7 @@ static void viewwin_mrumenufunc(int id)
 
 	char *str = const_cast<char*>(mru.c_str()+pos);
 
-	#ifdef WIN32
+	#ifdef _WIN32
 	for(char*p=str;*p;p++) if(*p=='\\') *p = '/';
 	#endif
 

@@ -39,7 +39,7 @@
 #define PLUGINS_ENABLED
 #endif // HAVE_DLOPEN
 
-#ifdef WIN32
+#ifdef _WIN32
 //#define WIN32_LEAN_AND_MEAN
 //#include <windows.h>
 // FIXME: This requires Windows Vista.
@@ -47,54 +47,54 @@
 #define WC_ERR_INVALID_CHARS 0x80
 #endif
 #define PLUGINS_ENABLED
-#endif // WIN32
+#endif // _WIN32
 
 static LibHandle pluginmgr_openLibrary(const char *filename)
 {
 	LibHandle h = nullptr;
-#ifdef WIN32
+#ifdef _WIN32
 	h = (HMODULE)LoadLibraryA(filename);
 #else
 #ifdef HAVE_DLOPEN
 	h = dlopen(filename,RTLD_NOW | RTLD_GLOBAL);
 #endif // HAVE_DLOPEN
-#endif // WIN32
+#endif // _WIN32
 	return h;
 }
 
 static void *pluginmgr_getFunction(LibHandle h, const char *funcName)
 {
 	void *ptr;
-#ifdef WIN32
+#ifdef _WIN32
 	ptr = (void *)GetProcAddress((HMODULE)h,funcName);
 #else
 #ifdef HAVE_DLOPEN
 	ptr = dlsym(h,funcName);
 #endif // HAVE_DLOPEN
-#endif // WIN32
+#endif // _WIN32
 	return ptr;
 }
 
 static void pluginmgr_closeLibrary(LibHandle h)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	FreeLibrary((HMODULE)h);
 #else
 #ifdef HAVE_DLOPEN
 	dlclose(h);
 #endif // HAVE_DLOPEN
-#endif // WIN32
+#endif // _WIN32
 }
 
 static const char *pluginmgr_getError()
 {
-#ifdef WIN32
+#ifdef _WIN32
 	return "windows error";
 #else
 #ifdef HAVE_DLOPEN
 	return dlerror();
 #endif // HAVE_DLOPEN
-#endif // WIN32
+#endif // _WIN32
 	return "";
 }
 
@@ -297,7 +297,7 @@ bool PluginManager::loadPluginDir(const char *pluginDir)
 {
 	if(pluginDir&&pluginDir[0])
 	{
-#ifdef WIN32
+#ifdef _WIN32
 		std::string searchPath;
 		searchPath += pluginDir;
 		if(searchPath[searchPath.size()-1]!=DIR_SLASH)
@@ -452,7 +452,7 @@ void PluginManager::loadPlugins()
 {
 	std::string plugin_dir = getPluginDirectory();
 
-#if defined WIN32||defined __APPLE__
+#if defined _WIN32||defined __APPLE__
 	loadPluginDir(plugin_dir.c_str());
 
 	plugin_dir  = getSharedPluginDirectory();
