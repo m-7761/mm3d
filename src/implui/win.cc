@@ -227,7 +227,7 @@ static bool win_widget_mouse(Widgets95::ui *ui, int bt, int st, int x, int y)
 	return !((Win*)ui)->widget()->mousePressEventUI(bt,cm,x,y);
 	else return !((Win*)ui)->widget()->mouseReleaseEventUI(bt,cm,x,y);
 }
-static bool win_widget_motion(Widgets95::ui *ui, int x, int y)
+extern bool win_widget_motion(Widgets95::ui *ui, int x, int y)
 {
 	int cm = Widgets95::e.curr_modifiers; 
 	return !((Win*)ui)->widget()->mouseMoveEventUI(cm,x,y);

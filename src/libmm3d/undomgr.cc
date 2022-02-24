@@ -49,12 +49,30 @@ void UndoManager::setSaved()
 
 bool UndoManager::isSaved()const
 {
-	return (m_saveLevel==0)? true : false;
+	return (m_saveLevel==0)?true:false;
+}
+
+bool UndoManager::isEdited()const
+{
+	if(!isSaved())
+	return true;	
+	if(!canUndo()&&!canRedo())
+	return false;
+	for(auto&ea:m_atomic)
+	{
+		if(ea->isEdit()) return true;
+	}
+	for(auto&ea:m_atomicRedo)
+	{
+		if(ea->isEdit()) return true;
+	}
+	return false;
 }
 
 void UndoManager::clear()
 {
-	operationComplete("Doomed operation"); //???
+	//operationComplete("Doomed operation"); //???
+	_operationCompleteInternal(0); //NOT GOOD
 	
 	for(UndoList*ea:m_atomic)
 	{
@@ -125,7 +143,17 @@ void UndoManager::addUndo(Undo *u)
 	}
 }
 
-void UndoManager::operationComplete(const char *opname)
+void UndoManager::_operationCompleteInternal(int edit_or_type)
+{
+	char *opname; switch(edit_or_type)
+	{
+	case 0: opname = "<Doomed operation>"; break;
+	case 1: opname = "<Partial operation>"; break;
+	default: opname = 0; edit_or_type = 0; assert(opname); break;
+	}
+	operationComplete(opname,edit_or_type!=0);
+}
+void UndoManager::operationComplete(const char *opname, bool edit)
 {
 	// if we have anything to undo
 	if(m_currentUndo)
@@ -133,18 +161,27 @@ void UndoManager::operationComplete(const char *opname)
 		//Ensure this for Model::appendUndo.
 		if(!opname||!*opname)
 		{
+			assert(opname&&*opname); //_operationCompleteInternal?
+
 			//For some reason operationComplete() is 
 			//called by undo() and redo(). I think if
 			//it gets here, perhaps appendUndo is best.
 			//assert(*opname);
-			opname = "<Unnamed Undo>";
+			//opname = "<Unnamed Undo>";
+			opname = "<Unnamed operation>";
 		}
+		else assert(*opname!='@'); //non-edit conflict
 
 		log_debug("operation complete: %s\n",opname);
-		m_saveLevel++;
+
 		pushUndoToList(m_currentUndo);
 		m_currentList->setOpName(opname);
 		m_atomic.push_back(m_currentList);
+
+		//NEW: Don't perster users for things like
+		//playing animations.
+		if(edit) m_saveLevel++; 
+		else m_currentList->markNonEditing(); //'@'
 	}
 	else
 	{
@@ -163,7 +200,7 @@ UndoList *UndoManager::undo()
 {
 	//LOG_PROFILE(); //???
 
-	operationComplete();
+	_operationCompleteInternal(1); //NOT GOOD
 
 	if(!m_atomic.empty())
 	{
@@ -174,6 +211,7 @@ UndoList *UndoManager::undo()
 
 		log_debug("Undo: %s\n",m_atomicRedo.back()->getOpName());
 
+		if(m_atomicRedo.back()->isEdit()) //2021
 		m_saveLevel--;
 
 		return m_atomicRedo.back();
@@ -185,7 +223,7 @@ UndoList *UndoManager::redo()
 {
 	//LOG_PROFILE(); //???
 
-	operationComplete();
+	_operationCompleteInternal(1); //NOT GOOD
 
 	if(!m_atomicRedo.empty())
 	{
@@ -211,7 +249,8 @@ const char *UndoManager::getUndoOpName()const
 	}
 	else if(!m_atomic.empty())
 	{
-		return m_atomic.back()->getOpName();
+		auto *o = m_atomic.back()->getOpName(); //isEdit?
+		return o+(o[0]=='@');
 	}
 	else return "";
 }
@@ -220,7 +259,8 @@ const char *UndoManager::getRedoOpName()const
 {
 	if(!m_atomicRedo.empty())
 	{
-		return m_atomicRedo.back()->getOpName();
+		auto *o = m_atomicRedo.back()->getOpName(); //isEdit?
+		return o+(o[0]=='@');
 	}
 	else return "";
 }
@@ -231,7 +271,8 @@ UndoList *UndoManager::undoCurrent()
 
 	if(m_currentUndo)
 	{
-		operationComplete("Partial operation");
+		//operationComplete("Partial operation"); //???
+		_operationCompleteInternal(1); //NOT GOOD
 
 		if(!m_atomic.empty())
 		{

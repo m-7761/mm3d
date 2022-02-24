@@ -554,9 +554,9 @@ bool ObjFilter::writeGroups()
 		writeLine("");
 	}
 
-	tris = m_model->getUngroupedTriangles();
+	m_model->getUngroupedTriangles(tris);
 
-	if(tris.size())
+	if(!tris.empty())
 	{
 		writeLine("# %d Ungrouped triangles",tris.size());
 		writeLine("");

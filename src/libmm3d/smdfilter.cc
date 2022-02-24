@@ -424,7 +424,7 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 			if(g==groupCount)
 			{
 				matId = -1;
-				faces = model->getUngroupedTriangles();
+				model->getUngroupedTriangles(faces);
 			}
 			else
 			{

@@ -125,7 +125,15 @@ void ProjectionWin::submit(int id)
 		event.close_ui_by_create_id(); //Help?
 
 		//I guess this model saves users' work?
-		hide(); return;
+		hide(); 
+		
+		//DUPLICATE (FIX)
+		//There seems to be a wxWidgets bug that is documented under hide() which
+		//can be defeated by voiding the current GLUT window. TODO: this needs to
+		//be removed once the bug is long fixed. Other windows are using this too.
+		glutSetWindow(0);
+		
+		return;
 	}
 
 	basic_submit(id);

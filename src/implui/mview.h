@@ -143,6 +143,9 @@ struct ViewBar::StatusBar : StatusObject
 	_vert_snap(flags,"Vs",id_snap_vert),
 	_grid_snap(flags,"Gs",id_snap_grid),
 	_interlock(flags,"Ex",id_frame_lock),
+	_shiftlock(flags,"Sh",id_tool_shift_lock),
+	_texshlock(flags,"Uv",id_tool_shift_lock),
+	_shifthold(flags,"Lk",id_tool_shift_hold),
 	_100(flags,"Wt",id_joint_100),
 	_clipboard(flags,"Ins",id_animate_insert),	
 	_keys_snap(flags,"Scr",id_animate_snap),
@@ -180,7 +183,7 @@ struct ViewBar::StatusBar : StatusObject
 			}
 		}
 
-		void underscore(bool _)
+		bool underscore(bool _)
 		{
 			int_val() = _; /*if(!hiding) //underscoring?
 			{
@@ -188,14 +191,19 @@ struct ViewBar::StatusBar : StatusObject
 				if(_) _name.insert(0,1,'&');
 				else _name.erase(0,1); repack();
 			}
-			else*/ set_hidden(!_);
+			else*/ set_hidden(!_); return _;
 		}
 
-	}_vert_snap, //Vs
+		//Note, these must be dissimilar where
+	}	//unrelated.
+	_vert_snap, //Vs
 	_grid_snap, //Gs
 	_interlock, //Ex (invertd)
+	_shiftlock, //Sh
+	_texshlock, //Uv 
+	_shifthold, //Lk (inverted)
 	_100, //1 //Wt (inverted)
-	_clipboard, //Cb
+	_clipboard, //Ins
 	_keys_snap, //Scr (inverted)
 	_sanim_mode, //Sam
 	_fanim_mode; //Fam

@@ -562,8 +562,10 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 
 	m_constrain = 0;
 
+	int bs_locked = bs|parent->_tool_bs_lock; //2022
+
 	//if(e->button()&Qt::MidButton)
-	if(bt==Tool::BS_Middle)
+	if(bt==Tool::BS_Middle||bs&Tool::BS_Ctrl) //2022
 	{
 		// We're panning
 	}
@@ -573,7 +575,7 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 
 		//if(!(e->button()&Qt::RightButton
 		//||e->modifiers()&Qt::ShiftModifier))
-		if(!(bt==Tool::BS_Right||bs&Tool::BS_Shift))
+		if(!(bt==Tool::BS_Right||bs_locked&Tool::BS_Shift))
 		{
 			//clearSelected();
 			for(auto&ea:m_vertices) ea.selected = false;
@@ -609,7 +611,7 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 			double angle = rotatepoint_diff_to_angle(m_xRotStart*m_aspect,m_yRotStart);
 				
 			//if(e->modifiers()&Qt::ShiftModifier)
-			if(bs&Tool::BS_Shift) angle = 
+			if(bs_locked&Tool::BS_Shift) angle = 
 			rotatepoint_adjust_to_nearest(angle,bs&Tool::BS_Alt?5:15); //HACK
 
 			m_startAngle = angle;
@@ -656,7 +658,7 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 	x-=m_x; y-=m_y; //UNUSED
 	
 	//if(e->button()&Qt::MidButton)
-	if(bt==Tool::BS_Middle)
+	if(bt==Tool::BS_Middle||bs&Tool::BS_Ctrl) //2022
 	{
 		// We're panning
 	}
@@ -750,8 +752,10 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 			
 	x-=m_x; y-=m_y; 
 		
+	int bs_locked = bs|parent->_tool_bs_lock; //2022
+
 	//bool shift = (e->modifiers()&Qt::ShiftModifier)!=0;
-	bool shift = (bs&Tool::BS_Shift)!=0;
+	bool shift = (bs_locked&Tool::BS_Shift)!=0;
 	if(shift&&m_constrain==~3) 
 	{
 		int ax = std::abs(x-m_lastXPos);
@@ -790,7 +794,7 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 		if(m_operation==MouseRange)
 		setRangeCursor(x,y);
 	}
-	else if(bt==Tool::BS_Middle) //m_buttons&Qt::MidButton
+	else if(bt==Tool::BS_Middle||bs&Tool::BS_Ctrl) //Qt::MidButton
 	{
 		goto pan;
 	}
@@ -1425,13 +1429,19 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		//REMINDER:
 		
 		// set up lighting
-		GLfloat ambient[] = { 0.8f,0.8f,0.8f,1 };
-		GLfloat diffuse[] = { 1,1,1,1 };
+		//https://github.com/zturtleman/mm3d/issues/173
+		// 
+		// TODO: what about being accurate to the viewport
+		// lighting?
+		// 
+		//I think compensating for GL_LIGHT_MODEL_AMBIENT?
+		//GLfloat ambient[] = { 0.8f,0.8f,0.8f,1 };
+		GLfloat llll[] = { 1,1,1,1 };
 		GLfloat position[] = { 0,0,3,0 };
 		
 		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???
-		glLightfv(GL_LIGHT0,GL_AMBIENT,ambient);
-		glLightfv(GL_LIGHT0,GL_DIFFUSE,diffuse);
+		glLightfv(GL_LIGHT0,GL_AMBIENT,llll);
+		glLightfv(GL_LIGHT0,GL_DIFFUSE,llll);
 		glLightfv(GL_LIGHT0,GL_POSITION,position);
 
 		glEnable(GL_LIGHT0);

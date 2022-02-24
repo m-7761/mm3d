@@ -302,7 +302,7 @@ void AnimWin::Impl::open2(bool undo)
 	
 	if(!undo&&mode)
 	{
-		model->operationComplete(::tr("Start animation mode","operation complete"));
+		model->nonEditOpComplete(::tr("Start animation mode","operation complete"));
 
 		if(anim!=soft_anim)
 		{
@@ -420,7 +420,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 		//NEW: Note setCurrentAnimation seems to ignore this unless the animation
 		//mode was previously ANIMMODE_NONE?!
 		//if(!undo) 
-		model->operationComplete(::tr("Set current animation","operation complete"));
+		model->nonEditOpComplete(::tr("Set current animation","operation complete"));
 	
 		frame = 0;
 
@@ -450,18 +450,16 @@ void AnimWin::modelChanged(int changeBits)
 }
 void AnimWin::Impl::frames_edited(double n)
 {	
-	if(n==sidebar.frame.float_val()) return; //modelChanged?
+	//modelChanged?
+	//Model::AnimationProperty is ambiguous.
+	if(n==shelf1.frames.float_val()) return; 
 
 	bool op = model->setAnimTimeFrame(anim,n);
 	if(!op) n = model->getAnimTimeFrame(anim);
-	if(!op) shelf1.frames.set_float_val(n);
 
-	//assert(n==shelf1.frames.int_val());
-
-	//int nn = std::max(0,n-1);
-	shelf2.timeline.set_range(0,n); //nn
-	win.model.views.timeline.set_range(0,n); //nn
-	//sidebar.frame.limit(n?1:0,n);
+	shelf1.frames.set_float_val(n);
+	shelf2.timeline.set_range(0,n);
+	win.model.views.timeline.set_range(0,n);
 	sidebar.frame.limit(0,n);
 	
 	//HACK: Truncate?
@@ -704,8 +702,9 @@ void AnimWin::Impl::paste(bool values)
 
 static void animwin_step(int id) //TEMPORARY
 {
+	//NOTE: model was 0 on hitting close button while playing.
 	auto w = (AnimWin*)Widgets95::e::find_ui_by_window_id(id);
-	if(w&&w->impl->step())
+	if(w&&w->model&&w->impl->step())
 	glutTimerFunc(w->impl->step_ms,animwin_step,id);
 }
 void AnimWin::Impl::play(int id)
@@ -904,7 +903,7 @@ void AnimWin::Impl::close()
 	if(model->inAnimationMode())
 	{
 		model->setNoAnimation();
-		model->operationComplete(::tr("End animation mode","operation complete"));
+		model->nonEditOpComplete(::tr("End animation mode","operation complete"));
 	}
 		
 	//NEW: Keeping open.
@@ -1083,6 +1082,15 @@ void AnimWin::submit(int id)
 
 		event.close_ui_by_create_id(); //Help?
 
-		hide(); return;
+		//I guess this model saves users' work?
+		hide(); 
+		
+		//DUPLICATE (FIX)
+		//There seems to be a wxWidgets bug that is documented under hide() which
+		//can be defeated by voiding the current GLUT window. TODO: this needs to
+		//be removed once the bug is long fixed. Other windows are using this too.
+		glutSetWindow(0);
+
+		return;
 	}
 }

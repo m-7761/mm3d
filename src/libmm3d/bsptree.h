@@ -118,6 +118,8 @@ public:
 
 	void clear();
 
+	bool empty(){ return !m_root; }
+
 protected:
 
 	Node *m_root;

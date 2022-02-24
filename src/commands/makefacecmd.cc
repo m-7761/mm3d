@@ -36,7 +36,7 @@ struct MakeFaceCommand : Command
 
 	virtual const char *getName(int)
 	{
-		return TRANSLATE_NOOP("Command","Make Face From Vertices");
+		return TRANSLATE_NOOP("Command","Make Face from Vertices");
 	}
 
 	virtual const char *getKeymap(int){ return "Enter"; } //EXPERIMENTAL

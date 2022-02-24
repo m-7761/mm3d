@@ -254,7 +254,7 @@ void ScaleTool::mouseButtonMove()
 	parent->getParentXYValue(pos[0],pos[1]);
 
 	//Should tools be responsible for this?
-	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
+	if(parent->getButtonsLocked()&BS_Shift&&m_allowX&&m_allowY)
 	{
 		double ax = fabs(pos[0]-m_x);
 		double ay = fabs(pos[1]-m_y);

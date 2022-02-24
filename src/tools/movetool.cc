@@ -76,7 +76,7 @@ void MoveTool::mouseButtonDown()
 	//parent->getParentXYValue(m_x,m_y,true);
 	parent->getParentXYZValue(m_x,m_y,m_z,true);
 
-	m_allowX = m_allowY = 0!=(parent->getButtons()&BS_Shift);
+	m_allowX = m_allowY = 0!=(parent->getButtonsLocked()&BS_Shift);
 
 	m_xx = m_x; m_yy = m_y; m_zz = m_z; //translateSelected?	
 	

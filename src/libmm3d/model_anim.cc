@@ -2490,7 +2490,7 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 
 				#ifdef NDEBUG
 //				#error Should use slerp algorithm!
-				https://github.com/zturtleman/mm3d/issues/125
+				//https://github.com/zturtleman/mm3d/issues/125
 				#endif				
 
 				// Negate if necessary to get shortest rotation path for

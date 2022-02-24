@@ -275,7 +275,9 @@ Texture *TextureManager::getDefaultTexture(const char *filename)
 	tex->m_data.resize(4*size*size);
 	uint8_t *data = tex->m_data.data();
 
-	char pattern[] = "					  x	x	 x x		x		x x	 x	x			  ";
+	//WARNING: This was converted to tabs by auto refactor.
+	//(The pattern is an offcenter black X on red background.)
+	char pattern[] = "                 x   x    x x      x      x x    x   x           ";
 	for(int y=tex->m_height;y-->0;)	
 	for(int x=tex->m_width;x-->0;) switch(pattern[y*8+x])
 	{

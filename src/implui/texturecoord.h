@@ -35,9 +35,12 @@ struct Win::Widget //YUCK
 TextureWidget,
 TextureWidget::Parent
 {
+	typedef TextureWidget TW;
+
 	//TODO: Expose/rethink these.
-	using TextureWidget::m_vertices;
-	using TextureWidget::m_triangles;	
+	using TW::m_vertices;
+	using TW::m_triangles;	
+	using TW::m_materialId;
 	void move(double x, double y)
 	{
 		moveSelectedVertices
@@ -64,6 +67,11 @@ TextureWidget::Parent
 	{
 		x = c.x(x); y = c.y(y);
 
+		//2022: TexcoordWin is deactivating
+		//itself so Tab can be forwarded to
+		//the main window via its new menus.
+		if(!event.active_control_ui) return;
+
 		//HACK: Steal focus like viewports?
 		if(c!=event.get_active())
 		if((unsigned)(x-c.x())<(unsigned)c.width())
@@ -75,6 +83,9 @@ TextureWidget::Parent
 
 	virtual bool mousePressSignal(int)
 	{
+		//2022: see getXY comment...
+		if(!event.active_control_ui) return true;
+
 		//Need to focus it so other controls 
 		//don't consume arrow keys.
 		if(c!=event.get_active()) c.activate();
@@ -86,10 +97,11 @@ struct TextureCoordWin : Win
 {
 	void init(),submit(control*);
 	
+	~TextureCoordWin();
 	TextureCoordWin(class MainWin &model)
 		:
 	Win("Texture Coordinates",&texture),
-	model(model),
+	model(model),_menubar(),
 	viewbar(main),
 	white(viewbar,"",id_white),
 	red(viewbar,"",id_red),
@@ -129,6 +141,9 @@ struct TextureCoordWin : Win
 	}
 
 	class MainWin &model;
+
+	int _menubar; //2022
+	static void _menubarfunc(int);
 
 	enum{ id_white=0xffffff, id_red=0xff0000 };
 
@@ -189,6 +204,7 @@ struct TextureCoordWin : Win
 	void modelChanged(int changeBits);
 
 	int recall_tool[2];
+	int recall_lock[2];
 
 protected:		
 		 

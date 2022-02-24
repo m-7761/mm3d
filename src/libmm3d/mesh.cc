@@ -69,7 +69,7 @@ void mesh_create_list(MeshList &meshes,Model *model, int opt)
 		}
 
 		// Now add ungrouped triangles (if there are any)
-		int_list triList = model->getUngroupedTriangles();
+		int_list triList; model->getUngroupedTriangles(triList);
 		if(!triList.empty())
 		{
 			if((opt &Mesh::MO_Group)

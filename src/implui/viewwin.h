@@ -124,6 +124,7 @@ private:
 	bool _window_title_asterisk;
 	void _rewrite_window_title();
 
+	friend struct TextureCoordWin;
 	friend void viewwin_close_func();
 	struct AnimWin *_animation_win;
 	struct TransformWin *_transform_win;
@@ -138,6 +139,7 @@ private:
 
 	friend void viewwin_toolboxfunc(int);
 	int _prev_tool,_curr_tool;
+	int _prev_shift,_curr_shift,_none_shift;
 	int _prev_ortho,_prev_persp;
 	int _prev_view,_curr_view;
 	void _view(int i, void (ViewPanel::*mf)());

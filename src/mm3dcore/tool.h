@@ -140,6 +140,7 @@ public:
 
 		//NEW: Arrow keys for TextureWidget and ModelViewport events.
 		BS_Up = 0x002, BS_Down = 0x200, 
+		//Accelerators (menus) will conflict here. (Is it worth it?)
 		//NEW: Combine LEFT,RIGHT,UP,DOWN to form Home,End,PgUp/Down.
 		BS_Special = 0x400,
 	};
@@ -230,7 +231,7 @@ public:
 	
 	Tool *const tool; int tool_index;
 
-	Parent():tool(){}
+	Parent():tool(),_bs_lock(){}
 
 	void resetCurrentTool()
 	{
@@ -412,11 +413,14 @@ public:
 	Model::Position snap_object;
 	unsigned snap_vertex;
 
-	int _bs,_bx,_by;
+	int _bs,_bx,_by,_bs_lock;
 
 	int &getButtonX(){ return _bx; }
 	int &getButtonY(){ return _by; }
 	int &getButtons(){ return _bs; }
+
+	int getButtonsLocked(int filter){ return _bs|(_bs_lock&filter); }
+	int getButtonsLocked(){ return _bs|_bs_lock; }
 
 	//EXPERIMENTAL
 	bool snapSelect(Model::PositionTypeE type=Model::PT_ALL) 
@@ -431,7 +435,7 @@ public:
 		{
 			Model * model = getModel();
 			bool how = !model->isPositionSelected(pos);
-			if(how&&~getButtons()&BS_Shift)
+			if(how&&~getButtonsLocked()&BS_Shift)
 			model->selectAllPositions(pos.type,false); //OVERKILL
 			model->selectPosition(pos,how);
 			return true;

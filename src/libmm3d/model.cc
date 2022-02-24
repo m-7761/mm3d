@@ -2274,11 +2274,15 @@ void Model::reverseOrderSelectedTriangle()
 
 void Model::operationComplete(const char *opname)
 {
+	nonEditOpComplete(opname,true);
+}
+void Model::nonEditOpComplete(const char *opname, bool _)
+{
 	validateSkel();
 	validateAnim();
 	endSelectionDifference();
 
-	m_undoMgr->operationComplete(opname);
+	m_undoMgr->operationComplete(opname,_);
 	
 	//https://github.com/zturtleman/mm3d/issues/90
 	//Treating operationComplete as-if calling updateObservers from outside.

@@ -55,7 +55,7 @@ struct JointWin : Win
 		submit(main);
 	}
 
-	MainWin &model; bool loo;
+	MainWin &model; bool loo; //100
 
 	struct selection_group
 	{
@@ -64,8 +64,8 @@ struct JointWin : Win
 		nav(main,"Selection"),
 		infl(nav,"Select Joint Vertices"),
 		uninfl(nav,"Select Unassigned Vertices"),
-		assign(nav,"Assign Selected to Joint"),
-		append(nav,"Add Selected to Joint")
+		assign(nav,"Assign Selected To Joint"),
+		append(nav,"Add Selected To Joint")
 		{}
 
 		panel nav;

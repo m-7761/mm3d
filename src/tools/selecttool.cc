@@ -126,7 +126,7 @@ public:
 	{	
 		//Note: Doing this in mouseButtonDown can look
 		//bad in some modes.
-		if(!m_unselect&&~parent->getButtons()&BS_Shift)
+		if(!m_unselect&&~parent->getButtonsLocked()&BS_Shift)
 		{
 			parent->getModel()->unselectAll(); //OVERKILL
 		}
@@ -209,7 +209,7 @@ void SelectTool::mouseButtonUp()
 	//EXPERIMENTAL
 	if(m_x1==m_x2&&m_y1==m_y2) //2020
 	{
-		if(!m_unselect&&~parent->getButtons()&BS_Shift)
+		if(!m_unselect&&~parent->getButtonsLocked()&BS_Shift)
 		{
 			model->unselectAll(); //OVERKILL
 		}

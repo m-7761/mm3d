@@ -325,8 +325,8 @@ bool Model::equivalent(const Model *model, double tolerance)const
 		}
 		else
 		{
-			gtris = getUngroupedTriangles();
-			rgtris = model->getUngroupedTriangles();
+			getUngroupedTriangles(gtris);
+			model->getUngroupedTriangles(rgtris);
 		}
 
 		// Don't fail on group sizes.  This causes a failure if the lhs has two
@@ -1250,11 +1250,9 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 	unsigned vertbase = m_vertices.size();
 	unsigned tribase = m_triangles.size();
-	unsigned grpbase = m_groups.size();
 	unsigned jointbase = m_joints.size();
 	unsigned pointbase = m_points.size();
 	unsigned projbase = m_projections.size();
-	unsigned matbase = m_materials.size();
 
 	unselectAll();
 
@@ -1276,7 +1274,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 	//I guess groups are needed to be able to easily assign existing
 	//materials and groups to them. The "clean up" function can be
-	//used to remove them after
+	//used to remove them after (TODO: could use a Groups option)
 	//if(textures)
 	{
 		count = model->m_groups.size();

@@ -148,7 +148,7 @@ void ProjTool::mouseButtonMove()
 	/*2020: No, rotation semantics make most sense given 
 	//how this works!
 	//Should tools be responsible for this?
-	if(parent->getButtons()&BS_Shift&&m_allowX&&m_allowY)
+	if(parent->getButtonsLocked()&BS_Shift&&m_allowX&&m_allowY)
 	{
 		double ax = fabs(parent->getButtonX()-m_x);
 		double ay = fabs(parent->getButtonY()-m_y);
@@ -182,7 +182,7 @@ void ProjTool::mouseButtonMove()
 	int xDiff = parent->getButtonX()-m_x;
 	int yDiff = parent->getButtonY()-m_y;
 	double angle = rotatepoint_diff_to_angle(xDiff,yDiff);
-	if(parent->getButtons()&BS_Shift) angle = 
+	if(parent->getButtonsLocked()&BS_Shift) angle = 
 	rotatepoint_adjust_to_nearest(angle,parent->getButtons()&Tool::BS_Alt?5:15); //NEW
 	//NOTE: I'm not sure what convention makes since here, but this 
 	//one matches the original convention of dragging the mouse down

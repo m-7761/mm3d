@@ -59,6 +59,7 @@ enum
 	/*File menu*/
 	id_file_new,
 	id_file_open,
+	id_file_resume,
 	id_file_close,
 	id_file_save_prompt, //Ctrl+S
 	id_file_save,
@@ -109,12 +110,19 @@ enum
 	id_view_flip,
 	id_view_settings,
 	id_view_init,
+	id_view_persp, //0-7
+	id_view_front,id_view_back,
+	id_view_left,id_view_right,
+	id_view_top,id_view_bottom,
+	id_view_ortho,
 
 	/*Tool menu*/
 	id_tool_none,
 	id_tool_toggle,
 	id_tool_recall,
 	id_tool_back,
+	id_tool_shift_lock, //EXPERIMENTAL
+	id_tool_shift_hold,
 
 	/*Model menu*/
 	id_edit_undo,

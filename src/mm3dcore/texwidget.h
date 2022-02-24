@@ -129,6 +129,10 @@ public:
 	class Parent //Qt supplemental
 	{
 	public:
+		
+		//2022: Bridging Tool::Parent::_bs_lock?
+		int _tool_bs_lock;
+		Parent():_tool_bs_lock(){}
 
 		virtual void updateWidget() = 0;
 
@@ -227,7 +231,7 @@ public:
 	void setLinesColor(int newColor){ m_linesColor = newColor; }
 	void setSelectionColor(int newColor){ m_selectionColor = newColor; }
 
-	void addVertex(double t, double s);
+	void addVertex(double s, double t);
 	void addTriangle(int v1, int v2, int v3);
 
 	void clearCoordinates();

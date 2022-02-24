@@ -73,6 +73,11 @@ public: //slots:
 	void view2x2(){ _makeViews(2*2); } //void view2x3();
 	void view3x2(){ _makeViews(3*2); } //void view3x3();	
 	void rearrange(int),reset();
+	void modelview(Tool::ViewE v) //2022
+	{
+		auto *mv = views[m_focus];
+		mv->view.select_id(v); mv->submit(id_item); 
+	}
 
 //protected:
 

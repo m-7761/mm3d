@@ -71,6 +71,16 @@ bool InvertSelectionCommand::activated(int arg, Model *model)
 		model->unselectAllVertices(); break;
 
 	default:
+
+	case Model::SelectGroups:
+		/*UNNECESSARY (SILLY)
+		if(n=model->getSelectedGroupCount())
+		{
+			model->unselectAllGroups();
+			model->unselectAllVertices(); //YUCK
+		}
+		model->unselectAllTriangles(); break;
+		*/
 	case Model::SelectTriangles:
 	case Model::SelectConnected:
 
@@ -80,15 +90,6 @@ bool InvertSelectionCommand::activated(int arg, Model *model)
 			model->unselectAllVertices(); //YUCK
 		}
 		model->unselectAllGroups(); break;
-
-	case Model::SelectGroups:
-
-		if(n=model->getSelectedGroupCount())
-		{
-			model->unselectAllGroups();
-			model->unselectAllVertices(); //YUCK
-		}
-		model->unselectAllTriangles(); break;
 	
 	case Model::SelectJoints:
 

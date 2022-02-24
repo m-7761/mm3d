@@ -168,8 +168,12 @@ int Model::addTexture(Texture *tex)
 		material->m_filename = tex->m_filename;
 		for(int m=0;m<3;m++)
 		{
-			material->m_ambient[m] = 0.2f;
-			material->m_diffuse[m] = 0.8f;
+			//2022: Well this makes no sense?
+			//https://github.com/zturtleman/mm3d/issues/173
+			//material->m_ambient[m] = 0.2f;
+			//material->m_diffuse[m] = 0.8f;
+			material->m_ambient[m] = 1;
+			material->m_diffuse[m] = 1;
 			material->m_specular[m] = 0;
 			material->m_emissive[m] = 0;
 		}
@@ -215,8 +219,12 @@ int Model::addColorMaterial(const char *name)
 	material->m_filename = "";
 	for(int m=0;m<3;m++)
 	{
-		material->m_ambient[m] = 0.2f;
-		material->m_diffuse[m] = 0.8f;
+		//2022: Well this makes no sense?
+		//https://github.com/zturtleman/mm3d/issues/173
+		//material->m_ambient[m] = 0.2f;
+		//material->m_diffuse[m] = 0.8f;
+		material->m_ambient[m] = 1; //woops
+		material->m_diffuse[m] = 1; //woops
 		material->m_specular[m] = 0;
 		material->m_emissive[m] = 0;
 	}
@@ -244,7 +252,7 @@ void Model::deleteTexture(unsigned textureNum)
 {
 	//LOG_PROFILE(); //???
 
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	for(unsigned g=0;g<m_groups.size();g++)
 	{
 		if(m_groups[g]->m_materialIndex==(signed)textureNum)
 		setGroupTextureId(g,-1);		
@@ -432,7 +440,7 @@ bool Model::setTextureName(unsigned textureId, const char *name)
 	return false;
 }
 
-void Model::setMaterialTexture(unsigned textureId,Texture *tex)
+void Model::setMaterialTexture(unsigned textureId, Texture *tex)
 {
 	if(tex==nullptr)
 	{
@@ -440,6 +448,8 @@ void Model::setMaterialTexture(unsigned textureId,Texture *tex)
 	}
 	else if(textureId<m_materials.size())
 	{
+		m_changeBits|=AddOther|SetTexture; //2022;
+
 		if(m_undoEnabled)
 		{
 			auto undo = new MU_SetMaterialTexture;
@@ -460,6 +470,8 @@ void Model::removeMaterialTexture(unsigned textureId)
 	if(textureId<m_materials.size())
 	if(m_materials[textureId]->m_type==Material::MATTYPE_TEXTURE)
 	{
+		m_changeBits|=AddOther|SetTexture; //2022
+
 		if(m_undoEnabled)
 		{
 			auto undo = new MU_SetMaterialTexture;
@@ -486,6 +498,7 @@ bool Model::setTextureSClamp(unsigned textureId, bool clamp)
 			sendUndo(undo/*,true*/);
 		}
 		m_materials[textureId]->m_sClamp = clamp;
+
 		return true;
 	}
 	return false;
@@ -501,6 +514,7 @@ bool Model::setTextureTClamp(unsigned textureId, bool clamp)
 			sendUndo(undo/*,true*/);
 		}
 		m_materials[textureId]->m_tClamp = clamp;
+
 		return true;
 	}
 	return false;
@@ -692,6 +706,8 @@ DrawingContext *Model::getDrawingContext(ContextT context)
 
 void Model::invalidateTextures() //OVERKILL
 {
+	m_changeBits|=SetTexture; //2022
+
 	//HACK/2020: Force Material to reload built-in OpenGL texture data.
 	m_validContext = false;
 	m_validBspTree = false;

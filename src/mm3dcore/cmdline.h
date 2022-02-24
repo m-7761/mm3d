@@ -35,6 +35,7 @@ extern bool cmdline_runcommand;
 extern bool cmdline_runui;
 extern int cmdline_command();
 
+extern bool cmdline_resume; //2022
 extern int cmdline_getOpenModelCount();
 extern class Model *cmdline_getOpenModel(int n);
 extern void cmdline_clearOpenModelList();  // Clear list without freeing

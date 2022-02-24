@@ -260,7 +260,8 @@ Model::Triangle::Triangle()
 	  m_selected(false),
 	  m_visible(true),
 	  m_marked(false),
-	  m_projection(-1)
+	  m_projection(-1),
+	  m_group(-1) //2022
 {
 	init();
 
@@ -285,6 +286,7 @@ void Model::Triangle::init()
 	m_marked	= false;
 	m_visible  = true;
 	m_projection = -1;
+	m_group = -1; //2022
 
 	m_flatSource = m_flatNormals;
 	m_normalSource[0] = m_finalNormals[0];
@@ -353,6 +355,10 @@ bool Model::Triangle::propEqual(const Triangle &rhs, int propBits, double tolera
 
 	if((propBits &PropProjections)!=0)
 		if(m_projection!=rhs.m_projection)
+			return false;
+
+	if((propBits &PropGroups)!=0)
+		if(m_group!=rhs.m_group)
 			return false;
 
 	if((propBits &PropTexCoords)!=0)
@@ -451,10 +457,6 @@ void Model::Group::release()
 
 bool Model::Group::propEqual(const Group &rhs, int propBits, double tolerance)const
 {
-	if((propBits &PropTriangles)!=0)
-		if(m_triangleIndices!=rhs.m_triangleIndices)
-			return false;
-
 	if((propBits &PropNormals)!=0)
 	{
 		if(m_smooth!=rhs.m_smooth)
@@ -479,6 +481,12 @@ bool Model::Group::propEqual(const Group &rhs, int propBits, double tolerance)co
 //		if(m_visible!=rhs.m_visible)
 //			return false;
 
+	//Note, unless rhs and *this belong to different
+	//models this makes no sense.
+	if((propBits &PropTriangles)!=0)
+		if(m_triangleIndices!=rhs.m_triangleIndices)
+			return false;
+
 	return true;
 }
 
@@ -486,6 +494,7 @@ Model::Material::Material()
 	: m_type(MATTYPE_TEXTURE),
 	  m_sClamp(false),
 	  m_tClamp(false),
+	m_accumulate(),
 	  m_texture(0),
 	  m_textureData(nullptr)
 {
@@ -539,10 +548,7 @@ Model::Material *Model::Material::get()
 		v->init();
 		return v;
 	}
-	else
-	{
-		return new Material();
-	}
+	return new Material();
 }
 
 void Model::Material::release()
@@ -551,16 +557,12 @@ void Model::Material::release()
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 
 bool Model::Material::propEqual(const Material &rhs, int propBits, double tolerance)const
 {
-	if((propBits &PropType)!=0)
-		if(m_type!=rhs.m_type)
+	if(propBits&PropType&&m_type!=rhs.m_type)
 			return false;
 
 	if((propBits &PropLighting)!=0)
@@ -577,11 +579,9 @@ bool Model::Material::propEqual(const Material &rhs, int propBits, double tolera
 			return false;
 	}
 
-	if((propBits &PropClamp)!=0)
+	if(propBits&PropClamp)
 	{
-		if(m_sClamp!=rhs.m_sClamp)
-			return false;
-		if(m_tClamp!=rhs.m_tClamp)
+		if(m_sClamp!=rhs.m_sClamp||m_tClamp!=rhs.m_tClamp)
 			return false;
 	}
 
@@ -610,16 +610,13 @@ bool Model::Material::propEqual(const Material &rhs, int propBits, double tolera
 		}
 	}
 
-	if((propBits &PropName)!=0)
-		if(m_name!=rhs.m_name)
+	if(propBits&PropName&&m_name!=rhs.m_name)
 			return false;
 
-	if((propBits &PropPaths)!=0)
-		if(m_filename!=rhs.m_filename)
+	if(propBits&PropPaths&&m_filename!=rhs.m_filename)
 			return false;
 
-	if((propBits &PropPaths)!=0)
-		if(m_alphaFilename!=rhs.m_alphaFilename)
+	if(propBits&PropPaths&&m_alphaFilename!=rhs.m_alphaFilename)
 			return false;
 
 	return true;

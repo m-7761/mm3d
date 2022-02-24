@@ -418,6 +418,9 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		
 		//glClear(GL_DEPTH_BUFFER_BIT); //???
 	}
+
+	double *bspEye = 0; int opt = 0;
+
 	glEnable(GL_DEPTH_TEST);
 	if(drawMode!=ViewWireframe)
 	{
@@ -450,8 +453,23 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//ContextT was because every view was its own OpenGL context
 			//model->draw(opt,static_cast<ContextT>(this),_viewPoint);
 			//model->draw(modelviewport_opts(drawMode),nullptr,_viewPoint);
-			double *eye = m_viewInverse.getVector(3);
-			model->draw(modelviewport_opts(drawMode),nullptr,eye);
+			opt = modelviewport_opts(drawMode);
+			if(opt&Model::DO_ALPHA)
+			{
+				opt|=Model::DO_ALPHA_DEFER_BSP;
+				bspEye = m_viewInverse.getVector(3);
+			}
+			
+			if(opt&Model::DO_TEXTURE)
+			{
+				//2022: by default this is now set to 0, but it's a
+				//little dark in texture mode because it's setup to
+				//ensure the wireframes remain visible in solid mode
+				//and the lighting is same as before.
+				float brighter[4] = {0.1f,0.1f,0.1f};
+				glLightModelfv(GL_LIGHT_MODEL_AMBIENT,brighter);
+			}
+			model->draw(opt,nullptr,bspEye);
 		}
 		glDepthRange(0,1);
 
@@ -555,7 +573,36 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		p[1]+=axis*p[3]; m_unprojMatrix.apply(p);
 		axis = (float)p.mag3();
 	}
-			
+	
+	if(bspEye&&!model->draw_bspTree().empty())
+	{
+		glEnable(GL_LIGHTING);
+		glEnable(GL_LIGHT0);
+	
+		if(poffset&&drawSelections)
+		{
+			glEnable(GL_POLYGON_OFFSET_FILL);
+			glPolygonOffset(1,1);
+		}
+
+		//there are some grid artifacts but this
+		//doesn't seem to help
+		glDepthRange(0.00001,1);
+		{
+			model->draw_bspTree(opt,nullptr,bspEye);
+		}
+		glDepthRange(0,1);
+
+		if(poffset) glDisable(GL_POLYGON_OFFSET_FILL);
+
+		glDisable(GL_LIGHTING);
+	}
+	if(opt&Model::DO_TEXTURE)
+	{
+		float oooo[4] = {};
+		glLightModelfv(GL_LIGHT_MODEL_AMBIENT,oooo);
+	}
+
 	if(drawSelections)
 	{
 		model->drawJoints(0.333333f,axis);
@@ -1896,9 +1943,26 @@ void ModelViewport::Parent::initializeGL(Model *m)
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT,GL_NICEST);
 
 	{
-		GLfloat ambient[]  = { 0.8f, 0.8f, 0.8f, 1.0f };
-		GLfloat diffuse[]  = { 0.9f, 0.9f, 0.9f, 1.0f };
-		GLfloat position[] = { 0.0f, 0.0f, 1.0f, 0.0f };
+		//2022: Well this makes no sense?
+		//https://github.com/zturtleman/mm3d/issues/173
+		//This may break the look of old MM3D files, but it's needed
+		//because the old way was assigning default materials light
+		//like values and these lights material like values.
+		//REMINDER: White lines need to be visible over the polygons.
+		/*GLfloat ambient[]  = { 0.8f, 0.8f, 0.8f, 1.0f };
+		GLfloat diffuse[]  = { 0.9f, 0.9f, 0.9f, 1.0f };*/
+		//This throws off everything unnecessarily, but is a little
+		//dicey to set to 0 for debugging purposes.
+		//glLightModeli(GL_LIGHT_MODEL_AMBIENT,0); //doesn't work
+		float oooo[4] = {};
+		//NOTE: I think in TEXTURE mode it might help to use this 
+		//to brighten up things (in the draw method), so setting
+		//this here may be redundant
+		glLightModelfv(GL_LIGHT_MODEL_AMBIENT,oooo);
+		GLfloat ambient[]  = { 0.2f, 0.2f, 0.2f, 1.0f }; //(0.8+0.2)*0.2
+		GLfloat diffuse[]  = { 0.72f, 0.72f, 0.72f, 1.0f }; //0.9*0.8
+		GLfloat position[] = { 0.0f, 0.0f, 1.0f, 0.0f };		
+
 
 		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???
 		glLightfv(GL_LIGHT0,GL_AMBIENT,ambient);
@@ -1908,8 +1972,12 @@ void ModelViewport::Parent::initializeGL(Model *m)
 	}
 
 	{
+		/*Same deal as above?
+		//https://github.com/zturtleman/mm3d/issues/173
 		GLfloat ambient[]  = { 0.8f, 0.4f, 0.4f, 1.0f };
-		GLfloat diffuse[]  = { 0.9f, 0.5f, 0.5f, 1.0f };
+		GLfloat diffuse[]  = { 0.9f, 0.5f, 0.5f, 1.0f };*/
+		GLfloat ambient[]  = { 0.2f, 0.12f, 0.12f, 1.0f }; //(0.4+0.2)*0.2
+		GLfloat diffuse[]  = { 0.72f, 0.4f, 0.4f, 1.0f }; //0.5*0.8 
 		GLfloat position[] = { 0.0f, 0.0f, 1.0f, 0.0f };
 
 		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???

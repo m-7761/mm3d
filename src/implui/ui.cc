@@ -65,9 +65,12 @@ static void ui_drop(char **f, int n)
 		}
 		else 
 		{
+			//2022: !i is is needed because subsequent opens will
+			//always replace the first drop since they're !edited
+
 			extern MainWin*&viewwin(int=glutGetWindow());
 			MainWin *w = viewwin();
-			MainWin::open(m,w&&!w->model->getEdited()?w:nullptr);
+			MainWin::open(m,!i&&w&&!w->model->getEdited()?w:nullptr);
 
 			//add path to most-recently-used menu?
 			extern void viewwin_mru_drop(char*);
@@ -231,7 +234,15 @@ extern int ui_init(int &argc, char *argv[])
 			free(pwd); //???
 		}
 
-		if(!opened) new MainWin;
+		if(!opened)
+		{
+			auto *m = new MainWin;
+
+			if(cmdline_resume) //2022
+			{
+				m->perform_menu_action(id_file_resume);
+			}
+		}
 		
 		//rval = s_app->exec();
 		glutMainLoop();

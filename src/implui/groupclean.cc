@@ -59,10 +59,18 @@ void GroupCleanWin::submit(int id)
 		int m = model->getTextureCount();
 		int n = model->getGroupCount();
 
+		/*In this order the materials aren't actually
+		//removed.
+		//https://github.com/zturtleman/mm3d/issues/176
 		int mim = a?model->mergeIdenticalMaterials():0;
 		int rum = b?model->removeUnusedMaterials():0;
 		int mig = c?model->mergeIdenticalGroups():0;
+		int rug = d?model->removeUnusedGroups():0;*/
+
+		int mim = a?model->mergeIdenticalMaterials():0;
+		int mig = c?model->mergeIdenticalGroups():0;
 		int rug = d?model->removeUnusedGroups():0;
+		int rum = b?model->removeUnusedMaterials():0;
 
 		//::tr("Merged %1 groups,%2 materials; Removed %3 of %4 groups,%5 of %6 materials");
 		utf8 fmt = ::tr("Merged %d groups, %d materials; Removed %d of %d groups, %d of %d materials.");

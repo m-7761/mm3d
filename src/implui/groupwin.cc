@@ -42,18 +42,19 @@ struct GroupWin : Win
 	add(nav1,"New",id_new),
 	name(nav1,"Rename",id_name),
 	del(nav1,"Delete",id_delete),
-	nav2(main),
+	sel(nav1,"Select",id_value), //2022
+	faces1(main),
 		//TODO: What about add to selection?
-	select(nav2,"Select Faces In Group",id_select), 
-	deselect(nav2,"Unselect Faces In Group",-id_select),
+	select(faces1,"Select Faces In Group",id_select), 
+	deselect(faces1,"Unselect Faces In Group",-id_select),
 	smooth(main),angle(main),
-	nav3(main),
-	scene(nav3,id_scene),	
-		col1(nav3),
-	material(nav3,"Material",id_subitem),
-	faces(nav3,"Membership",bi::none), //"Faces"	
-	set_faces(faces,"Assign Faces",id_assign), //"Assign As Group"
-	add_faces(faces,"Add To Group",id_append), //"Add To Group"	
+	nav2(main),
+	scene(nav2,id_scene),	
+		col1(nav2),
+	material(nav2,"Material",id_subitem),
+	faces2(nav2,"Membership",bi::none), //"Faces"	
+	set_faces(faces2,"Assign Faces",id_assign), //"Assign As Group"
+	add_faces(faces2,"Add To Group",id_append), //"Add To Group"	
 	f1_ok_cancel(main),
 	texture(scene,false)
 	{
@@ -62,8 +63,9 @@ struct GroupWin : Win
 
 		smooth.space(3,2);
 
-		nav2.expand_all().proportion();
-		nav3.expand();
+		faces1.expand_all();
+		faces2.expand_all();
+		nav2.expand();
 		col1.expand().space<top>(1);
 		material.expand().place(bottom);
 
@@ -76,15 +78,15 @@ struct GroupWin : Win
 
 	dropdown group;
 	row nav1;
-	button add,name,del;
-	row nav2;
+	button add,name,del,sel;
+	row faces1;
 	button select,deselect;
 	bar smooth,angle; //spinbox?
-	panel nav3;
+	panel nav2;
 	canvas scene;
 	column col1;
 	dropdown material;
-	row faces;
+	row faces2;
 	button set_faces,add_faces;
 	f1_ok_cancel_panel f1_ok_cancel;
 
@@ -99,6 +101,15 @@ void GroupWin::submit(int id)
 	{
 	case id_init:
 	{	
+		//2022: Default to empty selection
+		//for better sidebar support... but
+		//might better default to first when
+		//opened from menus?
+		group.select_id(-1);
+		//2022: Useful for selecting ungrouped
+		//faces (did I remove this?) (no)
+		group.add_item(-1,::tr("<None>"));
+
 		group.expand();
 
 		int iN = model->getGroupCount();
@@ -111,12 +122,23 @@ void GroupWin::submit(int id)
 		material.add_item(i,model->getTextureName(i));
 		texture.setModel(model);
 		
-		int_list l; model->getSelectedTriangles(l);
-		for(auto i:l)
-		if(int g=model->getTriangleGroup(i)+1)
+		bool sel = false;
+		for(int i=0;i<model->getTriangleCount();i++)
+		if(model->isTriangleSelected(i))
 		{
-			group.select_id(g-1); break;
+			sel = true;
+			if(int g=model->getTriangleGroup(i)+1)
+			{
+				group.select_id(g-1); break;
+			}
 		}
+		//2022: select first if selection is empty?
+		//(I.e. can't be originating from sidebar.)
+		if(!sel&&!group.empty())
+		{
+			group.select_id(0);
+		}
+
 		smooth.set_range(0,255).id(id_smooth).expand();
 		angle.set_range(0,180).id(id_angle).expand();
 		{
@@ -136,7 +158,7 @@ void GroupWin::submit(int id)
 		group_selected();
 		break;
 
-	case id_delete:
+	case id_delete: case id_value:
 	case id_select: case -id_select: //Deselect?
 	case id_assign: case id_append:
 	case id_subitem:
@@ -152,16 +174,45 @@ void GroupWin::submit(int id)
 			group_selected();
 			break;
 
+		case id_value: //HACK: new Select button?
+
+			model->unselectAll(); //break;
+
 		case id_select: 
-		
-			model->unselectAll(); //TODO: Disable option?
-			model->selectGroup(g);			
+
+			if(g==-1) ungroup: //2022
+			{
+				if(model->selectUngroupedTriangles(id!=-id_select)) //id_scene?
+				model->selectVerticesFromTriangles(); //YUCK
+			}
+			else
+			{		
+			//	model->unselectAll(); //TODO: Disable option?
+				model->selectGroup(g);			
+			}
 			break;
 
-		case -id_select: model->unselectGroup(g); break;		
+		case -id_select: 
+			
+			if(g==-1) goto ungroup; //2022			
+			else model->unselectGroup(g); break;		
 
 		case id_assign: model->setSelectedAsGroup(g); break; 
-		case id_append: model->addSelectedToGroup(g); break;
+		case id_append:
+			
+			if(g==-1) //2022
+			{				
+				//EXTREMELY INEFFECIENT
+				int_list l;
+				model->getSelectedTriangles(l);
+				for(int i:l)
+				{
+					int gg = model->getTriangleGroup(i);
+					if(gg>=0)
+					model->removeTriangleFromGroup(gg,i);
+				}
+			}
+			else model->addSelectedToGroup(g); break;
 
 		case id_subitem:
 
@@ -210,14 +261,25 @@ void GroupWin::submit(int id)
 }
 void GroupWin::group_selected()
 {
-	if(group.empty())
+	//2022: empty means the list is empty, whereas the selection
+	//can be cleared if opened from the sidebar with <None> used.
+	//if(group.empty())
+	//if(!group.selection())
+	if(-1==group.int_val()) //2022: adding express <None> option.
 	{
 		disable(); add.enable();
-		f1_ok_cancel.nav.enable(); 
-		material.select_id(0);
+		f1_ok_cancel.nav.enable();
+		faces1.enable(); add_faces.enable(); //For <None> option.	
+
+		//material.select_id(0); //2022
+		if(!group.empty()) group.enable();
+
+		material.select_id(-1);
 	}
 	else
 	{
+		if(!del.enabled()) enable(); //2022: <New> had done this.
+
 		int g = group;
 		smooth.set_int_val(model->getGroupSmooth(g)); 
 		angle.set_int_val(model->getGroupAngle(g));	
@@ -245,8 +307,6 @@ void GroupWin::new_group_or_name(int id)
 		}
 		else if(id==id_new)
 		{
-			if(group.empty()) enable();
-
 			g = model->addGroup(name.c_str());
 			group.add_item(g,name);
 			group.select_id(g);

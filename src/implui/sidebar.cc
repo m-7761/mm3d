@@ -335,12 +335,31 @@ void SideBar::PropPanel::init()
 	faces.menu.add_item(1,"Move to Top of Display List");
 	faces.menu.add_item(2,"Move to End");
 	faces.menu.add_item(3,"Transpose with Reverse List");
+	//IN A PINCH (2022)
+	//there's no other way to peel off overlapping triangles?
+	//NOTE: it seems necessary to use the Hide command after
+	//isolating the face or else it pulls in its Vertices.
+	//Using (3) (Transpose) can isolate the last face.
+	faces.menu.add_item(4,"Keep First Face");
 }
 void SideBar::PropPanel::submit(control *c)
 {
+	int id = c->id();
+
+	//2022: don't set sidebar_updating for dialogs
+	//so they don't block change notice processing
+	switch(id)
+	{
+	case id_group_settings: 
+	case id_material_settings: 
+	case id_projection_settings:
+
+		return model.perform_menu_action(id);
+	}
+
 	sidebar_updater raii; //REMOVE ME
 
-	int id = c->id(); switch(id)
+	switch(id)
 	{
 	case id_name:
 
@@ -373,13 +392,6 @@ void SideBar::PropPanel::submit(control *c)
 	case -id_material_settings:
 	
 		group.submit(-id); break;
-
-	case id_group_settings: 
-	case id_material_settings: 
-	case id_projection_settings:
-
-		model.perform_menu_action(id);
-		break;
 
 	/*case '0': case '1': case '2': case '3':
 	
@@ -789,7 +801,8 @@ void SideBar::PropPanel::group_props::change(int changeBits)
 		group.menu.add_item(-1,::tr("<None>"));
 		for(int i=0;i<iN;i++)
 		group.menu.add_item(i,model->getGroupName(i));	
-		group.menu.add_item(iN,::tr("<New>"));
+		group.menu.add_item(iN,::tr("<New Group>"));
+		group.menu.add_item(iN+1,::tr("<New Material>"));
 	
 		iN = model->getTextureCount();
 		material.menu.clear();
@@ -806,7 +819,9 @@ void SideBar::PropPanel::group_props::change(int changeBits)
 		projection.nav.set_hidden(iN==0); 
 	}
 
-	if(changeBits&Model::SelectionFaces)
+	//2022: AddOther is need when the index changes
+	//as a result of removal, etc.
+	if(changeBits&(Model::SelectionFaces|Model::AddOther))
 	{
 		int grp = -2, prj  = -2;
 		for(int i:model.fselection)
@@ -870,7 +885,9 @@ void SideBar::PropPanel::group_props::submit(int id)
 		int iN = model->getGroupCount();
 		if(g==-1)
 		{
+			//EXTREMELY INEFFECIENT
 			material.nav.disable();
+			material.menu.select_id(-1); //2022: Still showing old name/text?
 			for(int i:model.fselection)
 			{
 				g = model->getTriangleGroup(i);
@@ -879,7 +896,7 @@ void SideBar::PropPanel::group_props::submit(int id)
 			}
 			model->operationComplete(::tr("Unset Group","operation complete"));
 		}
-		else if(g!=iN) new_group:
+		else if(g<iN) new_group:
 		{
 			model->addSelectedToGroup(g);
 			model->operationComplete(::tr("Set Group","operation complete"));
@@ -890,11 +907,21 @@ void SideBar::PropPanel::group_props::submit(int id)
 		else if(!event.wheel_event)
 		{	
 			std::string groupName;
-			if(id_ok==Win::EditBox(&groupName,::tr("New Group","Name of new group,window title"),::tr("Enter new group name:")))
+			if(id_ok==Win::EditBox(&groupName,::tr("New Group","Name of new group window title"),::tr("Enter new group name:")))
 			{
 				model->addGroup(groupName.c_str());
 				group.menu.selection()->set_text(groupName);
-				group.menu.add_item(iN+1,::tr("<New>"));
+				group.menu.last_item()->set_text(::tr("<New Group>"));
+				group.menu.add_item(iN+1,::tr("<New Material>"));
+				if(g==iN+1) //2022
+				{
+					int i = model->addColorMaterial(groupName.c_str());
+					model->setGroupTextureId(iN,i);
+					material.menu.add_item(i,groupName);
+					material.menu.select_id(i);
+
+					g--;
+				}
 				goto new_group;
 			}
 		}
@@ -1317,16 +1344,25 @@ void SideBar::PropPanel::faces_props::change(int changeBits)
 
 		if(model.fselection.empty()) return; //paranoia
 
-		if(id==3)
+		if(id<=2)
+		{
+			model->prioritizeSelectedTriangles(id==1);
+			model->operationComplete(::tr("Prioritize Selected Faces","operation complete"));
+		}		
+		else if(id==3)
 		{
 			model->reverseOrderSelectedTriangle();
-			model->operationComplete(::tr("Reverse Order Selected Triangles","operation complete"));		
+			model->operationComplete(::tr("Reverse Order Selected Faces","operation complete"));		
 			//NOTE: This is pure cosmetic feedback.
 			std::reverse(model.fselection.begin(),model.fselection.end());
 			goto reverse;
 		}
-		else if(id<=2)
-		model->prioritizeSelectedTriangles(id==1);
-		model->operationComplete(::tr("Prioritize Selected Triangles","operation complete"));
+		else if(id==4)
+		{
+			int sel = model.fselection.front();
+			model->unselectAllTriangles();
+			model->selectTriangle(sel);
+			model->operationComplete(::tr("Keep First Face in Selection","operation complete"));
+		}
 	}
 }

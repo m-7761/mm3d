@@ -105,9 +105,15 @@ bool Model::selectTriangle(unsigned t)
 }
 bool Model::selectGroup(unsigned m)
 {
-	if(m>=0&&m<m_groups.size()
-	&&!m_groups[m]->m_selected) //2019
+	if(m>=0&&m<m_groups.size())
 	{
+		//2022: This may have been a mistake...
+		//I was adding this indescriminately...
+		//I don't trust Group::m_selected
+		//if(m_groups[m]->m_selected) return false; //2019
+
+		Group *grp = m_groups[m];
+
 		if(!m_selecting) //2020: make foolproof?
 		{
 			//m_changeBits |= SelectionChange;			
@@ -121,10 +127,31 @@ bool Model::selectGroup(unsigned m)
 			}
 		}
 
-		m_groups[m]->m_selected = true;
+		grp->m_selected = true;
 
-		bool o = setUndoEnabled(false);
-		selectTrianglesFromGroups();
+		bool o = setUndoEnabled(false); //JUST DISABLES assert CALLS
+
+		//selectTrianglesFromGroups(); //2022: WHAT?
+		{
+			//selectTrianglesFromGroups calls this? is that right???
+			//unselectAllTriangles();
+
+			bool sel = false;
+
+			for(auto i:grp->m_triangleIndices)
+			{				
+				auto *tp = m_triangles[i];
+
+				if(tp->m_visible&&!tp->m_selected)
+				{
+					sel = true; tp->m_selected = true;
+				}
+			}
+			if(sel&&!m_selecting) m_changeBits|=SelectionFaces; //2022
+
+			if(sel) selectVerticesFromTriangles();
+		}
+
 		setUndoEnabled(o);
 
 		return true;
@@ -293,8 +320,8 @@ bool Model::unselectGroup(unsigned m)
 {
 	//LOG_PROFILE(); //???
 
-	if(m>=0&&m<m_groups.size()
-	&&m_groups[m]->m_selected) //2019
+	if(m>=0&&m<m_groups.size())
+//	if(m_groups[m]->m_selected) //2019 //2022: unused?
 	{
 		if(!m_selecting) //2020: make foolproof?
 		{
@@ -494,7 +521,7 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 	return true;
 }
 
-bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,bool connected,SelectionTest *test)
+bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2, bool connected, SelectionTest *test)
 {
 	//LOG_PROFILE(); //???
 
@@ -503,12 +530,15 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 	unsigned i;
 	for(i = 0; i<m_vertices.size(); i++)
 	{
-		m_vertices[i]->m_marked2 = false;
+		//Note, I think only "connected" uses these?
+		m_vertices[i]->m_marked2 = false; 
 	}
 
 	for(i = 0; i<m_triangles.size(); i++)
 	{
-		m_triangles[i]->m_marked2 = false;
+		//These weren't actually used, but is needed
+		//for selectGroupsFromTriangles_marked2 now?
+		m_triangles[i]->m_marked2 = false; 
 	}
 
 	if(x1>x2) std::swap(x1,x2);
@@ -566,6 +596,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 				{
 					// A vertex of the triangle is within the selection area
 					tri->m_selected = select;
+
+					tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
 
 					vert[0]->m_marked2 = true;
 					vert[1]->m_marked2 = true;
@@ -633,6 +665,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 					{
 						tri->m_selected = select;
 
+						tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+
 						vert[0]->m_marked2 = true;
 						vert[1]->m_marked2 = true;
 						vert[2]->m_marked2 = true;
@@ -656,6 +690,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 					{
 						tri->m_selected = select;
 
+						tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+
 						vert[0]->m_marked2 = true;
 						vert[1]->m_marked2 = true;
 						vert[2]->m_marked2 = true;
@@ -671,6 +707,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
+							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
 							vert[2]->m_marked2 = true;
@@ -683,6 +721,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						if(x>=x1&&x<=x2)
 						{
 							tri->m_selected = select;
+
+							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
 
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
@@ -700,6 +740,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
+							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
 							vert[2]->m_marked2 = true;
@@ -713,6 +755,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
+							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
 							vert[2]->m_marked2 = true;
@@ -725,8 +769,10 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 			if(above&&below)
 			{
 				// There was an intersection above and below the selection area,
-				// This means we're inside the triangle,so add it to our selection list
+				// This means we're inside the triangle, so add it to our selection list
 				tri->m_selected = select;
+
+				tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
 
 				vert[0]->m_marked2 = true;
 				vert[1]->m_marked2 = true;
@@ -741,47 +787,45 @@ next_triangle:
 
 	if(connected)
 	{
-		bool found = true;
-		while(found)
+		bool found = true; while(found)
 		{
 			found = false;
-			for(t = 0; t<m_triangles.size(); t++)
+			for(auto*tri:m_triangles) if(tri->m_visible)
 			{
-				if(m_triangles[t]->m_visible)
+				int count = 0;
+				for(unsigned v = 0; v<3; v++)
 				{
-					int count = 0;
+					if(m_vertices[tri->m_vertexIndices[v]]->m_marked2)
+					{
+						count++;
+					}
+				}
+
+				if(count>0&&(count<3||tri->m_selected!=select))
+				{
+					found = true;
+
+					tri->m_selected = select;
+
+					tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+
 					for(unsigned v = 0; v<3; v++)
 					{
-						if(m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_marked2)
-						{
-							count++;
-						}
-					}
-
-					if(count>0&&(count<3||m_triangles[t]->m_selected!=select))
-					{
-						found = true;
-
-						m_triangles[t]->m_selected = select;
-
-						for(unsigned v = 0; v<3; v++)
-						{
-							m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_marked2 = true;
-						}
+						m_vertices[tri->m_vertexIndices[v]]->m_marked2 = true;
 					}
 				}
 			}
 		}
 	}
 
-	selectVerticesFromTriangles(); //OVERKILL?
+	selectVerticesFromTriangles(); //OVERKILL? WHY NOT SET IN THE ABOVE LOGIC?
 
 	//endSelectionDifference();
 
 	return true;
 }
 
-bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
+bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2, SelectionTest *test)
 {
 	//LOG_PROFILE(); //???
 
@@ -789,14 +833,15 @@ bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 
 	selectTrianglesInVolumeMatrix(select,viewMat,x1,y1,x2,y2,false,test);
 
-	selectGroupsFromTriangles(!select);
+	//selectGroupsFromTriangles(!select);
+	selectGroupsFromTriangles_marked2(select);
 
 	//endSelectionDifference();
 
 	return true;
 }
 
-bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
+bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2, SelectionTest *test)
 {
 	//LOG_PROFILE(); //???
 
@@ -1320,30 +1365,82 @@ void Model::selectVerticesFromTriangles()
 	}
 }
 
-void Model::selectTrianglesFromGroups()
+//bool Model::selectTrianglesFromGroups() 
+bool Model::selectTrianglesFromGroups_marked(bool how) 
 {
 	//LOG_PROFILE(); //???
 
-	unselectAllTriangles();
+	//2022: Shouldn't selected triangles remain intact? Yes, seems
+	//this causes seome weird side effects with the Group selection
+	//tool.
+	//unselectAllTriangles();
 
 	assert(m_selecting||!m_undoEnabled); //BELOW CODE IS NOT UNDOABLE
 
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	bool sel = false;
+
+	for(auto*grp:m_groups)
 	{
-		Group *grp = m_groups[g];
-		if(grp->m_selected)
+		//if(grp->m_selected) //selectGroupsFromTriangles_marked2?
+		if(grp->m_marked)
 		{
 			for(auto i:grp->m_triangleIndices)
 			{
-				if(m_triangles[i]->m_visible)
+				auto *tp = m_triangles[i];
+
+				//if(tp->m_visible&&!tp->m_selected)
+				if(tp->m_visible&&how!=tp->m_selected)
 				{
-					m_triangles[i]->m_selected = true;
+					sel = true; tp->m_selected = how;
 				}
 			}
 		}
 	}
 
-	selectVerticesFromTriangles(); //OVERKILL?
+	//2022: maybe this shouldn't be here but it seems
+	//harmless and I worry callers aren't tracking it.
+	if(sel&&!m_selecting) m_changeBits|=SelectionFaces;
+
+	if(sel) selectVerticesFromTriangles(); //OVERKILL?
+
+	return sel;
+}
+
+bool Model::selectUngroupedTriangles(bool how) //2022
+{
+	//https://github.com/zturtleman/mm3d/issues/90
+	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
+
+	MU_Select *undo = nullptr; //2020
+
+	bool sel = false;
+
+	for(unsigned t=m_triangles.size();t-->0;)
+	{
+		auto *tp = m_triangles[t];
+
+		if(tp->m_group!=-1) continue;
+
+		if(how==tp->m_selected) continue; //2020
+
+		sel = true;
+
+		if(!m_selecting) //2020: making fullproof?
+		{
+			if(m_undoEnabled)
+			{
+				if(!undo) undo = new MU_Select(SelectTriangles);
+
+				undo->setSelectionDifference(t,how,!how);
+			}
+		}
+
+		tp->m_selected = how;
+	}
+
+	if(sel&&!m_selecting) m_changeBits|=SelectionFaces; //2020
+	
+	sendUndo(undo); return sel;
 }
 
 void Model::selectTrianglesFromVertices(bool all)
@@ -1392,29 +1489,38 @@ void Model::selectTrianglesFromVertices(bool all)
 	}
 }
 
-void Model::selectGroupsFromTriangles(bool all)
+//void Model::selectGroupsFromTriangles(bool all)
+void Model::selectGroupsFromTriangles_marked2(bool how)
 {
 	//LOG_PROFILE(); //???
 
-	unselectAllGroups();
+	//unselectAllGroups(); //2022: WHAT? 
 
 	assert(m_selecting||!m_undoEnabled); //BELOW CODE IS NOT UNDOABLE
 
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	for(auto*grp:m_groups)
 	{
-		Group *grp = m_groups[g];
 		unsigned count = 0;
 		for(auto i:grp->m_triangleIndices)
 		{
-			if(m_triangles[i]->m_selected) count++;
+			//2022: only selectGroupsInVolumeMatrix has a legit reason
+			//to use this, and it sets m_marked2, so this way it doesn't
+			//accidentally inadvertently select unselected groups
+			//if(m_triangles[i]->m_selected) count++;
+			if(m_triangles[i]->m_marked2){ count++; break; }
 		}
-		grp->m_selected = 
-		all?count==grp->m_triangleIndices.size():count!=0;
+		//grp->m_selected = //same
+		//all?count==grp->m_triangleIndices.size():count!=0;
+		grp->m_marked = count!=0;		
 	}
 
 	// Unselect vertices who don't have a triangle selected
-	unselectAllTriangles();
-	selectTrianglesFromGroups();
+	// 
+	//First of all selectTrianglesFromGroups already did this
+	//but it shouldn't have
+	//unselectAllTriangles();
+	//selectTrianglesFromGroups();
+	selectTrianglesFromGroups_marked(how); //REMOVE ME
 }
 
 bool Model::invertSelection()
@@ -1433,7 +1539,15 @@ bool Model::invertSelection()
 				}
 			}
 			break;
-
+			
+		case SelectGroups:
+			/*UNNECESSARY (SILLY)
+			for(unsigned g = 0; g<m_groups.size(); g++)
+			{
+				m_groups[g]->m_selected = m_groups[g]->m_selected ? false : true;
+			}
+			selectTrianglesFromGroups(); //CAN'T ABIDE THIS
+			break;*/
 		case SelectConnected: //2020
 		case SelectTriangles:
 			for(unsigned t = 0; t<m_triangles.size(); t++)
@@ -1444,14 +1558,6 @@ bool Model::invertSelection()
 				}
 			}
 			selectVerticesFromTriangles();
-			break;
-
-		case SelectGroups:
-			for(unsigned g = 0; g<m_groups.size(); g++)
-			{
-				m_groups[g]->m_selected = m_groups[g]->m_selected ? false : true;
-			}
-			selectTrianglesFromGroups();
 			break;
 
 		case SelectJoints:

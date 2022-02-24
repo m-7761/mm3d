@@ -28,6 +28,235 @@
 #include "viewwin.h"
 #include "log.h"
 
+//2022: I need a fast solution for mapping
+//PlayStation textures to a unit dimension.
+enum
+{
+	//REMINDER: These names go keycfg.ini!
+
+	id_uv_view_init=id_view_init,
+	
+	//Fit
+	id_uv_fit_0=0x100000, //0
+	id_uv_fit_1=0x100001, //1
+	id_uv_fit_2=0x100002, //2
+	id_uv_fit_4=0x100004, //3
+	id_uv_fit_8=0x100008, //4
+	id_uv_fit_16=0x100010, //5
+	id_uv_fit_32=0x100020, //6
+	id_uv_fit_64=0x100040, //7
+	id_uv_fit_128=0x100080, //8
+	id_uv_fit_256=0x100100, //9
+	id_uv_fit_2_x=0x120000,
+
+	//Tool
+	id_uv_tool_select=TextureWidget::MouseSelect,
+	id_uv_tool_move=TextureWidget::MouseMove,
+	id_uv_tool_rotate=TextureWidget::MouseRotate,
+	id_uv_tool_scale=TextureWidget::MouseScale,
+	//these should start at 0, however that
+	//clashes with the
+	//above enum values
+	id_uv_model=1000, //ARBITRARY
+};
+extern int viewwin_shifthold;
+void TextureCoordWin::_menubarfunc(int id)
+{
+	TextureCoordWin *tw;
+	MainWin* &viewwin(int=glutGetWindow());
+	if(auto*w=viewwin())
+	tw = w->_texturecoord_win;
+	else{ assert(0); return; } assert(tw);
+
+	if(id>=id_uv_fit_0&&id<=id_uv_fit_2_x)
+	{
+		double s,t;
+		if(id==id_uv_fit_1||id==id_uv_fit_0)
+		{
+			double ss = DBL_MAX, tt = ss;
+			s = t = -DBL_MIN;
+			for(auto&ea:tw->texture.m_vertices)
+			if(ea.selected)
+			{
+				s = std::max(s,ea.s);
+				t = std::max(t,ea.t);
+				ss = std::min(ss,ea.s);
+				tt = std::min(tt,ea.t);
+			}
+			if(id==id_uv_fit_0) //modulo
+			{
+				ss = (int)ss;
+				tt = (int)tt;
+				for(auto&ea:tw->texture.m_vertices)
+				if(ea.selected)
+				{
+					ea.s-=ss; ea.t-=tt;		
+				}
+			}
+			else if(id==id_uv_fit_1) //unscale
+			{
+				auto cmp = 1/(std::max(s-ss,t-tt));
+				if(fabs(cmp-1)<0.0000001)				
+				{
+					//This might be too esoteric if the
+					//the origin isn't at 0,0, but what
+					//the idea is to make two inputs to
+					//stretch the texture out the image
+					//in both dimensions. What's a good
+					//word for that?
+					s = 1/(s-ss); t = 1/(t-tt);
+				}
+				else s = t = cmp;
+				for(auto&ea:tw->texture.m_vertices)
+				if(ea.selected)
+				{
+					//NOTE: Basing off ss/tt to prevent
+					//positive scaling from getting out
+					//of hand.
+					ea.s = s*(ea.s-ss)+ss;
+					ea.t = t*(ea.t-tt)+tt;
+				}
+			}
+			else assert(0); goto done;
+		}
+		else if(id==id_uv_fit_2_x)
+		{
+			s = t = 2;
+		}
+		else s = t = 1.0/(id&0x1FF);
+		for(auto&ea:tw->texture.m_vertices)
+		if(ea.selected)
+		{
+			ea.s*=s; ea.t*=t;		
+		}
+	done:tw->updateTextureCoordsDone();
+	}
+	else switch(id) //Tool?
+	{
+	case id_tool_toggle: //DICEY
+
+		id+=id_uv_model; //break; //Ready for subtraction below.
+
+	case id_uv_model+0: 
+	case id_uv_model+1:
+	case id_uv_model+3:	
+
+		glutSetWindow(tw->model.glut_window_id);				
+		extern void viewwin_toolboxfunc(int);
+		viewwin_toolboxfunc(id-id_uv_model); //tool_select_faces?
+		return;
+
+	case id_uv_tool_select: case id_uv_tool_move: 
+	case id_uv_tool_rotate: case id_uv_tool_scale:
+
+		return tw->submit(tw->mouse.select_id(id));
+
+	case id_uv_view_init:
+
+		tw->texture.keyPressEvent(Tool::BS_Left|Tool::BS_Special,0,0,0); //Home
+		return;
+
+	case id_tool_recall: //CLEAN ME UP
+
+		tw->recall_lock[1] = tw->texture._tool_bs_lock;
+
+		std::swap(tw->recall_tool[0],tw->recall_tool[1]);
+		std::swap(tw->recall_lock[0],tw->recall_lock[1]);
+
+		tw->mouse.select_id(tw->recall_tool[1]);
+
+		//tw->submit(tw->mouse); //Can't send id_item.		
+		{
+			tw->texture.setMouseOperation
+			((Widget::MouseOperationE)tw->recall_tool[1]);
+
+			if(tw->texture._tool_bs_lock!=tw->recall_lock[1])
+			{
+				tw->texture._tool_bs_lock = tw->recall_lock[1];
+				tw->model.views.status._texshlock.underscore(tw->recall_lock[1]!=0);
+			}
+
+			tw->texture.updateWidget();
+		}			
+		return;
+	}
+}
+static int texturecoord_init_menu()
+{	
+	std::string o; //radio	
+	#define E(id,...) viewwin_menu_entry(o,#id,__VA_ARGS__),id_##id
+	#define O(on,id,...) viewwin_menu_radio(o,on,#id,__VA_ARGS__),id_##id
+	#define X(on,id,...) viewwin_menu_check(o,on,#id,__VA_ARGS__),id_##id
+	extern utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t="", utf8 def="", bool clr=true);
+	extern utf8 viewwin_menu_radio(std::string &o, bool O, utf8 key, utf8 n, utf8 t="", utf8 def="");
+	extern utf8 viewwin_menu_check(std::string &o, bool X, utf8 key, utf8 n, utf8 t="", utf8 def="");
+
+	static int fit_menu=0; if(!fit_menu)
+	{
+		fit_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(E(uv_fit_0,"Modulo","","0"));
+		glutAddMenuEntry(E(uv_fit_1,"Unscale","","1"));
+		glutAddMenuEntry(E(uv_fit_2_x,"Upscale","","2"));
+		glutAddMenuEntry(E(uv_fit_2,"Scale 1/2","","Ctrl+2"));
+		glutAddMenuEntry(E(uv_fit_4,"Scale 1/4","","Ctrl+3"));
+		glutAddMenuEntry(E(uv_fit_8,"Scale 1/8","","Ctrl+4"));
+		glutAddMenuEntry(E(uv_fit_16,"Scale 1/16","","Ctrl+5"));
+		glutAddMenuEntry(E(uv_fit_32,"Scale 1/32","","Ctrl+6"));
+		glutAddMenuEntry(E(uv_fit_64,"Scale 1/64","","Ctrl+7"));
+		glutAddMenuEntry(E(uv_fit_128,"Scale 1/128","","Ctrl+8"));
+		glutAddMenuEntry(E(uv_fit_256,"Scale 1/256","","Ctrl+9"));
+	}
+	static int view_menu=0; if(!view_menu)
+	{
+		view_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		//NOTE: viewwini.cc uses "Restore to Normal" but it
+		//doesn't use Home (Home comes from Misfit Model 3D.)
+		glutAddMenuEntry(E(uv_view_init,"Reset","","Home"));
+	}
+	static int tool_menu=0; if(!tool_menu) //2022
+	{
+		tool_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_vertices","Select","Tool","V"),id_uv_tool_select);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_move","Move","Tool","T"),id_uv_tool_move);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_rotate","Rotate","Tool","R"),id_uv_tool_rotate);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_scale","Scale","Tool","S"),id_uv_tool_scale);
+		glutAddMenuEntry();
+		extern int viewwin_shlk_menu; //Not sure GTK will like this!
+		glutAddSubMenu(::tr("Shift Lock",""),viewwin_shlk_menu);
+		glutAddMenuEntry();
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_recall","Switch Tool","","Space"),id_tool_recall);
+	}
+	static int model_menu=0; if(!model_menu)
+	{
+		model_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(E(edit_undo,"Undo","Undo shortcut","Ctrl+Z"));
+		glutAddMenuEntry(E(edit_redo,"Redo","Redo shortcut","Ctrl+Y"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_connected_mesh","Select Connected Mesh","Tool","C"),id_uv_model+0);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_faces","Select Faces","Tool","F"),id_uv_model+1);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_groups","Select Groups","Tool","G"),id_uv_model+3);
+		glutAddMenuEntry();
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_toggle","Toggle Tool","","Tab"),id_tool_toggle);
+	}
+
+	int menubar = glutCreateMenu(TextureCoordWin::_menubarfunc);
+	glutAddSubMenu(::tr("&Fit","menu bar"),fit_menu);
+	glutAddSubMenu(::tr("&View","menu bar"),view_menu);
+	glutAddSubMenu(::tr("&Tools","menu bar"),tool_menu);
+	glutAddSubMenu(::tr("&Model","menu bar"),model_menu);
+	glutAttachMenu(glutext::GLUT_NON_BUTTON);
+
+	#undef E //viewwin_menu_entry
+	#undef O //viewwin_menu_radio
+	#undef X //viewwin_menu_check
+
+	return menubar;
+}
+TextureCoordWin::~TextureCoordWin()
+{
+	glutDestroyMenu(_menubar);
+}
+
 struct MapDirectionWin : Win
 {
 	MapDirectionWin(int *lv)
@@ -46,78 +275,6 @@ struct MapDirectionWin : Win
 	ok_cancel_panel ok_cancel;
 };
 
-//REMOVE ME
-static int texturecoord_keyboard_accel[6] = {};
-static bool texturecoord_keyboard(Widgets95::ui *ui, int k, int m)
-{
-	enum{ n=sizeof(texturecoord_keyboard_accel)/sizeof(int) };
-
-	auto *w = (TextureCoordWin*)ui;
-
-	if((unsigned)k<256) //YUCK
-	{
-		//REMOVE ME (ELSEWHERE)
-		//NOTE: Currently not invalidating.
-		if(!texturecoord_keyboard_accel[0])
-		{  
-			utf8 kc[n] = {"tool_select_vertices",
-			"tool_move","tool_rotate","tool_scale",
-			"tool_select_faces","recall_tool"};
-			for(int i=0;i<n;i++)
-			{
-				std::string &p = keycfg.get(kc[i]);
-				for(char&ea:p) ea = toupper(ea);
-
-				int kk = 0, mm = 0; if(!p.empty())
-				{
-					size_t sep = p.rfind('+');
-					sep = ~sep?0:sep+1;
-					if(sep!=p.size()-1)
-					{
-						//YUCK: Symbol lookup?
-						if(~p.find("SPACE")) kk = ' ';
-					}
-					else kk = tolower(p.back()); 
-
-					if(~p.find("ALT")) mm|=GLUT_ACTIVE_ALT;
-					if(~p.find("SHIFT")) mm|=GLUT_ACTIVE_SHIFT;
-					if(~p.find('C'))
-					if(~p.find("CTRL")
-					 ||~p.find("CONTROL")
-					 ||~p.find("CMD")
-					 ||~p.find("COMMMAND")) mm|=GLUT_ACTIVE_CTRL;
-				}
-				texturecoord_keyboard_accel[i] = kk?kk|mm<<8:-1;
-			}
-		}
-		int km = k|m<<8;
-		for(int i=0;i<n;i++) 
-		if(km==texturecoord_keyboard_accel[i]) 
-		{			 
-			switch(i) 
-			{
-			case 0: i = TextureWidget::MouseSelect; break;
-			case 1: i = TextureWidget::MouseMove; break;
-			case 2: i = TextureWidget::MouseRotate; break;
-			case 3: i = TextureWidget::MouseScale; break;
-
-			case 4: //HACK: Let F be used from this window.
-				
-				glutSetWindow(w->model.glut_window_id);				
-				extern void viewwin_toolboxfunc(int);
-				viewwin_toolboxfunc(1); //tool_select_faces?
-				return false;
-
-			case 5: i = w->recall_tool[0]; break;
-			}
-			w->submit(w->mouse.select_id(i));
-			return false;
-		}
-	}
-
-	return Win::basic_keyboard(ui,k,m);
-}
-
 void TextureCoordWin::open()
 {
 	setModel();
@@ -127,33 +284,80 @@ void TextureCoordWin::open()
 	{
 		//REMINDER: GLX needs to show before
 		//it can use OpenGL.
-		show(); openModel();
+		show();
+		
+		if(trilist.empty()) openModel();
 	}
 }
 void TextureCoordWin::setModel()
 {
-	texture.setModel(model);
+	//Note, setModel clears the texture and coords.
+	texture.setModel(model); trilist.clear();
 
 	if(!hidden()) openModel();
 }
 void TextureCoordWin::modelChanged(int changeBits)
 {
-	if(changeBits&Model::SelectionFaces
-	 ||changeBits&Model::MoveTexture&&!m_ignoreChange)
-	{		
-		texture.clearCoordinates(); //NEW: sync restoreSelectedUv 
+	if(m_ignoreChange) return;
 
-		if(!hidden()) openModel();
-	}
-	if(changeBits&Model::SelectionUv&&!m_ignoreChange) //NEW
+	if(hidden()) //Invalidate at first opportunity?
 	{
-		//I think this stopped working when generic undo/redo was
-		//removed. It's better to have a notification code anyway.
-		if(!hidden())
+		if(changeBits&Model::SelectionFaces)
 		{
-			texture.restoreSelectedUv(); texture.updateWidget();
+			trilist.clear();
+			texture.clearCoordinates();
+		}
+		if(changeBits&Model::SetTexture)
+		{
+			texture.setTexture(-1);
+		}
+		return;
+	}
+
+	//Note, this is mainly to avoid calling
+	//glutSetWindow/updateWidget many times.
+	int clr = changeBits&Model::SelectionFaces;
+	int set = changeBits&Model::SetTexture;
+	int mov = changeBits&Model::MoveTexture;
+	int sel = changeBits&Model::SelectionUv;
+	int upd = set|mov|sel; if(clr)
+	{
+		//TODO: Is it desirable to retain the
+		//UV selection while selecting faces?
+		//Would the new UVs be selected then?
+	}
+	else
+	{
+		if(sel) texture.restoreSelectedUv();
+		if(mov)
+		{
+			int v = 0; for(auto i:trilist)
+			{
+				float s,t; for(int j=0;j<3;j++)
+				{
+					model->getTextureCoords(i,j,s,t);
+					texture.m_vertices[v].s = s;
+					texture.m_vertices[v].t = t; v++;
+				}
+			}
 		}
 	}
+	
+	if(upd)
+	glutSetWindow(glut_window_id());
+	if(clr) 
+	{
+		int cmp = texture.m_materialId;
+		openModel();
+		if(upd=set&&cmp==texture.m_materialId)
+		texture.setTexture(texture.m_materialId);
+	}
+	else
+	{
+		if(upd) glutSetWindow(glut_window_id());
+		if(set) texture.setTexture(texture.m_materialId);
+	}	
+	if(upd) texture.updateWidget();
 }
 void TextureCoordWin::openModel()
 {
@@ -167,31 +371,25 @@ void TextureCoordWin::openModel()
 	glutSetWindow(glut_window_id());
 
 	model->getSelectedTriangles(trilist);
-	for(int ea:trilist)
+	int m = texture.m_materialId; for(int i:trilist)
 	{
-		//FIX ME: getTriangleGroup is dumb!!
-		int g = model->getTriangleGroup(ea);
-		int m = model->getGroupTextureId(g);
-		if(m>=0)
-		{
-			texture.setTexture(m); //break;
-		}
-		break; //getTriangleGroup workaround.
+		m = model->getGroupTextureId(model->getTriangleGroup(i));
+		if(m>=0) break;
 	}
+	if(m!=texture.m_materialId) texture.setTexture(m);
 		
 	//openModelCoordinates();
 	{	
-		texture.clearCoordinates(); if(!trilist.empty())
+		texture.clearCoordinates();
 		{
-			int v = 0; float s,t;
-			for(auto it=trilist.begin();it!=trilist.end();it++,v+=3)	
+			int v = 0; float s,t; for(auto i:trilist)	
 			{	
-				for(int i=0;i<3;i++)
+				for(int j=0;j<3;j++)
 				{
-					model->getTextureCoords(*it,i,s,t);
+					model->getTextureCoords(i,j,s,t);
 					texture.addVertex(s,t);
 				}		
-				texture.addTriangle(v,v+1,v+2);
+				texture.addTriangle(v,v+1,v+2); v+=3;
 			}
 		}		
 	}
@@ -203,11 +401,43 @@ void TextureCoordWin::openModel()
 	texture.updateWidget(); //REDUNDANT
 }
 
+//NOTE: Win::Widget::getXY could be overriden instead but
+//it doesn't deal with "entry" (really "exit" here) logic.
+static void texturecoord_entry_cb(Widgets95::ui *ui, int state)
+{
+	if(!state&&ui==Win::event.active_control_ui)
+	Win::event.deactivate();
+}
+static bool texturecoord_motion_cb(Widgets95::ui *ui, int x, int y)
+{
+	//REMINDER: Win::Widget::getXY already steals focus to
+	//the canvas, but this causes some problems with menus
+	//(mainly around Space and Tab "accelerators" although
+	//I've diabled _space_clicks in widgets95.h there's no
+	//way yet to disable tab navigation.)
+	if(ui==Win::event.active_control_ui)
+	{
+		//NOTE: x/y are used down below.
+		auto &a = ((TextureCoordWin*)ui)->scene.area(); 	
+		if((unsigned)(x-a[0])<(unsigned)a[2])
+		if((unsigned)(y-a[1])<(unsigned)a[3])
+		Win::event.deactivate();
+	}
+	//NOTE: this needs to run after
+	extern bool win_widget_motion(Widgets95::ui*,int,int); //YUCK
+	return win_widget_motion(ui,x,y);
+}
 void TextureCoordWin::init()
 {
+	//Tab key? (like viewpanel_motion_func)
+	entry_callback = texturecoord_entry_cb;
+	motion_callback = texturecoord_motion_cb; 
+
+	_menubar = texturecoord_init_menu();
+
 	m_ignoreChange = false; 
 
-	for(int i=1;i-->0;) recall_tool[i] = !i;
+	for(int i=2;i-->0;recall_lock[i]=0) recall_tool[i] = !i;
 
 	dimensions.disable();
 
@@ -243,8 +473,6 @@ void TextureCoordWin::init()
 
 	map.add_item(3,"Triangle").add_item(4,"Quad");
 	map.add_item(0,"Group"); //Group???
-
-	keyboard_callback = texturecoord_keyboard;
 }
 void TextureCoordWin::submit(control *c)
 {
@@ -267,11 +495,21 @@ void TextureCoordWin::submit(control *c)
 		//Just to be safe?
 		if(recall_tool[1]!=(int)mouse)
 		{
+			recall_lock[0] = recall_lock[1];
 			recall_tool[0] = recall_tool[1];
 			recall_tool[1] = mouse;
 		}
+
 		texture.setMouseOperation
 		((Widget::MouseOperationE)recall_tool[1]);
+
+		recall_lock[1] = viewwin_shifthold?texture._tool_bs_lock:0;
+		if(texture._tool_bs_lock!=recall_lock[1])
+		{
+			texture._tool_bs_lock = recall_lock[1];
+			model.views.status._texshlock.underscore(recall_lock[1]!=0);
+		}
+
 		texture.updateWidget();
 		break;
 
@@ -332,7 +570,15 @@ void TextureCoordWin::submit(control *c)
 		event.close_ui_by_create_id(); //Help?
 
 		//I guess this model saves users' work?
-		hide(); return;
+		hide();
+		
+		//DUPLICATE (FIX)
+		//There seems to be a wxWidgets bug that is documented under hide() which
+		//can be defeated by voiding the current GLUT window. TODO: this needs to
+		//be removed once the bug is long fixed. Other windows are using this too.
+		glutSetWindow(0);
+		
+		return;
 	}
 
 	basic_submit(id);
@@ -474,7 +720,9 @@ void TextureCoordWin::updateSelectionDone()
 	if(model->getUndoEnabled())
 	{
 		texture.saveSelectedUv();
-		operationComplete(::tr("Select texture coordinates"));
+		m_ignoreChange = true;
+		model->nonEditOpComplete(::tr("Select texture coordinates"));
+		m_ignoreChange = false;
 	}
 
 	setTextureCoordsEtc(false); //NEW

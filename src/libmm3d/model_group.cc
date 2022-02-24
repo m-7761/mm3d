@@ -140,18 +140,12 @@ void Model::setSelectedAsGroup(unsigned groupNum)
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= SetGroup; //AddOther
-
-	invalidateNormals(); //OVERKILL
-
-	m_validBspTree = false;
-
 	if(groupNum<m_groups.size())
 	{
 		Group *grp = m_groups[groupNum];
 		unsigned t = 0;
 
-		while(!grp->m_triangleIndices.empty())
+		while(!grp->m_triangleIndices.empty()) //OVERKILL
 		{
 			//removeTriangleFromGroup(groupNum,grp->m_triangleIndices.front());
 			removeTriangleFromGroup(groupNum,grp->m_triangleIndices.back());
@@ -209,14 +203,16 @@ void Model::addSelectedToGroup(unsigned groupNum)
 	}
 }
 
-void Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
+bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= SetGroup; //AddOther
-
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{
+		auto *tp = m_triangles[triangleNum]; //2022
+		if(tp->m_group==-1) tp->m_group = groupNum;
+		else return false;
+		
 		auto &c = m_groups[groupNum]->m_triangleIndices;
 		if(!c.empty()&&(unsigned)c.back()>triangleNum)
 		{
@@ -234,21 +230,31 @@ void Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 			sendUndo(undo/*,true*/);
 		}
 
-		m_validBspTree = false;
+		m_changeBits |= SetGroup;
+
+		invalidateNormals();
+		invalidateBspTree(); return true;
 	}
 	else
 	{
 		log_error("addTriangleToGroup(%d,%d)argument out of range\n",
 				groupNum,triangleNum);
 	}
+
+	return false;
 }
 
-void Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
+bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 {
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{	
+		auto *tp = m_triangles[triangleNum]; //2022
+		if(tp->m_group==groupNum) tp->m_group = -1;
+		else return false;
+
 		auto &c = m_groups[groupNum]->m_triangleIndices;
-		if(c.empty()) return;
+		if(c.empty()){ assert(0); return false; }
+				
 		auto it = c.end()-1;
 		if(*it!=triangleNum)
 		{
@@ -267,45 +273,30 @@ void Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 			}
 		}
 
-		m_validBspTree = false;
+		m_changeBits |= SetGroup;
+
+		invalidateNormals();
+		invalidateBspTree(); return true;
 	}
 	else
 	{
 		log_error("addTriangleToGroup(%d,%d)argument out of range\n",
 				groupNum,triangleNum);
 	}
+
+	return false;
 }
 
 #endif // MM3D_EDIT
 
-int_list Model::getUngroupedTriangles()const
+void Model::getUngroupedTriangles(int_list &l)const
 {
-	int_list triangles;
+	l.clear(); int i = 0;
 
-	unsigned t = 0;
-	unsigned tcount = m_triangles.size();
-
-	for(t = 0; t<tcount; t++)
+	for(auto*tp:m_triangles)
 	{
-		m_triangles[t]->m_marked = false;
+		if(-1==tp->m_group) l.push_back(i); i++;
 	}
-
-	unsigned g = 0;
-	unsigned gcount = m_groups.size();
-
-	for(g = 0; g<gcount; g++)
-	for(auto i:m_groups[g]->m_triangleIndices)
-	{
-		m_triangles[i]->m_marked = true;
-	}
-
-	for(t = 0; t<tcount; t++)	
-	if(!m_triangles[t]->m_marked)
-	{
-		triangles.push_back(t);
-	}
-
-	return triangles;
 }
 
 //int_list Model::getGroupTriangles(unsigned groupNumber)const
@@ -327,12 +318,17 @@ const int_list &Model::getGroupTriangles(unsigned groupNumber)const
 
 int Model::getTriangleGroup(unsigned triangleNumber)const
 {
+	/*2022: A little better...
 	for(unsigned g=0;g<m_groups.size();g++)
 	{
 		auto &c = m_groups[g]->m_triangleIndices;
 		if(c.end()!=std::find(c.begin(),c.end(),triangleNumber))
 		return g;
-	}	
+	}*/
+	if(triangleNumber<m_triangles.size())
+	{
+		return m_triangles[triangleNumber]->m_group;
+	}
 	return -1; // Triangle is not in a group
 }
 
@@ -345,51 +341,36 @@ const char *Model::getGroupName(unsigned groupNum)const
 
 int Model::getGroupByName(const char *const groupName,bool ignoreCase)const
 {
-	int (*compare)(const char *, const char *);
-	compare = ignoreCase ? PORT_strcasecmp : strcmp;
+	auto compare = ignoreCase?PORT_strcasecmp:strcmp;
 
 	int groupNumber = -1;
 
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	for(unsigned g=0;g<m_groups.size();g++)	
+	if(!compare(groupName,m_groups[g]->m_name.c_str()))
 	{
-		if(compare(groupName,m_groups[g]->m_name.c_str())==0)
-		{
-			groupNumber = g;
-			break;
-		}
-	}
+		groupNumber = g; break;
+	}	
 
 	return groupNumber;
 }
 
-uint8_t Model::getGroupSmooth(unsigned groupNum )const
+uint8_t Model::getGroupSmooth(unsigned groupNum)const
 {
-	if(groupNum<m_groups.size())
-	{
-		return m_groups[groupNum]->m_smooth;
-	}
-	else return 0;
+	return groupNum<m_groups.size()?m_groups[groupNum]->m_smooth:0;
 }
 
-uint8_t Model::getGroupAngle(unsigned groupNum )const
+uint8_t Model::getGroupAngle(unsigned groupNum)const
 {
-	if(groupNum<m_groups.size())
-	{
-		return m_groups[groupNum]->m_angle;
-	}
-	else return 180;
+	return groupNum<m_groups.size()?m_groups[groupNum]->m_angle:180;
 }
 
 int Model::removeUnusedGroups()
 {
 	int removed = 0;
-	for(int g = m_groups.size()-1; g>=0; --g)
+	for(int g=m_groups.size();g-->0;)	
+	if(m_groups[g]->m_triangleIndices.empty())
 	{
-		if(m_groups[g]->m_triangleIndices.empty())
-		{
-			++removed;
-			deleteGroup(g);
-		}
+		removed++; deleteGroup(g);
 	}
 	return removed;
 }
@@ -399,28 +380,29 @@ int Model::mergeIdenticalGroups()
 	int merged = 0;
 	std::unordered_set<int> toRemove;
 	int groupCount = m_groups.size();
-	for(int g = 0; g<groupCount; ++g)
+	for(int g=0;g<groupCount;g++)
 	{
 		if(toRemove.find(g)==toRemove.end())
 		{
-			for(int g2 = g+1; g2<groupCount; ++g2)
+			for(int g2=g+1;g2<groupCount;g2++)
 			{
-				Group *grp = m_groups[g2];
-				if(m_groups[g]->propEqual(*grp,~Model::PropTriangles))
+				Group *grp2 = m_groups[g2];
+			//	if(m_groups[g]->propEqual(*grp2,~Model::PropTriangles))
+				if(m_groups[g]->propEqual(*grp2,~Model::PropTriangles|Model::PropAllSuitable))
 				{
-					//FIX ME
-					for(int i:grp->m_triangleIndices)
+					for(int i:grp2->m_triangleIndices)
 					{
 						addTriangleToGroup(g,i);
 					}
 					toRemove.insert(g2);
-					++merged;
+
+					merged++;
 				}
 			}
 		}
 	}
 
-	for(int g = groupCount-1; g>=0; --g)
+	for(int g=groupCount;g-->0;)
 	{
 		if(toRemove.find(g)!=toRemove.end())
 		{
@@ -434,7 +416,7 @@ int Model::removeUnusedMaterials()
 {
 	int removed = 0;
 	std::unordered_set<int> inUse;
-	for(int g = m_groups.size()-1; g>=0; --g)
+	for(int g=m_groups.size();g-->0;)
 	{
 		int mat = m_groups[g]->m_materialIndex;
 		if(mat>=0)
@@ -442,11 +424,12 @@ int Model::removeUnusedMaterials()
 			inUse.insert(mat);
 		}
 	}
-	for(int m = m_materials.size()-1; m>=0; --m)
+	for(int m=m_materials.size();m-->0;)
 	{
 		if(inUse.find(m)==inUse.end())
 		{
-			++removed;
+			removed++;
+
 			deleteTexture(m);
 		}
 	}
@@ -458,11 +441,11 @@ int Model::mergeIdenticalMaterials()
 	int merged = 0;
 	std::unordered_set<int> toRemove;
 	int matCount = m_materials.size();
-	for(int m = 0; m<matCount; ++m)
+	for(int m=0;m<matCount;m++)
 	{
 		if(toRemove.find(m)==toRemove.end())
 		{
-			for(int m2 = m+1; m2<matCount; ++m2)
+			for(int m2=m+1;m2<matCount;m2++)
 			{
 				Material *mat = m_materials[m2];
 				if(m_materials[m]->propEqual(*mat))
@@ -475,13 +458,14 @@ int Model::mergeIdenticalMaterials()
 						}
 					}
 					toRemove.insert(m2);
-					++merged;
+
+					merged++;
 				}
 			}
 		}
 	}
 
-	for(int m = matCount-1; m>=0; --m)
+	for(int m=matCount;m-->0;)
 	{
 		if(toRemove.find(m)!=toRemove.end())
 		{

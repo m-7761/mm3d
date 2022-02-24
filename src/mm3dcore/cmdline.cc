@@ -42,6 +42,7 @@
 
 bool cmdline_runcommand = false;
 bool cmdline_runui = true;
+bool cmdline_resume = false;
 
 static bool cmdline_doConvert = false;
 static std::string cmdline_convertFormat = "";
@@ -161,6 +162,7 @@ enum cmdline_Mm3dOptionsE
 	OptTestTextureCompare,
 
 	OptVerbose, //NEW
+	OptResume, //2022
 	OptMAX
 };
 
@@ -171,6 +173,7 @@ int init_cmdline(int &argc,char *argv[])
 	clm.addOption(OptHelp,'h',"help");
 	clm.addOption(OptVersion,'v',"version");
 	clm.addOption(OptVerbose,0,"verbose"); //NEW
+	clm.addOption(OptResume,0,"resume"); //2022
 	clm.addOption(OptBatch,'b',"batch");
 
 	clm.addOption(OptNoPlugins,0,"no-plugins");
@@ -268,6 +271,8 @@ int init_cmdline(int &argc,char *argv[])
 		log_enable_output(true);
 	if(verbose)
 		cmdline_print_sysinfo();
+
+	cmdline_resume = clm.isSpecified(OptResume);
 
 	if(clm.isSpecified(OptDebug))
 		log_enable_debug(true);

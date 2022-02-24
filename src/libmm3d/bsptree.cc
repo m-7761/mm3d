@@ -285,7 +285,7 @@ void BspTree::Node::release()
 
 void BspTree::Node::splitNodes(int idx1, int idx2, int idx3,
 		double *p1, double *p2,
-		BspTree::Node *n1,BspTree::Node *n2,
+		BspTree::Node *n1, BspTree::Node *n2,
 		float place1,
 		float place2)
 {

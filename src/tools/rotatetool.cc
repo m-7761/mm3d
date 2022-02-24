@@ -248,7 +248,7 @@ int RotateTool::mouse2()
 		double xDiff = pos[0]-coords[0];
 		double yDiff = pos[1]-coords[1];
 		double angle = rotatepoint_diff_to_angle(xDiff,yDiff);
-		if(parent->getButtons()&BS_Shift) angle = 
+		if(parent->getButtonsLocked()&BS_Shift) angle = 
 		rotatepoint_adjust_to_nearest(angle,parent->getButtons()&Tool::BS_Alt?5:15); //HACK
 
 		m_mouse2_angle = angle;

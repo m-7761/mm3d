@@ -129,7 +129,7 @@ void TextureWin::submit(int id)
 	int m = material; switch(id)
 	{
 	case id_init:
-	
+	{
 		column_nav.lock(false,true);
 
 		texture.setModel(model);
@@ -154,15 +154,26 @@ void TextureWin::submit(int id)
 		.add_item(2,"Specular").add_item(3,"Emissive")
 		.add_item(4,"Shininess");
 
+		bool sel = false;
 		for(int i=0;i<model->getTriangleCount();i++)
 		if(model->isTriangleSelected(i))
-		if(int g=model->getTriangleGroup(i)+1)
 		{
-			material.select_id(model->getGroupTextureId(g-1));
-			break;
+			sel = true;
+			if(int g=model->getTriangleGroup(i)+1)
+			{
+				material.select_id(model->getGroupTextureId(g-1));
+				break;
+			}
 		}
+		//2022: select first if selection is empty?
+		//(I.e. can't be originating from sidebar.)
+		if(!sel&&!material.empty())
+		{
+			material.select_id(0);
+		}
+
 		//break;
-	
+	}
 	case id_item:
 
 		material_selected();		
@@ -271,7 +282,11 @@ void TextureWin::source_texture(int id)
 		Texture::ErrorE e = TextureManager::getInstance()->getLastError();
 		utf8 err = e==Texture::ERROR_NONE?::tr("Could not open file"):textureErrStr(e);
 		msg_error("%s\n%s",source.c_str(),err);
+
+		return; //2022
 	}
+
+	model->updateObservers(); //2022: preview
 }
 
 void TextureWin::new_material_or_name(int id)
@@ -293,8 +308,6 @@ void TextureWin::new_material_or_name(int id)
 		}
 		else if(id==id_new)
 		{
-			if(material.empty()) enable();
-
 			m = model->addColorMaterial(name.c_str());
 			material.add_item(m,name);
 			material.select_id(m);
@@ -307,17 +320,23 @@ void TextureWin::new_material_or_name(int id)
 
 void TextureWin::material_selected()
 {
-	int m; if(material.empty())
+	//2022: empty means the list is empty, whereas the selection
+	//can be cleared if opened from the sidebar with <None> used.
+	//int m; if(material.empty())
+	int m; if(!material.selection())
 	{
 		disable();
 		add.enable();
 		f1_ok_cancel.nav.enable();
+		if(!material.empty()) material.enable(); //2022
 
 		m = -1;
 	}
 	else
 	{
 		m = material; 
+
+		if(!del.enabled()) enable(); //2022: <New> had done this.
 		
 		refresh_column2();
 

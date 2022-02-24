@@ -102,16 +102,17 @@ class Model
 			AddOther			 = 0x00000800, // Add/name/removed object/group/material
 			SetGroup			 = 0x00001000, // Group membership changed
 			SetInfluence         = 0x00002000, // Vertex/point weight changed
-			MoveGeometry		 = 0x00004000, // Moved vertex
-			MoveNormals			 = 0x00008000, // Surface normals changed
-			MoveTexture			 = 0x00010000, // Texture map changed
-			MoveOther			 = 0x00020000, // Moved object
-			AnimationMode        = 0x00040000, // Changed animation mode
-			AnimationSet		 = 0x00080000, // Changed current animation
-			AnimationFrame       = 0x00100000, // Changed current animation frame
-			AnimationProperty    = 0x00200000, // Set animation times/frames/fps/wrap
-			ShowJoints           = 0x00400000, // Joints forced visible
-			ShowProjections      = 0x00800000, // Projections forced visible
+			SetTexture           = 0x00004000, // Texture source file changed/refreshed
+			MoveGeometry		 = 0x00008000, // Moved vertex
+			MoveNormals			 = 0x00010000, // Surface normals changed
+			MoveTexture			 = 0x00020000, // Texture map changed
+			MoveOther			 = 0x00040000, // Moved object
+			AnimationMode        = 0x00080000, // Changed animation mode
+			AnimationSet		 = 0x00100000, // Changed current animation
+			AnimationFrame       = 0x00200000, // Changed current animation frame
+			AnimationProperty    = 0x00400000, // Set animation times/frames/fps/wrap
+			ShowJoints           = 0x00800000, // Joints forced visible
+			ShowProjections      = 0x01000000, // Projections forced visible
 			ChangeAll			 = 0xFFFFFFFF, // All of the above
 
 			AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty,
@@ -166,9 +167,13 @@ class Model
 		{
 			PropName		  = 0x000001, // 
 			PropType		  = 0x000002, // 
-			PropSelection	= 0x000004, // 
-			PropVisibility  = 0x000008, // 
-			PropFree		  = 0x000010, // 
+			//2022: I'm moving these out of 
+			//range of PropAllSuitableSuitable
+		//	PropSelection	= 0x000004, // should propEqual test this?
+		//	PropVisibility  = 0x000008, // 
+			PropSelection	= 0x1000004, // should propEqual test this?
+			PropVisibility  = 0x1000008, // 
+		//	PropFree		  = 0x000010, // 
 			PropCoords		= 0x000020, // 
 			PropRotation	 = 0x000040, // 
 			PropScale		 = 0x000080, // 
@@ -189,10 +194,14 @@ class Model
 			PropTime		  = 0x400000, // 
 			PropWrap		  = 0x800000, // 
 			PropTimestamps	  = 0x1000000, //2020
-			PropAll			= 0xFFFFFF, // 
+			PropGroups		= 0x2000000, //2022
+			//PropAllSuitable			= 0xFFFFFF, // 
+			PropAllSuitable			= 0xFFFFFFFF, // 
+			PropAllSuitableSuitable	= 0xFFFFFF, //2022
 
-			// These are combinations of parts above,for convenience
-			PropFlags		 = PropSelection | PropVisibility | PropFree,
+			// These are combinations of parts above, for convenience
+			/*NOTTE: these properties are most like foils for propEqual tests*/
+		//	PropFlags = PropSelection | PropVisibility | PropFree,
 
 			PropKeyframes = PropCoords|PropRotation|PropScale|PropTime|PropType, //2021
 		};
@@ -375,7 +384,7 @@ class Model
 
 				Interpolate2020E m_interp2020;
 
-				bool propEqual(const FrameAnimVertex &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				bool propEqual(const FrameAnimVertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 				bool operator==(const FrameAnimVertex &rhs)const{ return propEqual(rhs); }
 
 			protected:
@@ -429,7 +438,9 @@ class Model
 
 				int	m_projection;  // Index of texture projection (-1 for none)
 
-				bool propEqual(const Triangle &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				int m_group; //2022
+
+				bool propEqual(const Triangle &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 				bool operator==(const Triangle &rhs)const{ return propEqual(rhs); }
 
 				void _source(AnimationModeE);
@@ -487,7 +498,7 @@ class Model
 				//https://github.com/zturtleman/mm3d/issues/87
 				FrameAnimVertexList m_frames;
 
-				bool propEqual(const Vertex &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				bool propEqual(const Vertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 				bool operator==(const Vertex &rhs)const{ return propEqual(rhs); }
 
 				void _source(AnimationModeE),_resample(Model&,unsigned);
@@ -537,7 +548,7 @@ class Model
 			//	bool m_visible; //UNUSED
 				mutable bool m_marked;
 
-				bool propEqual(const Group &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				bool propEqual(const Group &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 				bool operator==(const Group &rhs)const{ return propEqual(rhs); }
 
 			protected:
@@ -601,7 +612,7 @@ class Model
 				std::string	m_alphaFilename;  // Unused (ms3dfilter.cc)
 				Texture *m_textureData;	 // Texture data (for MATTYPE_TEXTURE)
 
-				bool propEqual(const Material &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				bool propEqual(const Material &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 				bool operator==(const Material &rhs)const{ return propEqual(rhs); }
 
 				//2021: model_draw.cc was only considering RGBA textures
@@ -674,7 +685,7 @@ class Model
 				{
 					return m_frame==rhs.m_frame&&m_isRotation&rhs.m_isRotation;
 				}
-				bool propEqual(const Keyframe &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				bool propEqual(const Keyframe &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 
 		//	protected:
 
@@ -797,7 +808,7 @@ class Model
 				return _dirty_mats[2];
 			}
 
-			bool propEqual(const Joint &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+			bool propEqual(const Joint &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 			bool operator==(const Joint &rhs)const{ return propEqual(rhs); }
 
 			void _source(AnimationModeE);
@@ -849,7 +860,7 @@ class Model
 
 			void _resample(Model&,unsigned); //2020
 
-			bool propEqual(const Point &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+			bool propEqual(const Point &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 			bool operator==(const Point &rhs)const{ return propEqual(rhs); }
 
 			void _source(AnimationModeE);
@@ -890,7 +901,7 @@ class Model
 			//bool m_selected;
 			mutable bool m_marked;
 
-			bool propEqual(const TextureProjection &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+			bool propEqual(const TextureProjection &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 			bool operator==(const TextureProjection &rhs)const{ return propEqual(rhs); }
 
 		protected:
@@ -957,7 +968,7 @@ class Model
 				if(0==~m_frame0) m->_anim_valloc(this); return m_frame0;
 			}
 						
-			bool propEqual(const Animation &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+			bool propEqual(const Animation &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 			bool operator==(const Animation &rhs)const{ return propEqual(rhs); }
 
 		public:
@@ -1024,7 +1035,7 @@ class Model
 
 			void releaseData();
 
-			bool propEqual(const FrameAnimData &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+			bool propEqual(const FrameAnimData &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 			bool operator==(const FrameAnimData &rhs)const{ return propEqual(rhs); }
 		};
 		typedef std::vector<FrameAnimData*> FrameAnimDataList;*/
@@ -1089,7 +1100,7 @@ class Model
 
 				void sprint(std::string &dest);
 
-				bool propEqual(const BackgroundImage &rhs, int propBits=PropAll, double tolerance=0.00001)const;
+				bool propEqual(const BackgroundImage &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 				bool operator==(const BackgroundImage &rhs)const{ return propEqual(rhs); }
 		};
 
@@ -1220,6 +1231,8 @@ class Model
 			DO_BACKFACECULL	= 0x20, // Do not render triangles that face away from the camera
 
 			DO_BONES = 0x40, //2019 //Removing DrawJointModeE
+
+			DO_ALPHA_DEFER_BSP = 0x80, //2021: Use draw_bspTree to manually draw transparency
 		};
 
 		//REMOVE ME
@@ -1276,7 +1289,7 @@ class Model
 		// Compares if two models are equal. Returns true of all specified
 		// properties of all specified parts match. See ComparePartsE and
 		// PartPropertiesE.
-		bool propEqual(const Model *model, int partBits = PartAll, int propBits = PropAll,
+		bool propEqual(const Model *model, int partBits = PartAll, int propBits = PropAllSuitable,
 				double tolerance = 0.00001)const;
 
 		//model_print.cc
@@ -1289,10 +1302,7 @@ class Model
 		// Indicates if the model has changed since the last time it was saved.
 		void setSaved(){ m_undoMgr->setSaved(); }
 		bool getSaved()const{ return m_undoMgr->isSaved(); }
-		bool getEdited()const
-		{
-			return !getSaved()||m_undoMgr->canUndo()||m_undoMgr->canRedo(); 
-		}
+		bool getEdited()const{ return m_undoMgr->isEdited(); }
 
 		//RENAME ME ("filename" is misleading.)
 		const char *getFilename()const
@@ -1370,6 +1380,8 @@ class Model
 
 		// Functions for rendering the model in a viewport
 		void draw(unsigned drawOptions=DO_TEXTURE,ContextT context=nullptr, double viewPoint[3]=nullptr);
+		void draw_bspTree(unsigned drawOptions, ContextT context, double viewPoint[3]);
+		BspTree &draw_bspTree(){ return m_bspTree; }
 		void drawLines(float alpha=1);
 		void drawVertices(float alpha=1);
 		void _drawPolygons(int,bool mark=false); //2019
@@ -1928,18 +1940,17 @@ class Model
 		bool getTextureBlendMode(unsigned textureId)const;
 		bool setTextureBlendMode(unsigned textureId, bool accumulate);		
 
-		int_list getUngroupedTriangles()const;
+		void getUngroupedTriangles(int_list&)const;
 		//int_list getGroupTriangles(unsigned groupNumber)const;
 		const int_list &getGroupTriangles(unsigned groupNumber)const; //2020
 		int getGroupTextureId(unsigned groupNumber)const;
 
-		int getTriangleGroup(unsigned triangleNumber)const;
-
-		void addTriangleToGroup(unsigned groupNum, unsigned triangleNum);
-		void removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum);
-
+		//FIX ME: THESE ARE EXTREMELY INEFFECIENT
+		bool addTriangleToGroup(unsigned groupNum, unsigned triangleNum);
+		bool removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum);
 		void setSelectedAsGroup(unsigned groupNum);
 		void addSelectedToGroup(unsigned groupNum);
+		int getTriangleGroup(unsigned triangleNumber)const;
 
 		bool getTextureCoords(unsigned triangleNumber, unsigned vertexIndex, float &s, float &t)const;
 		bool setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, float s, float t);
@@ -2172,7 +2183,10 @@ class Model
 		// Indicates that a user-specified operation is complete. A single
 		// "operation" may span many function calls and different types of
 		// manipulations.
-		void operationComplete(const char *opname = nullptr);
+		void operationComplete(const char *opname);
+		//
+		//2021: This is for ops that don't modify something that's saved.
+		void nonEditOpComplete(const char *opname, bool=false);
 
 		// Clear undo list
 		void clearUndo();
@@ -2505,15 +2519,22 @@ class Model
 		bool selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, double a1, double b1, double a2, double b2,SelectionTest *test = nullptr);
 		bool selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, double a1, double b1, double a2, double b2,SelectionTest *test = nullptr);
 
-		// When primitives of one type are selected,other primitives may need to
+		// When primitives of one type are selected, other primitives may need to
 		// be selected at the same time.
-		void selectTrianglesFromGroups();
+		/*2022: "From" is misleading because there isn't a 1-to-1 relationship
+		//for groups. I actually don't think this should be used in any scenario.
+		//Otherwise it would be good to rename it.
+		bool selectTrianglesFromGroups();*/
+		bool selectTrianglesFromGroups_marked(bool how);
+		public:
+		bool selectUngroupedTriangles(bool how); //2022
 		public: //This needs to be manually callable, so unselectTriangle in loop
 			//is less pathological.
 		void selectVerticesFromTriangles();
 		protected:
 		void selectTrianglesFromVertices(bool all = true);
-		void selectGroupsFromTriangles(bool all = true);
+		//void selectGroupsFromTriangles(bool all = true);
+		void selectGroupsFromTriangles_marked2(bool how);
 
 		public:
 		bool parentJointSelected(int joint)const;

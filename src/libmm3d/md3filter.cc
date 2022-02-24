@@ -2182,8 +2182,9 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 				saveMatrix = getMatrixFromPoint(anim,t,rootTag).getInverse();
 			}
 			int_list::iterator vit;
-			double dmax[4] = { DBL_MIN,DBL_MIN,DBL_MIN,1 };
-			double dmin[4] = { DBL_MAX,DBL_MAX,DBL_MAX,1 };
+			//double dmax[4] = { DBL_MIN,DBL_MIN,DBL_MIN,1 }; //2022
+			double dmax[4] = { -DBL_MAX,-DBL_MAX,-DBL_MAX,1 };
+			double dmin[4] = { +DBL_MAX,+DBL_MAX,+DBL_MAX,1 };
 			for(mlit = meshes.begin(); mlit!=meshes.end(); mlit++)
 			{
 				int i = (*mlit).group;

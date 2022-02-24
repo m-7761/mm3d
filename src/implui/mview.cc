@@ -86,13 +86,22 @@ void ViewBar::ModelView::init_view_dropdown()
 	auto *ref = view.reference();
 	auto &v = ref?*ref:view;
 	v.clear();
+	//I'm not crazy about how this looks, but Widgets95
+	//will have to be modified to omit the \t part when
+	//copying the value from the menu into its titlebar.
+	//IT'S NOW IN THE MENU SYSTEM. 2 PLACES IS TOO MUCH.
+	//v.add_item(Tool::ViewPerspective,"&Perspective\tPgUp"); 
 	v.add_item(Tool::ViewPerspective,"&Perspective"); 
 	for(auto ea:mview_new) if(ea<-1)
 	{
 		char n[] = "Persp (&0)"; n[8]+=-ea;
 		v.add_item((int)ea,n);
-	}
+	}	
 	//&B is below T. F/R is left of K/L.
+	//v.add_item(1,"&Front\tEnd").add_item(2,"Bac&k\tShift+End");
+	//v.add_item(3,"&Left\tShift+PgDn").add_item(4,"&Right\tPgDn");
+	//v.add_item(5,"&Top\tHome").add_item(6,"&Bottom\tShift+Home");
+	//v.add_item(Tool::ViewOrtho,"&Orthographic\tShift+PgUp");
 	v.add_item(1,"&Front").add_item(2,"Bac&k");
 	v.add_item(3,"&Left").add_item(4,"&Right");
 	v.add_item(5,"&Top").add_item(6,"&Bottom");

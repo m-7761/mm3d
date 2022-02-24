@@ -180,18 +180,74 @@ void Model::insertGroup(unsigned index, Model::Group *group)
 		m_changeBits |= SelectionGroups; 
 	}
 
+	bool set = false;
+	if(!group->m_triangleIndices.empty()) //2022
+	{
+		set = true;
+		for(int i:group->m_triangleIndices)
+		{
+			assert(m_triangles[i]->m_group==-1);
+			m_triangles[i]->m_group = index;
+		}
+	}
+	for(auto i=index+1;i<=m_groups.size();i++)
+	if(!m_groups[i-1]->m_triangleIndices.empty())
+	{
+		set = true;
+		for(auto j:m_groups[i-1]->m_triangleIndices)
+		{
+			m_triangles[j]->m_group = i;
+		}
+	}
+	if(set)
+	{
+		m_changeBits |= SetGroup;
+
+		invalidateNormals();
+		invalidateBspTree();
+	}
+
 	m_groups.insert(m_groups.begin()+index,group);
 }
 
 void Model::removeGroup(unsigned index)
 {
-	m_changeBits |= AddOther;
-
 	if(index<m_groups.size())
 	{
-		if(m_groups[index]->m_selected)
+		m_changeBits |= AddOther;
+
+		auto *group = m_groups[index];
+
+		if(group->m_selected)
 		{
 			m_changeBits |= SelectionGroups; 
+		}
+
+		bool set = false;
+		if(!group->m_triangleIndices.empty()) //2022
+		{
+			set = true;
+			for(int i:group->m_triangleIndices)
+			{
+				assert(m_triangles[i]->m_group==index);
+				m_triangles[i]->m_group = -1;
+			}
+		}
+		for(auto i=index;i<m_groups.size()-1;i++)
+		if(!m_groups[i+1]->m_triangleIndices.empty())
+		{
+			set = true;
+			for(auto j:m_groups[i+1]->m_triangleIndices)
+			{
+				m_triangles[j]->m_group = i;
+			}
+		}
+		if(set)
+		{
+			m_changeBits |= SetGroup;
+
+			invalidateNormals();
+			invalidateBspTree();
 		}
 
 		m_groups.erase(m_groups.begin()+index);

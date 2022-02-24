@@ -65,7 +65,8 @@ viewwin_deletecmd=0,viewwin_interlock=1,
 viewwin_jointlock=0,
 viewwin_toolbar = 0;
 extern int 
-viewwin_joints100=1;
+viewwin_joints100=1,
+viewwin_shifthold=0,viewwin_shlk_menu=0;
 
 //TODO: Need an elaborate API for this I guess
 static bool &viewwin_rmb = ModelViewport::_rmb_rotates_view;
@@ -83,7 +84,11 @@ extern MainWin* &viewwin(int id=glutGetWindow())
 	{
 		//Reminder: viewwin_menu_state_func is global.
 		int c = glutGet(glutext::GLUT_WINDOW_CREATOR);
-		if(c>0) glutSetWindow(c);
+		//2022: Why was this here? it's changing the
+		//current window (why?) which is foiling the
+		//detection of the UV editor's shift lock in
+		//perform_menu_action
+		//if(c>0) glutSetWindow(c);
 		if(c>0) return viewwin(c);
 	}
 	assert(o); return *o;
@@ -178,7 +183,7 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		int id = model->getDrawJoints()?model->getDrawOptions()&Model::DO_BONES?2:1:0;
 		glutext::glutMenuEnable(id_rops_hide_joints+id,glutext::GLUT_MENU_CHECK);	
 		if(!id&&model->unselectAllBoneJoints())
-		model->operationComplete(::tr("Hide bone joints"));
+		model->nonEditOpComplete(::tr("Hide bone joints"));
 	}
 	if(changeBits&Model::ShowProjections)
 	{
@@ -186,7 +191,7 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		int id = model->getDrawProjections();
 		glutext::glutMenuEnable(id_rops_hide_projections+id,glutext::GLUT_MENU_CHECK);
 		if(!id&&model->unselectAllProjections())
-		model->operationComplete(::tr("Hide projections"));
+		model->nonEditOpComplete(::tr("Hide projections"));
 	}
 	if(changeBits&Model::AnimationMode)
 	{
@@ -313,13 +318,13 @@ static void viewwin_close_func()
 	//viewpanel_display_func is sometimes entered on closing
 	//after removal from viewwin_list.
 	//glutHideWindow();
-	Widgets95::glut::set_glutDisplayFunc(nullptr);
+	Widgets95::glut::set_glutDisplayFunc();
 	//viewpanel_motion_func, etc?
-	Widgets95::glut::set_glutKeyboardFunc(nullptr);
-	Widgets95::glut::set_glutSpecialFunc(nullptr);
-	Widgets95::glut::set_glutMouseFunc(nullptr);
-	Widgets95::glut::set_glutMotionFunc(nullptr);
-	Widgets95::glut::set_glutPassiveMotionFunc(nullptr);	
+	Widgets95::glut::set_glutKeyboardFunc();
+	Widgets95::glut::set_glutSpecialFunc();
+	Widgets95::glut::set_glutMouseFunc();
+	Widgets95::glut::set_glutMotionFunc();
+	Widgets95::glut::set_glutPassiveMotionFunc();	
 	/*REMINDER: glutDetachMenu causes reshape with wrong
 	//size saved to the config file. This just keeps the
 	//wrong size from ever being recorded.
@@ -418,18 +423,18 @@ static void viewwin_synthetic_hotkey(std::string &s, Command *cmd, int i)
 	utf8 ks = viewwin_key_sequence("cmd",cmd->getName(i),cmd->getKeymap(i));
 	if(*ks) s.append(1,'\t').append(ks);
 }
-static utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t="", utf8 def="", bool clr=true)
+extern utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t="", utf8 def="", bool clr=true)
 {
 	//utf8 ks = keycfg.get(key,*def?TRANSLATE("KeyConfig",def,t):def);
 	utf8 ks = keycfg.get(key,def);
 	if(clr) s.clear(); s+=::tr(n,t);
 	if(*ks) s.append(1,'\t').append(ks); return s.c_str();
 }
-static utf8 viewwin_menu_radio(std::string &o, bool O, utf8 key, utf8 n, utf8 t="", utf8 def="")
+extern utf8 viewwin_menu_radio(std::string &o, bool O, utf8 key, utf8 n, utf8 t="", utf8 def="")
 {
 	o = O?'O':'o'; o.push_back('|'); return viewwin_menu_entry(o,key,n,t,def,false);
 }
-static utf8 viewwin_menu_check(std::string &o, bool X, utf8 key, utf8 n, utf8 t="", utf8 def="")
+extern utf8 viewwin_menu_check(std::string &o, bool X, utf8 key, utf8 n, utf8 t="", utf8 def="")
 {
 	o = X?'X':'x'; o.push_back('|'); return viewwin_menu_entry(o,key,n,t,def,false);
 }
@@ -454,8 +459,11 @@ void MainWin::_init_menu_toolbar() //2019
 
 		viewwin_file_menu = glutCreateMenu(viewwin_menubarfunc);
 
+		//wxWidets/src/common/accelcmn.cpp has a list of obscure
+		//(ugly) accelerator strings that I wish Widgets95 could
+		//workaround, but in the meantime there's no other means.
 	glutAddMenuEntry(E(file_new,"&New...","File|New","Ctrl+Alt+N"));
-	glutAddMenuEntry(E(file_open,"&Open...","File|Open","Ctrl+Alt+O"));	
+	glutAddMenuEntry(E(file_open,"&Open...","File|Open","Ctrl+Alt+O"));		
 	glutAddSubMenu(::tr("&Recent Models","File|Recent Models"),viewwin_mruf_menu);
 	glutAddMenuEntry(E(file_close,"&Close","File|Close","Ctrl+Alt+C"));
 	glutAddMenuEntry();
@@ -475,6 +483,8 @@ void MainWin::_init_menu_toolbar() //2019
 	//I'm making this true so it appears as a checkbox on Windows.
 	viewwin_rmb = config.get("ui_prefs_rmb",false);
 	glutAddMenuEntry(X(!viewwin_rmb,file_prefs_rmb,"LMB Rotates View","",""));
+	glutAddMenuEntry();
+	glutAddMenuEntry(E(file_resume,"Resu&me","","Windows_Menu"));
 	glutAddMenuEntry();
 	//REMINDER: Alt+F4 closes a window according to the system menu.
 	glutAddMenuEntry(E(file_quit,"&Quit","File|Quit","Ctrl+Alt+Q"));
@@ -498,6 +508,15 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(fullscreen,"&Full Screen","","F11"));
 		glutAddMenuEntry(E(viewselect,"Open View Menu","","F4"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(view_persp,"&Perspective","","PgUp")); 
+		glutAddMenuEntry(E(view_ortho,"&Orthographic","","Shift+PgUp"));			
+		glutAddMenuEntry(E(view_right,"&Right","","PgDn"));
+		glutAddMenuEntry(E(view_left,"&Left","","Shift+PgDn"));
+		glutAddMenuEntry(E(view_top,"&Top","","Home"));
+		glutAddMenuEntry(E(view_bottom,"&Bottom","","Shift+Home"));	
+		glutAddMenuEntry(E(view_front,"&Front","","End"));
+		glutAddMenuEntry(E(view_back,"Bac&k","","Shift+End"));
 
 		//views.status._interlock.underscore(true); //inverting sense
 	}
@@ -667,11 +686,10 @@ void MainWin::_init_menu_toolbar() //2019
 		if(!tool->isSeparator())
 		{
 			utf8 p = tool->getPath(); 
-			if(p!=path)
+			if(p!=path&&sm)
 			{
-				if(!select_menu) select_menu = sm;
-				if(sm) glutSetMenu(viewwin_tool_menu);
-				if(sm) glutAddSubMenu(::tr(path,"Tool"),sm);
+				glutSetMenu(viewwin_tool_menu);
+				glutAddSubMenu(::tr(path,"Tool"),sm);
 			}
 			if(sep)
 			{
@@ -681,6 +699,8 @@ void MainWin::_init_menu_toolbar() //2019
 			{
 				path = p; 
 				sm = p?glutCreateMenu(viewwin_toolboxfunc):0;
+
+				if(!select_menu) select_menu = sm;
 			}
 
 			int iN = tool->getToolCount(); 
@@ -696,8 +716,16 @@ void MainWin::_init_menu_toolbar() //2019
 		if(sm) glutSetMenu(viewwin_tool_menu);
 		if(sm) glutAddSubMenu(::tr(path,"Tool"),sm);
 
-		glutAddMenuEntry(E(tool_back,"Show Grids In Back","","Back"));
+		glutAddMenuEntry(E(tool_back,"Show Grids in Back","","Back"));
 		glutAddMenuEntry(E(toolparams,"Tooling Parameters","","F2"));
+		glutAddMenuEntry();
+		viewwin_shlk_menu = glutCreateMenu(viewwin_menubarfunc);
+		r = config.get("ui_tool_shift_hold",false);
+		if(r) views.status._shifthold.underscore(true);
+		glutAddMenuEntry(E(tool_shift_lock,"Sticky Shift Key (Emulation)","","L"));
+		glutAddMenuEntry(X(!r,tool_shift_hold,"Unlock when Selecting Tool","","Shift+L"));
+		glutSetMenu(viewwin_tool_menu);
+		glutAddSubMenu(::tr("Shift Lock",""),viewwin_shlk_menu);
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(tool_none,"None","","Esc"));		
 		glutAddMenuEntry(E(tool_toggle,"Toggle Tool","","Tab"));
@@ -1014,6 +1042,7 @@ _transform_win(),
 _projection_win(),
 _texturecoord_win(),
 _prev_tool(3),_curr_tool(1),
+_prev_shift(),_curr_shift(),_none_shift(),
 _prev_ortho(3),_prev_persp(0),
 _prev_view(),_curr_view()
 {
@@ -1261,13 +1290,15 @@ bool MainWin::save(Model *model, bool expdir)
 	const char *modelFile;
 	std::string file; if(expdir)
 	{
-		title = "Export save";
+		//title = "Export model";
+		title = "Export";
 		modelFile = model->getFilename();
 		file = config.get("ui_export_dir");
 	}
 	else
 	{
-		title = "Save save file as";
+		//title = "Save model file as";
+		title = "Save As";
 		modelFile = model->getExportFile();
 		file = config.get("ui_model_dir");
 	}
@@ -1328,7 +1359,7 @@ void MainWin::merge(Model *model, bool animations_only_non_interactive)
 
 	std::string file = config.get("ui_model_dir");
 	if(file.empty()) file = ".";
-	file = Win::FileBox(file,verb,::tr("Open model file"));
+	file = Win::FileBox(file,verb,::tr("Open")); //"Open model file"
 	if(!file.empty())
 	{
 		Model::ModelErrorE err;
@@ -1769,6 +1800,10 @@ void MainWin::perform_menu_action(int id)
 
 		MainWin::open(nullptr,w); return;
 
+	case id_file_resume: 
+
+		viewwin_mrumenufunc(0); return;
+
 	case id_file_close:
 
 		//2019: Changing behavior.
@@ -1853,7 +1888,7 @@ void MainWin::perform_menu_action(int id)
 		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected joints.  Unselect joints now?"),"yN"))		
 		{
 			if(m->unselectAllBoneJoints())
-			m->operationComplete(::tr("Hide bone joints"));
+			m->nonEditOpComplete(::tr("Hide bone joints"));
 		}
 		//else return; //break; [[fallthrough]];
 		
@@ -1876,7 +1911,7 @@ void MainWin::perform_menu_action(int id)
 		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected projections.  Unselect projections now?"),"yN"))
 		{
 			if(m->unselectAllProjections())
-			m->operationComplete(::tr("Hide projections"));
+			m->nonEditOpComplete(::tr("Hide projections"));
 		}
 		//else return; //break; [[fallthrough]];
 
@@ -1942,6 +1977,51 @@ void MainWin::perform_menu_action(int id)
 		ea->views.status._interlock.underscore(0==viewwin_interlock);
 		return;
 	
+	case id_tool_shift_hold: //2022
+	{
+		id = glutGet(glutext::GLUT_MENU_CHECKED);
+		config.set("ui_tool_shift_hold",id==0);
+		viewwin_shifthold = id==0;
+		w->views.status._shifthold.underscore(id==0);
+
+		auto *tc = w->_texturecoord_win; //YUCK
+		//texturecoord_entry_cb/etc. is purposely
+		//deactivating to use Tab with Toggle Tool.
+		//if(tc&&tc==Win::event.active_control_ui) 
+		if(tc&&tc->glut_window_id()==glutGetWindow())
+		{
+			assert(!tc->hidden());
+			auto &f = w->views.status._texshlock;
+			if(id==f.int_val()) //inverted
+			tc->texture._tool_bs_lock = f.underscore(id==0)?Tool::BS_Shift:0;
+		}
+		else 
+		{
+			auto &f = w->views.status._shiftlock;
+			if(id==f.int_val()) //inverted
+			w->views._bs_lock = f.underscore(id==0)?Tool::BS_Shift:0;
+		}
+		return;
+	}
+	case id_tool_shift_lock: //2022
+	{
+		auto *tc = w->_texturecoord_win; //YUCK
+		//texturecoord_entry_cb/etc. is purposely
+		//deactivating to use Tab with Toggle Tool.
+		//if(tc&&tc==Win::event.active_control_ui)
+		if(tc&&tc->glut_window_id()==glutGetWindow())
+		{
+			assert(!tc->hidden());
+			auto &f = w->views.status._texshlock;
+			tc->texture._tool_bs_lock = f.underscore(!f)?Tool::BS_Shift:0;
+		}
+		else
+		{
+			auto &f = w->views.status._shiftlock;
+			w->views._bs_lock = f.underscore(!f)?Tool::BS_Shift:0;
+		}
+		return;
+	}
 	case id_animate_snap:
 	
 		//inverting sense
@@ -1960,7 +2040,7 @@ void MainWin::perform_menu_action(int id)
 		{
 			m->setAnimationMode((Model::AnimationModeE)id);
 			if(cmp!=m->getAnimationMode())
-			m->operationComplete(::tr("Start animation mode","operation complete"));
+			m->nonEditOpComplete(::tr("Start animation mode","operation complete"));
 		}
 		return;
 	
@@ -2030,6 +2110,14 @@ void MainWin::perform_menu_action(int id)
 		viewportsettings(m); break;
 
 	case id_view_init: views.reset(); break;
+
+	case id_view_persp: case id_view_ortho:
+	case id_view_right: case id_view_left:
+	case id_view_front: case id_view_back:
+	case id_view_top: case id_view_bottom:
+
+		w->views.modelview((Tool::ViewE)(id-id_view_persp));
+		break;
 
 	/*View->Snap To menu*/
 	case id_snap_grid: //*
@@ -2241,14 +2329,36 @@ void viewwin_toolboxfunc(int id) //extern
 	bool def = id_tool_none==id;
 	bool cmp = w->toolbox.getCurrentTool()->isNullTool();
 	Tool *tool = nullptr; 
+
+	int shift_lock = 0; //EXPERIMENTAL
+	int shift_curr = w->views._bs_lock;
+	if(cmp) w->_none_shift = shift_curr;
+	if(def) shift_lock = w->_none_shift;
+	else if(viewwin_shifthold)
+	{
+		//NOTE: The exception to manual shift locking
+		//is the recall/toggle and the "default" tool.
+		//The reason for treating it different is its
+		//use of Shift is so different to be annoying.
+		shift_lock = cmp?w->_curr_shift:shift_curr;
+	}
+
 	switch(id)
 	{
 	case id_tool_recall:
+
+		shift_lock = w->_prev_shift;
 
 		iid = id = w->_prev_tool; break;
 
 	case id_tool_toggle:
 	
+		shift_lock = cmp?w->_curr_shift:w->_none_shift;
+
+		//TRICKY: this is missed below, so it's cleaner
+		//to do it here now than test for id_tool_toggle 
+		if(!cmp) w->_curr_shift = shift_curr;
+
 		def = !cmp;
 		iid = id = cmp?w->_curr_tool:id_tool_none; 
 		if(cmp) break;
@@ -2281,7 +2391,7 @@ void viewwin_toolboxfunc(int id) //extern
 		}
 	}
 	if(!tool){ assert(0); return; } //???
-		
+			
 	//REMOVE ME
 	//w->toolbox.getCurrentTool()->deactivated();
 	w->toolbox.setCurrentTool(tool);
@@ -2292,7 +2402,19 @@ void viewwin_toolboxfunc(int id) //extern
 	if(!def&&iid!=w->_curr_tool)
 	{
 		w->_prev_tool = w->_curr_tool;
-		w->_curr_tool = iid;
+		w->_curr_tool = iid;		
+
+		w->_prev_shift = shift_curr;
+	}
+	if(viewwin_shifthold)
+	{
+		if(!def&&!cmp) w->_prev_shift = shift_curr;
+	}
+	w->_curr_shift = !def?shift_lock:shift_curr;
+	if(w->views._bs_lock!=shift_lock)
+	{
+		w->views._bs_lock = shift_lock;
+		w->views.status._shiftlock.underscore(shift_lock!=0);
 	}
 
 	//texturecoord.cc?
@@ -2407,6 +2529,8 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 	{
 		//HACK: Constrain to integer time?
 		shift = (cm&GLUT_ACTIVE_SHIFT)!=0;
+		if(w->views._bs_lock&Tool::BS_Shift)
+		shift = 1;
 		if(!shift)
 		{
 			//bool snap = viewwin_framesnap!=0; 

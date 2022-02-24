@@ -34,6 +34,10 @@ public:
 
 	const char *getOpName()const{ return m_name.c_str(); };
 
+	bool isEdit()const{ return m_name[0]!='@'; }
+
+	void markNonEditing(){ m_name.insert(0,1,'@'); }
+
 protected:
 
 	std::string m_name;
@@ -51,11 +55,15 @@ public:
 
 	void setSaved();
 	bool isSaved()const;
+	bool isEdited()const;
 
 	//See Model::sendUndo note.
 	//void addUndo(Undo *u,bool listCombine = false);
 	void addUndo(Undo *u);
-	void operationComplete(const char *opname = nullptr);
+	void operationComplete(const char *opname, bool edit);
+
+	//This let's operationComplete assert(opname&&*opname);
+	void _operationCompleteInternal(int);
 
 	// Items should be applied in reverse order (back to front)
 	UndoList *undo();
@@ -64,10 +72,10 @@ public:
 	UndoList *redo();
 
 	// True if there is an undo list available
-	bool canUndo()const { return m_atomic.empty()? false : true; };
+	bool canUndo()const { return !m_atomic.empty(); };
 
 	// True if there is a redo list available
-	bool canRedo()const { return m_atomicRedo.empty()? false : true ; }; 
+	bool canRedo()const { return !m_atomicRedo.empty(); }; 
 
 	const char *getUndoOpName()const;
 	const char *getRedoOpName()const;

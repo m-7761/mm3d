@@ -28,10 +28,12 @@
 
 static void model_draw_defaultMaterial()
 {
-	float fval[4] = { 0.2f,0.2f,0.2f,1.0f };
-	glMaterialfv(GL_FRONT,GL_AMBIENT,
-			fval);
-	fval[0] = fval[1] = fval[2] = 0.8f;
+	//2022: Well this makes no sense?
+	//https://github.com/zturtleman/mm3d/issues/173
+	//float fval[4] = { 0.2f,0.2f,0.2f,1.0f };	
+	float fval[4] = { 1,1,1,1 };
+	glMaterialfv(GL_FRONT,GL_AMBIENT,fval);
+	//fval[0] = fval[1] = fval[2] = 0.8f;
 	glMaterialfv(GL_FRONT,GL_DIFFUSE,fval);
 	fval[0] = fval[1] = fval[2] = 0.0f;
 	glMaterialfv(GL_FRONT,GL_SPECULAR,fval);
@@ -39,8 +41,7 @@ static void model_draw_defaultMaterial()
 	glMaterialf(GL_FRONT,GL_SHININESS,0.0f);
 }
 
-static void model_draw_drawPointOrientation(bool selected, double scale,
-		  const Matrix &m)
+static void model_draw_drawPointOrientation(bool selected, double scale, const Matrix &m)
 {
 	//Selected green is completely invisible on the teal background :(
 	//float color = selected?0.9f:0.7f;
@@ -379,6 +380,8 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	bool alpha = drawOptions&DO_ALPHA&&viewPoint;
 	if(alpha&&!m_validBspTree)
 	{
+		//TODO: this doesn't encode selection mode
+		//color at all
 		calculateBspTree();
 	}
 
@@ -390,8 +393,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	glDisable(GL_BLEND);
 	glEnable(GL_LIGHT0);
 	glDisable(GL_LIGHT1);
-	model_draw_defaultMaterial();
-	glColor3f(0.9f,0.9f,0.9f);
+	//glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
 
 	//https://github.com/zturtleman/mm3d/issues/98
 	//bool colorSelected = false;
@@ -402,7 +404,8 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 
 		if(drawOptions&DO_TEXTURE)
 		{
-			glColor3f(1,1,1);
+			//glColor3f(1,1,1); //??? //glColorMaterial?
+
 			if(grp->m_materialIndex>=0)
 			{
 				int index = grp->m_materialIndex;
@@ -447,7 +450,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		{
 			model_draw_defaultMaterial();
 			glDisable(GL_TEXTURE_2D);
-			glColor3f(0.9f,0.9f,0.9f);
+		//	glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
 		}
 
 		//colorSelected = false;
@@ -466,10 +469,10 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					//if(colorSelected==false)
 					if(colorSelected!=(int)true)
 					{
-						if(0==(drawOptions&DO_TEXTURE))
+						/*if(0==(drawOptions&DO_TEXTURE))
 						{
-							glColor3f(1,0,0);
-						}
+							glColor3f(1,0,0); //??? //glColorMaterial?
+						}*/
 						glEnd();
 						glDisable(GL_LIGHT0);
 						glEnable(GL_LIGHT1);
@@ -482,10 +485,10 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					//if(colorSelected==true)
 					if(colorSelected!=(int)false)
 					{
-						if(0==(drawOptions&DO_TEXTURE))
+						/*if(0==(drawOptions&DO_TEXTURE))
 						{
-							glColor3f(0.9f,0.9f,0.9f);
-						}
+							glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
+						}*/
 						glEnd();
 						glDisable(GL_LIGHT1);
 						glEnable(GL_LIGHT0);
@@ -516,12 +519,14 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		if(colorSelected==(int)true) glDisable(GL_LIGHT1); //2020
 	}
 
+	glDisable(GL_TEXTURE_2D);
+
 	// Draw ungrouped triangles
 	{
 		colorSelected = -1; //NEW
 
 		model_draw_defaultMaterial();
-		glDisable(GL_TEXTURE_2D);
+
 		glBegin(GL_TRIANGLES);
 		for(auto*triangle:m_triangles) if(!triangle->m_marked)
 		{
@@ -534,7 +539,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					//if(colorSelected==false)
 					if(colorSelected!=(int)true)
 					{
-						glColor3f(1,0,0);
+					//	glColor3f(1,0,0); //??? //glColorMaterial?
 						glEnd();
 						glDisable(GL_LIGHT0);
 						glEnable(GL_LIGHT1);
@@ -547,7 +552,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 					//if(colorSelected==true)
 					if(colorSelected!=(int)false)
 					{
-						glColor3f(0.9f,0.9f,0.9f);
+					//	glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
 						glEnd();
 						glDisable(GL_LIGHT1);
 						glEnable(GL_LIGHT0);
@@ -578,15 +583,74 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		if(colorSelected==(int)true) glDisable(GL_LIGHT1); //2020
 	}
 
-	// Draw depth-sorted alpha blended polys last
-	if(alpha)
+	if(alpha&&~drawOptions&DO_ALPHA_DEFER_BSP)
 	{
-		glEnable(GL_BLEND);
-		m_bspTree.render(viewPoint,drawContext);
-		glDisable(GL_BLEND);
-	}	
+		// Draw depth-sorted alpha blended polys last
+		//draw_bspTree(drawOptions,context,viewPoint);
+		if(!m_bspTree.empty())
+		{
+			glDepthMask(0);
+			glEnable(GL_BLEND);		
+			m_bspTree.render(viewPoint,drawContext);		
+			glDisable(GL_BLEND);
+			glDepthMask(1);
 
-	glDisable(GL_TEXTURE_2D);
+			glDisable(GL_TEXTURE_2D);
+		}
+	}
+}
+void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoint[3])
+{
+	if(m_bspTree.empty()) return;
+
+	//https://github.com/zturtleman/mm3d/issues/56
+	drawOptions|=m_drawOptions;
+
+	if(0!=(drawOptions&DO_WIREFRAME))
+	{
+		glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+	}
+	else
+	{
+#ifdef MM3D_EDIT //???
+		if(0!=(drawOptions&DO_BACKFACECULL))
+		{
+			glEnable(GL_CULL_FACE);
+			glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+		}
+		else
+		{
+			glDisable(GL_CULL_FACE);
+			glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+		}
+#else
+		glPolygonMode(GL_FRONT,GL_FILL);
+#endif
+	}
+
+	DrawingContext *drawContext = nullptr;
+	if(context)
+	{
+		drawContext = getDrawingContext(context);
+
+		/*Model::draw should've done this already.
+		if(!drawContext->m_valid)
+		{
+			loadTextures(context);
+			log_debug("loaded textures for %p\n",context);
+		}*/
+	}
+
+	//if(!m_bspTree.empty())
+	{
+		glDepthMask(0);
+		glEnable(GL_BLEND);		
+		m_bspTree.render(viewPoint,drawContext);		
+		glDisable(GL_BLEND);
+		glDepthMask(1);
+
+		glDisable(GL_TEXTURE_2D);
+	}	
 }
 
 void Model::drawLines(float a)
