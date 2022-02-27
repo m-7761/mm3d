@@ -1421,7 +1421,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		float t = 0.0;
 		for(n=0;n<count;n++)
 		{
-			for(unsigned i = 0; i<3; i++)
+			for(unsigned i=0;i<3;i++)
 			{
 				model->getTextureCoords(n,i,s,t);
 				setTextureCoords(n+tribase,i,s,t);
@@ -1438,7 +1438,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 			//if(textures) //see above rationale
 			{
-				int grp = model->getTriangleGroup(n);
+				int grp = m_triangles[n]->m_group;
 				if(grp>=0)
 				{
 					addTriangleToGroup(groupMap[grp],n+tribase);

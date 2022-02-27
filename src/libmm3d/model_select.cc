@@ -294,7 +294,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 		
 		if(remove_me) //2019: MU_Select called in a loop!
 		{
-			bool o = setUndoEnabled(false);			
+			//bool o = setUndoEnabled(false);			
 			//selectVerticesFromTriangles(); //INSANE?!?
 			{
 				//BETTER: leverage new connectivty data?
@@ -309,7 +309,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 					m_vertices[i]->m_selected = selected;
 				}
 			}
-			setUndoEnabled(o);
+			//setUndoEnabled(o);
 		}
 
 		return true;
@@ -1353,15 +1353,10 @@ void Model::selectVerticesFromTriangles()
 
 	assert(m_selecting||!m_undoEnabled); //BELOW CODE IS NOT UNDOABLE
 
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	for(auto*ea:m_triangles) if(ea->m_selected)
 	{
-		if(m_triangles[t]->m_selected)
-		{
-			for(int v = 0; v<3; v++)
-			{
-				m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_selected = true;
-			}
-		}
+		for(int v=3;v-->0;)
+		m_vertices[ea->m_vertexIndices[v]]->m_selected = true;
 	}
 }
 
@@ -2415,6 +2410,65 @@ void Model::selectFreeVertices()
 	}
 
 	endSelectionDifference();
+}
+
+bool Model::setSelectedTriangles(const int_list &l) //2022
+{
+	assert(!m_selecting);
+
+	auto undo = m_undoEnabled?new MU_Select(SelectTriangles):0;
+
+	bool sel = false;
+
+	int li = 0, next = l.empty()?-1:l.front();
+
+	int i = -1; for(auto*ea:m_triangles)
+	{
+		if(next==++i)
+		{
+			next = ++li<(int)l.size()?l[li]:-1;
+
+			if(!ea->m_selected&&ea->m_visible)
+			{
+				sel = true;
+			
+				ea->m_selected = true;
+			}
+			else continue;
+		}
+		else if(ea->m_selected)
+		{
+			sel = true;
+			
+			ea->m_selected = false;
+		}
+		else continue;
+
+		//if(!m_selecting) //2020: making fullproof?
+		{
+			if(undo) //m_undoEnabled
+			{
+				//if(!undo) undo = new MU_Select(SelectTriangles);
+
+				bool how = ea->m_selected;
+
+				undo->setSelectionDifference(i,how,!how);
+			}
+		}
+	}
+		
+	if(sel) //HACK: Emulate MU_Select?
+	{	
+		bool o = setUndoEnabled(false);
+		{
+			selectVerticesFromTriangles();
+		}
+		setUndoEnabled(o);
+
+		m_changeBits |= SelectionFaces;
+	}
+	
+	sendUndo(undo); return sel;
 }
 
 void Model::setSelectedUv(const int_list &uvList)

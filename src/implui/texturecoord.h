@@ -203,8 +203,8 @@ struct TextureCoordWin : Win
 	void setModel();
 	void modelChanged(int changeBits);
 
-	int recall_tool[2];
-	int recall_lock[2];
+	bool select_all();
+	bool select_faces(bool exclusive);
 
 protected:		
 		 
@@ -223,6 +223,9 @@ protected:
 	int_list trilist; //NEW: Reuse buffer.
 
 	double centerpoint[2]; //UV textboxes.
+	
+	int recall_tool[2];
+	int recall_lock[2];
 };
 
 #endif //__TEXTURECOORD_H__

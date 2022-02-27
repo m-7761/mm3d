@@ -4068,7 +4068,7 @@ void Model::calculateNormals()
 
 	(m_animationMode?m_validAnimNormals:m_validNormals) = true;
 
-	m_validBspTree = false;
+	invalidateBspTree();
 }
 
 void Model::invalidateNormals()
@@ -4082,14 +4082,18 @@ void Model::invalidateNormals()
 	m_validAnimNormals = false;
 	
 	m_validNormals = false;
-	m_validBspTree = false;
+
+	//NOTE: calculateNormals calls invalidateBspTree?
+	invalidateBspTree();
 }
 void Model::invalidateAnimNormals()
 {
 	m_changeBits |= MoveNormals;
 
 	m_validAnimNormals = false;
-	m_validBspTree = false;
+
+	//NOTE: calculateNormals calls invalidateBspTree?
+	invalidateBspTree();
 }
 
 bool Model::validateNormals()const

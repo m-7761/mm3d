@@ -1550,7 +1550,7 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 		m_changeBits |= AnimationMode;
 	}
 	
-	if(old.mode||m) m_validBspTree = false;
+	if(old.mode||m) invalidateBspTree();
 
 	//2020: setCurrentAnimationTime builds its normals from the
 	//base model's flat normals.
@@ -1692,7 +1692,7 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	
 	m_changeBits |= AnimationFrame; 
 
-	m_validBspTree = false;
+	invalidateBspTree();
 
 	//m_currentFrame = (unsigned)(frameTime/spf);
 	m_currentFrame = f;

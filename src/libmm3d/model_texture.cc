@@ -278,7 +278,7 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 
 	if(groupNumber>=0&&groupNumber<m_groups.size()&&textureId<(int)m_materials.size())
 	{
-		m_validBspTree = false;
+		invalidateBspTree();
 
 		if(m_undoEnabled)
 		{
@@ -302,7 +302,7 @@ bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, floa
 
 	if(triangleNumber<m_triangles.size()&&vertexIndex<3)
 	{
-		m_validBspTree = false;
+		invalidateBspTree();
 
 		if(m_undoEnabled)
 		{
@@ -710,7 +710,9 @@ void Model::invalidateTextures() //OVERKILL
 
 	//HACK/2020: Force Material to reload built-in OpenGL texture data.
 	m_validContext = false;
-	m_validBspTree = false;
+
+	invalidateBspTree();
+
 	for(auto*ea:m_drawingContexts) ea->m_valid = false;	
 }
 

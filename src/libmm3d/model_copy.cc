@@ -211,7 +211,7 @@ Model *Model::copySelected(bool animated)const
 			for(auto i:tri)
 			{
 				// This works,even if triangle group==-1
-				int gid = getTriangleGroup(i);
+				int gid = m_triangles[i]->m_group;
 				if(gid>=0)
 				{
 					m->addTriangleToGroup(gid,triMap[i]);
@@ -399,13 +399,8 @@ bool Model::duplicateSelected(bool animated, bool separate)
 			{
 				if(!m_triangles[t]->m_selected) continue;
 
-				//FIX ME: getTriangleGroup is dumb!!
-				//FIX ME: getTriangleGroup is dumb!!
-				//FIX ME: getTriangleGroup is dumb!!
-				//FIX ME: getTriangleGroup is dumb!!
-
-				// This works,even if triangle group==-1
-				int gid = getTriangleGroup(t);
+				// This works,even if triangle group==-1 //???
+				int gid = m_triangles[t]->m_group;
 				if(gid>=0)
 				addTriangleToGroup(gid,triMap[t]);
 			}

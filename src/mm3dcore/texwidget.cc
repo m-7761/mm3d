@@ -583,7 +583,7 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 		m_xSel1 = s; m_ySel1 = t;
 		m_xSel2 = s; m_ySel2 = t; //NEW:
 		//m_selecting = e->button()&Qt::RightButton?false:true;
-		m_selecting = bs&Tool::BS_Right?false:true;
+		m_selecting = bt&Tool::BS_Right?false:true;
 		m_drawBounding = true;
 		break;
 

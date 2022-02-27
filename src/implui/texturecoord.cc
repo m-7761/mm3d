@@ -48,6 +48,8 @@ enum
 	id_uv_fit_128=0x100080, //8
 	id_uv_fit_256=0x100100, //9
 	id_uv_fit_2_x=0x120000,
+	id_uv_fit_u, id_uv_fit_v,
+	id_uv_fit_uv=id_uv_fit_u|id_uv_fit_v, //1|2
 
 	//Tool
 	id_uv_tool_select=TextureWidget::MouseSelect,
@@ -58,8 +60,13 @@ enum
 	//clashes with the
 	//above enum values
 	id_uv_model=1000, //ARBITRARY
+
+	id_uv_cmd_select_all=2000,
+	id_uv_cmd_select_faces_incl,
+	id_uv_cmd_select_faces_excl,
 };
 extern int viewwin_shifthold;
+static int texturecoord_fit_uv = 1|2;
 void TextureCoordWin::_menubarfunc(int id)
 {
 	TextureCoordWin *tw;
@@ -70,6 +77,9 @@ void TextureCoordWin::_menubarfunc(int id)
 
 	if(id>=id_uv_fit_0&&id<=id_uv_fit_2_x)
 	{
+		int smask = texturecoord_fit_uv&1;
+		int tmask = texturecoord_fit_uv&2;
+
 		double s,t;
 		if(id==id_uv_fit_1||id==id_uv_fit_0)
 		{
@@ -90,7 +100,8 @@ void TextureCoordWin::_menubarfunc(int id)
 				for(auto&ea:tw->texture.m_vertices)
 				if(ea.selected)
 				{
-					ea.s-=ss; ea.t-=tt;		
+					if(smask) ea.s-=ss; 
+					if(tmask) ea.t-=tt;		
 				}
 			}
 			else if(id==id_uv_fit_1) //unscale
@@ -113,8 +124,8 @@ void TextureCoordWin::_menubarfunc(int id)
 					//NOTE: Basing off ss/tt to prevent
 					//positive scaling from getting out
 					//of hand.
-					ea.s = s*(ea.s-ss)+ss;
-					ea.t = t*(ea.t-tt)+tt;
+					if(smask) ea.s = s*(ea.s-ss)+ss;
+					if(tmask) ea.t = t*(ea.t-tt)+tt;
 				}
 			}
 			else assert(0); goto done;
@@ -127,12 +138,19 @@ void TextureCoordWin::_menubarfunc(int id)
 		for(auto&ea:tw->texture.m_vertices)
 		if(ea.selected)
 		{
-			ea.s*=s; ea.t*=t;		
+			if(smask) ea.s*=s;
+			if(tmask) ea.t*=t;		
 		}
 	done:tw->updateTextureCoordsDone();
 	}
 	else switch(id) //Tool?
 	{
+	case id_edit_undo:
+	case id_edit_redo:
+
+		tw->model.perform_menu_action(id);
+		break;
+
 	case id_tool_toggle: //DICEY
 
 		id+=id_uv_model; //break; //Ready for subtraction below.
@@ -144,17 +162,17 @@ void TextureCoordWin::_menubarfunc(int id)
 		glutSetWindow(tw->model.glut_window_id);				
 		extern void viewwin_toolboxfunc(int);
 		viewwin_toolboxfunc(id-id_uv_model); //tool_select_faces?
-		return;
+		break;
 
 	case id_uv_tool_select: case id_uv_tool_move: 
 	case id_uv_tool_rotate: case id_uv_tool_scale:
 
-		return tw->submit(tw->mouse.select_id(id));
+		tw->submit(tw->mouse.select_id(id)); break;
 
 	case id_uv_view_init:
 
 		tw->texture.keyPressEvent(Tool::BS_Left|Tool::BS_Special,0,0,0); //Home
-		return;
+		break;
 
 	case id_tool_recall: //CLEAN ME UP
 
@@ -178,8 +196,74 @@ void TextureCoordWin::_menubarfunc(int id)
 
 			tw->texture.updateWidget();
 		}			
-		return;
+		break;
+
+	case id_uv_fit_u:
+	case id_uv_fit_v:
+	case id_uv_fit_uv: //u|v
+	
+		id&=3;
+		if(id!=3&&id==texturecoord_fit_uv)
+		{
+			id = 3;
+			glutext::glutMenuEnable(id_uv_fit_uv,glutext::GLUT_MENU_CHECK);
+		}
+		texturecoord_fit_uv = id;
+		extern std::vector<MainWin*> viewwin_list;
+		for(auto&ea:viewwin_list)
+		{
+			ea->views.status._uvfitlock.name(id==1?"Fw":"Fh");
+			ea->views.status._uvfitlock.underscore(id!=3);
+		}
+		break;
+	
+	case id_uv_cmd_select_all:
+
+		tw->select_all(); break;
+
+	case id_uv_cmd_select_faces_incl:
+	case id_uv_cmd_select_faces_excl:
+
+		tw->select_faces(id==id_uv_cmd_select_faces_excl); 
+		break;
 	}
+}
+bool TextureCoordWin::select_all()
+{
+	if(texture.m_vertices.empty())
+	return false;
+	bool sel = true;
+	for(auto&ea:texture.m_vertices) //invert?
+	if(ea.selected){ sel = false; break; }
+	for(auto&ea:texture.m_vertices)
+	ea.selected = sel;
+	updateSelectionDone(); return true;
+}
+bool TextureCoordWin::select_faces(bool excl)
+{
+	auto &vl = model->getVertexList();	
+	auto &fl = model->getTriangleList();	
+	for(auto*ea:vl) ea->m_marked = false;
+	int v = 0; for(auto i:trilist)
+	{
+		for(int j=0;j<3;j++,v++)
+		if(texture.m_vertices[v].selected)		
+		vl[fl[i]->m_vertexIndices[j]]->m_marked = true;
+	}
+	int_list l; 
+	int f = 0; for(auto*ea:fl)
+	{
+		for(int j=v=0;j<3;j++)
+		if(vl[ea->m_vertexIndices[j]]->m_marked) v++;
+
+		if(v) if(!excl||v==3) l.push_back(f); f++;
+	}
+	if(l!=trilist)
+	{
+		model->setSelectedTriangles(l);
+		model->operationComplete("UVs to Faces");		
+	}
+	else return false; return true;
 }
 static int texturecoord_init_menu()
 {	
@@ -193,7 +277,13 @@ static int texturecoord_init_menu()
 
 	static int fit_menu=0; if(!fit_menu)
 	{
+		int sm = glutCreateMenu(TextureCoordWin::_menubarfunc);		
+		glutAddMenuEntry(O(false,uv_fit_u,"Fit Width","","Ctrl+W"));
+		glutAddMenuEntry(O(false,uv_fit_v,"Fit Height","","Ctrl+H"));		
+		glutAddMenuEntry(O(true,uv_fit_uv,"Regular Fit","",""));
 		fit_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddSubMenu(::tr("Confine",""),sm);
+		glutAddMenuEntry();
 		glutAddMenuEntry(E(uv_fit_0,"Modulo","","0"));
 		glutAddMenuEntry(E(uv_fit_1,"Unscale","","1"));
 		glutAddMenuEntry(E(uv_fit_2_x,"Upscale","","2"));
@@ -205,6 +295,7 @@ static int texturecoord_init_menu()
 		glutAddMenuEntry(E(uv_fit_64,"Scale 1/64","","Ctrl+7"));
 		glutAddMenuEntry(E(uv_fit_128,"Scale 1/128","","Ctrl+8"));
 		glutAddMenuEntry(E(uv_fit_256,"Scale 1/256","","Ctrl+9"));
+		
 	}
 	static int view_menu=0; if(!view_menu)
 	{
@@ -229,8 +320,8 @@ static int texturecoord_init_menu()
 	static int model_menu=0; if(!model_menu)
 	{
 		model_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
-		glutAddMenuEntry(E(edit_undo,"Undo","Undo shortcut","Ctrl+Z"));
-		glutAddMenuEntry(E(edit_redo,"Redo","Redo shortcut","Ctrl+Y"));
+		glutAddMenuEntry(viewwin_menu_entry(o,"edit_undo","Undo","Undo shortcut","Ctrl+Z"),id_edit_undo);
+		glutAddMenuEntry(viewwin_menu_entry(o,"edit_redo","Redo","Redo shortcut","Ctrl+Y"),id_edit_redo);
 		glutAddMenuEntry();
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_connected_mesh","Select Connected Mesh","Tool","C"),id_uv_model+0);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_faces","Select Faces","Tool","F"),id_uv_model+1);
@@ -238,12 +329,21 @@ static int texturecoord_init_menu()
 		glutAddMenuEntry();
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_toggle","Toggle Tool","","Tab"),id_tool_toggle);
 	}
+	static int cmd_menu=0; if(!cmd_menu)
+	{
+		cmd_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(viewwin_menu_entry(o,"cmd_select_all","Select All UVs","Command","Ctrl+A"),id_uv_cmd_select_all+0);
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(uv_cmd_select_faces_incl,"Select Faces from UVs","","M"));
+		glutAddMenuEntry(E(uv_cmd_select_faces_excl,"Select Inscribed Faces","","N"));
+	}
 
 	int menubar = glutCreateMenu(TextureCoordWin::_menubarfunc);
 	glutAddSubMenu(::tr("&Fit","menu bar"),fit_menu);
 	glutAddSubMenu(::tr("&View","menu bar"),view_menu);
 	glutAddSubMenu(::tr("&Tools","menu bar"),tool_menu);
 	glutAddSubMenu(::tr("&Model","menu bar"),model_menu);
+	glutAddSubMenu(::tr("&Geometry","menu bar"),cmd_menu);
 	glutAttachMenu(glutext::GLUT_NON_BUTTON);
 
 	#undef E //viewwin_menu_entry
@@ -343,8 +443,6 @@ void TextureCoordWin::modelChanged(int changeBits)
 		}
 	}
 	
-	if(upd)
-	glutSetWindow(glut_window_id());
 	if(clr) 
 	{
 		int cmp = texture.m_materialId;
@@ -397,8 +495,6 @@ void TextureCoordWin::openModel()
 	//NEW: Call operationComplete so setSelectedUv isn't open-ended
 	//and do everything else that was once done here as side-effect.
 	updateSelectionDone();
-
-	texture.updateWidget(); //REDUNDANT
 }
 
 //NOTE: Win::Widget::getXY could be overriden instead but

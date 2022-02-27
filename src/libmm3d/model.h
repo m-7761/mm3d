@@ -2317,6 +2317,9 @@ class Model
 		bool unselectAllProjections(){ return selectAllProjections(false); }
 		bool unselectAllPositions(PositionTypeE pt){ return selectAllPositions(pt,false); }
 
+		//2022: This is modeled on setSelectedUv.
+		bool setSelectedTriangles(const int_list &presorted);
+
 		// A selection test is an additional condition you can attach to whether
 		// or not an object in the selection volume should be selected. For example,
 		// this is used to add a test for which way a triangle is facing so that

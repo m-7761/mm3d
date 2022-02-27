@@ -142,6 +142,7 @@ struct ViewBar::StatusBar : StatusObject
 	flags(nav),	
 	_vert_snap(flags,"Vs",id_snap_vert),
 	_grid_snap(flags,"Gs",id_snap_grid),
+	_uvfitlock(flags,"Fw",id_uv_editor), //?
 	_interlock(flags,"Ex",id_frame_lock),
 	_shiftlock(flags,"Sh",id_tool_shift_lock),
 	_texshlock(flags,"Uv",id_tool_shift_lock),
@@ -198,6 +199,7 @@ struct ViewBar::StatusBar : StatusObject
 	}	//unrelated.
 	_vert_snap, //Vs
 	_grid_snap, //Gs
+	_uvfitlock, //Fw/Fh
 	_interlock, //Ex (invertd)
 	_shiftlock, //Sh
 	_texshlock, //Uv 
