@@ -702,13 +702,7 @@ class Model
 		struct Object2020 //RENAME ME
 		{
 			//https://github.com/zturtleman/mm3d/issues/114
-
-			Object2020(PositionTypeE t):m_abs(),
-			m_absSource(m_abs),m_rot(),
-			m_rotSource(m_rot),m_xyz{1,1,1}, //C++11
-			m_xyzSource(m_xyz),m_type(t)
-			{}
-
+		
 			std::string m_name;
 
 			//NOTE: calculateAnim assumes stored back-to-back.
@@ -731,6 +725,10 @@ class Model
 			const double *getParams(Interpolant2020E)const;
 			const double *getParamsUnanimated(Interpolant2020E)const;
 			void getParams(double abs[3], double rot[3], double xyz[3])const;
+
+		protected:
+
+			void init(PositionTypeE t);
 		};
 
 		// A bone joint in the skeletal structure,used for skeletal animations.
@@ -744,7 +742,7 @@ class Model
 			static int allocated(){ return s_allocated; }
 			static int recycled(){ return s_recycle.size(); }
 			static void stats();
-			static Joint *get();
+			static Joint *get(AnimationModeE);
 			void release();
 			void sprint(std::string &dest);
 			
@@ -830,7 +828,7 @@ class Model
 			static int allocated(){ return s_allocated; }
 			static int recycled(){ return s_recycle.size(); }
 			static void stats();
-			static Point *get();
+			static Point *get(AnimationModeE);
 			void release();
 			void sprint(std::string &dest);
 	
@@ -1088,20 +1086,23 @@ class Model
 		// Reference background images for canvas viewports.
 		class BackgroundImage : public Object2020
 		{
-			public:
-				BackgroundImage():Object2020(_OT_Background_)
-				{
-					m_xyz[0] = 30; /*???*/ 
-				}
+		public:
+		
+			BackgroundImage()
+			{
+				Object2020::init(_OT_Background_);
 
-				//std::string m_filename;
-				//float m_scale;      // 1.0 means 1 GL unit from the center to the edges of the image
-				//float m_center[3];  // Point in the viewport where the image is centered
+				m_xyz[0] = 30; /*???*/ 
+			}
 
-				void sprint(std::string &dest);
+			//std::string m_filename;
+			//float m_scale;      // 1.0 means 1 GL unit from the center to the edges of the image
+			//float m_center[3];  // Point in the viewport where the image is centered
 
-				bool propEqual(const BackgroundImage &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-				bool operator==(const BackgroundImage &rhs)const{ return propEqual(rhs); }
+			void sprint(std::string &dest);
+
+			bool propEqual(const BackgroundImage &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+			bool operator==(const BackgroundImage &rhs)const{ return propEqual(rhs); }
 		};
 
 		//https://github.com/zturtleman/mm3d/issues/56

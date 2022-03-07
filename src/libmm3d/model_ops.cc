@@ -1319,7 +1319,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		double *tran = point->m_abs, *rot = point->m_rot;
 		int pnum = addPoint(point->m_name.c_str(),tran[0],tran[1],tran[2],rot[0],rot[1],rot[2]);
 
-		memcpy(m_points[pnum]->m_xyz,point->m_xyz,3*sizeof(point->m_xyz));
+		memcpy(m_points[pnum]->m_xyz,point->m_xyz,sizeof(point->m_xyz));
 
 		for(auto&ea:model->m_points[n]->m_influences)
 		{
@@ -1438,7 +1438,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 			//if(textures) //see above rationale
 			{
-				int grp = m_triangles[n]->m_group;
+				int grp = model->m_triangles[n]->m_group;
 				if(grp>=0)
 				{
 					addTriangleToGroup(groupMap[grp],n+tribase);

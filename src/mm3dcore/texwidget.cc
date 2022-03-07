@@ -944,7 +944,7 @@ bool TextureWidget::keyPressEvent(int bt, int bs, int, int)
 				m_zoom = 1.10*std::max(xzoom,yzoom);
 			}
 		}
-		updateViewport(); break;
+		updateViewport('z'); break;
 	
 	//case Qt::Key_Equal: case Qt::Key_Plus: 
 	case '=': case '+': zoomIn(); break;

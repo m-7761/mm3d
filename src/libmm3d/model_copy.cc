@@ -196,7 +196,7 @@ Model *Model::copySelected(bool animated)const
 		// even if not needed,the user can delete the unecessary parts
 		unsigned gcount = getGroupCount();
 		log_debug("Copying %d groups\n",gcount);
-		for(unsigned g = 0; g<gcount; g++)
+		for(unsigned g=0;g<gcount;g++)
 		{
 			m->addGroup(getGroupName(g));
 			m->setGroupSmooth(g,getGroupSmooth(g));

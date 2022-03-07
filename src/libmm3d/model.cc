@@ -601,7 +601,7 @@ int Model::addBoneJoint(const char *name, int parent)
 
 	int num = m_joints.size();
 
-	Joint *joint = Joint::get();
+	Joint *joint = Joint::get(m_animationMode);
 
 	joint->m_parent = parent;
 	joint->m_name	= name;
@@ -658,7 +658,7 @@ int Model::addPoint(const char *name, double x, double y, double z,
 
 	log_debug("New point at %f,%f,%f\n",x,y,z); //???
 
-	Point *point = Point::get();
+	Point *point = Point::get(m_animationMode);
 
 	point->m_name	= name;
 

@@ -714,7 +714,25 @@ bool Model::Keyframe::propEqual(const Keyframe &rhs, int propBits, double tolera
 	return true;
 }
 
-Model::Joint::Joint():Object2020(PT_Joint)
+void Model::Object2020::init(PositionTypeE t)
+{
+	m_name.clear();
+	
+	memset(m_abs,0x00,sizeof(m_abs));
+	memset(m_rot,0x00,sizeof(m_rot));
+	for(int i=3;i-->0;) m_xyz[i] = 1;
+	
+	//WARNING: Can't rely on this!!
+	m_absSource = m_abs;
+	m_rotSource = m_rot;
+	m_xyzSource = m_xyz;
+
+	m_selected = false;
+
+	m_type = t;
+}
+
+Model::Joint::Joint()
 {
 	s_allocated++;
 	init();
@@ -722,36 +740,45 @@ Model::Joint::Joint():Object2020(PT_Joint)
 
 Model::Joint::~Joint()
 {
-	init();
+	//init(); //???
 	s_allocated--;
 }
 
 void Model::Joint::init()
 {
-	m_selected = false;
-	m_visible  = true;
+	Object2020::init(PT_Joint); //2022
+	
+	m_parent = -1; //2022???
+
+	m_visible = true;
 	m_bone = true;
 
-	for(int i=0;i<3;i++) //NECESSARY?
+	for(int i=0;i<3;i++)
 	{
-		m_kfRot[0] = 0;
+		m_rel[0] = m_kfRel[0] = m_kfRot[0] = 0;
 		m_kfXyz[1] = 1;
 	}
+
+	//2022: I guess?
+	m_absolute.loadIdentity();
+	m_relative.loadIdentity();
+	m_final.loadIdentity();
+
+	_dirty_mask = ~0;
 }
 
-Model::Joint *Model::Joint::get()
+Model::Joint *Model::Joint::get(AnimationModeE am)
 {
+	Joint *v;
 	if(!s_recycle.empty())
 	{
-		Joint *v = s_recycle.back();
+		v = s_recycle.back();
 		s_recycle.pop_back();
 		v->init();
-		return v;
 	}
-	else
-	{
-		return new Joint();
-	}
+	else v = new Joint();
+
+	v->_source(am); return v;
 }
 
 void Model::Joint::release()
@@ -760,10 +787,7 @@ void Model::Joint::release()
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 
 int Model::Joint::flush()
@@ -822,7 +846,7 @@ bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)co
 	return true;
 }
 
-Model::Point::Point():Object2020(PT_Point)
+Model::Point::Point()
 {
 	s_allocated++;
 	init();
@@ -830,37 +854,37 @@ Model::Point::Point():Object2020(PT_Point)
 
 Model::Point::~Point()
 {
-	init();
+	//init(); //???
 	s_allocated--;
 }
 
 void Model::Point::init()
 {
-	m_selected = false;
+	Object2020::init(PT_Point); //2022
+
 	m_visible  = true;
 
-	for(int i=0;i<3;i++) //NECESSARY?
+	for(int i=0;i<3;i++)
 	{
 		m_kfAbs[0] = m_kfRot[0] = 0;
 		m_kfXyz[1] = 1;
 	}
 
-	m_influences.clear(); //ABUSED (init?)
+	m_influences.clear();
 }
 
-Model::Point *Model::Point::get()
+Model::Point *Model::Point::get(AnimationModeE am)
 {
+	Point *v;
 	if(!s_recycle.empty())
 	{
-		Point *v = s_recycle.back();
+		v = s_recycle.back();
 		s_recycle.pop_back();
 		v->init();
-		return v;
 	}
-	else
-	{
-		return new Point();
-	}
+	else v = new Point();
+
+	v->_source(am); return v;
 }
 
 void Model::Point::release()
@@ -869,10 +893,7 @@ void Model::Point::release()
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 
 int Model::Point::flush()
@@ -925,7 +946,7 @@ bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)co
 	return true;
 }
 
-Model::TextureProjection::TextureProjection():Object2020(PT_Projection)
+Model::TextureProjection::TextureProjection()
 {
 	s_allocated++;
 	init();
@@ -933,14 +954,15 @@ Model::TextureProjection::TextureProjection():Object2020(PT_Projection)
 
 Model::TextureProjection::~TextureProjection()
 {
-	init();
+	//init(); //???
 	s_allocated--;
 }
 
 void Model::TextureProjection::init()
 {
-	m_selected = false;
-	m_type	  = 0;
+	Object2020::init(PT_Projection); //2022
+
+	m_type = 0;
 
 	m_range[0][0] = 0.0;
 	m_range[0][1] = 0.0;

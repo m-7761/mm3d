@@ -1355,6 +1355,9 @@ void Model::selectVerticesFromTriangles()
 
 	for(auto*ea:m_triangles) if(ea->m_selected)
 	{
+		//NOTE/REMINDER: Hidden vertices need to be selected as well
+		//owing to how the Delete function is implemented at present.
+
 		for(int v=3;v-->0;)
 		m_vertices[ea->m_vertexIndices[v]]->m_selected = true;
 	}
