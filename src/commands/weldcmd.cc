@@ -25,8 +25,6 @@
 #include "menuconf.h"
 #include "model.h"
 #include "glmath.h"
-#include "log.h"
-#include "msg.h"
 #include "modelstatus.h"
 #include "weld.h"
 #include "command.h"

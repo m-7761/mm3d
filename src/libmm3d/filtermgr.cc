@@ -30,7 +30,7 @@ FilterManager *FilterManager::s_instance = nullptr;
 
 FilterManager::~FilterManager()
 {
-	log_debug("FilterManager releasing %d filters\n",m_filters.size());
+	//log_debug("FilterManager releasing %d filters\n",m_filters.size());
 	for(auto*ea:m_filters) ea->release();
 }
 

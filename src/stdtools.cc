@@ -29,7 +29,7 @@
 
 static void stdtools_func(Toolbox *tb)
 {
-	log_debug("initializing standard tools\n");
+	//log_debug("initializing standard tools\n");
 
 	#define _(x) \
 	extern Tool *x##tool(); tb->addTool(x##tool());

@@ -98,7 +98,7 @@ Model *Model::copySelected(bool animated)const
 		getSelectedVertices(vert);
 
 		// Copy vertices
-		log_debug("Copying %d vertices\n",vert.size());
+		//log_debug("Copying %d vertices\n",vert.size());
 		for(auto i:vert)
 		{
 			double coords[3]; if(animated)
@@ -118,7 +118,7 @@ Model *Model::copySelected(bool animated)const
 		}
 
 		// Copy faces
-		log_debug("Copying %d faces\n",tri.size());
+		//log_debug("Copying %d faces\n",tri.size());
 		for(auto i:tri)
 		{
 			unsigned v[3];
@@ -136,16 +136,12 @@ Model *Model::copySelected(bool animated)const
 		}
 
 		// Copy texture coords
-		log_debug("Copying %d face texture coordinates\n",tri.size());
+		//log_debug("Copying %d face texture coordinates\n",tri.size());
 		for(auto i:tri)
 		{
-			float s,t;
-
-			for(unsigned j=0;j<3;j++)
-			{
-				getTextureCoords((unsigned)i,j,s,t);
-				m->setTextureCoords((unsigned)triMap[i],j,s,t);
-			}
+			float st[2][3];
+			getTextureCoords((unsigned)i,st);
+			m->setTextureCoords((unsigned)triMap[i],st);
 		}
 
 		// TODO only copy textures used by groups?
@@ -153,7 +149,7 @@ Model *Model::copySelected(bool animated)const
 		// It's easier here to just copy the groups and textures 
 		// even if not needed,the user can delete the unecessary parts
 		unsigned tcount = getTextureCount();
-		log_debug("Copying %d textures\n",tcount);
+		//log_debug("Copying %d textures\n",tcount);
 		for(unsigned t = 0; t<tcount; t++)
 		{
 			switch (getMaterialType(t))
@@ -195,7 +191,7 @@ Model *Model::copySelected(bool animated)const
 		// It's easier here to just copy the groups and textures 
 		// even if not needed,the user can delete the unecessary parts
 		unsigned gcount = getGroupCount();
-		log_debug("Copying %d groups\n",gcount);
+		//log_debug("Copying %d groups\n",gcount);
 		for(unsigned g=0;g<gcount;g++)
 		{
 			m->addGroup(getGroupName(g));
@@ -207,7 +203,7 @@ Model *Model::copySelected(bool animated)const
 		if(gcount>0)
 		{
 			// Set groups
-			log_debug("Setting %d triangle groups\n",tri.size());
+			//log_debug("Setting %d triangle groups\n",tri.size());
 			for(auto i:tri)
 			{
 				// This works,even if triangle group==-1
@@ -224,7 +220,7 @@ Model *Model::copySelected(bool animated)const
 	if(!points.empty())
 	{
 		// Copy points
-		log_debug("Copying %d points\n",points.size());
+		//log_debug("Copying %d points\n",points.size());
 		for(auto i:points)
 		{
 			double coord[3],rot[3],xyz[3];
@@ -254,7 +250,7 @@ Model *Model::copySelected(bool animated)const
 	if(!joints.empty())
 	{
 		// Copy joints
-		log_debug("Copying %d joints\n",joints.size());
+		//log_debug("Copying %d joints\n",joints.size());
 		for(auto i:joints)
 		{
 			int parent = getBoneJointParent(i);
@@ -383,12 +379,9 @@ bool Model::duplicateSelected(bool animated, bool separate)
 		//log_debug("Duplicating %d face texture coordinates\n",tri.size());
 		//for(lit = tri.begin(); lit!=tri.end(); lit++)
 		//{	
-			for(unsigned i=0;i<3;i++)
-			{
-				float s,t;
-				getTextureCoords(it,i,s,t);
-				setTextureCoords(nt,i,s,t); //triMap[it]
-			}
+			float st[2][3];
+			getTextureCoords(it,st);
+			setTextureCoords(nt,st); //triMap[it]
 		}
 
 		if(getGroupCount())

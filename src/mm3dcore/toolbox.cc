@@ -99,7 +99,7 @@ Toolbox::~Toolbox()
 	}
 	m_tools.clear(); //REMOVE ME
 
-	log_debug("active tool count: %d\n",Tool::s_allocated);
+	//log_debug("active tool count: %d\n",Tool::s_allocated);
 }
 
 void Toolbox::addTool(Tool *tool, bool separate)

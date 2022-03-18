@@ -88,7 +88,7 @@ bool Model::loadTextures(ContextT context)
 						glGenTextures(1,&(m_materials[t]->m_texture));
 						s_glTextures++;
 						
-						log_debug("GL textures: %d\n",s_glTextures);
+						//log_debug("GL textures: %d\n",s_glTextures);
 
 						drawContext->m_fileTextures
 						[m_materials[t]->m_filename] = m_materials[t]->m_texture;
@@ -104,10 +104,10 @@ bool Model::loadTextures(ContextT context)
 					glGenTextures(1,&m_materials[t]->m_texture);
 					s_glTextures++;
 
-					log_debug("GL textures: %d\n",s_glTextures);
+					//log_debug("GL textures: %d\n",s_glTextures);
 				}
 
-				log_debug("loaded texture %s as %d\n",tex->m_name.c_str(),m_materials[t]->m_texture);
+				//log_debug("loaded texture %s as %d\n",tex->m_name.c_str(),m_materials[t]->m_texture);
 
 				//if(context)
 				{
@@ -272,12 +272,12 @@ void Model::deleteTexture(unsigned textureNum)
 
 bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 {
-	log_debug("assigning texture %d to group %d\n",textureId,groupNumber);
-
-	m_changeBits |= AddOther|MoveTexture;
+	//log_debug("assigning texture %d to group %d\n",textureId,groupNumber);
 
 	if(groupNumber>=0&&groupNumber<m_groups.size()&&textureId<(int)m_materials.size())
 	{
+		m_changeBits |= SetTexture; //2022
+
 		invalidateBspTree();
 
 		if(m_undoEnabled)
@@ -296,27 +296,46 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 
 bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, float s, float t)
 {
-	m_changeBits |= MoveTexture;
-
 	//log_debug("setTextureCoords(%d,%d,%f,%f)\n",triangleNumber,vertexIndex,s,t);
 
 	if(triangleNumber<m_triangles.size()&&vertexIndex<3)
 	{
+		auto *tp = m_triangles[triangleNumber];
+
+		m_changeBits |= MoveTexture; //TODO: memcmp?
+
 		invalidateBspTree();
 
 		if(m_undoEnabled)
 		{
 			auto undo = new MU_SetTextureCoords;
-			undo->addTextureCoords(triangleNumber,vertexIndex,s,t,
-			m_triangles[triangleNumber]->m_s[vertexIndex],
-			m_triangles[triangleNumber]->m_t[vertexIndex]);
+			undo->addTextureCoords(triangleNumber,vertexIndex,s,t,tp->m_s[vertexIndex],tp->m_t[vertexIndex]);
 			sendUndo(undo);
 		}
 
-		m_triangles[triangleNumber]->m_s[vertexIndex] = s;
-		m_triangles[triangleNumber]->m_t[vertexIndex] = t;
+		tp->m_s[vertexIndex] = s; tp->m_t[vertexIndex] = t; return true;
+	}
+	return false;
+}
+bool Model::setTextureCoords(unsigned triangleNumber, float(*st)[3])
+{
+	if(triangleNumber<m_triangles.size())
+	{
+		auto *tp = m_triangles[triangleNumber];
 
-		return true;
+		m_changeBits |= MoveTexture; //TODO: memcmp?
+
+		invalidateBspTree();
+
+		if(m_undoEnabled)
+		{
+			auto undo = new MU_SetTextureCoords;
+			for(int i=3;i-->0;)
+			undo->addTextureCoords(triangleNumber,i,st[0][i],st[1][i],tp->m_s[i],tp->m_t[i]);
+			sendUndo(undo);
+		}
+
+		memcpy(tp->m_s,st,6*sizeof(float)); return true;
 	}
 	return false;
 }
@@ -568,6 +587,12 @@ bool Model::getTextureCoords(unsigned triangleNumber, unsigned vertexIndex, floa
 	}
 	return false;
 }
+bool Model::getTextureCoords(unsigned triangleNumber, float(*st)[3])const
+{
+	if(triangleNumber>=m_triangles.size()) return false;
+	
+	memcpy(st,m_triangles[triangleNumber]->m_s,6*sizeof(float)); return true;
+}
 
 Texture *Model::getTextureData(unsigned textureId)
 {
@@ -725,7 +750,7 @@ void Model::deleteGlTextures(ContextT context)
 		{
 			glDeleteTextures(1,(GLuint*)&texId);
 			s_glTextures--;
-			log_debug("GL textures: %d\n",s_glTextures);
+			//log_debug("GL textures: %d\n",s_glTextures);
 		}
 	}
 	drawContext->m_fileTextures.clear();

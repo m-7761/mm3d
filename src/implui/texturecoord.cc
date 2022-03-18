@@ -241,22 +241,14 @@ bool TextureCoordWin::select_all()
 }
 bool TextureCoordWin::select_faces(bool excl)
 {
-	auto &vl = model->getVertexList();	
-	auto &fl = model->getTriangleList();	
-	for(auto*ea:vl) ea->m_marked = false;
+	int_list l;	
 	int v = 0; for(auto i:trilist)
 	{
+		int sel = 0;
 		for(int j=0;j<3;j++,v++)
-		if(texture.m_vertices[v].selected)		
-		vl[fl[i]->m_vertexIndices[j]]->m_marked = true;
-	}
-	int_list l; 
-	int f = 0; for(auto*ea:fl)
-	{
-		for(int j=v=0;j<3;j++)
-		if(vl[ea->m_vertexIndices[j]]->m_marked) v++;
-
-		if(v) if(!excl||v==3) l.push_back(f); f++;
+		if(texture.m_vertices[v].selected)
+		sel|=1<<j;
+		if(excl?sel==7:sel) l.push_back(i);
 	}
 	if(l!=trilist)
 	{
@@ -407,7 +399,7 @@ void TextureCoordWin::modelChanged(int changeBits)
 			trilist.clear();
 			texture.clearCoordinates();
 		}
-		if(changeBits&Model::SetTexture)
+		if(changeBits&(Model::SetTexture|Model::SetGroup))
 		{
 			texture.setTexture(-1);
 		}
@@ -417,10 +409,11 @@ void TextureCoordWin::modelChanged(int changeBits)
 	//Note, this is mainly to avoid calling
 	//glutSetWindow/updateWidget many times.
 	int clr = changeBits&Model::SelectionFaces;
+	int grp = changeBits&Model::SetGroup;
 	int set = changeBits&Model::SetTexture;
 	int mov = changeBits&Model::MoveTexture;
 	int sel = changeBits&Model::SelectionUv;
-	int upd = set|mov|sel; if(clr)
+	int upd = set|mov|sel; if(clr|=grp)
 	{
 		//TODO: Is it desirable to retain the
 		//UV selection while selecting faces?

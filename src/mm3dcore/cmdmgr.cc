@@ -31,7 +31,7 @@ CommandManager::CommandManager()
 {}
 CommandManager::~CommandManager()
 {
-	log_debug("CommandManager releasing %d commands\n",m_commands.size());
+	//log_debug("CommandManager releasing %d commands\n",m_commands.size());
 	
 	for(auto*ea:m_commands) ea->release();
 }

@@ -61,7 +61,7 @@ static Texture::ErrorE SourceGetError(DataSource &src)
 
 static Texture::ErrorE LoadUncompressedTGA(Texture &texture, DataSource &src)
 {
-	log_debug("loading uncompressed TGA\n");
+	//log_debug("loading uncompressed TGA\n");
 
 	src.read(tga.width);
 	src.read(tga.height);
@@ -84,10 +84,10 @@ static Texture::ErrorE LoadUncompressedTGA(Texture &texture, DataSource &src)
 		return Texture::ERROR_BAD_DATA;
 	}
 
-	log_debug("tga size: %d x %d,%d bbp\n",width,height,bpp);
+	//log_debug("tga size: %d x %d,%d bbp\n",width,height,bpp);
 
 	bool hasAlpha = (bpp==32);
-	log_debug("Alpha channel: %s\n",hasAlpha ? "present" : "not present");
+	//log_debug("Alpha channel: %s\n",hasAlpha ? "present" : "not present");
 
 	uint8_t bytespp = (bpp/8);
 	uint32_t imageSize  = (bytespp *width *height);
@@ -95,7 +95,7 @@ static Texture::ErrorE LoadUncompressedTGA(Texture &texture, DataSource &src)
 	uint8_t *data = texture.m_data.data();
 	texture.m_format = hasAlpha ? Texture::FORMAT_RGBA : Texture::FORMAT_RGB;
 
-	log_debug("image size = %d\n",imageSize);
+	//log_debug("image size = %d\n",imageSize);
 
 	if(!src.readBytes(data,imageSize))
 	{
@@ -114,7 +114,7 @@ static Texture::ErrorE LoadUncompressedTGA(Texture &texture, DataSource &src)
 
 static Texture::ErrorE LoadCompressedTGA(Texture &texture, DataSource &src)
 { 
-	log_debug("loading compressed TGA\n");
+	//log_debug("loading compressed TGA\n");
 
 	src.read(tga.width);
 	src.read(tga.height);
@@ -138,9 +138,9 @@ static Texture::ErrorE LoadCompressedTGA(Texture &texture, DataSource &src)
 	}
 
 	bool hasAlpha = (bpp==32);
-	log_debug("Alpha channel: %s\n",hasAlpha ? "present" : "not present");
+	//log_debug("Alpha channel: %s\n",hasAlpha ? "present" : "not present");
 
-	log_debug("tga size: %d x %d,%d bbp\n",width,height,bpp);
+	//log_debug("tga size: %d x %d,%d bbp\n",width,height,bpp);
 
 	uint8_t bytespp = (bpp/8);
 	uint32_t imageSize  = (bytespp *width *height);
@@ -203,8 +203,8 @@ static Texture::ErrorE LoadCompressedTGA(Texture &texture, DataSource &src)
 
 	}while(currentpixel<pixelcount);
 
-	log_debug("pixel count = %d,current pixel = %d\n",pixelcount,currentpixel);
-	log_debug("image size = %d\n",imageSize);
+	//log_debug("pixel count = %d,current pixel = %d\n",pixelcount,currentpixel);
+	//log_debug("image size = %d\n",imageSize);
 
 	return Texture::ERROR_NONE;
 }

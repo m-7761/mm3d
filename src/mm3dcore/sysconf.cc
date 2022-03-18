@@ -60,11 +60,11 @@ static std::string getExecutablePath()
 
 	if(length>=sizeof(execpath))
 	{
-		log_debug("getExecutablePath: Execuable path too long\n");
+		//log_debug("getExecutablePath: Execuable path too long\n");
 	}
 	else if(length==0)
 	{
-		log_debug("getExecutablePath: GetModuleFileNameA()failed: 0x%x\n",GetLastError());
+		//log_debug("getExecutablePath: GetModuleFileNameA() failed: 0x%x\n",GetLastError());
 	}
 	else if(char*ptr=strrchr(execpath,'\\'))
 	{
@@ -86,13 +86,13 @@ static std::string getExecutablePath()
 
 	if(0!=_NSGetExecutablePath(tmppath,&size))
 	{
-		log_debug("getExecutablePath: _NSGetExecutablePath()failed: %s\n",strerror(errno));
+		//log_debug("getExecutablePath: _NSGetExecutablePath()failed: %s\n",strerror(errno));
 		actualpath[0] = '.';
 		actualpath[1] = '\0';
 	}
 	else if(!realpath(tmppath,actualpath))
 	{
-		log_debug("getExecutablePath: realpath(%s)failed: %s\n",tmppath,strerror(errno));
+		//log_debug("getExecutablePath: realpath(%s)failed: %s\n",tmppath,strerror(errno));
 		actualpath[0] = '.';
 		actualpath[1] = '\0';
 	}
@@ -201,11 +201,11 @@ void init_sysconf()
 	s_configFile = s_mm3dHomeDir+HOME_RC;
 
 	/*
-	log_debug("mm3d home is %s\n",s_mm3dHomeDir.c_str());
-	log_debug("doc dir is %s\n",s_docDir.c_str());
-	log_debug("plugin dir is %s\n",s_pluginDir.c_str());
-	log_debug("shared plugin dir is %s\n",s_sharedPluginDir.c_str());
-	log_debug("config file is %s\n",s_configFile.c_str());
+	//log_debug("mm3d home is %s\n",s_mm3dHomeDir.c_str());
+	//log_debug("doc dir is %s\n",s_docDir.c_str());
+	//log_debug("plugin dir is %s\n",s_pluginDir.c_str());
+	//log_debug("shared plugin dir is %s\n",s_sharedPluginDir.c_str());
+	//log_debug("config file is %s\n",s_configFile.c_str());
 	*/
 
 	//free(majorMinor);

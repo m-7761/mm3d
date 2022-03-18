@@ -82,7 +82,7 @@ extern "C" int luaif_die(lua_State *L)
 
 extern "C" int luaif_getModel(lua_State *L)
 {
-	log_debug("getModel called\n");
+	//log_debug("getModel called\n");
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
 	lua_pushlightuserdata(L,model);
@@ -91,7 +91,7 @@ extern "C" int luaif_getModel(lua_State *L)
 
 extern "C" int luaif_modelGetName(lua_State *L)
 {
-	log_debug("modelGetName called\n");
+	//log_debug("modelGetName called\n");
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
 
@@ -116,7 +116,7 @@ extern "C" int luaif_modelSaveAs(lua_State *L)
 	{
 		const char *filename = lua_tostring(L,1);
 
-		log_debug("modelSaveAs called(%p,%s)\n",model,filename);
+		//log_debug("modelSaveAs called(%p,%s)\n",model,filename);
 
 		success = scriptif_modelSaveAs(model,filename);
 	}
@@ -138,7 +138,7 @@ extern "C" int luaif_modelCreateMeshRectangle(lua_State *L)
 	int index = -1;
 	int args  = lua_gettop(L);
 
-	log_debug("modelCreateMeshRectangle called()\n");
+	//log_debug("modelCreateMeshRectangle called()\n");
 
 	bool argsCorrect = false;
 
@@ -201,7 +201,7 @@ extern "C" int luaif_modelCreateBoneJoint(lua_State *L)
 	int index = -1;
 	int args  = lua_gettop(L);
 
-	log_debug("modelCreateBoneJoint called()\n");
+	//log_debug("modelCreateBoneJoint called()\n");
 
 	bool argsCorrect = false;
 	if(args==5||args==8)
@@ -466,7 +466,7 @@ extern "C" int luaif_selectedApplyMatrix(lua_State *L)
 
 extern "C" int luaif_selectedWeldVertices(lua_State *L)
 {
-	log_debug("selectedWeldVertices\n");
+	//log_debug("selectedWeldVertices\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -476,7 +476,7 @@ extern "C" int luaif_selectedWeldVertices(lua_State *L)
 
 extern "C" int luaif_selectedInvertNormals(lua_State *L)
 {
-	log_debug("selectedInvertNormals\n");
+	//log_debug("selectedInvertNormals\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -486,7 +486,7 @@ extern "C" int luaif_selectedInvertNormals(lua_State *L)
 
 extern "C" int luaif_selectedGroupFaces(lua_State *L)
 {
-	log_debug("selectedGroupFaces\n");
+	//log_debug("selectedGroupFaces\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -509,7 +509,7 @@ extern "C" int luaif_selectedGroupFaces(lua_State *L)
 
 extern "C" int luaif_selectedAddToGroup(lua_State *L)
 {
-	log_debug("selectedAddToGroup\n");
+	//log_debug("selectedAddToGroup\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -529,7 +529,7 @@ extern "C" int luaif_selectedAddToGroup(lua_State *L)
 
 extern "C" int luaif_modelGetVertexCount(lua_State *L)
 {
-	log_debug("modelGetVertexCount\n");
+	//log_debug("modelGetVertexCount\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -542,7 +542,7 @@ extern "C" int luaif_modelGetVertexCount(lua_State *L)
 
 extern "C" int luaif_modelGetFaceCount(lua_State *L)
 {
-	log_debug("modelGetFaceCount\n");
+	//log_debug("modelGetFaceCount\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -555,7 +555,7 @@ extern "C" int luaif_modelGetFaceCount(lua_State *L)
 
 extern "C" int luaif_modelGetGroupCount(lua_State *L)
 {
-	log_debug("modelGetGroupCount\n");
+	//log_debug("modelGetGroupCount\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -568,7 +568,7 @@ extern "C" int luaif_modelGetGroupCount(lua_State *L)
 
 extern "C" int luaif_modelGetJointCount(lua_State *L)
 {
-	log_debug("modelGetJointCount\n");
+	//log_debug("modelGetJointCount\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -581,7 +581,7 @@ extern "C" int luaif_modelGetJointCount(lua_State *L)
 
 extern "C" int luaif_modelGetTextureCount(lua_State *L)
 {
-	log_debug("modelGetTextureCount\n");
+	//log_debug("modelGetTextureCount\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -594,7 +594,7 @@ extern "C" int luaif_modelGetTextureCount(lua_State *L)
 
 extern "C" int luaif_modelGetGroupByName(lua_State *L)
 {
-	log_debug("modelGetGroupByName\n");
+	//log_debug("modelGetGroupByName\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -618,7 +618,7 @@ extern "C" int luaif_modelGetGroupByName(lua_State *L)
 
 extern "C" int luaif_groupGetName(lua_State *L)
 {
-	log_debug("groupGetName\n");
+	//log_debug("groupGetName\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -642,7 +642,7 @@ extern "C" int luaif_groupGetName(lua_State *L)
 
 extern "C" int luaif_modelGetTextureByName(lua_State *L)
 {
-	log_debug("modelGetTextureByName\n");
+	//log_debug("modelGetTextureByName\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -666,7 +666,7 @@ extern "C" int luaif_modelGetTextureByName(lua_State *L)
 
 extern "C" int luaif_textureGetName(lua_State *L)
 {
-	log_debug("textureGetName\n");
+	//log_debug("textureGetName\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1235,7 +1235,7 @@ extern "C" int luaif_frameAnimSetVertex(lua_State *L)
 
 extern "C" int luaif_modelSelectAll(lua_State *L)
 {
-	log_debug("modelSelectAll\n");
+	//log_debug("modelSelectAll\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1245,7 +1245,7 @@ extern "C" int luaif_modelSelectAll(lua_State *L)
 
 extern "C" int luaif_modelSelectAllVertices(lua_State *L)
 {
-	log_debug("modelSelectAllVertices\n");
+	//log_debug("modelSelectAllVertices\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1255,7 +1255,7 @@ extern "C" int luaif_modelSelectAllVertices(lua_State *L)
 
 extern "C" int luaif_modelSelectAllFaces(lua_State *L)
 {
-	log_debug("modelSelectAllFaces\n");
+	//log_debug("modelSelectAllFaces\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1265,7 +1265,7 @@ extern "C" int luaif_modelSelectAllFaces(lua_State *L)
 
 extern "C" int luaif_modelSelectAllGroups(lua_State *L)
 {
-	log_debug("modelSelectAllGroups\n");
+	//log_debug("modelSelectAllGroups\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1275,7 +1275,7 @@ extern "C" int luaif_modelSelectAllGroups(lua_State *L)
 
 extern "C" int luaif_modelSelectAllJoints(lua_State *L)
 {
-	log_debug("modelSelectAllJoints\n");
+	//log_debug("modelSelectAllJoints\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1285,7 +1285,7 @@ extern "C" int luaif_modelSelectAllJoints(lua_State *L)
 
 extern "C" int luaif_modelSelectVertex(lua_State *L)
 {
-	log_debug("modelSelectVertex\n");
+	//log_debug("modelSelectVertex\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1304,7 +1304,7 @@ extern "C" int luaif_modelSelectVertex(lua_State *L)
 
 extern "C" int luaif_modelSelectFace(lua_State *L)
 {
-	log_debug("modelSelectFace\n");
+	//log_debug("modelSelectFace\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1323,7 +1323,7 @@ extern "C" int luaif_modelSelectFace(lua_State *L)
 
 extern "C" int luaif_modelSelectGroup(lua_State *L)
 {
-	log_debug("modelSelectGroup\n");
+	//log_debug("modelSelectGroup\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1342,7 +1342,7 @@ extern "C" int luaif_modelSelectGroup(lua_State *L)
 
 extern "C" int luaif_modelSelectJoint(lua_State *L)
 {
-	log_debug("modelSelectJoint\n");
+	//log_debug("modelSelectJoint\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1361,7 +1361,7 @@ extern "C" int luaif_modelSelectJoint(lua_State *L)
 
 extern "C" int luaif_modelSelectMesh(lua_State *L)
 {
-	log_debug("modelSelectMesh\n");
+	//log_debug("modelSelectMesh\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1387,7 +1387,7 @@ extern "C" int luaif_modelSelectMesh(lua_State *L)
 
 extern "C" int luaif_modelUnselectAll(lua_State *L)
 {
-	log_debug("modelUnselectAll\n");
+	//log_debug("modelUnselectAll\n");
 
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
@@ -1445,7 +1445,7 @@ extern "C" int luaif_logError(lua_State *L)
 extern "C" void luaif_lineHook(lua_State *L,lua_Debug *ar)
 {
 	lua_getinfo(L,"S",ar);
-	log_debug("executing line %d\n",ar->currentline);
+	//log_debug("executing line %d\n",ar->currentline);
 	if(ar->source)
 	{
 		printf("%s\n",ar->source);
@@ -1497,7 +1497,7 @@ extern "C" int luaif_operationComplete(lua_State *L)
 
 extern "C" int luaif_modelLoad(lua_State *L)
 {
-	log_debug("modelLoad\n");
+	//log_debug("modelLoad\n");
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	
 	if(lua_gettop(L)==1&&lua_isstring(L,1))
@@ -1533,7 +1533,7 @@ extern "C" int luaif_modelLoad(lua_State *L)
 
 extern "C" int luaif_modelCompareToCurrent(lua_State *L)
 {
-	log_debug("model compare to current\n");
+	//log_debug("model compare to current\n");
 	LuaContext *LC = (LuaContext *)lua_topointer(L,lua_upvalueindex(1));
 	Model *model = LC->m_currentModel;
 

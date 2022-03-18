@@ -812,7 +812,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection"));	
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures","Ctrl+R"));
-	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+R"));
+	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+Alt+R"));
 				
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
@@ -1096,14 +1096,14 @@ MainWin::~MainWin()
 	//NOTE: viewwin_close_func implements teardown logic
 	//prior to the C++ destructor stage.
 
-	log_debug("deleting view window\n");
+	//log_debug("deleting view window\n");
 
 	/*Not using ContextT since lists/contexts are shared.
 	//views.freeTextures();
-	log_debug("freeing texture for viewport\n");
+	//log_debug("freeing texture for viewport\n");
 	model->removeContext(static_cast<ContextT>(this));*/
 
-	log_debug("deleting view window %08X, model %08X\n",this,model);
+	//log_debug("deleting view window %08X, model %08X\n",this,model);
 
 	if(viewwin_list.empty())
 	{
@@ -1405,14 +1405,14 @@ void MainWin::run_script(const char *file)
 	std::string fullname,fullpath,basename; //REMOVE US
 	normalizePath(scriptfile.c_str(),fullname,fullpath,basename); //???
 
-	log_debug("running script %s\n",basename.c_str());
+	//log_debug("running script %s\n",basename.c_str());
 	int rval = lua.runFile(scriptfile.c_str());
 
 	viewwin_mru(viewwin_mrus_menu,(char*)file.c_str());
 
 	if(rval==0) //UNFINISHED
 	{
-		log_debug("script complete,exited normally\n");
+		//log_debug("script complete,exited normally\n");
 		//QString str = ::tr("Script %1 complete").arg(basename.c_str());
 		//model_status(model,StatusNormal,STATUSTIME_SHORT,"%s",(const char *)str);
 		model_status(model,StatusNormal,STATUSTIME_SHORT,::tr("Script %s complete"),basename.c_str());
@@ -1575,7 +1575,7 @@ extern void viewwin_undo(int id, bool undo)
 }
 void MainWin::undo()
 {
-	log_debug("undo request\n");
+	//log_debug("undo request\n");
 
 	if(model->canUndo())
 	{
@@ -1600,7 +1600,7 @@ void MainWin::undo()
 }
 void MainWin::redo()
 {
-	log_debug("redo request\n");
+	//log_debug("redo request\n");
 
 	if(model->canRedo())
 	{
@@ -1660,7 +1660,7 @@ bool MainWin::open(const char *file2, MainWin *window)
 
 	bool opened = false;
 
-	log_debug(" file: %s\n",file); //???
+	//log_debug(" file: %s\n",file); //???
 
 	Model *model = new Model;
 	auto err = Model::ERROR_NONE;
@@ -1670,15 +1670,13 @@ bool MainWin::open(const char *file2, MainWin *window)
 	{
 		opened = true;
 
-		if(*file)
-		model_show_alloc_stats();
+		if(*file) model_show_alloc_stats();
 
 		assert(model->getSaved());
 
 		open(model,window);
 	
-		if(*file)
-		viewwin_mru(viewwin_mruf_menu,(char*)file);
+		if(*file) viewwin_mru(viewwin_mruf_menu,(char*)file);
 	}
 	else
 	{

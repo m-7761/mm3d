@@ -157,57 +157,38 @@ int Mesh::addVertex(Model *model, int triangle, int vertexIndex)
 	model->getTextureCoords(triangle,vertexIndex,vert.uv[0],vert.uv[1]);
 
 	unsigned int vcount = vertices.size();
-	for(unsigned int index = 0; index<vcount; index++)
+	for(unsigned int index=0;index<vcount;index++)
 	{
-		Vertex &cmp = vertices[index];
-		if(cmp.v==vert.v)
+		Vertex &cmp = vertices[index]; if(cmp.v==vert.v)
 		{
-			int i;
-
-			// Yes,I'm using goto to break out of the compare.
+			// Yes, I'm using goto to break out of the compare.
 			// Deal with it.
 
 			// Do we have to match UV coords?
-			if(options &Mesh::MO_UV)
+			if(options&Mesh::MO_UV)
+			for(int i=0;i<2;i++) if(fabs(vert.uv[i]-cmp.uv[i])>CMPTOL)
 			{
-				for(i = 0; i<2; i++)
-				{
-					if(fabs(vert.uv[i]-cmp.uv[i])>CMPTOL)
-					{
-						/*
-							log_debug("failed match on vertex %d uv %f,%f / %f,%f\n",
-							vert.v,vert.uv[0],vert.uv[1],cmp.uv[0],cmp.uv[1]);
-							*/
-						goto next_vertex;
-					}
-				}
+				//log_debug("failed match on vertex %d uv %f,%f / %f,%f\n",vert.v,vert.uv[0],vert.uv[1],cmp.uv[0],cmp.uv[1]);
+					
+				goto next_vertex;				
 			}
 
 			// Do we have to match normals?
-			if(options &Mesh::MO_Normal)
+			if(options&Mesh::MO_Normal)			
+			for(int i=0;i<3;i++)			
+			if(fabs(vert.norm[i]-cmp.norm[i])>CMPTOL)
 			{
-				for(i = 0; i<3; i++)
-				{
-					if(fabs(vert.norm[i]-cmp.norm[i])>CMPTOL)
-					{
-						/*
-							log_debug("failed match on vertex %d normal %f,%f,%f / %f,%f,%f\n",
-							vert.v,vert.norm[0],vert.norm[1],vert.norm[2],cmp.norm[0],cmp.norm[1],cmp.norm[2]);
-							*/
-						goto next_vertex;
-					}
-				}
+				//log_debug("failed match on vertex %d normal %f,%f,%f / %f,%f,%f\n",vert.v,vert.norm[0],vert.norm[1],vert.norm[2],cmp.norm[0],cmp.norm[1],cmp.norm[2]);					
+				goto next_vertex;
 			}
 
 			// This vertex matches our criteria
 			return index;
 		}
-next_vertex:
-		;
+		next_vertex:;
 	}
 
-	vertices.push_back(vert);
-	return vertices.size()-1;
+	vertices.push_back(vert); return vertices.size()-1;
 }
 
 int mesh_list_vertex_count(const MeshList &meshes)

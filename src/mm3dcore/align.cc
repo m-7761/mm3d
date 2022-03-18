@@ -27,219 +27,68 @@
 
 enum{ AT_Min=0, AT_Center, AT_Max }; //REMOVE ME
 
-static void align_x(Model *m, int at, double xval) //REMOVE ME
+static void align(int dim, Model *m, int at, double val)
 {
-	double xmin = 0.0;
-	double xmax = 0.0;
-	double ymin = 0.0;
-	double ymax = 0.0;
-	double zmin = 0.0;
-	double zmax = 0.0;
+	double min[3],max[3];
+	m->getSelectedBoundingRegion(min+0,min+1,min+2,max+0,max+1,max+2);
 
-	double diff = 0.0;
+	//log_debug("selected bounding region is (%f,%f,%f)-(%f,%f,%f)\n",xmin,ymin,zmin,xmax,ymax,zmax);
 
-	m->getSelectedBoundingRegion(&xmin,&ymin,&zmin,&xmax,&ymax,&zmax);
-	log_debug("selected bounding region is (%f,%f,%f)-(%f,%f,%f)\n",
-			xmin,ymin,zmin,xmax,ymax,zmax);
-
-	switch (at)
+	double delta; switch(at)
 	{
-		case AT_Center:
-			diff = xval-((xmax+xmin)/2.0);
-			break;
-		case AT_Min:
-			diff = xval-xmin; 
-			break;
-		case AT_Max:
-			diff = xval-xmax; 
-			break;
-		default:  // Bzzt,thanks for playing
-			log_error("bad align argument: %d\n",(int)at);
-			return;
+	case AT_Center: delta = val-(max[dim]+min[dim])*0.5;
+		break;
+	case AT_Min: delta = val-min[dim]; break;
+	case AT_Max: delta = val-max[dim]; break;
+	default:  // Bzzt,thanks for playing
+		log_error("bad align argument: %d\n",(int)at);
+		return;
 	}
 
-	log_debug("align difference is %f\n",diff);
+	//log_debug("align difference is %f\n",delta);
 
-	unsigned count;
-	unsigned p;
-	double coords[3] = { 0.0,0.0,0.0 };
-
-	count = m->getVertexCount();
-	for(p = 0; p<count; p++)
+	double coords[3];
+	unsigned p,count = m->getVertexCount();
+	for(p=0;p<count;p++)	
+	if(m->isVertexSelected(p))
 	{
-		if(m->isVertexSelected(p))
-		{
-			m->getVertexCoords(p,coords);
-			coords[0] += diff;
-			m->moveVertex(p,coords[0],coords[1],coords[2]);
-		}
-	}
+		m->getVertexCoords(p,coords);
+		coords[dim]+=delta;
+		m->moveVertex(p,coords[0],coords[1],coords[2]);
+	}	
 	count = m->getBoneJointCount();
-	for(p = 0; p<count; p++)
+	for(p=0;p<count;p++)	
+	if(m->isBoneJointSelected(p))
 	{
-		if(m->isBoneJointSelected(p))
-		{
-			m->getBoneJointCoords(p,coords);
-			coords[0] += diff;
-			m->moveBoneJoint(p,coords[0],coords[1],coords[2]);
-		}
+		m->getBoneJointCoords(p,coords);
+		coords[dim]+=delta;
+		m->moveBoneJoint(p,coords[0],coords[1],coords[2]);
 	}
 	count = m->getPointCount();
-	for(p = 0; p<count; p++)
+	for(p=0;p<count;p++)	
+	if(m->isPointSelected(p))
 	{
-		if(m->isPointSelected(p))
-		{
-			m->getPointCoords(p,coords);
-			coords[0] += diff;
-			m->movePoint(p,coords[0],coords[1],coords[2]);
-		}
+		m->getPointCoords(p,coords);
+		coords[dim]+=delta;
+		m->movePoint(p,coords[0],coords[1],coords[2]);
 	}
-}
-
-static void align_y(Model *m, int at, double yval) //REMOVE ME
-{
-	double xmin = 0.0;
-	double xmax = 0.0;
-	double ymin = 0.0;
-	double ymax = 0.0;
-	double zmin = 0.0;
-	double zmax = 0.0;
-
-	double diff = 0.0;
-
-	m->getSelectedBoundingRegion(&xmin,&ymin,&zmin,&xmax,&ymax,&zmax);
-	log_debug("selected bounding region is (%f,%f,%f)-(%f,%f,%f)\n",
-			xmin,ymin,zmin,xmax,ymax,zmax);
-
-	switch (at)
+	
+	count = m->getProjectionCount();
+	for(p=0;p<count;p++)	
+	if(m->isProjectionSelected(p))
 	{
-		case AT_Center:
-			diff = yval-((ymax+ymin)/2.0);
-			break;
-		case AT_Min:
-			diff = yval-ymin; 
-			break;
-		case AT_Max:
-			diff = yval-ymax; 
-			break;
-		default:  // Bzzt,thanks for playing
-			log_error("bad align argument: %d\n",(int)at);
-			return;
-	}
-
-	log_debug("align difference is %f\n",diff);
-
-	unsigned count;
-	unsigned p;
-	double coords[3] = { 0.0,0.0,0.0 };
-
-	count = m->getVertexCount();
-	for(p = 0; p<count; p++)
-	{
-		if(m->isVertexSelected(p))
-		{
-			m->getVertexCoords(p,coords);
-			coords[1] += diff;
-			m->moveVertex(p,coords[0],coords[1],coords[2]);
-		}
-	}
-	count = m->getBoneJointCount();
-	for(p = 0; p<count; p++)
-	{
-		if(m->isBoneJointSelected(p))
-		{
-			m->getBoneJointCoords(p,coords);
-			coords[1] += diff;
-			m->moveBoneJoint(p,coords[0],coords[1],coords[2]);
-		}
-	}
-	count = m->getPointCount();
-	for(p = 0; p<count; p++)
-	{
-		if(m->isPointSelected(p))
-		{
-			m->getPointCoords(p,coords);
-			coords[1] += diff;
-			m->movePoint(p,coords[0],coords[1],coords[2]);
-		}
-	}
-}
-
-static void align_z(Model *m, int at, double zval) //REMOVE ME
-{
-	double xmin = 0.0;
-	double xmax = 0.0;
-	double ymin = 0.0;
-	double ymax = 0.0;
-	double zmin = 0.0;
-	double zmax = 0.0;
-
-	double diff = 0.0;
-
-	m->getSelectedBoundingRegion(&xmin,&ymin,&zmin,&xmax,&ymax,&zmax);
-	log_debug("selected bounding region is (%f,%f,%f)-(%f,%f,%f)\n",
-			xmin,ymin,zmin,xmax,ymax,zmax);
-
-	switch (at)
-	{
-		case AT_Center:
-			diff = zval-((zmax+zmin)/2.0);
-			break;
-		case AT_Min:
-			diff = zval-zmin; 
-			break;
-		case AT_Max:
-			diff = zval-zmax; 
-			break;
-		default:  // Bzzt,thanks for playing
-			log_error("bad align argument: %d\n",(int)at);
-			return;
-	}
-
-	log_debug("align difference is %f\n",diff);
-
-	unsigned count;
-	unsigned p;
-	double coords[3] = { 0.0,0.0,0.0 };
-
-	count = m->getVertexCount();
-	for(p = 0; p<count; p++)
-	{
-		if(m->isVertexSelected(p))
-		{
-			m->getVertexCoords(p,coords);
-			coords[2] += diff;
-			m->moveVertex(p,coords[0],coords[1],coords[2]);
-		}
-	}
-	count = m->getBoneJointCount();
-	for(p = 0; p<count; p++)
-	{
-		if(m->isBoneJointSelected(p))
-		{
-			m->getBoneJointCoords(p,coords);
-			coords[2] += diff;
-			m->moveBoneJoint(p,coords[0],coords[1],coords[2]);
-		}
-	}
-	count = m->getPointCount();
-	for(p = 0; p<count; p++)
-	{
-		if(m->isPointSelected(p))
-		{
-			m->getPointCoords(p,coords);
-			coords[2] += diff;
-			m->movePoint(p,coords[0],coords[1],coords[2]);
-		}
-	}
+		m->getProjectionCoords(p,coords);
+		coords[dim]+=delta;
+		m->moveProjection(p,coords[0],coords[1],coords[2]);
+	}	
 }
 
 extern void align_selected(int i, Model *m, int at, double val)
 {
 	switch(i) //REMOVE ME
 	{
-	case 0: case 'X': case 'x': return align_x(m,at,val);
-	case 1: case 'Y': case 'y': return align_y(m,at,val);
-	case 2: case 'Z': case 'z': return align_z(m,at,val);
+	case 0: case 'X': case 'x': return align(0,m,at,val);
+	case 1: case 'Y': case 'y': return align(1,m,at,val);
+	case 2: case 'Z': case 'z': return align(2,m,at,val);
 	}
 }

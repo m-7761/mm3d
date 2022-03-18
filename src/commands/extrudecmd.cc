@@ -59,20 +59,13 @@ bool ExtrudeImpl::extrude(Model *model, double x, double y, double z, bool make_
 	if(faces.empty()) return false;
 
 	// Find edges (sides with count==1)
-	int_list::iterator it;
-
-	for(it = faces.begin(); it!=faces.end(); it++)
+	for(unsigned tri:faces)
 	{
 		unsigned v[3];
+		model->getTriangleVertices(tri,v[0],v[1],v[2]);
 
-		for(int t = 0; t<3; t++)
-		{
-			v[t] = model->getTriangleVertex(*it,t);
-		}
-		for(int t = 0; t<(3-1); t++)
-		{
-			_addSide(v[t],v[t+1]);
-		}
+		for(int t=0;t<(3-1);t++)
+		_addSide(v[t],v[t+1]);
 		_addSide(v[0],v[2]);
 	}
 
@@ -80,146 +73,101 @@ bool ExtrudeImpl::extrude(Model *model, double x, double y, double z, bool make_
 
 	// make extruded vertices and create a map from old vertices
 	// to new vertices
-	for(it = vertices.begin(); it!=vertices.end(); it++)
+	for(unsigned vrt:vertices)
 	{
 		double coord[3];
-		model->getVertexCoords(*it,coord);
-		coord[0] += x;
-		coord[1] += y;
-		coord[2] += z;
-		unsigned i = model->addVertex(coord[0],coord[1],coord[2]);
-		m_evMap[*it] = i;
+		model->getVertexCoords(vrt,coord);
+		coord[0]+=x;
+		coord[1]+=y;
+		coord[2]+=z;
+		m_evMap[vrt] = model->addVertex(coord[0],coord[1],coord[2]);
 
-		log_debug("added vertex %d for %d at %f,%f,%f\n",m_evMap[*it],*it,coord[0],coord[1],coord[2]);
+		//log_debug("added vertex %d for %d at %f,%f,%f\n",
+		//m_evMap[vrt],vrt,coord[0],coord[1],coord[2]);
 	}
 
 	// Add faces for edges
-	for(it = faces.begin(); it!=faces.end(); it++)
+	for(unsigned tri:faces)
 	{
 		unsigned v[3];
+		model->getTriangleVertices(tri,v[0],v[1],v[2]);
 
-		for(int t = 0; t<3; t++)
+		int g = model->getTriangleGroup(tri); //2022
+
+		for(int t=0;t<(3-1);t++)
+		if(_sideIsEdge(v[t],v[t+1]))
 		{
-			v[t] = model->getTriangleVertex(*it,t);
-		}
-		for(int t = 0; t<(3-1); t++)
-		{
-			if(_sideIsEdge(v[t],v[t+1]))
-			{
-				_makeFaces(model,v[t],v[t+1]);
-			}
+			_makeFaces(model,g,v[t],v[t+1]);
 		}
 		if(_sideIsEdge(v[2],v[0]))
 		{
-			_makeFaces(model,v[2],v[0]);
+			_makeFaces(model,g,v[2],v[0]);
 		}
 	}
 
 	// Map selected faces onto extruded vertices
-	for(it = faces.begin(); it!=faces.end(); it++)
+	for(unsigned tri:faces)
 	{
-		unsigned tri = *it;
-
-		int v1 = model->getTriangleVertex(tri,0);
-		int v2 = model->getTriangleVertex(tri,1);
-		int v3 = model->getTriangleVertex(tri,2);
+		unsigned v[3];
+		model->getTriangleVertices(tri,v[0],v[1],v[2]);
 				
 		if(make_back_faces)
 		{
-			int newTri = model->addTriangle(v1,v2,v3);
+			int newTri = model->addTriangle(v[0],v[1],v[2]);
 			model->invertNormals(newTri);
+
+			int g = model->getTriangleGroup(tri);
+			if(g>=0) model->addTriangleToGroup(g,newTri); //2022
 		}
 
-		log_debug("face %d uses vertices %d,%d,%d\n",*it,v1,v2,v3);
+		//log_debug("face %d uses vertices %d,%d,%d\n",tri,v1[0],v[1],v[2]);
 
-		model->setTriangleVertices(tri,
-				m_evMap[model->getTriangleVertex(tri,0)],
-				m_evMap[model->getTriangleVertex(tri,1)],
-				m_evMap[model->getTriangleVertex(tri,2)]);
+		for(int i=3;i-->0;) v[i] = m_evMap[v[i]];
 
-		log_debug("moved face %d to vertices %d,%d,%d\n",*it,
-				model->getTriangleVertex(tri,0),
-				model->getTriangleVertex(tri,1),
-				model->getTriangleVertex(tri,2));
+		model->setTriangleVertices(tri,v[0],v[1],v[2]);
 
+		//log_debug("moved face %d to vertices %d,%d,%d\n",tri,v1[0],v[1],v[2]);
 	}
 
 	// Update face selection
-
-	ExtrudedVertexMap::iterator evit;
-	for(evit = m_evMap.begin(); evit!=m_evMap.end(); evit++)
+	for(auto it=m_evMap.begin();it!=m_evMap.end();it++)
 	{
-		model->unselectVertex((*evit).first);
-		model->selectVertex((*evit).second);
+		model->unselectVertex(it->first);
+		model->selectVertex(it->second);
 	}
 
-	if(!model->deleteOrphanedVertices(begin)) assert(0); //OVERKILL?
+	model->deleteOrphanedVertices(begin); //???
 	
 	return true;
 }
-void ExtrudeImpl::_makeFaces(Model *model, unsigned a, unsigned b)
+void ExtrudeImpl::_makeFaces(Model *model, int g, unsigned a, unsigned b)
 {
-	unsigned a2 = m_evMap[a];
-	unsigned b2 = m_evMap[b];
-
-	model->addTriangle(b,b2,a2);
-	model->addTriangle(a2,a,b);
+	unsigned a2 = m_evMap[a], b2 = m_evMap[b];
+	int t1 = model->addTriangle(b,b2,a2);	
+	int t2 = model->addTriangle(a2,a,b);
+	if(g>=0) model->addTriangleToGroup(g,t1);
+	if(g>=0) model->addTriangleToGroup(g,t2);
 }
 void ExtrudeImpl::_addSide(unsigned a, unsigned b)
 {
-	// Make sure a<b to simplify comparison below
-	if(b<a)
-	{
-		unsigned c = a;
-		a = b;
-		b = c;
-	}
+	if(b<a) std::swap(a,b);
 
 	// Find existing side (if any)and increment count
-	SideList::iterator it;
-	for(it = m_sides.begin(); it!=m_sides.end(); it++)
+	for(auto&ea:m_sides) if(ea.a==a&&ea.b==b)
 	{
-		if((*it).a==a&&(*it).b==b)
-		{
-			(*it).count++;
-			log_debug("side (%d,%d)= %d\n",a,b,(*it).count);
-			return;
-		}
+		//log_debug("side (%d,%d)= %d\n",a,b,it->count);
+		ea.count++; return;
 	}
 
 	// Not found,add new side with a count of 1
-	SideT s;
-	s.a = a;
-	s.b = b;
-	s.count = 1;
-
-	log_debug("side (%d,%d)= %d\n",a,b,s.count);
-	m_sides.push_back(s);
+	//log_debug("side (%d,%d)= %d\n",a,b,s.count);
+	m_sides.push_back({a,b,1});
 }
 bool ExtrudeImpl::_sideIsEdge(unsigned a, unsigned b)
 {
-	// Make sure a<b to simplify comparison below
-	if(b<a)
+	if(b<a) std::swap(a,b); for(auto&ea:m_sides)
 	{
-		unsigned c = a;
-		a = b;
-		b = c;
-	}
-
-	SideList::iterator it;
-	for(it = m_sides.begin(); it!=m_sides.end(); it++)
-	{
-		if((*it).a==a&&(*it).b==b)
-		{
-			if((*it).count==1)
-			{
-				return true;
-			}
-			else
-			{
-				return false;
-			}
-		}
+		if(ea.a==a&&ea.b==b) return 1==ea.count;
 	}
 	return false;
 }

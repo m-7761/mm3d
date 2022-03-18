@@ -38,8 +38,11 @@ struct RotateTextureCommand : Command
 	virtual const char *getName(int)
 	{
 		if(getPath()==GEOM_FACES_MENU)
+		//TODO? Is this the best language?
 		return "Faces\nRotate Texture Coordinates"; 
-		return "Groups\nRotate Texture Coordinates"; 
+		//2022: Conflaing this language is misleading.
+		//return "Groups\nRotate Texture Coordinates"; 
+		return "Groups\nTurn Texture Coordinates CCW";
 
 		(void)TRANSLATE_NOOP("Command","Rotate Texture Coordinates");
 	}
@@ -75,40 +78,40 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 
 	if(getPath()==GEOM_FACES_MENU)
 	{
-		float s,t,oldS,oldT; for(int i:tris)
+		for(int i:tris) //2->0, 1->2, 0->1
 		{
-			model->getTextureCoords(i,2,oldS,oldT);
-
-			model->getTextureCoords(i,1,s,t);
-			model->setTextureCoords(i,2,s,t);
-
-			model->getTextureCoords(i,0,s,t);
-			model->setTextureCoords(i,1,s,t);
-
-			model->setTextureCoords(i,0,oldS,oldT);
+			float st[2][3];
+			model->getTextureCoords(i,0,st[0][1],st[1][1]);
+			model->getTextureCoords(i,1,st[0][2],st[1][2]);
+			model->getTextureCoords(i,2,st[0][0],st[1][0]);
+			model->setTextureCoords(i,st);
 		}
 	}
 	else if(getPath()==GEOM_GROUP_MENU)
 	{
-		float s,t,temp; for(int i:tris)
+		//REMOVE ME?
+		//TextureWidget::rotateCoordinatesCcw
+		//provides the same functionality, or
+		//in reverse with the other button. I
+		//assume this was added for importing
+		//some models that require fixing up?
+
+		for(int i:tris)
 		{
-			model->getTextureCoords(i,0,s,t);
-			temp = s;
-			s = 0.5f-(t-0.5f);
-			t = temp;
-			model->setTextureCoords(i,0,s,t);
+			float st[2][3]; for(int j=3;j-->0;)
+			{
+				float &s = st[0][j], &t = st[1][j];
 
-			model->getTextureCoords(i,1,s,t);
-			temp = s;
-			s = 0.5f-(t-0.5f);
-			t = temp;
-			model->setTextureCoords(i,1,s,t);
-
-			model->getTextureCoords(i,2,s,t);
-			temp = s;
-			s = 0.5f-(t-0.5f);
-			t = temp;
-			model->setTextureCoords(i,2,s,t);
+				model->getTextureCoords(i,j,s,t);
+				float swap = s;
+				//TextureWidget::rotateCoordinatesCcw
+				//uses 1-t and I think it's clear the
+				//math is equivalent. It's good to be
+				//clear these are identical functions.
+				//s = 0.5f-(t-0.5f);
+				s = 1-t; t = swap;
+			}
+			model->setTextureCoords(i,st);
 		}	
 	}
 	else

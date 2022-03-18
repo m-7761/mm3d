@@ -166,7 +166,7 @@ Model::ModelErrorE ObjFilter::readFile(Model *model, const char *const filename)
 	model->setFilename(m_modelFullName.c_str());
 
 	m_model = model;
-	log_debug("model has %d faces\n",model->getTriangleCount());
+	//log_debug("model has %d faces\n",model->getTriangleCount());
 
 	m_vertices  =  0;
 	m_faces	  =  0;
@@ -184,7 +184,7 @@ Model::ModelErrorE ObjFilter::readFile(Model *model, const char *const filename)
 		readLine(line);
 	}
 
-	log_debug("read %d vertices,%d faces,%d groups\n",m_vertices,m_faces,m_groups);
+	//log_debug("read %d vertices,%d faces,%d groups\n",m_vertices,m_faces,m_groups);
 
 	return Model::ERROR_NONE;
 }
@@ -854,7 +854,7 @@ bool ObjFilter::readFace(char *line)
 			m_curGroup = m_model->addGroup(name.c_str());
 			m_model->setGroupTextureId(m_curGroup,m_curMaterial);
 
-			log_debug("added group for %d %d\n",m_curGroup,m_curMaterial);
+			//log_debug("added group for %d %d\n",m_curGroup,m_curMaterial);
 
 			mg.material = m_curMaterial;
 			mg.group	 = m_curGroup;
@@ -870,12 +870,12 @@ bool ObjFilter::readFace(char *line)
 
 		if(addTextureCoords)
 		{
-			m_model->setTextureCoords(tri,0,  
-					m_uvList[vtlist[0]].u,  m_uvList[vtlist[0]].v);
-			m_model->setTextureCoords(tri,1,
-					m_uvList[vtlist[n+1]].u,m_uvList[vtlist[n+1]].v);
-			m_model->setTextureCoords(tri,2,
-					m_uvList[vtlist[n+2]].u,m_uvList[vtlist[n+2]].v);
+			int i = vtlist[0];
+			int j = vtlist[n+1], k = vtlist[n+2]; 
+			float st[2][3] = 
+			{{m_uvList[i].u,m_uvList[j].u,m_uvList[k].u}
+			,{m_uvList[i].v,m_uvList[j].v,m_uvList[k].v}};
+			m_model->setTextureCoords(tri,st);
 		}
 	}
 	return true;
@@ -924,11 +924,11 @@ bool ObjFilter::readGroup(char *line)
 		}
 	}
 
-	log_debug("current group is %s\n",m_groupName.c_str());
+	//log_debug("current group is %s\n",m_groupName.c_str());
 
 	if(m_curGroup!=lastGroup)
 	{
-		log_debug("%d!=%d,clearing mg list\n",m_curGroup,lastGroup);
+		//log_debug("%d!=%d,clearing mg list\n",m_curGroup,lastGroup);
 		m_mgList.clear();
 	}
 	
@@ -967,7 +967,7 @@ bool ObjFilter::readLibrary(char *line)
 			if(sscanf(ptr,"%[^ \t\r\n]%n",filename,(int*)&len)>0)
 			{
 				std::string fullFilename = m_modelPath+std::string("/")+filename;
-				log_debug("material library: %s\n",fullFilename.c_str());
+				//log_debug("material library: %s\n",fullFilename.c_str());
 				readMaterialLibrary(fullFilename.c_str());
 				ptr+=len;
 			}
@@ -1006,7 +1006,7 @@ bool ObjFilter::readMaterial(char *line)
 			if(m_mgList[t].material==(unsigned)m_curMaterial)
 			{
 				m_curGroup = m_mgList[t].group;
-				log_debug("already have group for %d %d\n",m_curGroup,m_curMaterial);
+				//log_debug("already have group for %d %d\n",m_curGroup,m_curMaterial);
 				m_needGroup = false;
 				break;
 			}
@@ -1015,7 +1015,7 @@ bool ObjFilter::readMaterial(char *line)
 	else m_curMaterial = m_model->getMaterialByName("default");
 
 	if(m_needGroup)
-	log_debug("need group for %d %d\n",m_curGroup,m_curMaterial);
+	//log_debug("need group for %d %d\n",m_curGroup,m_curMaterial);
 
 	//free(temp);
 
@@ -1087,7 +1087,7 @@ bool ObjFilter::readMaterialLibrary(const char *filename)
 			replaceBackslash(filename);
 			const std::string relativePath = fixFileCase(m_modelPath.c_str(),filename);
 			objmat->textureMap = getAbsolutePath(m_modelPath.c_str(),relativePath.c_str());
-			log_debug("  texture map is '%s'\n",objmat->textureMap.c_str());
+			//log_debug("  texture map is '%s'\n",objmat->textureMap.c_str());
 		}
 		else if(strncmp("Kd ",ptr,3)==0)
 		{

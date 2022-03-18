@@ -713,12 +713,12 @@ void *BspTree::Node::render(double *point, DrawingContext *context, void *compar
 
 void BspTree::Poly::stats()
 {
-	log_debug("BspTree::Poly: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("BspTree::Poly: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 void BspTree::Node::stats()
 {
-	log_debug("BspTree::Node: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("BspTree::Node: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 int BspTree::Poly::flush()

@@ -150,8 +150,8 @@ class Vector
 		double mag()const;
 		double mag3()const;
 
-		void normalize();
-		void normalize3();
+		double normalize();
+		double normalize3();
 
 		double dot3(const Vector &rhs)const;
 		double dot4(const Vector &rhs)const;
@@ -212,7 +212,7 @@ class Quaternion : public Vector
 		void set(int c, double val);
 		double get(int c)const { return m_val[c]; };
 
-		void normalize();
+		Quaternion &normalize();
 
 		//REMOVE ME
 		//This rolls randomly, so probably not of any use. It was being used
@@ -275,23 +275,43 @@ template<typename T> T squared_mag3(const T *vec)
 {
 	return vec[0]*vec[0]+vec[1]*vec[1]+vec[2]*vec[2];
 }
+template<typename T> T squared_mag2(const T *vec)
+{
+	return vec[0]*vec[0]+vec[1]*vec[1];
+}
 
 template<typename T> T mag3(const T *vec)
 {
-	return sqrt(squared_mag3(vec));
+	return (T)sqrt(squared_mag3(vec));
+}
+template<typename T> T mag2(const T *vec)
+{
+	return (T)sqrt(squared_mag2(vec));
 }
 
 template<typename T> T normalize3(T *vec)
 {
-	if(vec!=nullptr)
+	T length = vec?mag3(vec):0; //???
+
+	if(T m=length) //2022: zero divide?
 	{
-		T length = mag3(vec);
-		vec[0] = vec[0]/length;
-		vec[1] = vec[1]/length;
-		vec[2] = vec[2]/length;
-		return length;
+		m = 1/m;
+		for(int t=3;t-->0;)
+		vec[t]*=m;
 	}
-	return 0;
+	return length;
+}
+template<typename T> T normalize2(T *vec)
+{
+	T length = vec?mag2(vec):0; //???
+
+	if(T m=length) //2022: zero divide?
+	{
+		m = 1/m;
+		for(int t=2;t-->0;)
+		vec[t]*=m;
+	}
+	return length;
 }
 
 extern double distance(const Vector &v1, const Vector &v2);
@@ -300,16 +320,11 @@ extern double distance(const double v1[3], const double v2[3]);
 
 template<typename T> T dot3(const T *lhs, const T *rhs)
 {
-	return(  lhs[0] *rhs[0]
-			 +lhs[1] *rhs[1]
-			 +lhs[2] *rhs[2]);
+	return lhs[0]*rhs[0]+lhs[1]*rhs[1]+lhs[2]*rhs[2];
 }
-
-template<typename T> bool equiv3(const T *lhs, const T *rhs)
+template<typename T> T dot2(const T *lhs, const T *rhs)
 {
-	return(  fabs(lhs[0]-rhs[0])<0.0001
-		  && fabs(lhs[1]-rhs[1])<0.0001
-		  && fabs(lhs[2]-rhs[2])<0.0001);
+	return lhs[0]*rhs[0]+lhs[1]*rhs[1];
 }
 
 static double dot_product(double *val1, double *val2)
@@ -327,7 +342,7 @@ static T *cross_product(T *result,
 }
 
 template<typename T>
-static T *calculate_normal(T *normal,
+static double calculate_normal(T *normal,
 		const T *a, const T *b, const T *c)
 {
 	//Newell's Method for triangles?
@@ -340,7 +355,7 @@ static T *calculate_normal(T *normal,
 	T ca[3] = {c[0]-a[0],c[1]-a[1],c[2]-a[2]};
 	cross_product(normal,ba,ca);
 
-	normalize3(normal); return normal;
+	return normalize3(normal);
 }
 
 template<typename T> //2020

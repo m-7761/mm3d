@@ -146,7 +146,7 @@ bool PluginManager::loadPlugin(const char *pluginFile)
 	PluginStatusE status = PluginError;
 	std::string name;
 
-	log_debug("loading plugin file: %s\n",pluginFile);
+	//log_debug("loading plugin file: %s\n",pluginFile);
 	name = fileToName(pluginFile);
 
 	if((handle = pluginmgr_openLibrary(pluginFile))==nullptr)
@@ -254,7 +254,7 @@ bool PluginManager::loadPlugin(const char *pluginFile)
 				}
 				else
 				{
-					log_debug("%s disabled\n",pluginFile);
+					//log_debug("%s disabled\n",pluginFile);
 					status = PluginUserDisabled;
 					enabled = false;
 				}
@@ -355,7 +355,7 @@ bool PluginManager::loadPluginDir(const char *pluginDir)
 		DIR *dp = opendir(pluginDir);
 		if(dp)
 		{
-			log_debug("loading plugin directory: %s\n",pluginDir);
+			//log_debug("loading plugin directory: %s\n",pluginDir);
 
 			struct dirent *d;
 			while((d = readdir(dp))!=nullptr)
@@ -377,7 +377,7 @@ bool PluginManager::loadPluginDir(const char *pluginDir)
 					}
 					else if(S_ISLNK(statbuf.st_mode))
 					{
-						log_debug("%s is a symlink\n",file.c_str());
+						//log_debug("%s is a symlink\n",file.c_str());
 						// Try directory,then regular file
 						if(!loadPluginDir(file.c_str()))
 						{
@@ -422,7 +422,7 @@ bool PluginManager::loadPluginDir(const char *pluginDir)
 
 bool PluginManager::unloadPlugins()
 {
-	log_debug("PluginManager unloading %d plugins\n",m_plugins.size());
+	//log_debug("PluginManager unloading %d plugins\n",m_plugins.size());
 #ifdef PLUGINS_ENABLED
 	PluginDataList::iterator it = m_plugins.begin();
 

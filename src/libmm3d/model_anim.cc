@@ -509,15 +509,16 @@ int Model::copyAnimation(unsigned index, const char *newName)
 	Animation *ab2 = m_anims[num];
 	if(newName) ab2->m_name = newName;
 
-	if(~ab->m_frame0) //ANIMMODE_FRAME
+	auto fc = ab->_frame_count();
+	if(fc!=0&&~ab->m_frame0) //ANIMMODE_FRAME
 	{	
 		_anim_valloc(ab2);
 
 		//Note, setFrameAnimVertexCoords is unnecessary 
 		//because this is a fresh animation
 		auto fp = ab->m_frame0;
-		auto fd = ab2->m_frame0;
-		auto fc = ab->_frame_count();
+		auto fd = ab2->m_frame0;		
+	//	auto fc = ab->_frame_count();
 		for(auto*ea:m_vertices)
 		{
 			//Note, it's easier on the cache to do
@@ -978,8 +979,7 @@ int Model::convertAnimToFrame(unsigned anim, const char *newName, unsigned frame
 	double fps  = (double)frameCount/time;
 	double spf  = time/(double)frameCount;
 
-	log_debug("resampling %d frames at %.2f fps to %d frames at %.2f fps\n",
-	ab->_frame_count(),ab->m_fps,frameCount,fps);
+	//log_debug("resampling %d frames at %.2f fps to %d frames at %.2f fps\n",ab->_frame_count(),ab->m_fps,frameCount,fps);
 
 	setAnimFPS(num,fps);
 
@@ -1070,11 +1070,13 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 		{
 			//DUPLICATES deleteAnimation except just the vertex data parts.
 
-			auto undo = m_undoEnabled?new MU_DeleteAnimation(anim,ab,true):nullptr;
-
-			auto fp = ab->m_frame0;
+			auto undo = m_undoEnabled?new MU_VoidFrameAnimation(ab,ab->m_frame0):nullptr;
+			
+			auto fp = ab->m_frame0; 
 			auto dt = undo?undo->removeVertexData():nullptr;
 			removeFrameAnimData(fp,ab->_frame_count(),dt);
+
+			ab->m_frame0 = ~0; //2022: Adding dedicated MU_VoidFrameAnimation undo for this.
 
 			if(undo) sendUndo(undo);
 		}
@@ -1128,14 +1130,12 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 	m_changeBits|=MoveOther; //2020
 
-	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",
-	//		(isRotation ? "rotation" : "translation"),pos.index,x,y,z,frame);
+	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",(isRotation ? "rotation" : "translation"),pos.index,x,y,z,frame);
 
 	//int num = ab->m_keyframes[pos].size();
 	auto kf = Keyframe::get();
-
-	kf->m_frame		  = frame;
-	kf->m_isRotation	= isRotation;
+	kf->m_frame = frame;
+	kf->m_isRotation = isRotation;
 
 	bool isNew = false;
 	double old[3] = {};
@@ -1597,7 +1597,7 @@ void Model::Vertex::_source(AnimationModeE m)
 }
 void Model::Triangle::_source(AnimationModeE m)
 {
-	m_flatSource = m?m_kfFlatNormals:m_flatNormals;
+	m_flatSource = m?m_kfFlatNormal:m_flatNormal;
 	for(int i=3;i-->0;) 
 	m_normalSource[i] = m?m_kfNormals[i]:m_finalNormals[i];
 	m_angleSource = m?m_kfVertAngles:m_vertAngles;
@@ -1800,12 +1800,11 @@ void Model::calculateSkel()
 		//set here.
 		jt->m_final = jt->m_absolute;
 
-//		log_debug("\n");
-//		log_debug("Joint %d:\n",j);
+//		//log_debug("\n");
+//		//log_debug("Joint %d:\n",j);
 //		jt->m_final.show();
-//		log_debug("local rotation: %.2f %.2f %.2f\n",
-//				jt->m_rot[0],jt->m_rot[1],jt->m_localRotation[2]);
-//		log_debug("\n");
+//		//log_debug("local rotation: %.2f %.2f %.2f\n",jt->m_rot[0],jt->m_rot[1],jt->m_localRotation[2]);
+//		//log_debug("\n");
 
 		//NEW: For object system. Will try to refactor this at some point.
 		jt->m_absolute.getTranslation(jt->m_abs);
@@ -2274,8 +2273,7 @@ Model::Interpolate2020E Model::getKeyframe(unsigned anim, unsigned frame,
 	{
 		auto &f = *ab->m_keyframes[pos][index];
 
-//			log_debug("found keyframe anim %d,frame %d,joint %d,%s\n",
-//					anim,frame,joint,isRotation ? "rotation" : "translation");
+		//log_debug("found keyframe anim %d,frame %d,joint %d,%s\n",anim,frame,joint,isRotation?"rotation":"translation");
 		x = f.m_parameter[0];
 		y = f.m_parameter[1];
 		z = f.m_parameter[2];
@@ -2285,8 +2283,7 @@ Model::Interpolate2020E Model::getKeyframe(unsigned anim, unsigned frame,
 	}
 	else
 	{
-		//log_debug("could not find keyframe anim %d,frame %d,joint %d,%s\n",
-		//		anim,frame,joint,isRotation ? "rotation" : "translation");
+		//log_debug("could not find keyframe anim %d,frame %d,joint %d,%s\n",anim,frame,joint,isRotation?"rotation":"translation");
 	}
 	//kf->release();
 

@@ -101,20 +101,7 @@ struct SideBar : Win
 		//status(nav,""),
 		button_b(nav)
 		{
-			//Maximizing use of space.
-			//op.style(bi::etched).expand();
-			//op.align();
-			op.calign().space(2,0,0);
-			op.add_item(0,"Fuse");
-			op.add_item(1,"Union");
-			col.set_parent(op);
-			op.add_item(2,"Subtract"); //Subtraction
-			op.add_item(3,"Intersect"); //Intersection
-
-			button_a.expand();
-			button_b.expand();
-
-			init(); submit(op.select_id(1));
+			init();
 		}
 
 		MainWin &model;
@@ -403,7 +390,7 @@ struct SideBar : Win
 	void setModel()
 	{
 		anim_panel.refresh_list();
-		bool_panel.init();
+		bool_panel.button_b.disable();
 		prop_panel.modelChanged();
 	}
 	void modelChanged(int changeBits)

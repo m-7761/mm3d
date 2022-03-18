@@ -43,7 +43,7 @@
 
 extern void init_std_filters()
 {
-	log_debug("initializing standard filters\n");
+	//log_debug("initializing standard filters\n");
 
 	FilterManager *mgr = FilterManager::getInstance();
 

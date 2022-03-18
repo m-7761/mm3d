@@ -79,11 +79,11 @@ bool scriptif_modelSaveAs(Model *model, const char *f)
 	if(model)
 	{
 		std::string filename = scriptif_getWriteFileName(f);
-		log_debug("saving file as %s\n",filename.c_str());
+		//log_debug("saving file as %s\n",filename.c_str());
 		Model::ModelErrorE err = FilterManager::getInstance()->writeFile(model,filename.c_str(),true,FilterManager::WO_ModelNoPrompt);
 		if(err==Model::ERROR_NONE)
 		{
-			log_debug("  success\n");
+			//log_debug("  success\n");
 			return true;
 		}
 	}
@@ -656,7 +656,7 @@ void scriptif_modelUnselectAll(Model *model)
 
 void scriptif_logDebug(const char *str)
 {
-	log_debug("script: %s\n",str);
+	//log_debug("script: %s\n",str);
 }
 
 void scriptif_logWarning(const char *str)

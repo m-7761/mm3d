@@ -127,7 +127,7 @@ public:
 	{
 		tvl.clear();
 		int count = m_model->getTriangleCount();
-		log_debug("getting triangle %d of %d\n",m_triNumber+1,count);
+		//log_debug("getting triangle %d of %d\n",m_triNumber+1,count);
 		if(m_model!=nullptr&&m_triNumber<m_model->getTriangleCount())
 		{
 			TriPrim::TriangleVertexT tv;
@@ -433,26 +433,26 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 		return Model::ERROR_UNSUPPORTED_VERSION;
 	}
 
-	log_debug("Magic: %08X\n",	 (unsigned)magic);
-	log_debug("Version: %d\n",	 version);
-	log_debug("Vertices: %d\n",	numVertices);
-	log_debug("Faces: %d\n",		numTriangles);
-	log_debug("Skins: %d\n",		numSkins);
-	log_debug("Frames: %d\n",	  numFrames);
-	log_debug("GL Commands: %d\n",numGlCommands);
-	log_debug("Frame Size: %d\n", frameSize);
-	log_debug("TexCoords: %d\n",  numTexCoords);
-	log_debug("Skin Width: %d\n", skinWidth);
-	log_debug("Skin Height: %d\n",skinHeight);
+	//log_debug("Magic: %08X\n",	 (unsigned)magic);
+	//log_debug("Version: %d\n",	 version);
+	//log_debug("Vertices: %d\n",	numVertices);
+	//log_debug("Faces: %d\n",		numTriangles);
+	//log_debug("Skins: %d\n",		numSkins);
+	//log_debug("Frames: %d\n",	  numFrames);
+	//log_debug("GL Commands: %d\n",numGlCommands);
+	//log_debug("Frame Size: %d\n", frameSize);
+	//log_debug("TexCoords: %d\n",  numTexCoords);
+	//log_debug("Skin Width: %d\n", skinWidth);
+	//log_debug("Skin Height: %d\n",skinHeight);
 
-	log_debug("Offset Skins: %d\n",	  offsetSkins);
-	log_debug("Offset TexCoords: %d\n", offsetTexCoords);
-	log_debug("Offset Triangles: %d\n", offsetTriangles);
-	log_debug("Offset Frames: %d\n",	 offsetFrames);
-	log_debug("Offset GlCommands: %d\n",offsetGlCommands);
-	log_debug("Offset End: %d\n",		 offsetEnd);
+	//log_debug("Offset Skins: %d\n",	  offsetSkins);
+	//log_debug("Offset TexCoords: %d\n", offsetTexCoords);
+	//log_debug("Offset Triangles: %d\n", offsetTriangles);
+	//log_debug("Offset Frames: %d\n",	 offsetFrames);
+	//log_debug("Offset GlCommands: %d\n",offsetGlCommands);
+	//log_debug("Offset End: %d\n",		 offsetEnd);
 
-	log_debug("File Length: %d\n",		fileLength);
+	//log_debug("File Length: %d\n",		fileLength);
 
 	int32_t i;
 	unsigned t;
@@ -619,12 +619,12 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 	//std::vector<Model::Material*> &modelMaterials = getMaterialList(model);
 	auto &modelMaterials = *(Model::_MaterialList*)&model->getMaterialList();
 
-	log_debug("Skin data:\n");
+	//log_debug("Skin data:\n");
 	for(i = 0; i<numSkins; i++)
 	{
 		src->readBytes(name,64);
 		name[63] = '\0';
-		log_debug("Skin %d: %s\n",i,name);
+		//log_debug("Skin %d: %s\n",i,name);
 
 		std::string tempStr = name;
 		replaceBackslash(tempStr);
@@ -634,11 +634,11 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 		{
 			std::string md2path = tempStr;
 			size_t slashChar = md2path.rfind('/');
-			log_debug("The '/' char is at %d\n",slashChar);
+			//log_debug("The '/' char is at %d\n",slashChar);
 			if(slashChar<md2path.size())
 			{
 				md2path.resize(slashChar+1);
-				log_debug("setting MD2 path to %s\n",md2path.c_str());
+				//log_debug("setting MD2 path to %s\n",md2path.c_str());
 				model->addMetaData("MD2_PATH",md2path.c_str());
 			}
 		}
@@ -649,10 +649,10 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 		normalizePath(tempStr.c_str(),fullName,fullPath,baseName);
 
-		log_debug("base model skin name is %s\n",baseName.c_str());
+		//log_debug("base model skin name is %s\n",baseName.c_str());
 
 		std::string skin = modelPath+baseName;
-		log_debug("full model skin path is %s\n",skin.c_str());
+		//log_debug("full model skin path is %s\n",skin.c_str());
 
 		Model::Material *mat = Model::Material::get();
 
@@ -687,7 +687,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 		if(texmgr->getTexture(texturePath.c_str()))
 		{
-			log_debug("skin %d: '%s'\n",i,texturePath.c_str());
+			//log_debug("skin %d: '%s'\n",i,texturePath.c_str());
 			haveSkin = true;
 			modelMaterials.push_back(mat);
 		}
@@ -705,7 +705,7 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 		char *ext = strrchr(noext,'.');
 		if(ext) *ext = '\0';
 
-		log_debug("no skins defined,looking for some....\n");
+		//log_debug("no skins defined,looking for some....\n");
 		std::list<std::string> files;
 		getFileList(files,modelPath.c_str(),noext);
 
@@ -718,10 +718,10 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 
 			texturePath = getAbsolutePath(modelPath.c_str(),texturePath.c_str());
 
-			log_debug("checking %s\n",texturePath.c_str());
+			//log_debug("checking %s\n",texturePath.c_str());
 			if(texmgr->getTexture(texturePath.c_str()))
 			{
-				log_debug("  %s is a skin\n",texturePath.c_str());
+				//log_debug("  %s is a skin\n",texturePath.c_str());
 				haveSkin = true;
 				Model::Material *mat = Model::Material::get();
 
@@ -809,9 +809,9 @@ Model::ModelErrorE Md2Filter::readFile(Model *model, const char *const filename)
 		}
 	}
 
-	log_debug("strip count: %d\n",numStrips);
-	log_debug("fan count:	%d\n",numFans  );
-	log_debug("tri count:	%d\n",tcount	);
+	//log_debug("strip count: %d\n",numStrips);
+	//log_debug("fan count:	%d\n",numFans);
+	//log_debug("tri count:	%d\n",tcount);
 
 	delete[] texCoordsList;
 
@@ -880,7 +880,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 
 	std::vector<TriPrim::TriangleVertexList> stripList;
 	std::vector<TriPrim::TriangleVertexList> fanList;
-	log_debug("finding triangle primitives\n");
+	//log_debug("finding triangle primitives\n");
 	if(tp->findPrimitives(model,true))
 	{
 		TriPrim::TriangleVertexList tvl;
@@ -909,9 +909,9 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 	delete tp;
 	tp = nullptr;
 
-	log_debug("strip count: %d\n",numStrips);
-	log_debug("fan count:	%d\n",numFans  );
-	log_debug("tri count:	%d\n",tcount	);
+	//log_debug("strip count: %d\n",numStrips);
+	//log_debug("fan count:	%d\n",numFans);
+	//log_debug("tri count:	%d\n",tcount);
 
 	int32_t magic = 0x32504449;
 	int32_t version = 8;
@@ -1013,7 +1013,7 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 			//free(noext);
 			if(ext) *ext = '.';
 		}
-		log_debug("writing skin %s as %s\n",baseName.c_str(),skinpath);
+		//log_debug("writing skin %s as %s\n",baseName.c_str(),skinpath);
 
 		dst->writeBytes(skinpath,sizeof(skinpath));
 	}
@@ -1076,10 +1076,10 @@ Model::ModelErrorE Md2Filter::writeFile(Model *model, const char *const filename
 
 		// Check for animation name ending with a number
 		size_t len = strlen(animname.c_str());
-		log_debug("last char of animname is '%c'\n",animname[len-1]);
+		//log_debug("last char of animname is '%c'\n",animname[len-1]);
 		if(len>0&&isdigit(animname[len-1]))
 		{
-			log_debug("appending underscore\n");
+			//log_debug("appending underscore\n");
 			// last char is number,append an underscore as a separator
 			animname += '_';
 		}

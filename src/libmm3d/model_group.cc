@@ -207,14 +207,14 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 			sendUndo(undo/*,true*/);
 		}
 
-		m_changeBits |= SetGroup;
+		m_changeBits |= SetGroup; //SetTexture?
 
 		invalidateNormals();
 		invalidateBspTree(); return true;
 	}
 	else
 	{
-		log_error("addTriangleToGroup(%d,%d)argument out of range\n",
+		log_error("addTriangleToGroup(%d,%d) argument out of range\n",
 				groupNum,triangleNum);
 	}
 
@@ -250,7 +250,7 @@ bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 			}
 		}
 
-		m_changeBits |= SetGroup;
+		m_changeBits |= SetGroup; //SetTexture?
 
 		invalidateNormals();
 		invalidateBspTree(); return true;

@@ -26,11 +26,8 @@
 // This code is modified from the snap_together plugin written by Johannes Kroll
 
 #include "menuconf.h"
-#include "cmdmgr.h"
 #include "model.h"
-#include "pluginapi.h"
-#include "version.h"
-#include "log.h"
+#include "modelstatus.h"
 #include "weld.h"
 #include "command.h"
 
@@ -170,5 +167,8 @@ bool SnapCommand::activated(int arg, Model *model)
 
 	if(arg==1/*||arg==3*/) weldSelectedVertices(model);
 	
+	//2022: Input feedback helps to be sure keys are processed.
+	const char *fmt = TRANSLATE("Command","Snapped %d vertices");
+	model_status(model,StatusNormal,STATUSTIME_SHORT,fmt,selection.size());
 	return true;
 }

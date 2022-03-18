@@ -30,20 +30,22 @@
 
 struct SimplifyMeshCommand : Command
 {
-	SimplifyMeshCommand():Command(1,GEOM_MESHES_MENU){}
+	SimplifyMeshCommand():Command(2,GEOM_MESHES_MENU){}
 
-	virtual const char *getName(int)
+	virtual const char *getName(int arg)
 	{
-		return TRANSLATE_NOOP("Command","Simplify Mesh"); 
+		return TRANSLATE_NOOP("Command",arg?"Simplify Bare Mesh":"Simplify"); 
 	}
+
+	virtual const char *getKeymap(int arg){ return arg?"Shift+Ctrl+M":"Shift+M"; }	
 
 	virtual bool activated(int, Model *model);
 };
 
 extern Command *simplifycmd(){ return new SimplifyMeshCommand; }
 
-bool SimplifyMeshCommand::activated(int, Model *model)
+bool SimplifyMeshCommand::activated(int arg, Model *model)
 {
-	model->simplifySelectedMesh(); return true;
+	return model->simplifySelectedMesh(arg==1); 
 }
 

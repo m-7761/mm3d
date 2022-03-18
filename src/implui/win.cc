@@ -284,7 +284,7 @@ static void win_reveal(int i) //UNUSED
 	if(auto*ui=Widgets95::e::find_ui_by_window_id(i))	
 	if(!ui->seen())
 	{
-		log_debug("Plan-B win_reveal had to show window");
+		//log_debug("Plan-B win_reveal had to show window");
 
 		ui->show(); 
 	}

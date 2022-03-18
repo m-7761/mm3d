@@ -184,7 +184,7 @@ void CylinderTool::mouseButtonDown()
 		}
 	}
 
-	model->unselectAll();
+	model->unselectAllTriangles();
 	for(int i=model->getTriangleCount();i-->select;)
 	model->selectTriangle(i);
 

@@ -80,7 +80,7 @@ void AlignWin::submit(int i)
 	case 'X': case 'Y': case 'Z':
 	{
 		align_group *g = &x+i-'X';		
-		log_debug("aligning %c on %s\n",i,g->value.c_str());
+		//log_debug("aligning %c on %s\n",i,g->value.c_str());
 		extern void align_selected(int,Model*,int,double); //align.cc
 		align_selected(i,model,g->mult,g->value);
 
@@ -92,13 +92,13 @@ void AlignWin::submit(int i)
 	}
 	case id_ok:
 		
-		log_debug("Alignment complete\n");
+		//log_debug("Alignment complete\n");
 		model->operationComplete(::tr("Align Selected","operation complete"));		
 		break;
 
 	case id_cancel:
 
-		log_debug("Alignment canceled\n");
+		//log_debug("Alignment canceled\n");
 		model->undoCurrent();
 		break;
 	}

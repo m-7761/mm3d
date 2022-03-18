@@ -94,9 +94,9 @@ void Model::Triangle::sprint(std::string &dest)
 	dest += tempstr;
 
 	sprintf(tempstr,"%.2f,%.2f,%.2f  ",
-			(float)m_flatNormals[0],
-			(float)m_flatNormals[1],
-			(float)m_flatNormals[2]);
+			(float)m_flatNormal[0],
+			(float)m_flatNormal[1],
+			(float)m_flatNormal[2]);
 	dest += tempstr;
 
 	sprintf(tempstr,"%.2f,%.2f %.2f,%.2f %.2f,%.2f",

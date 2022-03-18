@@ -109,7 +109,8 @@ bool InvertSelectionCommand::activated(int arg, Model *model)
 
 	if(!n) model->invertSelection();
 
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection inverted"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,
+	TRANSLATE("Command",arg?"Selection inverted":"Selection complete"));
 
 	return true;
 }

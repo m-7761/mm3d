@@ -108,24 +108,13 @@ void Tool::movePosition
 
 	double tranVec[3] = { x,y,z };
 
-	/*
-	log_debug("orig position is %f %f %f\n",
-			(float)tranVec[0],
-			(float)tranVec[1],
-			(float)tranVec[2]);
-			*/
+	//log_debug("orig position is %f %f %f\n",tranVec[0],tranVec[1],tranVec[2]);
 
 	m.apply3x(tranVec);
 
-	/*
-	log_debug("tran position %f,%f,%f\n",
-			(float)tranVec[0],
-			(float)tranVec[1],
-			(float)tranVec[2]);
-			*/
+	//log_debug("tran position %f,%f,%f\n",tranVec[0],tranVec[1],tranVec[2]);
 
-	parent->getModel()->movePosition(pos,
-			tranVec[0],tranVec[1],tranVec[2]);
+	parent->getModel()->movePosition(pos,tranVec[0],tranVec[1],tranVec[2]);
 }
 void Tool::movePositionUnanimated
 (const Model::Position &pos,double x, double y, double z)
@@ -134,21 +123,11 @@ void Tool::movePositionUnanimated
 
 	double tranVec[3] = { x,y,z };
 
-	/*
-	log_debug("orig position is %f %f %f\n",
-			(float)tranVec[0],
-			(float)tranVec[1],
-			(float)tranVec[2]);
-			*/
+	//log_debug("orig position is %f %f %f\n",tranVec[0],tranVec[1],tranVec[2]);
 
 	m.apply3x(tranVec);
 
-	/*
-	log_debug("tran position %f,%f,%f\n",
-			(float)tranVec[0],
-			(float)tranVec[1],
-			(float)tranVec[2]);
-			*/
+	//log_debug("tran position %f,%f,%f\n",tranVec[0],tranVec[1],tranVec[2]);
 
 	auto model = parent->getModel();
 	model->movePositionUnanimated(pos,

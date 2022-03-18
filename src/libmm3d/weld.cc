@@ -78,7 +78,7 @@ void weldSelectedVertices(Model *model, double tolerance, int &unweldnum, int &w
 
 			if(d<tolerance&&welded.find(*it2)==welded.end())
 			{
-				log_debug("weld vertices %d and %d\n",*it,*it2);
+				//log_debug("weld vertices %d and %d\n",*it,*it2);
 				welded[*it2] = *it;
 				match = true;
 				weldSources++;

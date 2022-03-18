@@ -218,10 +218,6 @@ void ProjectionWin::refreshProjectionDisplay()
 		int proj = projection;
 		for(int i=0;i<iN;i++)
 		{
-			//FIX ME: getTriangleGroup is dumb!!
-			//FIX ME: getTriangleGroup is dumb!!
-			//FIX ME: getTriangleGroup is dumb!!
-			//FIX ME: getTriangleGroup is dumb!!
 			int p = model->getTriangleProjection(i);
 			int g = model->getTriangleGroup(i);
 			int material = model->getGroupTextureId(g);

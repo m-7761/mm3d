@@ -161,10 +161,14 @@ std::string getRelativePath(const char *b, const char *p)
 			}
 
 			int lastSlash = 0;
-			int len = (int)(base.size()<path.size())? base.size(): path.size();
+			int len = (int)(base.size()<path.size())?base.size():path.size();
 			for(int t=0;t<len;t++)
 			{
+				#ifdef _WIN32 //2022
+				if(tolower(base[t])==tolower(path[t]))
+				#else
 				if(base[t]==path[t])
+				#endif
 				{
 					if(base[t]=='/') lastSlash = t;
 				}
@@ -174,7 +178,6 @@ std::string getRelativePath(const char *b, const char *p)
 			// Back up to lastSlash and prepend "../" for each '/' remaining in base
 			std::string rval = "./";
 			size_t offset = lastSlash;
-
 			while((offset = base.find('/',offset+1))<base.size())
 			{
 				rval += "../";
@@ -244,7 +247,7 @@ std::string getAbsolutePath(const char *base, const char *path)
 			
 			free(bptr);
 
-			log_debug("absolute path is %s\n",rval.c_str());
+			//log_debug("absolute path is %s\n",rval.c_str());
 			return rval;
 		}
 		else

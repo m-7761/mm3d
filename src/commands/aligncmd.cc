@@ -28,11 +28,9 @@
 
 struct AlignCommand : Command
 {
-	AlignCommand():Command(1,GEOM_MESHES_MENU){}
-
 	virtual const char *getName(int)
 	{
-		return TRANSLATE_NOOP( "Command","Align Selection..."); 
+		return TRANSLATE_NOOP( "Command","Align..."); 
 	}
 
 	virtual bool activated(int, Model *model)

@@ -44,7 +44,7 @@ bool MU_TranslateSelected::combine(Undo *u)
 
 void MU_TranslateSelected::undo(Model *model)
 {
-	log_debug("undo translate selected\n");
+	//log_debug("undo translate selected\n");
 
 	//Matrix m = m_matrix.getInverse();
 
@@ -89,13 +89,13 @@ void MU_RotateSelected::setMatrixPoint(const Matrix &rhs, const double point[3])
 }
 void MU_RotateSelected::undo(Model *model)
 {
-	log_debug("undo rotate selected\n");
+	//log_debug("undo rotate selected\n");
 	Matrix inv = m_matrix.getInverse();
 	model->rotateSelected(inv,m_point);
 }
 void MU_RotateSelected::redo(Model *model)
 {
-	log_debug("undo rotate selected\n");
+	//log_debug("undo rotate selected\n");
 	model->rotateSelected(m_matrix,m_point);
 }
 
@@ -195,7 +195,7 @@ void MU_Select::undo(Model *model)
 		else switch(m_mode)
 		{
 		case Model::SelectVertices:
-			model->selectVertex(it->number);
+			model->selectVertex(it->number,it->oldSelected);
 			break;
 		case Model::SelectTriangles:
 			model->selectTriangle(it->number);
@@ -232,7 +232,7 @@ void MU_Select::redo(Model *model)
 	if(ea.selected) switch(m_mode)
 	{
 	case Model::SelectVertices:
-		model->selectVertex(ea.number);
+		model->selectVertex(ea.number,ea.selected);
 		break;
 	case Model::SelectTriangles:
 		model->selectTriangle(ea.number);
@@ -280,7 +280,7 @@ void MU_Select::redo(Model *model)
 
 bool MU_Select::combine(Undo *u)
 {
-	//WHY WAS THIS DIABLED?
+	//WHY WAS THIS DISABLED?
 	//Restoring this. The selectVerticesFromTriangles
 	//fix above can't work with uncombined lists
 	//https://github.com/zturtleman/mm3d/issues/93
@@ -307,9 +307,18 @@ unsigned MU_Select::size()
 {
 	return sizeof(MU_Select)+m_diff.size()*sizeof(SelectionDifferenceT);
 }
-
-void MU_Select::setSelectionDifference(int number, bool selected, bool oldSelected)
+void MU_Select::setSelectionDifference(int number, OS &s, OS::Marker &oldS)
 {
+	unsigned a = s._select_op, b = oldS._op;
+	//HACK: I'm concerned here begin/endSelectionDifference may override
+	//the selection order without changing the selection state. It would
+	//be a programmer error if so.
+	if(!a==!b) s._select_op = b; else setSelectionDifference(number,a,b);
+}
+void MU_Select::setSelectionDifference(int number, unsigned selected, unsigned oldSelected)
+{
+	if(!selected==!oldSelected) return; //2022
+
 	//Disabling so "combine" can be restored.
 	//https://github.com/zturtleman/mm3d/issues/93
 	/*WHY WAS THIS?
@@ -356,116 +365,41 @@ void MU_SetSelectedUv::setSelectedUv(const std::vector<int> &newUv, const std::v
 	m_newUv = newUv; m_oldUv = oldUv;
 }
 
-void MU_Hide::undo(Model *model)
+void MU_Hide::hide(Model *model, bool how)
 {
 	//log_debug("undo hide\n"); //???
 
 	// Invert visible from our list
-	for(auto it = m_diff.begin(); it!=m_diff.end(); it++)
-	{
-		if(it->visible) switch (m_mode)
-		{
-		case Model::SelectVertices:
-			model->hideVertex(it->number);
-			break;
-		case Model::SelectTriangles:
-			model->hideTriangle(it->number);
-			break;
-		case Model::SelectJoints:
-			model->hideJoint(it->number);
-			break;
-		case Model::SelectPoints:
-			model->hidePoint(it->number);
-			break;
-		}
-		else switch (m_mode)
-		{
-		case Model::SelectVertices:
-			model->unhideVertex(it->number);
-			break;
-		case Model::SelectTriangles:
-			model->unhideTriangle(it->number);
-			break;
-		case Model::SelectJoints:
-			model->unhideJoint(it->number);
-			break;
-		case Model::SelectPoints:
-			model->unhidePoint(it->number);
-			break;
-		}
+	for(auto&ea:m_diff) switch(ea.mode)
+	{	
+	case Model::SelectVertices:
+		model->hideVertex(ea.number,how);
+		break;
+	case Model::SelectTriangles:
+		model->hideTriangle(ea.number,how);
+		break;
+	case Model::SelectJoints:
+		model->hideJoint(ea.number,how);
+		break;
+	case Model::SelectPoints:
+		model->hidePoint(ea.number,how);
+		break;
 	}
 }
-
-void MU_Hide::redo(Model *model)
-{
-	// Set visible from our list
-	for(auto it = m_diff.begin(); it!=m_diff.end(); it++)
-	{
-		if(it->visible) switch (m_mode)
-		{
-		case Model::SelectVertices:
-			model->unhideVertex(it->number);
-			break;
-		case Model::SelectTriangles:
-			model->unhideTriangle(it->number);
-			break;
-		case Model::SelectJoints:
-			model->unhideJoint(it->number);
-			break;
-		case Model::SelectPoints:
-			model->unhidePoint(it->number);
-			break;
-		}
-		else switch (m_mode)
-		{
-		case Model::SelectVertices:
-			model->hideVertex(it->number);
-			break;
-		case Model::SelectTriangles:
-			model->hideTriangle(it->number);
-			break;
-		case Model::SelectJoints:
-			model->hideJoint(it->number);
-			break;
-		case Model::SelectPoints:
-			model->hidePoint(it->number);
-			break;
-		}
-	}
-}
-
 bool MU_Hide::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_Hide*>(u))
-	if(getSelectionMode()==undo->getSelectionMode())
+	if(m_hide==undo->m_hide)
 	{
-		for(auto it = undo->m_diff.begin(); it!=undo->m_diff.end(); it++)		
-		setHideDifference(it->number,it->visible);
+		for(auto&ea:undo->m_diff)		
+		setHideDifference(ea.mode,ea.number);
 		return true;
 	}
 	return false;
 }
-
 unsigned MU_Hide::size()
 {
 	return sizeof(MU_Hide)+m_diff.size()*sizeof(HideDifferenceT);
-}
-
-void MU_Hide::setHideDifference(int number,bool visible)
-{
-	// Change selection state if it exists in our list
-	for(auto it = m_diff.begin(); it!=m_diff.end(); it++)
-	if(it->number==number)
-	{
-		it->visible = visible; return;
-	}
-
-	// add selection state to our list
-	HideDifferenceT diff;
-	diff.number  = number;
-	diff.visible = visible;
-
-	m_diff.push_back(diff);
 }
 
 void MU_InvertNormal::undo(Model *model)
@@ -1407,14 +1341,14 @@ void MU_SetTriangleVertices::setTriangleVertices(unsigned triangleNum,
 
 void MU_SubdivideSelected::undo(Model *model)
 {
-	log_debug("undo subdivide selected\n");
+	//NOTE: MU_SubdivideTriangle works with this
+	//to do the actual undo work
+	//log_debug("undo subdivide selected\n");
 }
-
 void MU_SubdivideSelected::redo(Model *model)
 {
 	model->subdivideSelectedTriangles();
 }
-
 bool MU_SubdivideSelected::combine(Undo *u)
 {
 	return false;
@@ -1424,18 +1358,13 @@ void MU_SubdivideTriangle::undo(Model *model)
 {
 	//log_debug("undo subdivide\n"); //???
 
-	for(auto it = m_list.rbegin(); it!=m_list.rend(); it++)
+	for(auto&ea:m_list)
 	{
 		//model->unsubdivideTriangles(it->a,it->b,it->c,it->d);
-		model->subdivideSelectedTriangles_undo(it->a,it->b,it->c,it->d);
+		model->subdivideSelectedTriangles_undo(ea.a,ea.b,ea.c,ea.d);
 	}
-
-	for(auto iit = m_vlist.rbegin(); iit!=m_vlist.rend(); iit++)
-	{
-		model->deleteVertex(*iit);
-	}
+	for(unsigned i:m_vlist) model->deleteVertex(i);
 }
-
 bool MU_SubdivideTriangle::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SubdivideTriangle*>(u))
@@ -1444,27 +1373,24 @@ bool MU_SubdivideTriangle::combine(Undo *u)
 		subdivide(ea.a,ea.b,ea.c,ea.d);
 		undo->m_list.clear();
 
-		for(auto&ea:undo->m_vlist)
-		addVertex(ea);
+		for(unsigned i:undo->m_vlist)
+		addVertex(i);
 		undo->m_vlist.clear();
 
 		return true;
 	}
 	return false;
 }
-
 unsigned MU_SubdivideTriangle::size()
 {
 	return sizeof(MU_SubdivideTriangle)
 	+m_list.size()*sizeof(SubdivideTriangleT)
 	+m_vlist.size()*sizeof(int);
 }
-
 void MU_SubdivideTriangle::subdivide(unsigned a, unsigned b, unsigned c, unsigned d)
 {
 	m_list.push_back({a,b,c,d});
 }
-
 void MU_SubdivideTriangle::addVertex(unsigned v)
 {
 	m_vlist.push_back(v);
@@ -1951,7 +1877,7 @@ void MU_UpdatePositionInfluence::updatePositionInfluence(const Model::Position &
 /*UNUSED
 void MU_SetVertexBoneJoint::undo(Model *model)
 {
-	log_debug("undo set vertex bone joint\n");
+	//log_debug("undo set vertex bone joint\n");
 	SetJointList::iterator it;
 
 	for(it = m_list.begin(); it!=m_list.end(); it++)
@@ -2016,7 +1942,7 @@ void MU_SetVertexBoneJoint::setVertexBoneJoint(const unsigned &vertex,
 /*UNUSED
 void MU_SetPointBoneJoint::undo(Model *model)
 {
-	log_debug("undo set point bone joint\n");
+	//log_debug("undo set point bone joint\n");
 	SetJointList::iterator it;
 
 	for(it = m_list.begin(); it!=m_list.end(); it++)
@@ -2187,7 +2113,7 @@ unsigned MU_AddAnimation::size()
 
 void MU_DeleteAnimation::undo(Model *model)
 {
-	if(!m_dataOnly) model->insertAnimation(m_anim,m_animp);
+	model->insertAnimation(m_anim,m_animp);
 
 	model->insertFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),&m_vertices,m_animp);
 }
@@ -2195,7 +2121,7 @@ void MU_DeleteAnimation::redo(Model *model)
 {
 	model->removeFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),nullptr);
 
-	if(!m_dataOnly) model->removeAnimation(m_anim);
+	model->removeAnimation(m_anim);
 }
 bool MU_DeleteAnimation::combine(Undo *u)
 {
@@ -2240,7 +2166,7 @@ unsigned MU_DeleteAnimation::size()
 		/*2021: sizeof(void*) ???
 	unsigned skelAnimSize = (m_skelAnim)? sizeof(m_skelAnim): 0;*/
 
-	if(!m_dataOnly) if(ab) //m_skelAnim
+	if(ab) //m_skelAnim
 	{
 		unsigned objectCount = ab->m_keyframes.size();
 		for(auto&list:ab->m_keyframes)
@@ -2252,6 +2178,35 @@ unsigned MU_DeleteAnimation::size()
 	}
 
 	return sz; //return sizeof(MU_DeleteAnimation)+frameAnimSize+skelAnimSize;
+}
+
+void MU_VoidFrameAnimation::undo(Model *model)
+{
+	m_animp->m_frame0 = m_frame0;
+	model->insertFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),&m_vertices,m_animp);
+}
+void MU_VoidFrameAnimation::redo(Model *model)
+{
+	m_animp->m_frame0 = ~0;
+	model->removeFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),nullptr);
+}
+bool MU_VoidFrameAnimation::combine(Undo *u)
+{
+	return false;
+}
+void MU_VoidFrameAnimation::undoRelease()
+{
+	//log_debug("releasing animation in undo\n");
+
+	for(auto*ea:m_vertices) ea->release();
+}
+unsigned MU_VoidFrameAnimation::size()
+{
+	unsigned sz = sizeof(*this);
+	Model::Animation *ab = m_animp;
+	unsigned count = ab->_frame_count();		
+	sz+=count*m_vertices.size()*sizeof(Model::FrameAnimVertex);
+	return sz;
 }
 
 void MU_SetJointParent::undo(Model *model)

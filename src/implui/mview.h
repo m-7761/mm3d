@@ -76,6 +76,7 @@ struct ViewBar::ParamsBar
 	control *new_spinbox(T *lv, utf8 name, T min, T max)
 	{
 		auto *c = new spinbox(nav,name,lv);
+		c->spinner.set_speed(); //2022: Increments by 1.
 		return &c->limit(min,max).compact().sspace(0,8);
 	}
 	control *new_dropdown(int *lv, utf8 name, const char **e)

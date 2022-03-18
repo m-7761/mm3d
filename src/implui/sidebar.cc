@@ -220,6 +220,8 @@ void SideBar::BoolPanel::submit(control *c)
 {
 	if(c==op)
 	{
+		config.set("ui_bool_op",op.int_val());
+
 		utf8 str = nullptr; switch(op)
 		{
 		case op_union:
@@ -253,7 +255,7 @@ void SideBar::BoolPanel::submit(control *c)
 				model->setTriangleMarked(*it,true);
 			}
 		}
-		else init();
+		else button_b.disable();
 	}
 	else if(c==button_b)
 	{	
@@ -289,7 +291,7 @@ void SideBar::BoolPanel::submit(control *c)
 			model->booleanOperation(e,al,bl);
 			model->operationComplete(str);
 
-			init();
+			button_b.disable();
 		}
 		else 
 		{
@@ -304,6 +306,23 @@ void SideBar::BoolPanel::submit(control *c)
 }
 void SideBar::BoolPanel::init()
 {
+	//Maximizing use of space.
+	//op.style(bi::etched).expand();
+	//op.align();
+	op.calign().space(2,0,0);
+	op.add_item(0,"Fuse");
+	op.add_item(1,"Union");
+	col.set_parent(op);
+	op.add_item(2,"Subtract"); //Subtraction
+	op.add_item(3,"Intersect"); //Intersection
+
+	button_a.expand();
+	button_b.expand();
+
+	//init(); submit(op.select_id(1));
+
+	submit(op.select_id(config.get("ui_bool_op",1)));
+
 	//status.set_name(::tr("Select faces to set",
 	//"Select faces to set as 'A' Object in boolean operation"));
 	button_b.disable();
@@ -1133,7 +1152,7 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 		igv[i]->joint.set_hidden(false);
 		igv[i]->weight.set_hidden(false);
 
-		log_debug("bone i %d is bone ID %d\n",i,bone); //???
+		//log_debug("bone i %d is bone ID %d\n",i,bone); //???
 
 		sidebar_update_weight_v(igv[i]->v,true,jcl[bone].typeIndex,jcl[bone].weight);
 	}
@@ -1245,7 +1264,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 		{
 			double weight = std::max(0,std::min<int>(100,group.weight))/100.0;
 
-			log_debug("setting joint %d weight to %f\n",j,weight); //???
+			//log_debug("setting joint %d weight to %f\n",j,weight); //???
 
 			for(auto&i:l) model->setPositionInfluence(i,j,Model::IT_Custom,weight);
 
@@ -1262,7 +1281,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 			type = Model::IT_Custom; jcl[j].weight = 100; //NEW
 		}
 
-		log_debug("setting joint %d type to %d\n",j,(int)type); //???
+		//log_debug("setting joint %d type to %d\n",j,(int)type); //???
 
 		double weight = type==Model::IT_Auto?0:jcl[j].weight/100.0;
 		double w = weight;
@@ -1292,7 +1311,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 	if(igv[i]->v.int_val()==Model::IT_Remainder)
 	if(j>=0&&j<(int)model->getBoneJointCount()) //???
 	{
-		log_debug("getting remainder weight for joint %d\n",j); //???
+		//log_debug("getting remainder weight for joint %d\n",j); //???
 		
 		int count = 0; double weight = 0;
 		for(auto&i:l) if(auto*infl=model->getPositionInfluences(i))
@@ -1307,7 +1326,7 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 
 		int w = count?(int)lround(weight/(double)count):0;
 		
-		log_debug("updating box %d with remaining weight %d\n",i,w); //???
+		//log_debug("updating box %d with remaining weight %d\n",i,w); //???
 
 		assert(group.v.enabled());
 		sidebar_update_weight_v(group.v,true,group.v,w);
@@ -1316,11 +1335,13 @@ void SideBar::PropPanel::infl_props::submit(control *c)
 
 void SideBar::PropPanel::faces_props::change(int changeBits)
 {	
+	auto &fs = model.fselection;
+
 	if(changeBits) // Update coordinates in text fields	
 	{
 		reverse:
 		char buf[64];
-		int i = 0; for(int f:model.fselection)
+		int i = 0; for(int f:fs)
 		{
 			i+=snprintf(buf+i,sizeof(buf)-i,"%d,",f);
 			if((unsigned)i>=sizeof(buf))
@@ -1342,7 +1363,7 @@ void SideBar::PropPanel::faces_props::change(int changeBits)
 	{
 		menu.select_id(0);
 
-		if(model.fselection.empty()) return; //paranoia
+		if(fs.empty()) return; //paranoia
 
 		if(id<=2)
 		{
@@ -1354,14 +1375,14 @@ void SideBar::PropPanel::faces_props::change(int changeBits)
 			model->reverseOrderSelectedTriangle();
 			model->operationComplete(::tr("Reverse Order Selected Faces","operation complete"));		
 			//NOTE: This is pure cosmetic feedback.
-			std::reverse(model.fselection.begin(),model.fselection.end());
+			std::reverse(fs.begin(),fs.end());
 			goto reverse;
 		}
 		else if(id==4)
 		{
-			int sel = model.fselection.front();
-			model->unselectAllTriangles();
-			model->selectTriangle(sel);
+			std::swap(fs.front(),fs.back());
+			fs.pop_back();
+			for(int i:fs) model->unselectTriangle(i);
 			model->operationComplete(::tr("Keep First Face in Selection","operation complete"));
 		}
 	}

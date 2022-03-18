@@ -49,31 +49,28 @@ extern Command *edgedivcmd(){ return new EdgeDivideCommand; }
 bool EdgeDivideCommand::activated(int arg,Model *model)
 {
 	int split = 0;
-	unsigned int newVertex = ~0U;
+	unsigned newVertex = ~0U;
 
-	int_list vertList;
-	model->getSelectedVertices(vertList);
+	int_list l;
+	model->getSelectedVertices(l);
 
-	if(vertList.size()==2)
+	if(l.size()==2) //FIX ME
 	{
-		// Only divides one edge,deal with it
-		unsigned int v1 = vertList.front();
-		//vertList.pop_front();
-		//unsigned int v2 = vertList.front();
-		unsigned int v2 = vertList.back();
+		// Only divides one edge, deal with it
+		unsigned v1 = l.front(), v2 = l.back();
 
 		// The triangle count will grow while we're iterating,but that's okay
 		// because we know that the new triangles don't need to be split
-		unsigned int tcount = model->getTriangleCount();
+		unsigned tcount = model->getTriangleCount();
 
-		for(unsigned int tri = 0; tri<tcount; tri++)
+		for(unsigned tri = 0; tri<tcount; tri++)
 		{
 			const int INVALID = ~0;
 			int a = INVALID;
 			int b = INVALID;
 			int c = INVALID;
 
-			unsigned int tv[3] = {0,0,0};
+			unsigned tv[3] = {0,0,0};
 
 			model->getTriangleVertices(tri,tv[0],tv[1],tv[2]);
 
@@ -96,37 +93,52 @@ bool EdgeDivideCommand::activated(int arg,Model *model)
 					double coord1[3];
 					double coord2[3];
 
-					model->getVertexCoords(v1,coord1);
-					model->getVertexCoords(v2,coord2);
+					model->getVertexCoordsUnanimated(v1,coord1);
+					model->getVertexCoordsUnanimated(v2,coord2);
 
-					for(int i = 0; i<3; i++)
+					for(int i=3;i-->0;)
 					{
-						coord1[i] = (coord1[i]+coord2[i])/2.0;
+						coord1[i] = (coord1[i]+coord2[i])*0.5;
 					}
 
-					newVertex = model->addVertex(coord1[0],coord1[1],coord1[2]);
+					newVertex = model->addVertex(coord1[0],coord1[1],coord1[2]);					
 				}
-
-				//FIX ME: getTriangleGroup is dumb!!
-				//FIX ME: getTriangleGroup is dumb!!
-				//FIX ME: getTriangleGroup is dumb!!
-				int g = model->getTriangleGroup(tri);
-
+															
 				int vert[3];
 
 				vert[a] = newVertex;
 				vert[b] = tv[b];
 				vert[c] = tv[c];
 				int newTri = model->addTriangle(vert[0],vert[1],vert[2]);
+
+				int g = model->getTriangleGroup(tri);
 				if(g>=0)
-				{
-					model->addTriangleToGroup(newTri,g);
-				}
+				model->addTriangleToGroup(g,newTri);
 
 				vert[a] = tv[a];
 				vert[b] = newVertex;
 				vert[c] = tv[c];
 				model->setTriangleVertices(tri,vert[0],vert[1],vert[2]);
+								
+				float st[2][3],dst[2][3]; 				
+				model->getTextureCoords(tri,st); //2022									
+				
+				for(int i=2;i-->0;)
+				{
+					dst[i][a] = (st[i][a]+st[i][b])*0.5f;
+					dst[i][b] = st[i][b];
+					dst[i][c] = st[i][c];
+				}
+				model->setTextureCoords(newTri,dst);
+
+				for(int i=2;i-->0;)
+				{
+					dst[i][a] = st[i][a];
+					dst[i][b] = (st[i][a]+st[i][b])*0.5f;
+					dst[i][c] = st[i][c];
+				}
+				model->setTextureCoords(tri,dst);
+
 				split++;
 			}
 		}

@@ -172,7 +172,7 @@ void UndoManager::operationComplete(const char *opname, bool edit)
 		}
 		else assert(*opname!='@'); //non-edit conflict
 
-		log_debug("operation complete: %s\n",opname);
+		//log_debug("operation complete: %s\n",opname);
 
 		pushUndoToList(m_currentUndo);
 		m_currentList->setOpName(opname);
@@ -185,7 +185,7 @@ void UndoManager::operationComplete(const char *opname, bool edit)
 	}
 	else
 	{
-		log_debug("nothing to undo\n");
+		//log_debug("nothing to undo\n");
 	}
 	m_currentList = nullptr;
 	m_currentUndo = nullptr;
@@ -209,7 +209,7 @@ UndoList *UndoManager::undo()
 
 		showStatistics();
 
-		log_debug("Undo: %s\n",m_atomicRedo.back()->getOpName());
+		//log_debug("Undo: %s\n",m_atomicRedo.back()->getOpName());
 
 		if(m_atomicRedo.back()->isEdit()) //2021
 		m_saveLevel--;
@@ -232,7 +232,7 @@ UndoList *UndoManager::redo()
 
 		showStatistics();
 
-		log_debug("Redo: %s\n",m_atomic.back()->getOpName());
+		//log_debug("Redo: %s\n",m_atomic.back()->getOpName());
 
 		m_saveLevel++;
 
@@ -279,7 +279,7 @@ UndoList *UndoManager::undoCurrent()
 			m_atomicRedo.push_back(m_atomic.back());
 			m_atomic.pop_back();
 
-			log_debug("Undo: %s\n",m_atomicRedo.back()->getOpName());
+			//log_debug("Undo: %s\n",m_atomicRedo.back()->getOpName());
 			return m_atomicRedo.back();
 		}
 	}
@@ -334,35 +334,35 @@ void UndoManager::showStatistics()const
 	AtomicList::const_iterator it;
 	UndoList::const_iterator uit;
 
-	log_debug("Undo:\n");
+	//log_debug("Undo:\n");
 	for(it = m_atomic.begin(); it!=m_atomic.end(); it++)
 	{
-		log_debug("  %s\n",(*it)->getOpName());
+		//log_debug("  %s\n",(*it)->getOpName());
 		undoItems += (*it)->size();
 		for(uit = (*it)->begin(); uit!=(*it)->end(); uit++)
 		{
 			undoSize += (*uit)->size();
 		}
 	}
-	log_debug("\n");
+	//log_debug("\n");
 
-	log_debug("Redo:\n");
+	//log_debug("Redo:\n");
 	for(it = m_atomicRedo.begin(); it!=m_atomicRedo.end(); it++)
 	{
-		log_debug("  %s\n",(*it)->getOpName());
+		//log_debug("  %s\n",(*it)->getOpName());
 		redoItems += (*it)->size();
 		for(uit = (*it)->begin(); uit!=(*it)->end(); uit++)
 		{
 			redoSize += (*uit)->size();
 		}
 	}
-	log_debug("\n");
+	//log_debug("\n");
 
-	log_debug("--------------- Undo statistics ---------------\n");
-	log_debug(" undo:  %7d size,%5d items,%5d lists\n",undoSize,undoItems,m_atomic.size());
-	log_debug(" redo:  %7d size,%5d items,%5d lists\n",redoSize,redoItems,m_atomicRedo.size());
-	log_debug(" total: %7d size,%5d items,%5d lists\n",undoSize+redoSize,undoItems+redoItems,m_atomic.size()+m_atomicRedo.size());
-	log_debug("-----------------------------------------------\n");
+	//log_debug("--------------- Undo statistics ---------------\n");
+	//log_debug(" undo:  %7d size,%5d items,%5d lists\n",undoSize,undoItems,m_atomic.size());
+	//log_debug(" redo:  %7d size,%5d items,%5d lists\n",redoSize,redoItems,m_atomicRedo.size());
+	//log_debug(" total: %7d size,%5d items,%5d lists\n",undoSize+redoSize,undoItems+redoItems,m_atomic.size()+m_atomicRedo.size());
+	//log_debug("-----------------------------------------------\n");
 }
 
 size_t UndoManager::getSize() //NEW
@@ -381,7 +381,7 @@ void UndoManager::checkSize()
 
 		if(size>m_sizeLimit)
 		{
-			log_debug("Undo list size is %d,freeing a list\n",size);
+			//log_debug("Undo list size is %d,freeing a list\n",size);
 
 			auto it = m_atomic.begin();
 			for(auto itt=m_atomic.end();it<itt;it++)

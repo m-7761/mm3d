@@ -53,7 +53,7 @@ struct PolyTool : Tool
 		{
 		TRANSLATE_NOOP("Param","Strip","Triangle strip option"),
 		TRANSLATE_NOOP("Param","Fan","Triangle fan option"),
-		TRANSLATE_NOOP("Param","Nearest","Triangle fan option"), //2020
+		TRANSLATE_NOOP("Param","Nearest",""), //2020
 		};
 		parent->addEnum(true,&m_type,TRANSLATE_NOOP("Param","Poly Type"),e);
 		parent->addBool(true,&m_snap,TRANSLATE_NOOP("Param","Use Snaps"));
@@ -128,25 +128,33 @@ void PolyTool::mouseButtonDown()
 		}
 	}
 	
-	std::vector<int> selected;
-	model->getSelectedVertices(selected);
-	if(selected.size()>3) 
+	std::vector<int> sel;
+	model->getSelectedVertices(sel);
+	{
+		//2022: this wasn't actually working
+		//unless the vertices were brand new.
+		auto &vl = model->getVertexList();
+		std::sort(sel.begin(),sel.end(),[&](int a, int b)
+		{
+			return vl[a]->getOrderOfSelection()<vl[b]->getOrderOfSelection();
+		});
+	}
+	if(sel.size()>3) 
 	{
 		//2020: at least show this behavior?
-		for(unsigned i=3;i<selected.size();i++)
-		model->unselectVertex(selected[i]);
-
-		selected.resize(3); //FIX ME
+		for(unsigned i=sel.size()-3;i-->0;)
+		model->unselectVertex(sel[i]);
+		sel.erase(sel.begin(),sel.end()-3);
 	}
 	
-	if(3==selected.size())
+	if(3==sel.size())
 	{
 		int v; if(2==m_type) //2020
 		{
 			ToolCoordT cmp;
 			double max = -1; v = 1;
-			for(unsigned i=0;i<selected.size();i++)
-			if(makeToolCoord(cmp,{Model::PT_Vertex,(unsigned)selected[i]}))
+			for(unsigned i=0;i<sel.size();i++)
+			if(makeToolCoord(cmp,{Model::PT_Vertex,(unsigned)sel[i]}))
 			{
 				double d = distance(cmp.coords,m_lastVertex.coords);
 				if(d>max){ max = d; v = i; }
@@ -154,16 +162,16 @@ void PolyTool::mouseButtonDown()
 			else assert(0);
 		}
 		else v = m_type?1:0;	
-		model->unselectVertex(selected[v]);
-		selected.erase(selected.begin()+v);
+		model->unselectVertex(sel[v]);
+		sel.erase(sel.begin()+v);
 	}
-	selected.push_back(m_lastVertex);
+	sel.push_back(m_lastVertex);
 
 	int tri;
-	if(3==selected.size())
-	tri = model->addTriangle(selected[0],selected[1],selected[2]);	
+	if(3==sel.size())
+	tri = model->addTriangle(sel[0],sel[1],sel[2]);	
 	model->selectVertex(m_lastVertex);
-	if(3==selected.size())
+	if(3==sel.size())
 	{
 		const Matrix &viewMatrix = 
 		parent->getParentBestInverseMatrix();

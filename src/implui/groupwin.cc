@@ -176,7 +176,7 @@ void GroupWin::submit(int id)
 
 		case id_value: //HACK: new Select button?
 
-			model->unselectAll(); //break;
+			model->unselectAllTriangles(); //break;
 
 		case id_select: 
 
@@ -187,7 +187,7 @@ void GroupWin::submit(int id)
 			}
 			else
 			{		
-			//	model->unselectAll(); //TODO: Disable option?
+			//	model->unselectAllTriangles(); //TODO: Disable option?
 				model->selectGroup(g);			
 			}
 			break;

@@ -79,13 +79,16 @@ void MoveTool::mouseButtonDown()
 	m_allowX = m_allowY = 0!=(parent->getButtonsLocked()&BS_Shift);
 
 	m_xx = m_x; m_yy = m_y; m_zz = m_z; //translateSelected?	
-	
-	model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
-	TRANSLATE("Tool","Moving selected primitives"));
 }
 void MoveTool::mouseButtonMove()
 {	
-	m_selecting = false;
+	if(m_selecting)
+	{
+		m_selecting = false;
+
+		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Moving selected primitives"));
+	}
 	//2021: Reserving BS_Right
 	if(!m_left) return;
 
@@ -136,13 +139,16 @@ void MoveTool::mouseButtonUp()
 
 	if(m_selecting)
 	{
-		parent->snapSelect(); //EXPERIMENTAL		
+		parent->snapSelect(); //EXPERIMENTAL
+
+		parent->updateAllViews(); //Needed
+
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Select complete"));
 	}
 	else if(m_left)	
 	{
 		model_status(model,StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("Tool","Move complete"));
 	}
-
-	parent->updateAllViews(); //Needed
 }		

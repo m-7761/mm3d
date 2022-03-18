@@ -156,13 +156,13 @@ extern int main(int argc, char *argv[])
 			//REMOVE ME
 			//show_alloc_stats(); //???
 			{
-				log_debug("\n");
-				log_debug("program allocation stats\n"); //???
+				//log_debug("\n");
+				//log_debug("program allocation stats\n"); //???
 
-				//Prints log_debug("Filter Options: %d\n",s_allocated);
+				//Prints //log_debug("Filter Options: %d\n",s_allocated);
 				ModelFilter::Options::stats();
 
-				log_debug("\n");
+				//log_debug("\n");
 			}
 
 			//Might do config.flush() here?

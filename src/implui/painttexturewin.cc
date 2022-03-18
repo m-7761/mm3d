@@ -116,7 +116,6 @@ void PaintTextureWin::submit(int id)
 		//https://github.com/zturtleman/mm3d/issues/54
 		for(it=l.begin();it<itt;it++)
 		{
-			//FIX ME: getTriangleGroup is dumb!!
 			int g = model->getTriangleGroup(/*l.front()*/*it); //???
 			int m = model->getGroupTextureId(g);
 			if(m>=0)
@@ -203,7 +202,10 @@ void PaintTextureWin::submit(int id)
 		
 	file.locate("Save PNG",::tr("File name for saved texture?"),true);
 	if(file.empty()) 	
-	return log_debug("save frame buffer canceled\n");
+	{
+		//log_debug("save frame buffer canceled\n");
+		return;
+	}
 
 	int x,y,w,h; texture.getGeometry(x,y,w,h); 
 	int il = glutext::glutCreateImageList();

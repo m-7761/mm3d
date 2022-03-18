@@ -105,19 +105,17 @@ uint8_t *texture_scale_auto(uint8_t *data,Texture::FormatE format, int &oldx, in
 
 uint8_t *texture_scale_size(uint8_t *data,Texture::FormatE format, int oldx, int oldy, int newx, int newy)
 {
-	log_debug("scaling %s image from %d,%d to %d,%d\n",
-			((format==Texture::FORMAT_RGB)? "RGB" : "RGBA"),
-			oldx,oldy,newx,newy);
+	//log_debug("scaling %s image from %d,%d to %d,%d\n",((format==Texture::FORMAT_RGB)?"RGB":"RGBA"),oldx,oldy,newx,newy);
 
-	unsigned bpp = (format==Texture::FORMAT_RGB)? 3 : 4;
-	unsigned imageSize = newx *newy *bpp;
+	unsigned bpp = (format==Texture::FORMAT_RGB)?3:4;
+	unsigned imageSize = newx*newy*bpp;
 
 	uint8_t *dest = new uint8_t[imageSize];
 
-	unsigned samplex	= 0;
-	unsigned sampley	= 0;
+	unsigned samplex = 0;
+	unsigned sampley = 0;
 	unsigned sampleoff = 0;
-	unsigned destoff	= 0;
+	unsigned destoff = 0;
 	unsigned b = 0;
 
 	for(int y = 0; y<newy; y++)
@@ -135,7 +133,7 @@ uint8_t *texture_scale_size(uint8_t *data,Texture::FormatE format, int oldx, int
 			}
 		}
 	}
-	log_debug("max sample = %d,%d\n",samplex,sampley);
+	//log_debug("max sample = %d,%d\n",samplex,sampley);
 
 	return dest;
 }

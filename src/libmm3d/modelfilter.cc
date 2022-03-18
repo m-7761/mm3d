@@ -62,7 +62,7 @@ ModelFilter::Options::~Options()
 
 void ModelFilter::Options::stats()
 {
-	log_debug("Filter Options: %d\n",s_allocated);
+	//log_debug("Filter Options: %d\n",s_allocated);
 }
 
 extern bool texmgr_can_read_or_write(const char*,const char*);

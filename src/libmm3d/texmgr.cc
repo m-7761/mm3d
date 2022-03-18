@@ -71,8 +71,7 @@ TextureManager *TextureManager::s_instance = nullptr; //???
 
 TextureManager::~TextureManager()
 {
-	log_debug("TextureManager releasing %d textures and %d filters\n",
-	m_textures.size(),m_filters.size());
+	//log_debug("TextureManager releasing %d textures and %d filters\n",m_textures.size(),m_filters.size());
 
 	for(auto*ea:m_textures) delete ea;
 
@@ -105,7 +104,7 @@ Texture *TextureManager::getTexture(const char *filename, bool noCache, bool war
 	for(auto*ea:m_textures)
 	if(!strcmp(filename,ea->m_filename.c_str()))
 	{
-		log_debug("cached image %s\n",filename);
+		//log_debug("cached image %s\n",filename);
 		return ea;
 	}
 
@@ -148,7 +147,7 @@ Texture *TextureManager::getTexture(const char *name_and_format, DataSource &src
 	else
 	{
 		m_lastError = Texture::ERROR_NONE;
-		log_debug("read from image source %s\n",name_and_format);
+		//log_debug("read from image source %s\n",name_and_format);
 		newTexture->removeOpaqueAlphaChannel(); //???
 		if(is_file)
 		{
@@ -201,7 +200,7 @@ bool TextureManager::reloadTextures()
 		Texture *refreshedTexture = getTexture(ea->m_filename.c_str(),true);
 		if(refreshedTexture)
 		{
-			log_debug("reloaded texture %s\n",ea->m_filename.c_str());
+			//log_debug("reloaded texture %s\n",ea->m_filename.c_str());
 
 			refreshedTexture->removeOpaqueAlphaChannel(); //???
 							
@@ -232,7 +231,7 @@ Texture *TextureManager::getBlankTexture(const char *name)
 		//if(!strcmp(name,""))
 		if(ea->m_name.empty())
 		{
-			log_debug("cached image (blank)\n");
+			//log_debug("cached image (blank)\n");
 			return ea;
 		}
 	}

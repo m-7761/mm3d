@@ -354,7 +354,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 	uint16_t numGroups = 0;
 	m_src->read(numGroups);
 
-	log_debug("model says %d groups\n");
+	//log_debug("model says %d groups\n");
 
 	std::vector<unsigned> groupMats; //2020: chicken/egg
 	for(t = 0; t<numGroups; t++)
@@ -366,7 +366,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		readString(tempstr,sizeof(tempstr));
 		model->addGroup(tempstr);
 
-		log_debug("group name: %s\n",modelGroups[t]->m_name.c_str());
+		//log_debug("group name: %s\n",modelGroups[t]->m_name.c_str());
 
 		uint16_t numTriangles = 0;
 		m_src->read(numTriangles);
@@ -408,7 +408,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	uint16_t numMaterials = 0;
 	m_src->read(numMaterials);
-	log_debug("model says %d materials\n",numMaterials);
+	//log_debug("model says %d materials\n",numMaterials);
 
 	for(t = 0; t<numGroups; t++)
 	{
@@ -448,7 +448,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		readString(material.m_texture,sizeof(material.m_texture));
 		readString(material.m_alphamap,sizeof(material.m_alphamap));
 
-		log_debug("material name is %s\n",material.m_name);
+		//log_debug("material name is %s\n",material.m_name);
 		mat->m_name = material.m_name;
 
 		mat->m_ambient[0]  = material.m_ambient[0];
@@ -556,7 +556,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	for(t = 0; t<numJoints; t++)
 	{
-		log_debug("Reading joint %d\n",t);
+		//log_debug("Reading joint %d\n",t);
 		MS3DJoint joint;
 
 		m_src->read(joint.m_flags);
@@ -600,8 +600,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		uint16_t numRotationKeyframes	 = joint.m_numRotationKeyframes;
 		uint16_t numTranslationKeyframes = joint.m_numTranslationKeyframes;
 
-		log_debug("Joint %d keyframes: %d rot %d trans\n",
-				t,numRotationKeyframes,numTranslationKeyframes);
+		//log_debug("Joint %d keyframes: %d rot %d trans\n",t,numRotationKeyframes,numTranslationKeyframes);
 
 		uint16_t j; // MS Visual C++ is lame
 		for(j = 0; j<numRotationKeyframes; j++)
@@ -679,13 +678,13 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	// TODO: May want to read joint extra data eventually
 
-	log_debug("model loaded\n");
-	log_debug("  vertices:  %d\n",numVertices);
-	log_debug("  triangles: %d\n",numTriangles);
-	log_debug("  groups:	 %d\n",numGroups);
-	log_debug("  materials: %d\n",numMaterials);
-	log_debug("  joints:	 %d\n",numJoints);
-	log_debug("\n");
+	//log_debug("model loaded\n");
+	//log_debug("  vertices:  %d\n",numVertices);
+	//log_debug("  triangles: %d\n",numTriangles);
+	//log_debug("  groups:	 %d\n",numGroups);
+	//log_debug("  materials: %d\n",numMaterials);
+	//log_debug("  joints:	 %d\n",numJoints);
+	//log_debug("\n");
 
 	return Model::ERROR_NONE;
 }
@@ -787,7 +786,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	// write vertices
 	uint16_t numVertices = mesh_list_vertex_count(ml);
 	m_dst->write(numVertices);
-	log_debug("writing %d vertices\n",numVertices);
+	//log_debug("writing %d vertices\n",numVertices);
 
 	MeshList::const_iterator it;
 
@@ -833,7 +832,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	// write triangles
 	uint16_t numTriangles = (uint16_t)mesh_list_face_count(ml);
 	m_dst->write(numTriangles);
-	log_debug("writing %d triangles\n",numTriangles);
+	//log_debug("writing %d triangles\n",numTriangles);
 
 	int vertBase = 0;
 	int meshNum = 0;
@@ -894,7 +893,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	// write groups
 	auto numGroups = (uint16_t)ml.size();
 	m_dst->write(numGroups);
-	log_debug("writing %d groups\n",numGroups);
+	//log_debug("writing %d groups\n",numGroups);
 
 	int triBase = 0;
 	for(it = ml.begin(); it!=ml.end(); it++)
@@ -935,7 +934,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 
 	auto numMaterials = (uint16_t)modelMaterials.size();
 	m_dst->write(numMaterials);
-	log_debug("writing %d materials\n",numMaterials);
+	//log_debug("writing %d materials\n",numMaterials);
 
 	for(t = 0; t<numMaterials; t++)
 	{
@@ -1083,8 +1082,8 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		joint.m_numRotationKeyframes = rotcount;
 		joint.m_numTranslationKeyframes = transcount;
 
-		log_debug("rotation: %d\n",rotcount);
-		log_debug("translation: %d\n",transcount);
+		//log_debug("rotation: %d\n",rotcount);
+		//log_debug("translation: %d\n",transcount);
 
 		m_dst->write(joint.m_flags);
 		m_dst->writeBytes(joint.m_name,sizeof(joint.m_name));
@@ -1122,7 +1121,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 			{
 				MS3DKeyframe keyframe;
 				keyframe.m_time = (prevcount+f+1)*spf;
-				log_debug("keyframe time: %f\n",keyframe.m_time);
+				//log_debug("keyframe time: %f\n",keyframe.m_time);
 
 				keyframe.m_time = keyframe.m_time;
 				keyframe.m_parameter[0] = (float)x;
@@ -1162,7 +1161,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 			{
 				MS3DKeyframe keyframe;
 				keyframe.m_time = (prevcount+f+1)*spf;
-				log_debug("keyframe time: %f\n",keyframe.m_time);
+				//log_debug("keyframe time: %f\n",keyframe.m_time);
 
 				keyframe.m_time = keyframe.m_time;
 				keyframe.m_parameter[0] = (float)x;
@@ -1221,7 +1220,7 @@ void Ms3dFilter::writeCommentSection()
 	int32_t subVersion = 1;
 	m_dst->write(subVersion);
 
-	log_debug("writing comments subversion %d\n",subVersion);
+	//log_debug("writing comments subversion %d\n",subVersion);
 
 	int32_t numComments = 0;
 	m_dst->write(numComments); // groups
@@ -1239,7 +1238,7 @@ void Ms3dFilter::writeVertexWeightSection(const MeshList &ml)
 	}
 	m_dst->write(subVersion);
 
-	log_debug("writing vertex weights subversion %d\n",subVersion);
+	//log_debug("writing vertex weights subversion %d\n",subVersion);
 
 	infl_list ilist;
 
@@ -1269,7 +1268,7 @@ void Ms3dFilter::writeJointColorSection()
 	int32_t subVersion = 1;
 	m_dst->write(subVersion);
 
-	log_debug("writing joint color subversion %d\n",subVersion);
+	//log_debug("writing joint color subversion %d\n",subVersion);
 
 	int bcount = m_model->getBoneJointCount();
 	for(int b = 0; b<bcount; b++)
@@ -1322,8 +1321,8 @@ void Ms3dFilter::writeVertexWeight(int subVersion,
 	if(weight[0]+weight[1]+weight[2]+weight[3]>maxWeight){
 		int index,extraWeight = (weight[0]+weight[1]+weight[2]+weight[3])-maxWeight;
 
-		log_debug("fixing vertex weights: %d,%d,%d,%d (total: %d!=%d)\n",weight[0],weight[1],weight[2],weight[3],weight[0]+weight[1]+weight[2]+weight[3],maxWeight);
-		log_debug("			 raw weights: %d,%d,%d,%d\n",rawWeight[0],rawWeight[1],rawWeight[2],rawWeight[3]);
+		//log_debug("fixing vertex weights: %d,%d,%d,%d (total: %d!=%d)\n",weight[0],weight[1],weight[2],weight[3],weight[0]+weight[1]+weight[2]+weight[3],maxWeight);
+		//log_debug("			 raw weights: %d,%d,%d,%d\n",rawWeight[0],rawWeight[1],rawWeight[2],rawWeight[3]);
 
 		for(index = 3; index>=0; index--)
 		{
@@ -1334,7 +1333,7 @@ void Ms3dFilter::writeVertexWeight(int subVersion,
 			}
 		}
 
-		log_debug("			 new weights: %d,%d,%d,%d (total: %d)\n",weight[0],weight[1],weight[2],weight[3],weight[0]+weight[1]+weight[2]+weight[3]);
+		//log_debug("			 new weights: %d,%d,%d,%d (total: %d)\n",weight[0],weight[1],weight[2],weight[3],weight[0]+weight[1]+weight[2]+weight[3]);
 	}
 
 	if(weight[0]+weight[1]+weight[2]+weight[3]!=maxWeight){
@@ -1371,26 +1370,26 @@ void Ms3dFilter::readString(char *buf, size_t len)
 	{
 		m_src->readBytes(buf,len);
 		buf[len-1] = '\0';
-		log_debug("read string: %s\n",buf);
+		//log_debug("read string: %s\n",buf);
 	}
 }
 
 bool Ms3dFilter::readCommentSection()
 {
 	// TODO: We don't actually do anything with these... meta data maybe?
-	log_debug("reading comments section\n");
+	//log_debug("reading comments section\n");
 
 	int32_t subVersion = 0;
 	m_src->read(subVersion);
 
-	log_debug("  sub version: %d\n",subVersion);
+	//log_debug("  sub version: %d\n",subVersion);
 
 	int32_t numComments = 0;
 
 	for(int c = CT_GROUP; c<CT_MAX; c++)
 	{
 		m_src->read(numComments);
-		log_debug("  comment type %d: %d comments\n",c,numComments);
+		//log_debug("  comment type %d: %d comments\n",c,numComments);
 
 		for(int n = 0; n<numComments; n++)
 		{
@@ -1400,7 +1399,7 @@ bool Ms3dFilter::readCommentSection()
 			m_src->read(index);
 			m_src->read(length);
 
-			log_debug("	 index %d,%d bytes\n",index,length);
+			//log_debug("	 index %d,%d bytes\n",index,length);
 
 			if(m_src->eof())
 			{
@@ -1412,7 +1411,7 @@ bool Ms3dFilter::readCommentSection()
 			tmp[length] = '\0';
 			std::string comment;
 			comment.assign(reinterpret_cast<char*>(tmp),length);
-			log_debug("		comment = %s\n",comment.c_str());
+			//log_debug("		comment = %s\n",comment.c_str());
 			delete[] tmp;
 		}
 	}
@@ -1422,14 +1421,14 @@ bool Ms3dFilter::readCommentSection()
 
 bool Ms3dFilter::readVertexWeightSection()
 {
-	log_debug("reading vertex weight section\n");
+	//log_debug("reading vertex weight section\n");
 
 	int32_t subVersion = 0;
 	m_src->read(subVersion);
 
 	if(subVersion<1||subVersion>3)
 	{
-		log_debug("  sub version: %d (unknown)\n",subVersion);
+		//log_debug("  sub version: %d (unknown)\n",subVersion);
 		return false;
 	}
 
@@ -1437,7 +1436,7 @@ bool Ms3dFilter::readVertexWeightSection()
 	sprintf(value,"%d",subVersion);
 	m_model->updateMetaData("ms3d_sub_version",value);
 
-	log_debug("  sub version: %d\n",subVersion);
+	//log_debug("  sub version: %d\n",subVersion);
 
 	bool rval = true;
 	VertexWeightList weightList;
@@ -1504,9 +1503,7 @@ bool Ms3dFilter::readVertexWeight(int subVersion,
 		m_src->read(extra2); // don't do anything with this
 	}
 
-	//log_debug("		vtx %d: b %d,%d,%d,%d; w %d,%d,%d,%d\n",vertex,
-	//	(int)boneIds[0],(int)boneIds[1],(int)boneIds[2],(int)boneIds[3],
-	//	(int)weights[0],(int)weights[1],(int)weights[2],(int)weights[3]);
+	//log_debug("		vtx %d: b %d,%d,%d,%d; w %d,%d,%d,%d\n",vertex,(int)boneIds[0],(int)boneIds[1],(int)boneIds[2],(int)boneIds[3],(int)weights[0],(int)weights[1],(int)weights[2],(int)weights[3]);
 
 	VertexWeightT vw;
 

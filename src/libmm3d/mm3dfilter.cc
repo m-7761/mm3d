@@ -340,7 +340,7 @@ namespace
 	{	0x0061, /*U*/ "Points" }, 
 	{	0x0101,       "Groups" }, 
 	{	0x0106, /*U*/ "Smooth Angles" }, 
-	{	0x0121, /*U*/ "Texture Coordinates" }, 
+	{	0x0121, /*U*/ "Texture Map" }, 
 //	{	0x0141,       "Embedded Textures" }, //UNIMPLEMENTED
 	{	0x0142,       "External Textures" }, 
 	{	0x0146, /*U*/ "Weighted Influences" }, 
@@ -591,7 +591,7 @@ namespace
 
 		void addOffset(MisfitDataTypesE type, bool include)
 		{
-			//if(include) log_debug("adding offset type %04X\n",MisfitOffsetTypes[type]);
+			//if(include) //log_debug("adding offset type %04X\n",MisfitOffsetTypes[type]);
 			if(include) m_offsetList.push_back({(uint16_t)MisfitOffsetTypes[type].f,0});
 		}
 		bool setOffset(MisfitDataTypesE type, bool uniform)
@@ -604,15 +604,15 @@ namespace
 				//log_debug("updated offset for %04X to %08X\n",ea.offsetType,ea.offsetValue);
 				if(uniform)
 				{
-				//	log_debug("before uniform: %04X\n",ea.offsetType);
+				//	//log_debug("before uniform: %04X\n",ea.offsetType);
 					ea.offsetType |= OFFSET_UNI_MASK;
-				//	log_debug("after uniform: %04X\n",ea.offsetType);
+				//	//log_debug("after uniform: %04X\n",ea.offsetType);
 				}
 				else
 				{
-				//	log_debug("before variable: %04X\n",ea.offsetType);
+				//	//log_debug("before variable: %04X\n",ea.offsetType);
 					ea.offsetType &= OFFSET_TYPE_MASK;
-				//	log_debug("after variable: %04X\n",ea.offsetType);
+				//	//log_debug("after variable: %04X\n",ea.offsetType);
 				}
 				return true;
 			}
@@ -694,9 +694,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	log_output("MM3D file:\n");
 	log_output("  major:	%d\n",fileHeader.versionMajor);
 	log_output("  minor:	%d\n",fileHeader.versionMinor);
-	log_debug("  offsets: %d\n",fileHeader.offsetCount);
+	//log_debug("  offsets: %d\n",fileHeader.offsetCount);
 
-	log_debug("Offset information:\n");
+	//log_debug("Offset information:\n");
 
 	//MisfitOffsetList offsetList;
 	m_offsetList.clear();
@@ -731,7 +731,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		for(unsigned e = 0; !found&&e<MDT_MAX; e++)
 		if(MisfitOffsetTypes[e].f==(mo.offsetType &OFFSET_TYPE_MASK))
 		{
-			log_debug("  %08X %s\n",mo.offsetValue,MisfitOffsetTypes[e].s);
+			//log_debug("  %08X %s\n",mo.offsetValue,MisfitOffsetTypes[e].s);
 			found = true;
 
 			if(e==MDT_EndOfFile)		
@@ -748,7 +748,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		if(!found)
 		{
-			log_debug("  %08X Unknown type %04X\n",mo.offsetValue,mo.offsetType);
+			//log_debug("  %08X Unknown type %04X\n",mo.offsetValue,mo.offsetType);
 
 			lastUnknown = true;
 			UnknownDataT ud;
@@ -918,15 +918,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(fileTri.normal[2][1]);
 			m_src->read(fileTri.normal[2][2]);
 
-			log_debug("triangle %d normals:\n",fileTri.index);
+			//log_debug("triangle %d normals:\n",fileTri.index);
 
-			for(unsigned v = 0; v<3; v++)
-			{
-				log_debug("  v %d:  %f %f %f\n",v,
-						fileTri.normal[v][0],
-						fileTri.normal[v][1],
-						fileTri.normal[v][2]);
-			}
+			//for(unsigned v=0;v<3;v++)			
+			//log_debug("  v %d:  %f %f %f\n",v,fileTri.normal[v][0],fileTri.normal[v][1],fileTri.normal[v][2]);
 		}
 	}
 	#endif // 0*/
@@ -952,7 +947,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned t = 0; t<count; t++)
 		{
-			log_debug("reading external texture %d/%d\n",t,count);
+			//log_debug("reading external texture %d/%d\n",t,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -967,7 +962,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			utf8chrtrunc(filename,sizeof(filename)-1);
 
 			replaceBackslash(filename);
-			log_debug("  filename is %s\n",filename);
+			//log_debug("  filename is %s\n",filename);
 
 			std::string fullpath = getAbsolutePath(modelPath.c_str(),filename);
 
@@ -991,7 +986,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned m = 0; m<count; m++)
 		{
-			log_debug("reading material %d/%d\n",m,count);
+			//log_debug("reading material %d/%d\n",m,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1009,13 +1004,13 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->readAsciiz(name,sizeof(name));
 			utf8chrtrunc(name,sizeof(name)-1);
 
-			log_debug("  material name: %s\n",name);
+			//log_debug("  material name: %s\n",name);
 
 			mat->m_name = name;
 			switch (flags &0x0f)
 			{
 			case 0:
-				log_debug("  got external texture %d\n",texIndex);
+				//log_debug("  got external texture %d\n",texIndex);
 				mat->m_type = Model::Material::MATTYPE_TEXTURE;
 				if(texIndex<texNames.size())
 				{
@@ -1042,7 +1037,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				memset(mat->m_color,255,sizeof(mat->m_color));
 				break;
 			default:
-				log_debug("  got unknown material type\n",texIndex);
+				//log_debug("  got unknown material type\n",texIndex);
 				mat->m_type = Model::Material::MATTYPE_BLANK;
 				mat->m_filename = "";
 				memset(mat->m_color,255,sizeof(mat->m_color));
@@ -1127,7 +1122,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(materialIndex);
 
 			model->setGroupSmooth(g,smoothness);
-			if(flags&MF_SELECTED) model->selectGroup(g);
+			/*2022: I'm going to ignore this... this is
+			//an internal state, which is questionable, and
+			//I've changed writeFile to ignore it.
+			if(flags&MF_SELECTED) model->selectGroup(g);*/
 			//if(flags&MF_HIDDEN) model->hideGroup(g); //???
 
 			if(materialIndex>=0)
@@ -1169,10 +1167,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 		}
 
-		log_debug("read %d group smoothness angles\n",count);
+		//log_debug("read %d group smoothness angles\n",count);
 	}
 
-	// Texture coordinates
+	// Texture map
 	if(auto*os=seekOffset(MDT_TexCoords))
 	{
 		uint16_t flags = 0;
@@ -1203,8 +1201,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(tc.tCoord[1]);
 			m_src->read(tc.tCoord[2]);
 
-			for(unsigned v=0;v<3;v++)				
-			model->setTextureCoords(tc.triangleIndex,v,tc.sCoord[v],tc.tCoord[v]);			
+			model->setTextureCoords(tc.triangleIndex,&tc.sCoord);			
 		}
 	}
 
@@ -1224,7 +1221,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned g = 0; g<count; g++)
 		{
-			log_debug("reading canvas background %d/%d\n",g,count);
+			//log_debug("reading canvas background %d/%d\n",g,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1270,7 +1267,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned j=0;j<count;j++)
 		{
-			log_debug("reading joint %d/%d\n",j,count);
+			//log_debug("reading joint %d/%d\n",j,count);
 
 			if(os->variable())
 			{
@@ -1350,7 +1347,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		model->parentBoneJoint2(j2[i],j2[i+1]);
 		if(!j2.empty()) model->validateSkel();
 
-		log_debug("read %d joints\n",count);
+		//log_debug("read %d joints\n",count);
 	}
 
 	// Points
@@ -1369,7 +1366,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned j = 0; j<count; j++)
 		{
-			log_debug("reading Point %d/%d\n",j,count);
+			//log_debug("reading Point %d/%d\n",j,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1432,7 +1429,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 		}
 
-		log_debug("read %d points\n");
+		//log_debug("read %d points\n");
 	}
 	unsigned pcount = modelPoints.size(); //2020	
 
@@ -1487,8 +1484,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 				double weight = fileWi.infWeight/100.0;
 
-				log_debug("adding position influence %d,%d,%f\n",
-						pos.index,(int)type,(float)weight);
+				//log_debug("adding position influence %d,%d,%f\n",pos.index,(int)type,(float)weight);
 
 				model->setPositionInfluence(pos,fileWi.infIndex,type,weight);
 			}
@@ -1535,7 +1531,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 		}
 
-		log_debug("read %d joints vertices\n",count);
+		//log_debug("read %d joints vertices\n",count);
 	}
 
 	// Texture Projections
@@ -1554,7 +1550,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned j = 0; j<count; j++)
 		{
-			log_debug("reading Projection %d/%d\n",j,count);
+			//log_debug("reading Projection %d/%d\n",j,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1644,7 +1640,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			model->setProjectionRange(proj,uv[0][0],uv[0][1],uv[1][0],uv[1][1]);
 		}
 
-		log_debug("read %d projections\n");
+		//log_debug("read %d projections\n");
 	}
 
 	// Texture Projection Triangles (have to read this after projections)
@@ -1703,7 +1699,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned i=0;i<count;i++)
 		{
-			log_debug("reading Scale Factor %d/%d\n",i,count);
+			//log_debug("reading Scale Factor %d/%d\n",i,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1746,7 +1742,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		std::vector<bool> sparse;
 		for(unsigned a = 0; a<sa_count; a++)
 		{
-			log_debug("reading skel anim %d/%d\n",a,sa_count);
+			//log_debug("reading skel anim %d/%d\n",a,sa_count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -1761,7 +1757,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->readAsciiz(name,sizeof(name));
 			utf8chrtrunc(name,sizeof(name)-1);
 
-			log_debug("  name is %s\n",name);
+			//log_debug("  name is %s\n",name);
 
 			m_src->read(fps);
 			m_src->read(frameCount);
@@ -1863,7 +1859,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		std::vector<mm3dfilter_cmp_t<1>> cmp;
 		for(unsigned a = 0; a<count; a++)
 		{
-			log_debug("reading frame animation %d/%d\n",a,count);
+			//log_debug("reading frame animation %d/%d\n",a,count);
 
 			if(os->variable())
 			{
@@ -1885,12 +1881,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(flags);
 			m_src->readAsciiz(name,sizeof(name));
 			utf8chrtrunc(name,sizeof(name)-1);
-			log_debug("anim name '%s' size %d\n",name,size);
+			//log_debug("anim name '%s' size %d\n",name,size);
 
 			m_src->read(fps);
-			log_debug("fps %f\n",fps);
+			//log_debug("fps %f\n",fps);
 			m_src->read(frameCount);
-			log_debug("frame count %u\n",frameCount);
+			//log_debug("frame count %u\n",frameCount);
 						
 			if(!mm3d2020) //REMOVE ME
 			if(frameCount>size //???
@@ -2122,7 +2118,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 		for(unsigned a=0;a<count;a++)
 		{
-			log_debug("reading animation %d/%d\n",a,count);
+			//log_debug("reading animation %d/%d\n",a,count);
 			if(os->variable())
 			{
 				m_src->read(size);
@@ -2143,12 +2139,12 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(flags);
 			m_src->readAsciiz(name,sizeof(name));
 			utf8chrtrunc(name,sizeof(name)-1);
-			log_debug("anim name '%s' size %d\n",name,size);
+			//log_debug("anim name '%s' size %d\n",name,size);
 
 			m_src->read(fps);
-			log_debug("fps %f\n",fps);
+			//log_debug("fps %f\n",fps);
 			m_src->read(frameCount);
-			log_debug("frame count %u\n",frameCount);
+			//log_debug("frame count %u\n",frameCount);
 		
 			auto type = (Model::AnimationModeE)(flags&MAF_ANIM_TYPE); //7
 
@@ -2297,7 +2293,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		fd->offsetType = (*it).offsetType;
 		m_src->seek((*it).offsetValue);
 
-		log_debug("unknown data is type %x...\n",fd->offsetType);
+		//log_debug("unknown data is type %x...\n",fd->offsetType);
 
 		fd->data = new uint8_t[(*it).dataLen];
 		fd->len  = (*it).dataLen;
@@ -2471,7 +2467,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		m_dst->write(ea.offsetType);
 		m_dst->write(ea.offsetValue);
 	}
-	log_debug("wrote %d offsets\n",m_offsetList.size());
+	//log_debug("wrote %d offsets\n",m_offsetList.size());
 
 	// Write data
 
@@ -2497,7 +2493,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->writeBytes(key,keyLen);
 			m_dst->writeBytes(value,valueLen);
 		}
-		log_debug("wrote %d meta data pairs\n",count);
+		//log_debug("wrote %d meta data pairs\n",count);
 	}
 
 	// Vertices
@@ -2529,7 +2525,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fileVertex.coord[1]);
 			m_dst->write(fileVertex.coord[2]);
 		}
-		log_debug("wrote %d vertices\n",count);
+		//log_debug("wrote %d vertices\n",count);
 	}
 
 	// Triangles
@@ -2559,7 +2555,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fileTriangle.vertex[1]);
 			m_dst->write(fileTriangle.vertex[2]);
 		}
-		log_debug("wrote %d triangles\n",count);
+		//log_debug("wrote %d triangles\n",count);
 	}
 
 	// Triangle Normals
@@ -2588,7 +2584,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			for(unsigned i=0;i<3;i++)
 			m_dst->write((float32_t)modelTriangles[t]->m_finalNormals[v][i]);
 		}
-		log_debug("wrote %d triangle normals\n",count);
+		//log_debug("wrote %d triangle normals\n",count);
 	}
 
 	/*https://github.com/zturtleman/mm3d/issues/130
@@ -2672,7 +2668,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(lightProp);
 
 		}
-		log_debug("wrote %d materials with %d internal textures\n",count,count-texNum);
+		//log_debug("wrote %d materials with %d internal textures\n",count,count-texNum);
 	}
 	if(setOffset(MDT_Groups,false))
 	{
@@ -2686,14 +2682,17 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		for(unsigned g = 0; g<count; g++)
 		{
 			auto *grp = modelGroups[g];
-			uint32_t groupSize = baseSize+grp->m_name.size()+1 
-			  +(grp->m_triangleIndices.size()*sizeof(uint32_t));
+			uint32_t groupSize = baseSize+grp->m_name.size()+1; 
+			groupSize+=grp->m_triangleIndices.size()*sizeof(uint32_t);
 
 			uint16_t flags = 0x0000;
 		//	if((modelGroups[g]->m_visible) //UNUSED
-		//	flags |= MF_HIDDEN; 
+		//	flags |= MF_HIDDEN; 		
+			/*2022: This state is questionable... readFile was
+			//using it to call selectGroup on loading, as well
+			//as hideGroup.
 			if(modelGroups[g]->m_selected)
-			flags |= MF_SELECTED;
+			flags |= MF_SELECTED;*/
 
 			uint32_t triCount = grp->m_triangleIndices.size();
 
@@ -2712,7 +2711,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(materialIndex);
 
 		}
-		log_debug("wrote %d groups\n",count);
+		//log_debug("wrote %d groups\n",count);
 	}
 	//TODO: Why not expand MDT_Groups size???
 	if(setOffset(MDT_SmoothAngles,true))
@@ -2730,7 +2729,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fileSa.groupIndex);
 			m_dst->write(fileSa.angle);
 		}
-		log_debug("wrote %d group smoothness angles\n",count);
+		//log_debug("wrote %d group smoothness angles\n",count);
 	}
 
 	// External Textures
@@ -2748,7 +2747,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		{
 			if(m!=ea.second) continue;
 
-			std::string fileStr = getRelativePath(modelPath.c_str(),ea.first.c_str());
+			std::string fileStr = 
+			getRelativePath(modelPath.c_str(),ea.first.c_str());
 
 			char filename[PATH_MAX];
 			strncpy(filename,fileStr.c_str(),PATH_MAX);
@@ -2765,11 +2765,11 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(flags);
 			m_dst->writeBytes(filename,len);
 
-			log_debug("texture file is %s\n",filename);
+			//log_debug("texture file is %s\n",filename);
 
 			break;
 		}
-		log_debug("wrote %d external textures\n",count);
+		//log_debug("wrote %d external textures\n",count);
 	}
 
 	// Texture Coordinates
@@ -2801,7 +2801,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(tc.tCoord[1]);
 			m_dst->write(tc.tCoord[2]);
 		}
-		log_debug("wrote %d texture coordinates\n",count);
+		//log_debug("wrote %d texture coordinates\n",count);
 	}
 
 	// Texture Projection Triangles
@@ -2840,7 +2840,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				m_dst->write(tri);
 			}
 		}
-		log_debug("wrote %d triangles affected by a texture projection\n",log_tris);
+		//log_debug("wrote %d triangles affected by a texture projection\n",log_tris);
 	}
 
 	// Canvas Backgrounds
@@ -2882,7 +2882,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(cb.center[2]);
 			m_dst->writeBytes(filedup,relFile.size()+1);
 		}
-		log_debug("wrote %d canvas backgrounds\n",count);
+		//log_debug("wrote %d canvas backgrounds\n",count);
 	}
 
 	// Joints
@@ -2925,7 +2925,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(fileJoint.localTrans[1]);
 			m_dst->write(fileJoint.localTrans[2]);
 		}
-		log_debug("wrote %d joints\n",count);
+		//log_debug("wrote %d joints\n",count);
 	}
 
 	// Points
@@ -2970,7 +2970,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(filePoint.trans[1]);
 			m_dst->write(filePoint.trans[2]);
 		}
-		log_debug("wrote %d points\n",count);
+		//log_debug("wrote %d points\n",count);
 	}	
 
 	// Weighted influences
@@ -3000,7 +3000,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		pos = {Model::PT_Vertex,0}; for(auto*ea:modelVerts) f(ea->m_influences);
 		pos = {Model::PT_Point,0}; for(auto*ea:modelPoints) f(ea->m_influences);
 
-		log_debug("wrote %d weighted influences\n",influenced);
+		//log_debug("wrote %d weighted influences\n",influenced);
 	}
 
 	// Texture Projections
@@ -3051,7 +3051,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write((float32_t)uv[1][0]);
 			m_dst->write((float32_t)uv[1][1]);
 		}
-		log_debug("wrote %d texture projections\n",count);
+		//log_debug("wrote %d texture projections\n",count);
 	}
 
 	//2021: Scale
@@ -3187,7 +3187,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(animSize);
 			m_dst->seek(off2);
 		}
-		log_debug("wrote %d animations\n",modelAnims.size());
+		//log_debug("wrote %d animations\n",modelAnims.size());
 	}
 
 	// Write unknown data (add dirty flag to offset type)
@@ -3215,7 +3215,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		m_dst->write(ea.offsetType);
 		m_dst->write(ea.offsetValue);
 	}
-	log_debug("wrote %d updated offsets\n",m_offsetList.size());
+	//log_debug("wrote %d updated offsets\n",m_offsetList.size());
 
 	return Model::ERROR_NONE;
 }

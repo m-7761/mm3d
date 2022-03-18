@@ -133,7 +133,11 @@ class MU_Select : public ModelUndo
 
 		Model::SelectionModeE getSelectionMode()const { return m_mode; };
 
-		void setSelectionDifference(int number,bool selected,bool oldSelected);
+		//YUCK: begin/endSelectionDifference
+		typedef Model::_OrderedSelection OS;
+		void setSelectionDifference(int number, OS &s, OS::Marker &oldS);
+		void setSelectionDifference(int number, unsigned selected, unsigned oldSelected);
+		
 		void toggle(int number);
 
 		unsigned diffCount(){ return m_diff.size(); };
@@ -142,8 +146,8 @@ class MU_Select : public ModelUndo
 		typedef struct _SelectionDifference_t
 		{
 			int  number;
-			bool selected;
-			bool oldSelected;
+			unsigned selected;
+			unsigned oldSelected;
 			bool operator<(const struct _SelectionDifference_t &rhs)const
 			{
 				return (this->number<rhs.number);
@@ -182,31 +186,35 @@ class MU_SetSelectedUv : public ModelUndo
 
 class MU_Hide : public ModelUndo
 {
-	public:
-		MU_Hide(Model::SelectionModeE mode):m_mode(mode)
-		{}
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	MU_Hide(bool how):m_hide(how){}
 
-		unsigned size();
+	void undo(Model*m){ hide(m,!m_hide); }
+	void redo(Model*m){ hide(m,m_hide); }
+	bool combine(Undo *);
 
-		Model::SelectionModeE getSelectionMode()const { return m_mode; };
+	unsigned size();
 
-		void setHideDifference(int number,bool visible);
+	void setHideDifference(Model::SelectionModeE mode, int number)
+	{
+		m_diff.push_back({mode,number});
+	}
 
-	private:
-		typedef struct _HideDifference_t
-		{
-			int  number;
-			bool visible;
-		} HideDifferenceT;
+private:
 
-		typedef std::vector<HideDifferenceT> HideDifferenceList;
+	void hide(Model*,bool);
 
-		Model::SelectionModeE m_mode;
-		HideDifferenceList m_diff;
+	typedef struct _HideDifference_t
+	{
+		Model::SelectionModeE mode;
+		int number;			
+	}HideDifferenceT;
+
+	typedef std::vector<HideDifferenceT> HideDifferenceList;
+
+	bool m_hide;
+	HideDifferenceList m_diff;
 };
 
 class MU_InvertNormal : public ModelUndo
@@ -1284,8 +1292,8 @@ class MU_DeleteAnimation : public ModelUndo
 {
 	public:
 
-		MU_DeleteAnimation(unsigned a, Model::Animation *p, bool dataOnly=false)
-		:m_anim(a),m_animp(p),m_dataOnly(dataOnly){}
+		MU_DeleteAnimation(unsigned a, Model::Animation *p)
+		:m_anim(a),m_animp(p){}
 
 		void undo(Model*),redo(Model*);
 
@@ -1301,7 +1309,34 @@ class MU_DeleteAnimation : public ModelUndo
 		
 		unsigned m_anim;
 		Model::Animation *m_animp;
-		bool m_dataOnly;
+
+		Model::FrameAnimData m_vertices;
+};
+class MU_VoidFrameAnimation : public ModelUndo
+{
+	//NOTE: this is needed because _frame_count is used to
+	//to tell how many frames are present, and m_frame0 is
+	//taken to mean there's frame data in Vertex::m_frames
+
+	public:
+
+		MU_VoidFrameAnimation(Model::Animation *p, unsigned frame0)
+		:m_animp(p),m_frame0(frame0){}
+
+		void undo(Model*),redo(Model*);
+
+		bool combine(Undo *);
+
+		void undoRelease();
+
+		unsigned size();
+
+		Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
+
+	private:
+		
+		Model::Animation *m_animp;
+		unsigned m_frame0;
 
 		Model::FrameAnimData m_vertices;
 };

@@ -933,7 +933,7 @@ void AnimWin::Impl::close()
 
 AnimWin::~AnimWin()
 {
-	log_debug("Destroying AnimWin()\n"); //???
+	//log_debug("Destroying AnimWin()\n"); //???
 
 	delete impl;	
 }
@@ -943,7 +943,7 @@ void AnimWin::submit(int id)
 	{
 	case id_init:
 		
-		log_debug("AnimWidget constructor\n"); //???
+		//log_debug("AnimWidget constructor\n"); //???
 		
 		shelf1.fps.edit<double>(0,0);
 		shelf1.frames.edit<double>(0,INT_MAX).compact();
@@ -1019,7 +1019,7 @@ void AnimWin::submit(int id)
 		
 	case id_anim_fps:
 
-		log_debug("changing FPS\n"); //???
+		//log_debug("changing FPS\n"); //???
 		model->setAnimFPS(impl->anim,shelf1.fps);
 		model->operationComplete(::tr("Set FPS","Frames per second,operation complete"));
 		break;

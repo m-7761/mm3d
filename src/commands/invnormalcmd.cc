@@ -62,12 +62,15 @@ bool InvertNormalCommand::activated(int arg, Model *model)
 		unsigned int v[3];
 		model->getTriangleVertices(i,v[0],v[1],v[2]);
 		int ii = model->addTriangle(v[2],v[1],v[0]);
-		for(int j=3;j-->0;)
+
+		float st[2][3];
+		model->getTextureCoords(i,st);
 		{
-			float s,t;
-			model->getTextureCoords(i,j,s,t);
-			model->setTextureCoords(ii,2-j,s,t);
+			std::swap(st[0][0],st[0][2]);
+			std::swap(st[1][0],st[1][2]);
 		}
+		model->setTextureCoords(ii,st);
+
 		int g = model->getTriangleGroup(i);
 		if(g!=-1) model->addTriangleToGroup(g,ii);
 	}

@@ -603,7 +603,7 @@ void Model::insertProjection(unsigned index, Model::TextureProjection *proj)
 
 void Model::removeProjection(unsigned proj)
 {
-	log_debug("removeProjection(%d)\n",proj);
+	//log_debug("removeProjection(%d)\n",proj);
 
 	m_changeBits |= AddOther;
 

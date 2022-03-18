@@ -43,7 +43,7 @@ struct ExtrudeImpl
 	ExtrudedVertexMap m_evMap;
 	
 	bool extrude(Model*, double x, double y, double z, bool make_back_faces);
-	void _makeFaces(Model*, unsigned a, unsigned b);
+	void _makeFaces(Model*, int g, unsigned a, unsigned b);
 	void _addSide(unsigned a, unsigned b);
 	bool _sideIsEdge(unsigned a, unsigned b);	
 };

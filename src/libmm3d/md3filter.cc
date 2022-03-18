@@ -294,7 +294,7 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 				&&file_exists(upperFile.c_str())
 				&&file_exists(headFile.c_str()))
 		{
-			log_debug("have all files for %s\n",m_modelPath.c_str());
+			//log_debug("have all files for %s\n",m_modelPath.c_str());
 
 			char answer = msg_info_prompt(TRANSLATE("LowLevel","This looks like a player model.\nDo you want to load all sections?"),"Ync");
 			if(answer=='Y')
@@ -383,7 +383,7 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 			return err;
 		}
 
-		log_debug("loading model file %s\n",(*it).modelFile.c_str());
+		//log_debug("loading model file %s\n",(*it).modelFile.c_str());
 
 		model->setFilename(modelFullName.c_str());
 
@@ -409,23 +409,23 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 		int32_t offsetMeshes = m_src->readI32();
 		int32_t offsetEnd = m_src->readI32();
 
-		log_debug("Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
-		log_debug("Version: %d\n",	 version);
-		log_debug("PK3 Name: %s\n",	pk3Name);
-		log_debug("Flags: %d\n",	flags);
-		log_debug("Frames: %d\n",	  numFrames);
-		log_debug("Tags: %d\n",		 numTags);
-		log_debug("Meshes: %d\n",	numMeshes);
-		log_debug("Skins: %d\n",		numSkins);
-		log_debug("Offset Frames: %d\n",	  offsetFrames);
-		log_debug("Offset Tags: %d\n", offsetTags);
-		log_debug("Offset Meshes: %d\n", offsetMeshes);
-		log_debug("Offset End: %d\n",		 offsetEnd);
-		log_debug("File Length: %d\n",		m_src->getFileSize());
+		//log_debug("Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
+		//log_debug("Version: %d\n",	 version);
+		//log_debug("PK3 Name: %s\n",	pk3Name);
+		//log_debug("Flags: %d\n",	flags);
+		//log_debug("Frames: %d\n",	  numFrames);
+		//log_debug("Tags: %d\n",		 numTags);
+		//log_debug("Meshes: %d\n",	numMeshes);
+		//log_debug("Skins: %d\n",		numSkins);
+		//log_debug("Offset Frames: %d\n",	  offsetFrames);
+		//log_debug("Offset Tags: %d\n", offsetTags);
+		//log_debug("Offset Meshes: %d\n", offsetMeshes);
+		//log_debug("Offset End: %d\n",		 offsetEnd);
+		//log_debug("File Length: %d\n",		m_src->getFileSize());
 
 		if(magic[0]!='I'&&magic[1]!='D'&&magic[2]!='P'&&magic[3]!='3')
 		{
-			log_debug("Bad Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
+			//log_debug("Bad Magic: %c%c%c%c\n",magic[0],magic[1],magic[2],magic[3]);
 			return Model::ERROR_BAD_MAGIC;
 		}
 
@@ -439,7 +439,7 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 		mpath.section  = (*it).section;
 		mpath.material = -1;
 		mpath.path = extractPath(pk3Name);
-		log_debug("extracted model path: %s\n",mpath.path.c_str());
+		//log_debug("extracted model path: %s\n",mpath.path.c_str());
 
 		m_pathList.push_back(mpath);
 		m_lastMd3Path = mpath.path;
@@ -478,14 +478,14 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 			//log_debug("Frame %d maxBound: %f,%f,%f\n",i,maxBound[0],maxBound[1],maxBound[2]);
 			//log_debug("Frame %d localOrigin: %f,%f,%f\n",i,localOrigin[0],localOrigin[1],localOrigin[2]);
 			//log_debug("Frame %d radius: %f\n",i,radius);
-			log_debug("Frame %d name: %s\n",i,frameName);
+			//log_debug("Frame %d name: %s\n",i,frameName);
 		}
 #endif // 1
 
 		if((*it).tag.size()>0)
 		{
 			(*it).tagPoint = m_model->getPointByName((*it).tag.c_str());
-			log_debug("tag point for %s is %d\n",(*it).tag.c_str(),(*it).tagPoint);
+			//log_debug("tag point for %s is %d\n",(*it).tag.c_str(),(*it).tagPoint);
 		}
 
 		m_meshVecInfos = new MeshVectorInfoT*[numMeshes];
@@ -503,7 +503,7 @@ Model::ModelErrorE Md3Filter::readFile(Model *model, const char *const filename)
 
 	if(fileList.front().numFrames>1)
 	{
-		log_debug("Model has animation,setting up animation mode.\n");
+		//log_debug("Model has animation,setting up animation mode.\n");
 		if(!m_model->getAnimationCount())
 		{
 			if(!loadAll||!readAnimations(true))
@@ -638,7 +638,7 @@ bool Md3Filter::readAnimations(bool create)
 	}
 	else
 	{
-		log_debug("reading animation.cfg\n");
+		//log_debug("reading animation.cfg\n");
 		char line[256];
 		while(src->readLine(line,sizeof(line)))
 		{
@@ -678,7 +678,7 @@ bool Md3Filter::readAnimations(bool create)
 							||PORT_strncasecmp(fname,"head_",5)==0)
 						 &&(animKeyword||(animKeyword = 1))))
 				{
-					log_debug("got anim frame details\n");
+					//log_debug("got anim frame details\n");
 
 					// Check for animations that are played in reverse
 					if(fcount<0)
@@ -840,14 +840,14 @@ bool Md3Filter::readAnimations(bool create)
 					else
 					{
 						// Unknown animation
-						log_debug("unknown animation type-prefix '%s'\n",name);
+						//log_debug("unknown animation type-prefix '%s'\n",name);
 					}
 
 					m_animStartFrame.push_back(first);
 
 					if(create)
 					{
-						log_debug("adding animation '%s'\n",name);
+						//log_debug("adding animation '%s'\n",name);
 						int animIndex = m_model->addAnimation(Model::ANIMMODE_FRAME,name);
 						m_model->setAnimFPS(animIndex,(double)fps);
 						m_model->setAnimFrameCount(animIndex,fcount);
@@ -1020,18 +1020,18 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 		int32_t meshXYZOffset = m_src->readI32();
 		int32_t meshEndOffset = m_src->readI32();
 
-		log_debug("Mesh %d magic: %c%c%c%c\n",mesh,meshMagic[0],meshMagic[1],meshMagic[2],meshMagic[3]);
-		log_debug("Mesh %d name: %s\n",mesh,meshName);
-		log_debug("Mesh %d flags: %d\n",mesh,meshFlags);
-		log_debug("Mesh %d num_frames: %d\n",mesh,meshFrameCount);
-		log_debug("Mesh %d num_shaders: %d\n",mesh,meshShaderCount);
-		log_debug("Mesh %d num_vertex: %d\n",mesh,meshVertexCount);
-		log_debug("Mesh %d num_triangles: %d\n",mesh,meshTriangleCount);
-		log_debug("Mesh %d triangle offset: %d\n",mesh,meshTriangleOffset);
-		log_debug("Mesh %d shader offset: %d\n",mesh,meshShaderOffset);
-		log_debug("Mesh %d st offset: %d\n",mesh,meshSTOffset);
-		log_debug("Mesh %d xyz offset: %d\n",mesh,meshXYZOffset);
-		log_debug("Mesh %d end offset: %d\n",mesh,meshEndOffset);
+		//log_debug("Mesh %d magic: %c%c%c%c\n",mesh,meshMagic[0],meshMagic[1],meshMagic[2],meshMagic[3]);
+		//log_debug("Mesh %d name: %s\n",mesh,meshName);
+		//log_debug("Mesh %d flags: %d\n",mesh,meshFlags);
+		//log_debug("Mesh %d num_frames: %d\n",mesh,meshFrameCount);
+		//log_debug("Mesh %d num_shaders: %d\n",mesh,meshShaderCount);
+		//log_debug("Mesh %d num_vertex: %d\n",mesh,meshVertexCount);
+		//log_debug("Mesh %d num_triangles: %d\n",mesh,meshTriangleCount);
+		//log_debug("Mesh %d triangle offset: %d\n",mesh,meshTriangleOffset);
+		//log_debug("Mesh %d shader offset: %d\n",mesh,meshShaderOffset);
+		//log_debug("Mesh %d st offset: %d\n",mesh,meshSTOffset);
+		//log_debug("Mesh %d xyz offset: %d\n",mesh,meshXYZOffset);
+		//log_debug("Mesh %d end offset: %d\n",mesh,meshEndOffset);
 
 		int frameSize = meshVertexCount *4 *2;
 
@@ -1042,7 +1042,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 		if(animIndex<0)
 		{
 			int fileFrame = readFile_animToFrame(section,-1,0);
-			log_debug("Using frame %d as default for section %d\n",fileFrame,section);
+			//log_debug("Using frame %d as default for section %d\n",fileFrame,section);
 			if(fileFrame>=meshFrameCount)
 			{
 				log_error("mesh %s appears to be missing frame %d for anim %d,using frame %d instead\n",meshName,fileFrame,animIndex,0);
@@ -1189,17 +1189,17 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 			std::string shaderBaseName;
 
 			normalizePath(skin.c_str(),shaderFullName,shaderFullPath,shaderBaseName);
-			log_debug("Shader Name: %s\n",shaderName);
-			log_debug("Shader Index: %d\n",shaderIndex);
-			log_debug("Shader FileName: %s\n",shaderFileName.c_str());
-			log_debug("Shader full name: %s\n",shaderFullName.c_str());
-			log_debug("Shader full path: %s\n",shaderFullPath.c_str());
-			log_debug("Shader base name: %s\n",shaderBaseName.c_str());
+			//log_debug("Shader Name: %s\n",shaderName);
+			//log_debug("Shader Index: %d\n",shaderIndex);
+			//log_debug("Shader FileName: %s\n",shaderFileName.c_str());
+			//log_debug("Shader full name: %s\n",shaderFullName.c_str());
+			//log_debug("Shader full path: %s\n",shaderFullPath.c_str());
+			//log_debug("Shader base name: %s\n",shaderBaseName.c_str());
 
 			std::string textureFile = m_modelPath+shaderBaseName;
 			textureFile = fixAbsolutePath(m_modelPath.c_str(),textureFile.c_str());
 			textureFile = getAbsolutePath(m_modelPath.c_str(),textureFile.c_str());
-			log_debug("textureFile = %s\n",textureFile.c_str());
+			//log_debug("textureFile = %s\n",textureFile.c_str());
 			bool textureFound = false;
 			int matId = -1;
 			//First check for skins
@@ -1248,7 +1248,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 			}
 			if(textureFound)
 			{
-				log_debug("skin : '%s'\n",textureFile.c_str());
+				//log_debug("skin : '%s'\n",textureFile.c_str());
 				m_model->setGroupTextureId(groupId,matId);
 
 				Md3PathT mpath;
@@ -1258,7 +1258,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 				m_pathList.push_back(mpath);
 				m_lastMd3Path = mpath.path;
 
-				log_debug("extracted shader path: %s\n",mpath.path.c_str());
+				//log_debug("extracted shader path: %s\n",mpath.path.c_str());
 			}
 
 			//Texture Mapping
@@ -1275,7 +1275,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 
 		//Goto end
 		meshPos = meshPos+meshEndOffset;
-		log_debug("mesh position is %d\n",meshPos);
+		//log_debug("mesh position is %d\n",meshPos);
 		m_src->seek(meshPos);
 	}
 	return;
@@ -1351,7 +1351,7 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 	size_t meshNameLength = strlen(meshName);
 	if(meshNameLength==0)
 	{
-		log_debug("readFile_setSkins()no meshName.\n");
+		//log_debug("readFile_setSkins()no meshName.\n");
 		return -1;
 	}
 
@@ -1386,7 +1386,7 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 
 		if(filenameEndsWith(fileName.c_str(),"_default.skin"))
 		{
-			log_debug("is default\n");
+			//log_debug("is default\n");
 			isDefault = true;
 		}
 		
@@ -1432,7 +1432,7 @@ int32_t Md3Filter::readFile_setSkins(char *meshName)
 					if(line[0]==','&&line[1]!=0)
 					{
 						file = line+1;
-						log_debug("texture file is: %s\n",file);
+						//log_debug("texture file is: %s\n",file);
 						break;
 					}
 				}
@@ -1538,17 +1538,15 @@ void Md3Filter::readFile_setPoints(MeshSectionE section, int32_t offsetTags, int
 			int fileFrame = readFile_animToFrame(section,animIndex,f);
 			if(animIndex<0)
 			{
-				log_debug("Using frame %d as default for tag section %d\n",fileFrame,section);
+				//log_debug("Using frame %d as default for tag section %d\n",fileFrame,section);
 			}
 			if(fileFrame>=numFrames)
 			{
 				log_error("tag section appears to be missing frame %d for anim %d,using frame %d instead\n",fileFrame,animIndex,numFrames-1);
 				fileFrame = numFrames-1;
-			}
-			/*
-			log_debug("section %d anim %d frame %d is file frame %d\n",
-					section,animIndex,f,fileFrame);
-			*/
+			}			
+			//log_debug("section %d anim %d frame %d is file frame %d\n",section,animIndex,f,fileFrame);
+			
 			m_src->seek(offsetTags+(fileFrame *frameSize));
 			if(animIndex>=0&&parentTag>=0)
 			{
@@ -1599,7 +1597,7 @@ void Md3Filter::readFile_setPoints(MeshSectionE section, int32_t offsetTags, int
 					int p = m_model->getPointByName(tagName);
 					if(p!=parentTag)
 					{
-						Model::Position pt{Model::PT_Point,p};
+						Model::Position pt{Model::PT_Point,(unsigned)p};
 
 						//m_model->setQuickFrameAnimPoint(animIndex,f,p,posVector[0],posVector[1],posVector[2],rotVector[0],rotVector[1],rotVector[2]);
 						m_model->setKeyframe(animIndex,f,pt,Model::KeyTranslate,posVector[0],posVector[1],posVector[2]);
@@ -1895,13 +1893,13 @@ Model::ModelErrorE Md3Filter::writeFile(Model *model, const char *const filename
 				||PORT_strncasecmp(modelBaseName.c_str(),"upper.",6)==0 
 				||PORT_strncasecmp(modelBaseName.c_str(),"head.", 5)==0)
 		{
-			log_debug("filename %s looks like a player model\n",modelBaseName.c_str());
+			//log_debug("filename %s looks like a player model\n",modelBaseName.c_str());
 			char value[20];
 			if(model->getMetaData("MD3_composite",value,sizeof(value)))
 			{
 				if(atoi(value)==0)
 				{
-					log_debug("model is explicitly not a composite\n");
+					//log_debug("model is explicitly not a composite\n");
 					saveAsPlayer = false;
 				}
 			}
@@ -1925,14 +1923,14 @@ Model::ModelErrorE Md3Filter::writeFile(Model *model, const char *const filename
 		}
 		else
 		{
-			log_debug("filename %s does not look like a player model\n",modelBaseName.c_str());
+			//log_debug("filename %s does not look like a player model\n",modelBaseName.c_str());
 			saveAsPlayer = false;
 		}
 	}
 
 	if(saveAsPlayer)
 	{
-		log_debug("saving as a player model\n");
+		//log_debug("saving as a player model\n");
 
 		std::string playerFile;
 		std::string path = modelPath+"/";
@@ -1953,7 +1951,7 @@ Model::ModelErrorE Md3Filter::writeFile(Model *model, const char *const filename
 	}
 	else
 	{
-		log_debug("saving as a single model\n");
+		//log_debug("saving as a single model\n");
 		return writeSectionFile(filename,MS_None,meshes);
 	}
 }
@@ -1964,23 +1962,23 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 	std::string modelBaseName = "";
 	std::string modelFullName = "";
 
-	log_debug("writing section file %s\n",filename);
+	//log_debug("writing section file %s\n",filename);
 	switch (section)
 	{
 		case MS_None:
-			log_debug("  writing all data as one section\n");
+			//log_debug("  writing all data as one section\n");
 			break;
 		case MS_Lower:
-			log_debug("  writing lower section\n");
+			//log_debug("  writing lower section\n");
 			break;
 		case MS_Upper:
-			log_debug("  writing upper section\n");
+			//log_debug("  writing upper section\n");
 			break;
 		case MS_Head:
-			log_debug("  writing head section\n");
+			//log_debug("  writing head section\n");
 			break;
 		default:
-			log_debug("  writing unknown section\n");
+			//log_debug("  writing unknown section\n");
 			break;
 	}
 
@@ -2147,18 +2145,18 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 
 	int rootTag = -1;
 	// Change save matrix if needed
-	log_debug("finding root tag for section %s\n",modelBaseName.c_str());
+	//log_debug("finding root tag for section %s\n",modelBaseName.c_str());
 	for(unsigned p = 0; p<pcount; p++)
 	{
 		if(tagIsSectionRoot(m_model->getPointName(p),section))
 		{
-			log_debug("  root tag is %s\n",m_model->getPointName(p));
+			//log_debug("  root tag is %s\n",m_model->getPointName(p));
 			rootTag = p;
 		}
 	}
 
 	// FRAMES
-	log_debug("writing frames at %d/%d\n",offsetFrames,m_dst->offset());
+	//log_debug("writing frames at %d/%d\n",offsetFrames,m_dst->offset());
 	
 	for(auto anim:_writeSF_anims2021)
 	{
@@ -2251,7 +2249,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 	m_model->setNoAnimation();
 
 	//TAGS
-	log_debug("writing tags at %d/%d\n",offsetTags,m_dst->offset());
+	//log_debug("writing tags at %d/%d\n",offsetTags,m_dst->offset());
 
 	for(auto anim:_writeSF_anims2021)
 	{
@@ -2342,7 +2340,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 	auto &modelMaterials = *(Model::_MaterialList*)&m_model->getMaterialList();
 
 	// MESHES
-	log_debug("writing meshes at %d/%d\n",offsetMeshes,m_dst->offset());
+	//log_debug("writing meshes at %d/%d\n",offsetMeshes,m_dst->offset());
 
 	for(mlit = meshes.begin(); mlit!=meshes.end(); mlit++)
 	{
@@ -2443,10 +2441,10 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 
 				normalizePath(matFileName.c_str(),matFullName,matPath,matBaseName);
 
-				log_debug("comparing %s and %s\n",matFullName.c_str(),m_modelPath.c_str());
+				//log_debug("comparing %s and %s\n",matFullName.c_str(),m_modelPath.c_str());
 				if(strncmp(matFullName.c_str(),m_modelPath.c_str(),m_modelPath.size())==0)
 				{
-					log_debug("path is common,using MD3_PATH\n");
+					//log_debug("path is common,using MD3_PATH\n");
 					// model path is the same as texture file path,remove model
 					// path and prepend MD3_PATH
 					if(snprintf(sName,sizeof(sName),"%s%s",
@@ -2459,7 +2457,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 				}
 				else if(pathIsAbsolute(matFileName.c_str()))
 				{
-					log_debug("path is not common,but is absolute\n");
+					//log_debug("path is not common,but is absolute\n");
 					// model path is not the same as texture file path,try to
 					// remove pk3 path from model and try again
 					std::string common;
@@ -2471,12 +2469,12 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 				}
 				else
 				{
-					log_debug("path is relative,using as-is\n");
+					//log_debug("path is relative,using as-is\n");
 					// relative path... sounds like a fallback,just use 
 					// matFileName as is
 					snprintf(sName,sizeof(sName),"%s",matFileName.c_str());
 				}
-				log_debug("writing texture path: %s\n",sName);
+				//log_debug("writing texture path: %s\n",sName);
 
 				m_dst->writeBytes(sName,MAX_QPATH);
 				m_dst->write(t);
@@ -2580,7 +2578,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 							lng = (int16_t)(acos(meshNor[2])*255/(2 *PI));
 							lat = (int16_t)(atan2(meshNor[1],meshNor[0])*255/(2 *PI));
 						}
-						// log_debug("%f,%f,%f lat %d lng %d\n",meshNor[0],meshNor[1],meshNor[2],lat,lng);
+						// //log_debug("%f,%f,%f lat %d lng %d\n",meshNor[0],meshNor[1],meshNor[2],lat,lng);
 						uint16_t normal = ((lat &255)*256)| (lng &255);
 						m_dst->write(normal);
 					}
@@ -2632,7 +2630,7 @@ bool Md3Filter::writeAnimations()
 	}
 	else
 	{
-		log_debug("writing animation.cfg\n");
+		//log_debug("writing animation.cfg\n");
 
 		dst->writeString("// animation config file\r\n");
 
@@ -2935,19 +2933,19 @@ std::string Md3Filter::materialToPath(int materialIndex)
 		name = "";
 	}
 
-	log_debug("getting path for material %d: %s\n",materialIndex,name);
+	//log_debug("getting path for material %d: %s\n",materialIndex,name);
 
 	std::string keyStr = std::string("MD3_PATH_")+name;
 	if(m_model->getMetaData(keyStr.c_str(),pk3Path,sizeof(pk3Path)))
 	{
-		log_debug("  material-specific: %s\n",pk3Path);
+		//log_debug("  material-specific: %s\n",pk3Path);
 		return pk3Path;
 	}
 
 	keyStr = "MD3_PATH";
 	if(m_model->getMetaData(keyStr.c_str(),pk3Path,sizeof(pk3Path)))
 	{
-		log_debug("  default: %s\n",pk3Path);
+		//log_debug("  default: %s\n",pk3Path);
 		return pk3Path;
 	}
 	return "";

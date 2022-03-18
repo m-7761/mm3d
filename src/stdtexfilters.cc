@@ -32,7 +32,7 @@
 
 extern void init_std_texture_filters()
 {
-	log_debug("initializing standard texture filters\n");
+	//log_debug("initializing standard texture filters\n");
 
 	auto tm = TextureManager::getInstance();
 

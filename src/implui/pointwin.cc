@@ -117,13 +117,13 @@ void PointWin::submit(int id)
 	}
 	case id_ok:
 
-		log_debug("Point changes complete\n");
+		//log_debug("Point changes complete\n");
 		model->operationComplete(::tr("Point changes","operation complete"));
 		break;
 	
 	case id_cancel:
 
-		log_debug("Point changes canceled\n");
+		//log_debug("Point changes canceled\n");
 		model->undoCurrent();
 		break;
 	}

@@ -1421,11 +1421,9 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 		float t = 0.0;
 		for(n=0;n<count;n++)
 		{
-			for(unsigned i=0;i<3;i++)
-			{
-				model->getTextureCoords(n,i,s,t);
-				setTextureCoords(n+tribase,i,s,t);
-			}
+			float st[2][3];			
+			model->getTextureCoords(n,st);
+			setTextureCoords(n+tribase,st);
 
 			if(tpcount) //2020
 			{
@@ -1546,305 +1544,357 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 const int SE_POLY_MAX = 2;
 struct model_ops_SimplifyEdgeT
 {
-	unsigned int vFar;
+	unsigned vFar;
 	
 	int polyCount;
 	int poly[SE_POLY_MAX];
-	double normal[SE_POLY_MAX][3]; //float
+
+	double vecB[3]; //OPTIMIZING
 };
-typedef std::list<model_ops_SimplifyEdgeT> model_ops_SimplifyEdgeList;
-
-void Model::simplifySelectedMesh() //INSANE //OVERKILL
+struct model_ops_SimplifyVertT
 {
-	validateNormals(); //2020
+	unsigned vrt; float s,t;
+};
+bool Model::simplifySelectedMesh(bool ignore)
+{
+	std::vector<model_ops_SimplifyEdgeT> edges;
+	std::vector<model_ops_SimplifyVertT> uvmap;
 
+	//NOTE: Results will depend on how any animation has been posed.
+	validateNormals();
+
+	const auto *vl = m_vertices.data();
+	const auto *tl = m_triangles.data();
+
+	//2022: This is smarter, as well as leveraging m_faces to avoid
+	//extereme nonlinearity.
+	for(auto i=m_triangles.size();i-->0;) tl[i]->m_user = (int)i;
+	
+	//NOTE: This was equiv3 in glmath.h, but 0.0001 doesn't seem
+	//like a good epsilon in a header template.
+	auto _eq_norms = [](double a[3], double b[3])
+	{
+		//Is 0.0001 too low? Especially on straight edges?
+		return fabs(a[0]-b[0])<0.0001
+		&&fabs(a[1]-b[1])<0.0001&&fabs(a[2]-b[2])<0.0001;
+	};
+		#if 1
+		enum{ debug=0 };
+		#else
+		#ifdef NDEBUG
+		#error Disable me (even in debug builds)
+		#endif
+		#ifdef _DEBUG
+		enum{ debug=1 }; //2
+		#else
+		enum{ debug=0 };
+		#endif
+		#endif
+
+	bool welded, valid;
+	unsigned welds = ~0, any = 0;
+	unsigned vcount = m_vertices.size();
+	for(;welds;any+=welds) //2022
+	for(unsigned v=welds=0;v<vcount;v+=!welded)
+	{
+		//log_debug("checking vertex %d\n",v);
+		welded = false;	
+				
+		const auto *vp = vl[v];
+
+		//2022: Assume selected triangles will select
+		//their respective vertices!!
+		if(!vp->m_selected) continue;
+
+		
 	// for each vertex
 	//	find all edges
 	//	if Va to V is same vector as V to Vb
 	//	  make sure every *other* edge has exactly two co-planar faces
 	//	  if so
 	//		 move V to Va and weld
-	//		 re-do loop at 
+	//		 re-do loop
 
-	unsigned int vcount = m_vertices.size();
-	unsigned int v = 0;
 
-	for(v = 0; v<vcount; v++)
-	{
-		m_vertices[v]->m_marked = false;
-	}
-
-	int tcount = m_triangles.size();
-	int t = 0;
-
-	for(t = 0; t<tcount; t++)
-	{
-		m_triangles[t]->m_marked = false;
-	}
-
-	model_ops_SimplifyEdgeList edges;
-	model_ops_SimplifyEdgeList::iterator it;
-	model_ops_SimplifyEdgeList::iterator itA;
-	model_ops_SimplifyEdgeList::iterator itB;
-	unsigned int verts[3];
-	int idx[3];
-
-	double coords[3];
-	double tcoords[3][3];
-	double vecA[3];
-	double vecB[3];
-
-	bool welded = false;
-	bool valid  = true;
-
-	v = 0;
-	while(v<vcount)
-	{
-		log_debug("checking vertex %d\n",v);
-		welded = false;
-
-		//if(!m_vertices[v]->m_marked)
+		// valid weld candidate until we learn otherwise
+		valid = true;
+		
+		// build edge list
+		edges.clear();
+		for(auto&ea:vp->m_faces) 
+		if(ea.first->m_selected&&ea.first->m_user!=-1)
 		{
-			valid = true; // valid weld candidate until we learn otherwise
-			edges.clear();
-
-			// build edge list
-			for(t = 0; valid&&t<tcount; t++)
+			// If triangle is using v as a vertex, add to edge list
+			auto *tv = ea.first->m_vertexIndices;
+			int idx[3];
+			idx[0] = -1; if(v==tv[0])
 			{
-				// unflattened triangles only
-				if(m_triangles[t]->m_selected)//&&!m_triangles[t]->m_marked)
+				idx[0] = 0; idx[1] = 1; idx[2] = 2;
+			}
+			else if(tv[1]==v)
+			{
+				idx[0] = 1; idx[1] = 0; idx[2] = 2;
+			}
+			else if(tv[2]==v)
+			{
+				idx[0] = 2; idx[1] = 0; idx[2] = 1;
+			}
+			if(idx[0]==-1) continue;
+			
+			//log_debug("  triangle %d uses vertex %d\n",t,v);
+			// vert[idx[1]] and vert[idx[2]] are the opposite vertices
+			for(int i=1;i<=2;i++)
+			{
+				unsigned vrt = tv[idx[i]];
+				bool newEdge = true;
+				for(auto&e:edges) 
+				if(e.vFar==vrt) if(e.polyCount>=SE_POLY_MAX)
 				{
-					getTriangleVertices(t,verts[0],verts[1],verts[2]);
-					idx[0] = -1;
+					//NOTE: I think this is like a fin/spoke situation.
+					
+					// more than two faces on this edge
+					// we can't weld at all, skip this vertex
+					//log_debug("  too many polygons connected to edge to %d\n",ea.vFar);
+					valid = false;
+				}
+				else
+				{
+					valid = true;
 
-					if(verts[0]==v)
-					{
-						idx[0] = 0;
-						idx[1] = 1;
-						idx[2] = 2;
-					}
-					if(verts[1]==v)
-					{
-						idx[0] = 1;
-						idx[1] = 0;
-						idx[2] = 2;
-					}
-					if(verts[2]==v)
-					{
-						idx[0] = 2;
-						idx[1] = 0;
-						idx[2] = 1;
-					}
+					e.poly[e.polyCount++] = ea.first->m_user;
+				
+					//log_debug("  adding polygon to edge for %d\n",e.vFar);
+					newEdge = false; break;
+				}
 
-					// If triangle is using v as a vertex, add to edge list
-					if(idx[0]>=0)
+				if(valid&&newEdge)
+				{
+					//log_debug("  adding new edge for polygon for %d\n",idx[i]);
+					model_ops_SimplifyEdgeT se;
+					se.vFar = vrt;
+					se.polyCount = 1;
+					se.poly[0] = ea.first->m_user; 
+
+					edges.push_back(se);
+				}
+			}
+			if(!valid) break;
+		}
+		if(!valid) continue;
+
+		//2022: Skip orphans on second (etc.) passes... or just in general.
+		if(edges.empty()) continue;
+		
+		// use vectors from two edges to see if they are in a straight line
+		//getVertexCoords(v,coords);
+		Vector coords,delta,vecA;
+		coords.setAll(vp->m_absSource);
+
+		for(auto&b:edges) //vecB
+		{
+			//getVertexCoordsb.vFar,vecB);
+			delta.setAll(vl[b.vFar]->m_absSource);
+			(delta-=coords).normalize3();
+			delta.getVector3(b.vecB);
+		}
+		for(auto&a:edges)
+		{
+			//getVertexCoords(a.vFar,vecA);
+			delta.setAll(vl[a.vFar]->m_absSource);
+			(vecA=coords-delta).normalize3();
+
+			for(auto&b:edges) if(&a!=&b)
+			{
+				//getVertexCoords(b.vFar,vecB);
+			//	delta.setAll(vl[b.vFar]->m_absSource);
+			//	(vecB=delta-coords).normalize3();
+				if(!_eq_norms(vecA.getVector(),b.vecB)) continue; 
+			
+				//2022: There needs to be split on either side of
+				//the straight edge to not foil potential merging.
+				int sides = 1;
+				double sideplane[3];
+				if(a.polyCount>1||b.polyCount>1)
+				{
+					sides = 2;
+					auto *tp = tl[(a.polyCount>1?a:b).poly[1]];
+					cross_product(sideplane,b.vecB,tp->m_flatSource);
+				}				
+				for(int side=sides;side-->0;)
+				{
+					int grp = -2; uvmap.clear(); //2022
+
+					//log_debug("  found a straight line\n");
+					bool canWeld = true;
+					for(auto&e:edges) if((&e!=&a)&&(&e!=&b))
 					{
-						log_debug("  triangle %d uses vertex %d\n",t,v);
-						// vert[idx[1]] and vert[idx[2]] are the opposite vertices
-						for(int i = 1; i<=2; i++)
+						if(sides==2)
 						{
-							bool newEdge = true;
-							for(it = edges.begin(); valid&&it!=edges.end(); it++)
+							double s = dot3(sideplane,vl[e.vFar]->m_absSource);
+							if((s<0)==(side==1)) continue;
+						}
+
+						// must have a face on each side of edge
+						if(e.polyCount!=2)
+						{
+							//log_debug("	 not enough polygons connected to edge\n");
+							canWeld = false; break;
+						}
+
+						auto *t0 = tl[e.poly[0]], *t1 = tl[e.poly[1]];
+
+						if(!ignore) //2022: Don't ignore appearances?
+						{
+							//Triangles on one side must share groups.
+
+							if(grp==-2) grp = t0->m_group;
+
+							if(grp!=t0->m_group||grp!=t1->m_group)
 							{
-								if((*it).vFar==verts[idx[i]])
+								canWeld = false; break; //group?
+							}
+						}
+						//NOTE: UVs are maintained even when "ignore"
+						//is set so that less fixup is required after.
+						for(int poly=2;poly-->0;) 
+						{
+							auto *tp = poly==1?t1:t0;
+							auto *tv = tp->m_vertexIndices;
+							auto *st =&tp->m_s;
+							for(int i=3;i-->0;)
+							{
+								bool found = false;
+
+								unsigned vrt = tv[i];
+
+								float s = st[0][i], t = st[1][i];
+
+								for(auto&uv:uvmap) if(uv.vrt==vrt)
 								{
-									if((*it).polyCount<SE_POLY_MAX)
+									if(!ignore)
+									if(fabsf(s-uv.s)>0.0001f||fabsf(t-uv.t)>0.0001f)
 									{
-										(*it).poly[(*it).polyCount] = t;
-										getFlatNormalUnanimated(t,(*it).normal[(*it).polyCount]);
-
-										(*it).polyCount++;
-										newEdge = false;
-
-										log_debug("  adding polygon to edge for %d\n",
-												(*it).vFar);
-										break;
+										canWeld = false; i = 0; //OPTIMIZING?
 									}
-									else
-									{
-										// more than two faces on this edge
-										// we can't weld at all,skip this vertex
-										log_debug("  too many polygons connected to edge to %d\n",
-												(*it).vFar);
-										valid = false;
-									}
+									found = true; break;
+								}
+								if(!found) uvmap.push_back({vrt,s,t});
+							}						
+							if(!canWeld) break;
+						}
+
+						if(!_eq_norms(t0->m_flatSource,t1->m_flatSource)) 
+						{
+							// faces must be in the same plane
+					
+							//log_debug("	 polygons on edge do not face the same direction\n");
+							canWeld = false;
+						}
+						else for(int i=e.polyCount;i-->0;) // check inverted normals
+						{
+							//WHY??? ISN'T THE PREVIOUS TEST ABOUT NORMALS? WINDING?
+
+							auto *tp = tl[e.poly[i]];
+							auto *tv = tp->m_vertexIndices;
+
+							bool flat = false;
+							double *tcoords[3] = {};
+							for(int j=3;j-->0;) if(tv[j]==v)
+							{
+								tcoords[j] = vl[a.vFar]->m_absSource; 
+							}
+							else if(tv[j]==a.vFar)
+							{
+								//NOTE: I guess this can happen if the incoming model
+								//includes degenerate triangles. (They'll be removed
+								//with the rest if so.)
+								flat = true; 
+							}
+							if(!flat)
+							{
+								for(int j=3;j-->0;) if(!tcoords[j])
+								{
+									tcoords[j] = vl[tv[j]]->m_absSource;
+								}
+								double norm[3];
+								calculate_normal(norm,tcoords[0],tcoords[1],tcoords[2]);
+
+								//log_debug("-- %f,%f,%f  %f,%f,%f\n",norm[0],norm[1],norm[2],e.normal[i][0],e.normal[i][1],e.normal[i][2]);
+								if(!_eq_norms(norm,tp->m_flatSource))
+								{
+								//	assert(0); //I want to know when this happens. (It happens.)
+
+									//log_debug("normal gets inverted on collapse, skipping\n");
+									canWeld = false; break;
 								}
 							}
+						}
+						if(!canWeld) break;
+					}
+					if(!canWeld) continue;
 
-							if(valid&&newEdge)
+								// Yay! We can collapse v to vA
+
+					//log_debug("*** vertex %d can be collapsed to %d\n",v,a.vFar);
+					// move v to va on each edge, mark flattened triangles
+					for(auto&e:edges)					
+					{
+						//2022: These were processed before, however I believe they
+						//would not have been flattened, and with the sides test it
+						//can't place these edges on one side or the other, so they
+						//can't be processed here.
+						if(&e==&a||&e==&b) continue;
+
+						if(sides==2)
+						{
+							double s = dot3(sideplane,vl[e.vFar]->m_absSource);
+							if((s<0)==(side==1)) continue;
+						}
+
+						for(int j,i=e.polyCount;i-->0;)
+						{
+							auto *tp = tl[j=e.poly[i]];
+							auto *tv = tp->m_vertexIndices;
+
+							//log_debug("finding %d in triangle %d\n",v,j);
+
+							for(int vrt=a.vFar,k=3;k-->0;) if(tv[k]==v) switch(k)
 							{
-								log_debug("  adding new edge for polygon for %d\n",
-										idx[i]);
-								model_ops_SimplifyEdgeT se;
-								se.vFar = verts[idx[i]];
-								se.polyCount = 1;
-								se.poly[0] = t;
-								getFlatNormalUnanimated(t,se.normal[0]);
+							case 0: setTriangleVertices(j,vrt,tv[1],tv[2]); goto welded;
+							case 1: setTriangleVertices(j,tv[0],vrt,tv[2]); goto welded;
+							case 2: setTriangleVertices(j,tv[0],tv[1],vrt); goto welded;
+							welded:
 
-								edges.push_back(se);
+								//NOTE: Updating m_flatSource isn't necessary
+								//as merging demands triangles to be coplanar.
+								if(tp->_isFlat()) tp->m_user = -1;
+								
+								for(auto&uv:uvmap) if(vrt==uv.vrt)
+								{
+									setTextureCoords(j,k,uv.s,uv.t);
+								}
+								
+								welded = true; k = 0; //OPTIMIZING
+								
+								(debug?any:welds)++; //DEBUGGING?
 							}
 						}
 					}
 				}
+				if(welded) break;
 			}
-
-			if(valid)
-			{
-				// use vectors from two edges to see if they are in a straight line
-				getVertexCoords(v,coords);
-
-				for(itA = edges.begin(); valid&&!welded&&itA!=edges.end(); itA++)
-				{
-					getVertexCoords((*itA).vFar,vecA);
-					vecA[0] = coords[0]-vecA[0];
-					vecA[1] = coords[1]-vecA[1];
-					vecA[2] = coords[2]-vecA[2];
-					normalize3(vecA);
-
-					for(itB = edges.begin(); valid&&!welded&&itB!=edges.end(); itB++)
-					{
-						if(itA!=itB)
-						{
-							bool canWeld = true;
-
-							getVertexCoords((*itB).vFar,vecB);
-							vecB[0] -= coords[0];
-							vecB[1] -= coords[1];
-							vecB[2] -= coords[2];
-							normalize3(vecB);
-
-							if(equiv3(vecA,vecB))
-							{
-								log_debug("  found a straight line\n");
-								for(it = edges.begin(); it!=edges.end(); it++)
-								{
-									if(it!=itA&&it!=itB)
-									{
-										// must have a face on each side of edge
-										if((*it).polyCount!=2)
-										{
-											log_debug("	 not enough polygons connected to edge\n");
-											canWeld = false;
-										}
-
-										// faces must be in the same plane
-										if(canWeld&&!equiv3((*it).normal[0],(*it).normal[1]))
-										{
-											log_debug("	 polygons on edge do not face the same direction\n");
-											canWeld = false;
-										}
-
-										// check inverted normals
-										for(int i = 0; i<(*it).polyCount; i++)
-										{
-											getTriangleVertices((*it).poly[i],
-													verts[0],verts[1],verts[2]);
-
-											bool flat = false;
-
-											for(int n = 0; n<3; n++)
-											{
-												if(verts[n]==v)
-												{
-													verts[n] = (*itA).vFar;
-												}
-												else if(verts[n]==(*itA).vFar)
-												{
-													flat = true;
-												}
-											}
-
-											if(!flat)
-											{
-												getVertexCoords(verts[0],tcoords[0]);
-												getVertexCoords(verts[1],tcoords[1]);
-												getVertexCoords(verts[2],tcoords[2]);
-
-												double norm[3];
-												calculate_normal(norm,tcoords[0],tcoords[1],tcoords[2]);
-
-												log_debug("-- %f,%f,%f  %f,%f,%f\n",
-														norm[0],norm[1],norm[2],
-														(*it).normal[i][0],(*it).normal[i][1],(*it).normal[i][2]);
-												if(!equiv3(norm,(*it).normal[i]))
-												{
-													log_debug("normal gets inverted on collapse,skipping\n");
-													canWeld = false;
-												}
-											}
-										}
-									}
-								}
-
-								if(canWeld)
-								{
-									// Yay!We can collapse v to va (itA)
-
-									log_debug("*** vertex %d can be collapsed to %d\n",
-											v,(*itA).vFar);
-									for(it = edges.begin(); it!=edges.end(); it++)
-									{
-										// move v to va on each edge,mark flattened triangles
-										for(int i = 0; i<(*it).polyCount; i++)
-										{
-											getTriangleVertices((*it).poly[i],
-													verts[0],verts[1],verts[2]);
-
-											log_debug("finding %d in triangle %d\n",v,(*it).poly[i]);
-											for(int n = 0; n<3; n++)
-											{
-												if(verts[n]==v)
-												{
-													log_debug(" vertex %d\n",n);
-													verts[n] = (*itA).vFar;
-													// don't break,we want to check for va also
-												}
-												else if(verts[n]==(*itA).vFar)
-												{
-													log_debug(" triangle %d is flattened\n",(*it).poly[i]);
-													// v and va are now the same
-													// mark the triangle as flattened
-													m_triangles[(*it).poly[i]]->m_marked = true;
-												}
-											}
-
-											setTriangleVertices((*it).poly[i],
-													verts[0],verts[1],verts[2]);
-										}
-									}
-
-									welded = true;
-
-									// v is now an orphan,next vertex
-									v++;
-									v = 0; // TODO let's start completely over for now
-
-		deleteFlattenedTriangles(); //OVERKILL???
-		deleteOrphanedVertices(); //OVERKILL???
-
-									vcount = m_vertices.size();
-									tcount = m_triangles.size();
-
-									if((*itA).vFar<v)
-									{
-										// The edges connected to va have changed
-										// we must back up to re-check that vertex
-										v = (*itA).vFar;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if(!welded)
-		{
-			v++;
-		}
+			if(welded) break;
+		} 		
+		if(welded&&debug==2) break; //DEBUGGING?
 	}
 
+	//NOTE: This leaves some previously selected vertices visible, however
+	//it seems a useful indication of where discontinuties arise, so maybe
+	//it's alright to not correct it.
+	if(any) deleteFlattenedTriangles(); 
+	if(any) deleteOrphanedVertices(); 
+	
+	return any!=0;
 }
 
 #endif // MM3D_EDIT

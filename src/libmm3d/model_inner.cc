@@ -174,22 +174,20 @@ int Model::Vertex::flush()
 
 void Model::Vertex::stats()
 {
-	log_debug("Vertex: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Vertex: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
-Model::Vertex *Model::Vertex::get()
+Model::Vertex *Model::Vertex::get(AnimationModeE am)
 {
-	if(!s_recycle.empty())
+	Vertex *v; if(!s_recycle.empty())
 	{
-		Vertex *v = s_recycle.back();
+		v = s_recycle.back();
 		s_recycle.pop_back();
 		v->init();
-		return v;
 	}
-	else
-	{
-		return new Vertex();
-	}
+	else v = new Vertex();
+
+	v->_source(am); return v;
 }
 
 void Model::Vertex::release()
@@ -198,10 +196,7 @@ void Model::Vertex::release()
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 void Model::Vertex::releaseData() //2020
 {
@@ -288,7 +283,7 @@ void Model::Triangle::init()
 	m_projection = -1;
 	m_group = -1; //2022
 
-	m_flatSource = m_flatNormals;
+	m_flatSource = m_flatNormal;
 	m_normalSource[0] = m_finalNormals[0];
 	m_normalSource[1] = m_finalNormals[1];
 	m_normalSource[2] = m_finalNormals[2];
@@ -301,17 +296,14 @@ int Model::Triangle::flush()
 	std::vector<Triangle*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
-		delete *it;
-		it++;
-		c++;
+		delete *it++; c++;
 	}
-	s_recycle.clear();
-	return c;
+	s_recycle.clear(); return c;
 }
 
 void Model::Triangle::stats()
 {
-	log_debug("Triangle: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Triangle: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Triangle *Model::Triangle::get()
@@ -323,10 +315,7 @@ Model::Triangle *Model::Triangle::get()
 		v->init();
 		return v;
 	}
-	else
-	{
-		return new Triangle();
-	}
+	else return new Triangle();
 }
 
 void Model::Triangle::release()
@@ -335,10 +324,7 @@ void Model::Triangle::release()
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 
 bool Model::Triangle::propEqual(const Triangle &rhs, int propBits, double tolerance)const
@@ -346,39 +332,37 @@ bool Model::Triangle::propEqual(const Triangle &rhs, int propBits, double tolera
 	if((propBits &PropVertices)!=0)
 	{
 		if(m_vertexIndices[0]!=rhs.m_vertexIndices[0]
-			  ||m_vertexIndices[1]!=rhs.m_vertexIndices[1]
-			  ||m_vertexIndices[2]!=rhs.m_vertexIndices[2])
+		 ||m_vertexIndices[1]!=rhs.m_vertexIndices[1]
+		 ||m_vertexIndices[2]!=rhs.m_vertexIndices[2])
 		{
 			return false;
 		}
 	}
 
 	if((propBits &PropProjections)!=0)
-		if(m_projection!=rhs.m_projection)
-			return false;
+	if(m_projection!=rhs.m_projection)
+	return false;
 
 	if((propBits &PropGroups)!=0)
-		if(m_group!=rhs.m_group)
-			return false;
+	if(m_group!=rhs.m_group)
+	return false;
 
 	if((propBits &PropTexCoords)!=0)
+	for(int i = 0; i<3; ++i)
 	{
-		for(int i = 0; i<3; ++i)
-		{
-			if(fabs(m_s[i]-rhs.m_s[i])>tolerance)
-				return false;
-			if(fabs(m_t[i]-rhs.m_t[i])>tolerance)
-				return false;
-		}
+		if(fabs(m_s[i]-rhs.m_s[i])>tolerance)
+		return false;
+		if(fabs(m_t[i]-rhs.m_t[i])>tolerance)
+		return false;
 	}
 
 	if((propBits &PropSelection)!=0)
-		if(m_selected!=rhs.m_selected)
-			return false;
+	if(m_selected!=rhs.m_selected)
+	return false;
 
 	if((propBits &PropVisibility)!=0)
-		if(m_visible!=rhs.m_visible)
-			return false;
+	if(m_visible!=rhs.m_visible)
+	return false;
 
 	return true;
 }
@@ -415,17 +399,14 @@ int Model::Group::flush()
 	std::vector<Group*>::iterator it = s_recycle.begin();
 	while(it!=s_recycle.end())
 	{
-		delete *it;
-		it++;
-		c++;
+		delete *it++; c++;
 	}
-	s_recycle.clear();
-	return c;
+	s_recycle.clear(); return c;
 }
 
 void Model::Group::stats()
 {
-	log_debug("Group: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Group: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Group *Model::Group::get()
@@ -437,10 +418,7 @@ Model::Group *Model::Group::get()
 		v->init();
 		return v;
 	}
-	else
-	{
-		return new Group();
-	}
+	else return new Group();
 }
 
 void Model::Group::release()
@@ -449,10 +427,7 @@ void Model::Group::release()
 	{
 		s_recycle.push_back(this);
 	}
-	else
-	{
-		delete this;
-	}
+	else delete this;
 }
 
 bool Model::Group::propEqual(const Group &rhs, int propBits, double tolerance)const
@@ -536,7 +511,7 @@ int Model::Material::flush()
 
 void Model::Material::stats()
 {
-	log_debug("Material: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Material: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Material *Model::Material::get()
@@ -657,7 +632,7 @@ int Model::Keyframe::flush()
 
 void Model::Keyframe::stats()
 {
-	log_debug("Keyframe: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Keyframe: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Keyframe *Model::Keyframe::get()
@@ -806,7 +781,7 @@ int Model::Joint::flush()
 
 void Model::Joint::stats()
 {
-	log_debug("Joint: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Joint: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)const
@@ -912,7 +887,7 @@ int Model::Point::flush()
 
 void Model::Point::stats()
 {
-	log_debug("Point: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Point: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)const
@@ -1019,7 +994,7 @@ int Model::TextureProjection::flush()
 
 void Model::TextureProjection::stats()
 {
-	log_debug("TextureProjection: %d/%d\n",0,s_allocated);
+	//log_debug("TextureProjection: %d/%d\n",0,s_allocated);
 }
 
 bool Model::TextureProjection::propEqual(const TextureProjection &rhs, int propBits, double tolerance)const
@@ -1124,7 +1099,7 @@ int Model::Animation::flush()
 }
 void Model::Animation::stats()
 {
-	log_debug("Animation: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("Animation: %d/%d\n",s_recycle.size(),s_allocated);
 }
 bool Model::Animation::propEqual(const Animation &rhs, int propBits, double tolerance)const
 {
@@ -1276,7 +1251,7 @@ int Model::FrameAnimVertex::flush()
 
 void Model::FrameAnimVertex::stats()
 {
-	log_debug("FrameAnimVertex: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("FrameAnimVertex: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 bool Model::FrameAnimVertex::propEqual(const FrameAnimVertex &rhs, int propBits, double tolerance)const
@@ -1359,7 +1334,7 @@ int Model::FrameAnimPoint::flush()
 }
 void Model::FrameAnimPoint::stats()
 {
-	log_debug("FrameAnimPoint: %d/%d\n",s_recycle.size(),s_allocated);
+	//log_debug("FrameAnimPoint: %d/%d\n",s_recycle.size(),s_allocated);
 }
 bool Model::FrameAnimPoint::propEqual(const FrameAnimPoint &rhs, int propBits, double tolerance)const
 {

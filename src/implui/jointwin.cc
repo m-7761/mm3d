@@ -201,13 +201,13 @@ void JointWin::submit(control *c)
 
 	case id_ok:
 
-		log_debug("Joint changes complete\n");
+		//log_debug("Joint changes complete\n");
 		model->operationComplete(::tr("Joint changes","operation complete"));
 		break;
 
 	case id_cancel:
 
-		log_debug("Joint changes canceled\n");
+		//log_debug("Joint changes canceled\n");
 		model->undoCurrent();
 		break;
 	}

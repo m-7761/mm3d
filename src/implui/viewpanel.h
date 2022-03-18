@@ -76,6 +76,17 @@ public: //slots:
 	void modelview(Tool::ViewE v) //2022
 	{
 		auto *mv = views[m_focus];
+		int cmp = mv->port.getView();
+		if(cmp==v) switch(v) //Alternate double inputs?
+		{
+		default: 
+			if(v>=Tool::ViewFront&&v<=Tool::ViewBottom)
+			v = (Tool::ViewE)(v%2?v+1:v-1);
+			else assert(0);
+			break;
+		case Tool::ViewOrtho: v = Tool::ViewPerspective; break;
+		case Tool::ViewPerspective: v = Tool::ViewOrtho; break;
+		}
 		mv->view.select_id(v); mv->submit(id_item); 
 	}
 

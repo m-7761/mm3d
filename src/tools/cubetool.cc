@@ -155,7 +155,7 @@ void CubeTool::mouseButtonDown()
 				coord[zindex] = z;
 				ToolCoordT tc = addPosition(Model::PT_Vertex,coord[0],coord[1],coord[2]);
 						
-				log_debug("adding vertex %d at %f,%f,%f\n",tc.pos.index,tc.coords[0],tc.coords[1],tc.coords[2]);
+				//log_debug("adding vertex %d at %f,%f,%f\n",tc.pos.index,tc.coords[0],tc.coords[1],tc.coords[2]);
 
 				m_vertices.push_back(tc);
 			}
@@ -166,7 +166,7 @@ void CubeTool::mouseButtonDown()
 				int row2 = m_vertices.size()-(m_segments+1);
 				for(int x = 0; x<m_segments; x++)
 				{
-					log_debug("%d,%d,%d,%d\n",row1+x,row1+x+1,row2+x,row2+x+1);
+					//log_debug("%d,%d,%d,%d\n",row1+x,row1+x+1,row2+x,row2+x+1);
 					int t1 = model->addTriangle(m_vertices[row2+x],m_vertices[row1+x+1],m_vertices[row1+x]);
 					int t2 = model->addTriangle(m_vertices[row2+x],m_vertices[row2+x+1],m_vertices[row1+x+1]);
 					m_triangles.push_back(t1);

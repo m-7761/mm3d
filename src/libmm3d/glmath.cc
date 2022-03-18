@@ -871,27 +871,29 @@ double Vector::mag()const
 
 double Vector::mag3()const
 {
-	return sqrt(  m_val[0]*m_val[0]
-					+m_val[1]*m_val[1]
-					+m_val[2]*m_val[2]);
+	return sqrt(dot3(*this));
 }
 
-void Vector::normalize()
+double Vector::normalize()
 {
-	double m = mag();
-	for(int t = 0; t<4; t++)
+	double r_val = mag();
+	if(double m=r_val) //2022: Zero divide?
 	{
-		m_val[t] = m_val[t]/m;
+		m = 1/m;
+		for(int t=4;t-->0;) m_val[t]*=m;
 	}
+	return r_val;
 }
 
-void Vector::normalize3()
+double Vector::normalize3()
 {
-	double m = mag3();
-	for(int t = 0; t<3; t++)
+	double r_val = mag3();
+	if(double m=r_val) //2022: Zero divide?
 	{
-		m_val[t] = m_val[t]/m;
+		m = 1/m;
+		for(int t=3;t-->0;) m_val[t]*=m; 
 	}
+	return r_val;
 }
 
 double Vector::dot3(const Vector &rhs)const
@@ -1126,21 +1128,24 @@ void Quaternion::getEulerAngles(double radians[3])
 	glmath_EulerAnglesFromQuaternion<-1,0,1,2>(radians,*this);
 }
 
-void Quaternion::normalize()
+Quaternion &Quaternion::normalize()
 {
 	double mag = 0;
-	int t;
-	for(t = 0; t<4; t++)
-	{
-		mag += m_val[t] *m_val[t];
-	}
+	for(int t=4;t-->0;)
+	mag+=m_val[t]*m_val[t];
 
-	mag = sqrt(mag);
-
-	for(t = 0; t<4; t++)
+	//2022: Vector::normalize needs a
+	//zero divide test... I don't know
+	//how common 0 is for quaternions
+	//but in theory it's a possibility.
+	if(double m=mag)
 	{
-		m_val[t] = m_val[t]/mag;
+		m = 1/sqrt(m);
+
+		for(int t=4;t-->0;) m_val[t]*=m;
 	}
+	
+	return *this;
 }
 
 /*REMOVE ME

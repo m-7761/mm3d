@@ -186,6 +186,10 @@ public:
 			//atrneartool.cc 
 			double dist;
 		};
+		
+		Vector &v(){ return *(Vector*)coords; }
+		double &operator[](int i){ return coords[i]; }
+		Vector *operator->(){ return (Vector*)coords; }
 	};
 	typedef std::vector<ToolCoordT> ToolCoordList;
 	

@@ -44,11 +44,14 @@ void Model::setSelectionMode(Model::SelectionModeE m)
 	}
 }
 
-bool Model::selectVertex(unsigned v)
+bool Model::selectVertex(unsigned v, unsigned how)
 {
 	if(v<m_vertices.size()
-	&&!m_vertices[v]->m_selected) //2019
+	&&m_vertices[v]->m_selected!=(how!=0)) //2019
 	{
+		//2022: PolyTool uses this to sort by selection order.
+		auto &s_op = m_vertices[v]->m_selected._select_op;
+		
 		if(!m_selecting) //2020: make foolproof?
 		{
 			//m_changeBits |= SelectionChange;
@@ -56,18 +59,22 @@ bool Model::selectVertex(unsigned v)
 		
 			if(m_undoEnabled)
 			{
+				assert(how<=1); //Only Undo should exceed 1.
+
 				auto undo = new MU_Select(SelectVertices);
-				undo->setSelectionDifference(v,true,false);
+				undo->setSelectionDifference(v,how,s_op);
 				sendUndo(undo);
 			}
 		}
 
-		m_vertices[v]->m_selected = true;
+		//m_vertices[v]->m_selected = how;
+		s_op = how==1?_op:how;
 
 		return true;
 	}
 	return false;
 }
+
 bool Model::selectTriangle(unsigned t)
 {
 	if(t<m_triangles.size()
@@ -103,6 +110,57 @@ bool Model::selectTriangle(unsigned t)
 	}
 	return false;
 }
+bool Model::unselectTriangle(unsigned t, bool remove_me)
+{
+	if(t<m_triangles.size()
+	&&m_triangles[t]->m_selected) //2019
+	{
+		if(!m_selecting) //2020: make foolproof?
+		{
+			//m_changeBits |= SelectionChange;
+			m_changeBits |= SelectionFaces; //2019
+
+			if(m_undoEnabled)
+			{
+				auto undo = new MU_Select(SelectTriangles);
+				undo->setSelectionDifference(t,false,true);
+				sendUndo(undo);
+			}
+		}
+
+		m_triangles[t]->m_selected = false;
+		
+		if(remove_me) //2019: MU_Select called in a loop!
+		{
+			//bool o = setUndoEnabled(false);			
+			//selectVerticesFromTriangles(); //INSANE?!?
+			{
+				//BETTER: leverage new connectivty data?
+				for(auto i:m_triangles[t]->m_vertexIndices)
+				if(m_vertices[i]->m_selected)
+				{
+					bool selected = false;
+					for(auto&ea:m_vertices[i]->m_faces)
+					if(ea.first->m_selected)
+					{
+						selected = true; break;
+					}
+					if(!selected)
+					{
+						m_changeBits |= SelectionVertices; //2022
+
+						m_vertices[i]->m_selected = selected;
+					}
+				}
+			}
+			//setUndoEnabled(o);
+		}
+
+		return true;
+	}
+	return false;
+}
+
 bool Model::selectGroup(unsigned m)
 {
 	if(m>=0&&m<m_groups.size())
@@ -158,164 +216,6 @@ bool Model::selectGroup(unsigned m)
 	}
 	return false;
 }
-bool Model::selectBoneJoint(unsigned j)
-{
-	if(j>=0&&j<m_joints.size()
-	&&!m_joints[j]->m_selected) //2019
-	{
-		if(!m_selecting) //2020: make foolproof?
-		{
-			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionJoints; //2019
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectJoints);
-				undo->setSelectionDifference(j,true,false);
-				sendUndo(undo);
-			}
-		}
-
-		m_joints[j]->m_selected = true;
-
-		return true;
-	}
-	return false;
-}
-bool Model::selectPoint(unsigned p)
-{
-	if(p>=0&&p<m_points.size()
-	&&!m_points[p]->m_selected) //2019
-	{
-		if(!m_selecting) //2020: make foolproof?
-		{
-			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionPoints; //2019
-		
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectPoints);
-				undo->setSelectionDifference(p,true,false);
-				sendUndo(undo);
-			}
-		}
-
-		m_points[p]->m_selected = true;
-
-		return true;
-	}
-	return false;
-}
-bool Model::selectProjection(unsigned p)
-{
-	if(p>=0&&p<m_projections.size()
-	&&!m_projections[p]->m_selected) //2019
-	{
-		if(!m_selecting) //2020: make foolproof?
-		{
-			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionProjections; //2019
-		
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectProjections);
-				undo->setSelectionDifference(p,true,false);
-				sendUndo(undo);
-			}
-
-		}
-
-		m_projections[p]->m_selected = true;
-		
-		return true;
-	}
-	return false;
-}
-bool Model::selectPosition(Position p, bool how)
-{
-	switch(p.type)
-	{
-	case PT_Vertex:
-		return how?selectVertex(p):unselectVertex(p); 
-	case PT_Joint:
-		return how?selectBoneJoint(p):unselectBoneJoint(p);		
-	case PT_Point:
-		return how?selectPoint(p):unselectPoint(p); 
-	case PT_Projection:
-		return how?selectProjection(p):unselectProjection(p); 
-	}
-	return false;
-}
-
-//REMOVE US
-bool Model::unselectVertex(unsigned v)
-{
-	if(v<m_vertices.size()
-	&&m_vertices[v]->m_selected) //2019
-	{
-		if(!m_selecting) //2020: make foolproof?
-		{
-			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionVertices; //2019
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectVertices);
-				undo->setSelectionDifference(v,false,true);
-				sendUndo(undo);
-			}
-		}
-
-		m_vertices[v]->m_selected = false; 
-		
-		return true;
-	}
-	return false;
-}
-bool Model::unselectTriangle(unsigned t, bool remove_me)
-{
-	if(t<m_triangles.size()
-	&&m_triangles[t]->m_selected) //2019
-	{
-		if(!m_selecting) //2020: make foolproof?
-		{
-			//m_changeBits |= SelectionChange;
-			m_changeBits |= SelectionFaces; //2019
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectTriangles);
-				undo->setSelectionDifference(t,false,true);
-				sendUndo(undo);
-			}
-		}
-
-		m_triangles[t]->m_selected = false;
-		
-		if(remove_me) //2019: MU_Select called in a loop!
-		{
-			//bool o = setUndoEnabled(false);			
-			//selectVerticesFromTriangles(); //INSANE?!?
-			{
-				//BETTER: leverage new connectivty data?
-				for(auto i:m_triangles[t]->m_vertexIndices)
-				{
-					bool selected = false;
-					for(auto&ea:m_vertices[i]->m_faces)
-					if(ea.first->m_selected)
-					{
-						selected = true; break;
-					}
-					m_vertices[i]->m_selected = selected;
-				}
-			}
-			//setUndoEnabled(o);
-		}
-
-		return true;
-	}
-	return false;
-}
 bool Model::unselectGroup(unsigned m)
 {
 	//LOG_PROFILE(); //???
@@ -351,10 +251,11 @@ bool Model::unselectGroup(unsigned m)
 	}
 	return false;
 }
-bool Model::unselectBoneJoint(unsigned j)
+
+bool Model::selectBoneJoint(unsigned j, bool how)
 {
 	if(j<m_joints.size()
-	&&m_joints[j]->m_selected) //2019
+	&&m_joints[j]->m_selected!=how) //2019
 	{
 		if(!m_selecting) //2020: make foolproof?
 		{
@@ -364,21 +265,21 @@ bool Model::unselectBoneJoint(unsigned j)
 			if(m_undoEnabled)
 			{
 				auto undo = new MU_Select(SelectJoints);
-				undo->setSelectionDifference(j,false,true);
+				undo->setSelectionDifference(j,how,!how);
 				sendUndo(undo);
 			}
 		}
 
-		m_joints[j]->m_selected = false;
+		m_joints[j]->m_selected = how;
 
 		return true;
 	}
 	return false;
 }
-bool Model::unselectPoint(unsigned p)
+bool Model::selectPoint(unsigned p, bool how)
 {
 	if(p<m_points.size()
-	&&m_points[p]->m_selected) //2019
+	&&m_points[p]->m_selected!=how) //2019
 	{
 		if(!m_selecting) //2020: make foolproof?
 		{
@@ -388,21 +289,22 @@ bool Model::unselectPoint(unsigned p)
 			if(m_undoEnabled)
 			{
 				auto undo = new MU_Select(SelectPoints);
-				undo->setSelectionDifference(p,false,true);
+				undo->setSelectionDifference(p,how,!how);
 				sendUndo(undo);
 			}
 		}
 
-		m_points[p]->m_selected = false;		
-		
+		m_points[p]->m_selected = how;
+
 		return true;
 	}
 	return false;
 }
-bool Model::unselectProjection(unsigned p)
+
+bool Model::selectProjection(unsigned p, bool how)
 {
-	if(p<m_projections.size()
-	&&m_projections[p]->m_selected) //2019
+	if(p>=0&&p<m_projections.size()
+	&&m_projections[p]->m_selected!=how) //2019
 	{
 		if(!m_selecting) //2020: make foolproof?
 		{
@@ -412,14 +314,27 @@ bool Model::unselectProjection(unsigned p)
 			if(m_undoEnabled)
 			{
 				auto undo = new MU_Select(SelectProjections);
-				undo->setSelectionDifference(p,false,true);
+				undo->setSelectionDifference(p,how,!how);
 				sendUndo(undo);
 			}
+
 		}
 
-		m_projections[p]->m_selected = false;
-
+		m_projections[p]->m_selected = how;
+		
 		return true;
+	}
+	return false;
+}
+
+bool Model::selectPosition(Position p, bool how)
+{
+	switch(p.type)
+	{
+	case PT_Vertex: return selectVertex(p,how); 
+	case PT_Joint: return selectBoneJoint(p,how);		
+	case PT_Point: return selectPoint(p,how); 
+	case PT_Projection: return selectProjection(p,how); 
 	}
 	return false;
 }
@@ -549,8 +464,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 	{
 		Triangle *tri = m_triangles[t];
 		if(tri->m_selected!=select 
-			  &&tri->m_visible
-			  &&(!test||(test&&test->shouldSelect(tri))))
+		 &&tri->m_visible
+		 &&(!test||(test&&test->shouldSelect(tri))))
 		{
 			bool above = false;
 			bool below = false;
@@ -591,8 +506,8 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 
 			for(v = 0; v<3; v++)
 			{
-				if( tCords[v][0]>=x1&&tCords[v][0]<=x2 
-					  &&tCords[v][1]>=y1&&tCords[v][1]<=y2)
+				if(tCords[v][0]>=x1&&tCords[v][0]<=x2 
+				 &&tCords[v][1]>=y1&&tCords[v][1]<=y2)
 				{
 					// A vertex of the triangle is within the selection area
 					tri->m_selected = select;
@@ -1045,8 +960,8 @@ bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, 
 
 					for(int line = 0; !selectable&&line<4; line++)
 					{
-						log_debug("line %d:	m = %f	b = %f	x = %f	y = %f\n",
-								line,m[line],b[line],coord[line][0][0],coord[line][0][1]);
+						//log_debug("line %d:	m = %f	b = %f	x = %f	y = %f\n",line,m[line],b[line],coord[line][0][0],coord[line][0][1]);
+
 						double y;
 						double x;
 						double xmin;
@@ -1267,25 +1182,25 @@ bool Model::selectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, do
 
 	if(!selecting) beginSelectionDifference(); //OVERKILL!
 
-	switch (m_selectionMode)
+	switch(m_selectionMode)
 	{
 	case SelectVertices:
-		return selectVerticesInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
+		return selectVerticesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectTriangles:
-		return selectTrianglesInVolumeMatrix (true,viewMat,x1,y1,x2,y2,false,test);
+		return selectTrianglesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,false,test);
 		break;
 	case SelectConnected:
-		return selectTrianglesInVolumeMatrix (true,viewMat,x1,y1,x2,y2,true,test);
+		return selectTrianglesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,true,test);
 		break;
 	case SelectGroups:
-		return selectGroupsInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
+		return selectGroupsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectJoints:
-		return selectBoneJointsInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
+		return selectBoneJointsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectPoints:
-		return selectPointsInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
+		return selectPointsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectProjections:
 		return selectProjectionsInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
@@ -1307,7 +1222,7 @@ bool Model::unselectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, 
 
 	if(!selecting) beginSelectionDifference(); //OVERKILL!
 
-	switch (m_selectionMode)
+	switch(m_selectionMode)
 	{
 	case SelectVertices:
 		return selectVerticesInVolumeMatrix (false,viewMat,x1,y1,x2,y2,test);
@@ -1526,58 +1441,41 @@ bool Model::invertSelection()
 	//LOG_PROFILE(); //???
 
 	beginSelectionDifference(); //OVERKILL!
-	switch (m_selectionMode)
+
+	switch(m_selectionMode)
 	{
-		case SelectVertices:
-			for(unsigned v = 0; v<m_vertices.size(); v++)
-			{
-				if(m_vertices[v]->m_visible)
-				{
-					m_vertices[v]->m_selected = m_vertices[v]->m_selected ? false : true;
-				}
-			}
-			break;
+	case SelectVertices:
+		
+		for(auto*p:m_vertices) if(p->m_visible) p->m_selected = !p->m_selected;
+
+		break;
 			
-		case SelectGroups:
-			/*UNNECESSARY (SILLY)
-			for(unsigned g = 0; g<m_groups.size(); g++)
-			{
-				m_groups[g]->m_selected = m_groups[g]->m_selected ? false : true;
-			}
-			selectTrianglesFromGroups(); //CAN'T ABIDE THIS
-			break;*/
-		case SelectConnected: //2020
-		case SelectTriangles:
-			for(unsigned t = 0; t<m_triangles.size(); t++)
-			{
-				if(m_triangles[t]->m_visible)
-				{
-					m_triangles[t]->m_selected = m_triangles[t]->m_selected ? false : true;
-				}
-			}
-			selectVerticesFromTriangles();
-			break;
+	case SelectGroups:
+	case SelectConnected:
+	case SelectTriangles:
 
-		case SelectJoints:
-			for(unsigned j = 0; j<m_joints.size(); j++)
-			{
-				m_joints[j]->m_selected = m_joints[j]->m_selected ? false : true;
-			}
-			break;
+		for(auto*p:m_triangles) if(p->m_visible) p->m_selected = !p->m_selected;
 
-		case SelectPoints:
-			for(unsigned p = 0; p<m_points.size(); p++)
-			{
-				m_points[p]->m_selected = m_points[p]->m_selected ? false : true;
-			}
-			break;
+		selectVerticesFromTriangles();
 
-		default:
-			break;
+		break;
+
+	case SelectJoints:
+
+		for(auto*p:m_joints) if(p->m_visible) p->m_selected = !p->m_selected;
+
+		break;
+
+	case SelectPoints:
+
+		for(auto*p:m_points) if(p->m_visible) p->m_selected = !p->m_selected;
+
+		break;
 	}
-	endSelectionDifference();
 
-	return true;
+	endSelectionDifference();
+	
+	return true; //???
 }
 
 void Model::beginSelectionDifference()
@@ -1598,6 +1496,7 @@ void Model::beginSelectionDifference()
 			unsigned t;
 			for(t = 0; t<m_vertices.size(); t++)
 			{
+				//2022: _OrderedSelection::Marker?
 				m_vertices[t]->m_marked = m_vertices[t]->m_selected;
 			}
 			for(t = 0; t<m_triangles.size(); t++)
@@ -1634,7 +1533,7 @@ namespace
 		{
 			int i,iN = (unsigned)l.size();
 			for(i=0;i<iN;i++)			
-			if(l[i]->m_selected!=l[i]->m_marked)
+			if(l[i]->m_selected!=l[i]->m_marked) //_OrderedSelection::Marker?
 			break;
 			if(i!=iN)
 			{			
@@ -1642,8 +1541,10 @@ namespace
 
 				undo = new MU_Select(e);
 				for(;i<iN;i++)			
-				if(l[i]->m_selected!=l[i]->m_marked)
-				undo->setSelectionDifference(i,l[i]->m_selected,l[i]->m_marked);
+				if(l[i]->m_selected!=l[i]->m_marked) //_OrderedSelection::Marker?
+				{
+					undo->setSelectionDifference(i,l[i]->m_selected,l[i]->m_marked);
+				}
 				//sendUndo(undo);
 			}
 		}
@@ -2214,6 +2115,7 @@ bool Model::selectAllTriangles(bool how)
 
 		m_triangles[t]->m_selected = how;
 	}
+	if(!m_selecting) selectAllVertices(how); //2022
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionFaces; //2020
 	
@@ -2228,7 +2130,7 @@ bool Model::selectAllGroups(bool how)
 
 	bool ret = false;
 
-	for(unsigned m = 0; m<m_groups.size(); m++)
+	for(unsigned m=0;m<m_groups.size();m++)
 	{
 		if(how==m_groups[m]->m_selected) continue; //2020
 
@@ -2260,7 +2162,7 @@ bool Model::selectAllBoneJoints(bool how)
 
 	MU_Select *undo = nullptr; //2020
 
-	for(unsigned j = 0; j<m_joints.size(); j++)
+	for(unsigned j=0;j<m_joints.size();j++)
 	{
 		if(how==m_joints[j]->m_selected) continue; //2020
 		
@@ -2379,40 +2281,8 @@ void Model::selectAll(bool how)
 
 void Model::selectFreeVertices()
 {
-	beginSelectionDifference(); //OVERKILL!
-
-	/*
-	//unsigned vcount = m_vertices.size();
-	//unsigned v = 0;
-
-	//WARNING! This isn't finding free vertices that aren't marked
-	//with m_free!? MM3D may (or may not) make these but external
-	//models can have them (i.e. exported MM3D files)
-
-	for(auto*ea:m_vertices)
-	{
-		ea->m_marked = ea->m_free;
-	}
-
-	unsigned tcount = m_triangles.size();
-
-	for(unsigned t = 0; t<tcount; t++)
-	{
-		m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked = false;
-		m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked = false;
-		m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked = false;
-	}
-	*/
-	for(auto*ea:m_vertices)
-	{
-		/*
-		//2020: beginSelectionDifference doesn't work like this!
-		//ea->m_marked?selectVertex(v):unselectVertex(v);
-		ea->m_selected = ea->m_marked;*/
-		if(ea->m_faces.empty()) ea->m_selected = true;
-	}
-
-	endSelectionDifference();
+	for(auto*ea:m_vertices)	
+	if(ea->m_faces.empty()) selectVertex(ea->m_selected);
 }
 
 bool Model::setSelectedTriangles(const int_list &l) //2022

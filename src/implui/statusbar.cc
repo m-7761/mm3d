@@ -155,13 +155,13 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 void ViewBar::StatusBar::setStats()
 {
 	auto &sn = model.nselection;
-	unsigned int d[6][2] = //C4838
+	int d[6][2] = //C4838
 	{
-		{m_model->getVertexCount(),sn[Model::PT_Vertex]},
-		{m_model->getTriangleCount(),model.fselection.size()},
+		{m_model->getVertexCount(),(int)sn[Model::PT_Vertex]},
+		{m_model->getTriangleCount(),(int)model.fselection.size()},
 		{m_model->getGroupCount()},
-		{m_model->getBoneJointCount(),sn[Model::PT_Joint]},
-		{m_model->getPointCount(),sn[Model::PT_Point]},
+		{m_model->getBoneJointCount(),(int)sn[Model::PT_Joint]},
+		{m_model->getPointCount(),(int)sn[Model::PT_Point]},
 		{m_model->getTextureCount()},
 	};
 

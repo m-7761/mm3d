@@ -98,7 +98,7 @@ LuaScript::~LuaScript()
 
 int LuaScript::runFile(const char *filename)
 {
-	log_debug("running script: %s\n",filename);
+	//log_debug("running script: %s\n",filename);
 
 	int rval = -1;
 	m_errstr = "No error";

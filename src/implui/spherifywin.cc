@@ -99,8 +99,8 @@ double SpherifyWin::Parameters::radius_init(MainWin &model)
 			ea.coords[0],ea.coords[1],ea.coords[2]));
 		}
 	 
-		log_debug("center is %f,%f,%f\n",centerpoint[0],centerpoint[1],centerpoint[2]);
-		log_debug("radius is %f\n",radius);
+		//log_debug("center is %f,%f,%f\n",centerpoint[0],centerpoint[1],centerpoint[2]);
+		//log_debug("radius is %f\n",radius);
 	}
 	return radius;
 }

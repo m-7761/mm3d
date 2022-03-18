@@ -195,18 +195,13 @@ static void viewwin_influences_jointMakeSingleInfluence(MainWin &model)
 
 static void viewwin_influences_jointSelectUnassignedVertices(MainWin &model)
 {
-	model->unselectAllVertices();
 	model->beginSelectionDifference(); //OVERKILL!
+	model->unselectAllVertices();
 	{
 		for(unsigned v=model->getVertexCount();v-->0;)
+		if(model->getVertexInfluences(v).empty())
 		{
-			//infl_list l;
-			//model->getVertexInfluences(v,l);
-			//if(l.empty())
-			if(model->getVertexInfluences(v).empty())
-			{
-				model->selectVertex(v);
-			}
+			model->selectVertex(v);
 		}
 	}
 	model->endSelectionDifference();

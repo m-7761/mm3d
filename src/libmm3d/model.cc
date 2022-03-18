@@ -185,19 +185,11 @@ static int model_pointInTriangle(double *coord,
 static int model_findEdgePlaneIntersection(double *ipoint, double *p1, double *p2,
 		double *triCoord, double *triNorm)
 {
-	double edgeVec[3];
-	edgeVec[0] = p2[0]-p1[0];
-	edgeVec[1] = p2[1]-p1[1];
-	edgeVec[2] = p2[2]-p1[2];
+	double edgeVec[3] = { p2[0]-p1[0],p2[1]-p1[1],p2[2]-p1[2] };
 
-	/*
-	log_debug("finding intersection with plane with line from %f,%f,%f to %f,%f,%f\n",
-			p1[0],p1[1],p1[2],
-			p2[0],p2[1],p2[2]);
-	*/
+	//log_debug("finding intersection with plane with line from %f,%f,%f to %f,%f,%f\n",p1[0],p1[1],p1[2],p2[0],p2[1],p2[2]);
 
-	double a =	dot3(edgeVec,triNorm);
-	double d =-dot3(triCoord,triNorm);
+	double a = dot3(edgeVec,triNorm), d = -dot3(triCoord,triNorm);
 
 	// prevent divide by zero
 	if(fabs(a)<TOLERANCE)
@@ -209,14 +201,10 @@ static int model_findEdgePlaneIntersection(double *ipoint, double *p1, double *p
 	// distance along edgeVec p1 to plane
 	double dist = -(d+dot3(p1,triNorm))/a;
 
-	// dist is%of velocity vector,scale to get impact point
-	edgeVec[0] *= dist;
-	edgeVec[1] *= dist;
-	edgeVec[2] *= dist;
-
-	ipoint[0] = p1[0]+edgeVec[0];
-	ipoint[1] = p1[1]+edgeVec[1];
-	ipoint[2] = p1[2]+edgeVec[2];
+	// dist is %of velocity vector, scale to get impact point	
+	ipoint[0] = p1[0]+dist*edgeVec[0];
+	ipoint[1] = p1[1]+dist*edgeVec[1];
+	ipoint[2] = p1[2]+dist*edgeVec[2];
 
 	// Distance is irrelevant,we just want to know where 
 	// the intersection is
@@ -275,7 +263,7 @@ Model::~Model()
 	m_bspTree.clear();
 	m_selectedUv.clear();
 
-	log_debug("deleting model\n");
+	//log_debug("deleting model\n");
 	DrawingContextList::iterator it;
 	for(it = m_drawingContexts.begin(); it!=m_drawingContexts.end(); it++)
 	{
@@ -512,7 +500,7 @@ int Model::addVertex(double x, double y, double z)
 
 	m_changeBits |= AddGeometry;
 
-	Vertex *vertex = Vertex::get();
+	Vertex *vertex = Vertex::get(m_animationMode);
 
 	vertex->m_coord[0] = x;
 	vertex->m_coord[1] = y;
@@ -630,7 +618,7 @@ int Model::addBoneJoint(const char *name, double x, double y, double z, int pare
 
 	Joint *joint = m_joints.back();
 
-	log_debug("New joint at %f,%f,%f\n",x,y,z); //???
+	//log_debug("New joint at %f,%f,%f\n",x,y,z); //???
 
 	joint->m_rel[0] = x;
 	joint->m_rel[1] = y;
@@ -656,7 +644,7 @@ int Model::addPoint(const char *name, double x, double y, double z,
 
 	int num = m_points.size();
 
-	log_debug("New point at %f,%f,%f\n",x,y,z); //???
+	//log_debug("New point at %f,%f,%f\n",x,y,z); //???
 
 	Point *point = Point::get(m_animationMode);
 
@@ -698,7 +686,7 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 
 	int num = m_projections.size();
 
-	log_debug("New projection at %f,%f,%f\n",x,y,z);
+	//log_debug("New projection at %f,%f,%f\n",x,y,z);
 
 	TextureProjection *proj = TextureProjection::get();
 
@@ -851,7 +839,7 @@ void Model::deleteBoneJoint(unsigned joint)
 		sendUndo(undo);
 	}
 
-	log_debug("new parent was %d\n",new_parent);
+	//log_debug("new parent was %d\n",new_parent);
 
 	//May as well keep it up-to-date since the only real
 	//benefit to not doing so is if multiple joints are
@@ -899,35 +887,8 @@ void Model::deleteProjection(unsigned proj)
 
 unsigned Model::deleteOrphanedVertices(unsigned begin, unsigned i)
 {
-	i = std::min(i,(unsigned)m_vertices.size());
-
-	/*
-	//LOG_PROFILE(); //???
-
-	for(unsigned v = 0; v<m_vertices.size(); v++)
-	{
-		m_vertices[v]->m_marked = false;
-	}
-
-	for(unsigned t = 0; t<m_triangles.size(); t++)
-	{
-		for(unsigned v = 0; v<3; v++)
-		{
-			m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_marked = true;
-		}
-	}
-
-	for(int v = m_vertices.size()-1; v>=0; v--)
-	{
-		if(!m_vertices[v]->m_marked 
-			  &&!m_vertices[v]->m_free)
-		{
-			deleteVertex(v);
-		}
-	}*/
 	unsigned ret = 0;
-	//for(int i=m_vertices.size();i-->begin;)
-	while(i-->begin)
+	for(i=std::min(i,(unsigned)m_vertices.size());i-->begin;)
 	if(m_vertices[i]->m_faces.empty()) 
 	{
 		deleteVertex(i); ret++;
@@ -942,15 +903,9 @@ void Model::deleteFlattenedTriangles()
 	// Delete any triangles that have two or more vertex indices that point
 	// at the same vertex (could happen as a result of welding vertices
 
-	int count = m_triangles.size();
-	for(int t = count-1; t>=0; t--)
+	for(int t=m_triangles.size();t-->0;)
 	{
-		if(m_triangles[t]->m_vertexIndices[0]==m_triangles[t]->m_vertexIndices[1]
-		 ||m_triangles[t]->m_vertexIndices[0]==m_triangles[t]->m_vertexIndices[2]
-		 ||m_triangles[t]->m_vertexIndices[1]==m_triangles[t]->m_vertexIndices[2])
-		{
-			deleteTriangle(t);
-		}
+		if(m_triangles[t]->_isFlat()) deleteTriangle(t);	
 	}
 }
 
@@ -1022,7 +977,7 @@ void Model::deleteSelected()
 
 	// Some selected vertices may not be deleted if their parent
 	// triangle was deleted
-	unselectAll();
+//	unselectAllVertices();
 }
 
 bool Model::movePosition(const Position &pos, double x, double y, double z)
@@ -1092,9 +1047,8 @@ bool Model::moveVertex(unsigned index, double x, double y, double z)
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_MoveUnanimated;
-		undo->addPosition({PT_Vertex,index},x,y,z,
-				old[0],old[1],old[2]);
-		sendUndo(undo/*,true*/);
+		undo->addPosition({PT_Vertex,index},x,y,z,old[0],old[1],old[2]);
+		sendUndo(undo);
 	}
 
 	return true;
@@ -1233,7 +1187,8 @@ bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool dow
 	invalidateSkel(); return true;
 }
 
-void Model::beginHideDifference()
+/*REFERENCE
+void Model::beginHideDifference() //???
 {
 	//LOG_PROFILE(); //???
 
@@ -1250,8 +1205,7 @@ void Model::beginHideDifference()
 		}
 	}
 }
-
-void Model::endHideDifference()
+void Model::endHideDifference() //???
 {
 	//LOG_PROFILE(); //???
 
@@ -1278,7 +1232,7 @@ void Model::endHideDifference()
 		}
 		sendUndo(undo); break;
 	}}
-}
+}*/
 
 void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate2020E e)
 {
@@ -2043,7 +1997,7 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 	double scale[3],unscale[3]; //2020
 	m.getScale(scale);
 	for(int i=3;i-->0;) unscale[i] = 1/scale[i];
-	m.scale(unscale);	
+	m.scale(unscale);
 
 	auto f = [&](Object2020 &obj)
 	{
@@ -2075,6 +2029,7 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 		}
 	};	
 
+	double q4[4]; bool have_q4 = false;
 	for(Position p={PT_Point,pcount};p-->0;)
 	if(global||m_points[p]->m_selected)
 	{
@@ -2086,11 +2041,24 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 			switch(kf->m_isRotation)
 			{
 			case KeyTranslate:
-				m.translateVector(kf->m_parameter); 
+				//no, the points need to rotate, etc.
+				//m.translateVector(kf->m_parameter);
+				m.apply3x(kf->m_parameter);
 				break;
-			case KeyRotate:
-				m.rotateVector(kf->m_parameter); 
-				break;
+			case KeyRotate:			
+			{
+				auto &q = *(Quaternion*)q4;
+				if(!have_q4)
+				{
+					have_q4 = true;
+					m.getRotationQuaternion(q);
+				}				
+				Quaternion q2;
+				q2.setEulerAngles(kf->m_parameter);
+				q2 = q*q2;
+				q2.getEulerAngles(kf->m_parameter);				
+			}
+			break;
 			//FIX ME
 			//What about scale? //Correct?
 			case KeyScale:
@@ -2137,54 +2105,77 @@ void Model::subdivideSelectedTriangles()
 	unsigned tlen = m_triangles.size();
 	unsigned tnew = tlen;
 	
-	for(unsigned t = 0; t<tlen; t++)
+	for(unsigned t=0;t<tlen;t++)	
 	{
-		if(m_triangles[t]->m_selected)
+		auto *tp = m_triangles[t];
+
+		if(!tp->m_selected) continue;
+
+		unsigned verts[3];
+		for(unsigned v=0;v<3;v++)
 		{
-			unsigned verts[3];
+			unsigned a = tp->m_vertexIndices[v];
+			unsigned b = tp->m_vertexIndices[(v+1)%3];
+			if(b<a) std::swap(a,b);
 
-			for(unsigned v = 0; v<3; v++)
+			unsigned index;
+			SplitEdgesT e{a,b};
+			if(!seList.find_sorted(e,index))
 			{
-				unsigned a = m_triangles[t]->m_vertexIndices[v];
-				unsigned b = m_triangles[t]->m_vertexIndices[(v+1)%3];
+				double pa[3],pb[3];
+				getVertexCoordsUnanimated(a,pa);
+				getVertexCoordsUnanimated(b,pb);
 
-				unsigned index;
-
-				if(b<a)
-				{
-					unsigned c = a;
-					a = b;
-					b = c;
-				}
-
-				SplitEdgesT e{a,b};
-				if(!seList.find_sorted(e,index))
-				{
-					double pa[3],pb[3];
-					getVertexCoords(a,pa);
-					getVertexCoords(b,pb);
-
-					int vNew = m_vertices.size();
-					addVertex((pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2);
-					m_vertices.back()->m_selected = true;
-					e.vNew = vNew;
-					seList.insert_sorted(e);
-					verts[v] = vNew;
-				}
-				else verts[v] = seList[index].vNew;
+				int vNew = m_vertices.size();
+				addVertex((pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2);
+				m_vertices.back()->m_selected = true;
+				e.vNew = vNew;
+				seList.insert_sorted(e);
+				verts[v] = vNew;
 			}
-
-			addTriangle(m_triangles[t]->m_vertexIndices[1],verts[1],verts[0]);			
-			addTriangle(m_triangles[t]->m_vertexIndices[2],verts[2],verts[1]);			
-			addTriangle(verts[0],verts[1],verts[2]);			
-
-			setTriangleVertices(t,m_triangles[t]->m_vertexIndices[0],verts[0],verts[2]);
-
-			if(undo) undo->subdivide(t,tnew,tnew+1,tnew+2);
-
-			for(int i=3;i-->0;) m_triangles[tnew++]->m_selected = true;
+			else verts[v] = seList[index].vNew;
 		}
+
+		addTriangle(tp->m_vertexIndices[1],verts[1],verts[0]);			
+		addTriangle(tp->m_vertexIndices[2],verts[2],verts[1]);			
+		addTriangle(verts[0],verts[1],verts[2]);			
+
+		setTriangleVertices(t,tp->m_vertexIndices[0],verts[0],verts[2]);
+
+		if(undo) undo->subdivide(t,tnew,tnew+1,tnew+2);
+
+		int g = tp->m_group; for(int i=3;i-->0;)
+		{
+			m_triangles[tnew+i]->m_selected = true;
+
+			if(g>=0) addTriangleToGroup(g,tnew+i); //2022
+		}
+		
+		float dst[2][3], (*st)[3] = &tp->m_s; //2022
+		{
+			float tc[2][3]; for(int i=2;i-->0;) 
+			{
+				tc[i][0] = (st[i][0]+st[i][1])*0.5f;
+				tc[i][1] = (st[i][1]+st[i][2])*0.5f;
+				tc[i][2] = (st[i][2]+st[i][0])*0.5f;
+			}			
+			dst[0][0] = st[0][1]; dst[0][1] = tc[0][1]; dst[0][2] = tc[0][0]; //s
+			dst[1][0] = st[1][1]; dst[1][1] = tc[1][1]; dst[1][2] = tc[1][0]; //t
+			setTextureCoords(tnew+0,dst);
+			dst[0][0] = st[0][2]; dst[0][1] = tc[0][2]; dst[0][2] = tc[0][1]; //s
+			dst[1][0] = st[1][2]; dst[1][1] = tc[1][2]; dst[1][2] = tc[1][1]; //t
+			setTextureCoords(tnew+1,dst);
+			dst[0][0] = tc[0][0]; dst[0][1] = tc[0][1]; dst[0][2] = tc[0][2]; //s
+			dst[1][0] = tc[1][0]; dst[1][1] = tc[1][1]; dst[1][2] = tc[1][2]; //t
+			setTextureCoords(tnew+2,dst);
+			dst[0][0] = st[0][0]; dst[0][1] = tc[0][0]; dst[0][2] = tc[0][2]; //s
+			dst[1][0] = st[1][0]; dst[1][1] = tc[1][0]; dst[1][2] = tc[1][2]; //t
+			setTextureCoords(t,dst); //st
+		}
+
+		tnew+=3;
 	}
+	
 	if(undo)
 	{
 		m_undoEnabled = true;
@@ -2272,9 +2263,10 @@ void Model::reverseOrderSelectedTriangle()
 	}
 }
 
+unsigned Model::_op = !0;
 void Model::operationComplete(const char *opname)
 {
-	nonEditOpComplete(opname,true);
+	nonEditOpComplete(opname,true); Model::_op++;
 }
 void Model::nonEditOpComplete(const char *opname, bool _)
 {
@@ -2359,7 +2351,7 @@ void Model::undo()
 
 	if(list)
 	{
-		log_debug("got atomic undo list\n");
+		//log_debug("got atomic undo list\n");
 		setUndoEnabled(false);
 
 		// process back to front
@@ -2390,7 +2382,7 @@ void Model::redo()
 
 	if(list)
 	{
-		log_debug("got atomic redo list\n");
+		//log_debug("got atomic redo list\n");
 		setUndoEnabled(false);
 
 		// process front to back
@@ -2420,7 +2412,7 @@ void Model::undoCurrent()
 
 	if(list)
 	{
-		log_debug("got atomic undo list\n");
+		//log_debug("got atomic undo list\n");
 		setUndoEnabled(false);
 
 		// process back to front
@@ -2444,360 +2436,121 @@ void Model::undoCurrent()
 	m_selecting = false; //??? //endSelectionDifference?
 }
 
-bool Model::hideVertex(unsigned v)
+void Model::hideVertex(unsigned v, bool how) //UNSAFE???
 {
-	//LOG_PROFILE(); //???
-
-	if(v<m_vertices.size())
-	{
-		m_vertices[v]->m_visible = false;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	if(v<m_vertices.size()) m_vertices[v]->m_visible = !how;
+	else assert(0);
+}
+void Model::hideTriangle(unsigned t, bool how) //UNSAFE???
+{
+	if(t<m_triangles.size()) m_triangles[t]->m_visible = !how;
+	else assert(0);
+}
+void Model::hideJoint(unsigned j, bool how) //UNSAFE???
+{
+	if(j<m_joints.size()) m_joints[j]->m_visible = !how;
+	else assert(0);
+}
+void Model::hidePoint(unsigned p, bool how) //UNSAFE???
+{
+	if(p<m_points.size()) m_points[p]->m_visible = !how;
+	else assert(0);
 }
 
-bool Model::hideTriangle(unsigned t)
+bool Model::hideSelected(bool how)
 {
 	//LOG_PROFILE(); //???
 
-	if(t<m_triangles.size())
-	{
-		m_triangles[t]->m_visible = false;
-
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::hideJoint(unsigned j)
-{
-	//LOG_PROFILE(); //???
-
-	if(j<m_joints.size())
-	{
-		m_joints[j]->m_visible = false;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::hidePoint(unsigned p)
-{
-	//LOG_PROFILE(); //???
-
-	if(p<m_points.size())
-	{
-		m_points[p]->m_visible = false;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::unhideVertex(unsigned v)
-{
-	//LOG_PROFILE(); //???
-
-	if(v<m_vertices.size())
-	{
-		m_vertices[v]->m_visible = true;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::unhideTriangle(unsigned t)
-{
-	//LOG_PROFILE(); //???
-
-	if(t<m_triangles.size())
-	{
-		m_triangles[t]->m_visible = true;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::unhideJoint(unsigned j)
-{
-	//LOG_PROFILE(); //???
-
-	if(j<m_joints.size())
-	{
-		m_joints[j]->m_visible = true;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::unhidePoint(unsigned p)
-{
-	//LOG_PROFILE(); //???
-
-	if(p<m_points.size())
-	{
-		m_points[p]->m_visible = true;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool Model::hideSelected()
-{
-	//LOG_PROFILE(); //???
-
-	unsigned t = 0;
-	unsigned v = 0;
+	auto undo = m_undoEnabled?new MU_Hide(true):0;
 
 	// Need to track whether we are hiding a vertex and any triangles attached to it,
 	// or hiding a triangle,and only vertices if they are orphaned
-	for(v = 0; v<m_vertices.size(); v++)
-	{
-		if(m_vertices[v]->m_selected)
-		{
-			m_vertices[v]->m_marked = true;
-		}
-		else
-		{
-			m_vertices[v]->m_marked = false;
-		}
-	}
+	for(auto*vp:m_vertices) vp->m_marked = how==vp->m_selected;
 
 	// Hide selected triangles
-	for(t = 0; t<m_triangles.size(); t++)
+	for(unsigned t=m_triangles.size();t-->0;)
 	{
-		if(m_triangles[t]->m_selected)
+		auto *tp = m_triangles[t]; 
+		
+		if(tp->m_visible&&how==tp->m_selected)
 		{
-			m_triangles[t]->m_visible = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked  = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked  = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked  = false;
+			tp->m_visible = false;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectTriangles);
-				undo->setHideDifference(t,m_triangles[t]->m_visible);
-				sendUndo(undo);
-			}
+			m_vertices[tp->m_vertexIndices[0]]->m_marked = false;
+			m_vertices[tp->m_vertexIndices[1]]->m_marked = false;
+			m_vertices[tp->m_vertexIndices[2]]->m_marked = false;
+
+			if(undo) undo->setHideDifference(SelectTriangles,t);
 		}
 	}
 
 	// Hide triangles with a lone vertex that is selected
-	for(t = 0; t<m_triangles.size(); t++)
+	for(unsigned t=m_triangles.size();t-->0;)
 	{
-		if(m_triangles[t]->m_visible &&
-			  (	m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked 
-				||m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked 
-				||m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked))
+		auto *tp = m_triangles[t]; if(tp->m_visible)
 		{
-			m_triangles[t]->m_visible = false;
-
-			if(m_undoEnabled)
+			for(int i:tp->m_vertexIndices)
+			if(m_vertices[i]->m_marked)
 			{
-				auto undo = new MU_Hide(SelectTriangles);
-				undo->setHideDifference(t,m_triangles[t]->m_visible);
-				sendUndo(undo);
+				tp->m_visible = false;
+
+				if(undo) undo->setHideDifference(SelectTriangles,t);
+
+				break; //!
 			}
 		}
 	}
 
-	// Find orphaned vertices
-	for(v = 0; v<m_vertices.size(); v++)
+	// Hide orphaned vertices
+	for(unsigned v=m_vertices.size();v-->0;)
 	{
-		m_vertices[v]->m_marked = true;
-	}
-	for(t = 0; t<m_triangles.size(); t++)
-	{
-		if(m_triangles[t]->m_visible)
+		auto *vp = m_vertices[v]; 
+		if(vp->m_visible) //if(vp->m_marked)
 		{
-			// Triangle is visible,vertices must be too
-			m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked = false;
-		}
-	}
-
-	// Hide selected vertices
-	for(v = 0; v<m_vertices.size(); v++)
-	{
-		if(m_vertices[v]->m_visible&&m_vertices[v]->m_marked)
-		{
-			m_vertices[v]->m_visible = false;
-
-			if(m_undoEnabled)
+			// Triangle is visible, vertices must be too
+			bool mark = false;
+			for(auto&ea:vp->m_faces) if(ea.first->m_visible)
 			{
-				auto undo = new MU_Hide(SelectVertices);
-				undo->setHideDifference(v,m_vertices[v]->m_visible);
-				sendUndo(undo);
+				mark = true; break;
 			}
+			if(mark) continue;
+
+			vp->m_visible = false;
+
+			if(undo) undo->setHideDifference(SelectVertices,v);
 		}
 	}
 
-	for(unsigned j = 0; j<m_joints.size(); j++)
+	for(unsigned j=m_joints.size();j-->0;)
 	{
-		if(m_joints[j]->m_selected)
+		auto *jp = m_joints[j]; 
+		
+		if(jp->m_visible&&how==jp->m_selected)
 		{
-			m_joints[j]->m_visible = false;
+			jp->m_visible = false;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectJoints);
-				undo->setHideDifference(j,m_joints[j]->m_visible);
-				sendUndo(undo);
-			}
+			if(undo) undo->setHideDifference(SelectJoints,j);
 		}
 	}
 
-	for(unsigned p = 0; p<m_points.size(); p++)
+	for(unsigned p=m_points.size();p-->0;)
 	{
-		if(m_points[p]->m_selected)
+		auto *pp = m_points[p];
+		
+		if(pp->m_visible&&how==pp->m_selected)
 		{
-			m_points[p]->m_visible = false;
+			pp->m_visible = false;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectPoints);
-				undo->setHideDifference(p,m_points[p]->m_visible);
-				sendUndo(undo);
-			}
+			if(undo) undo->setHideDifference(SelectPoints,p);
 		}
 	}
 
-	unselectAll();
-
-	return true;
-}
-
-bool Model::hideUnselected()
-{
-	//LOG_PROFILE(); //???
-
-	unsigned t = 0;
-	unsigned v = 0;
-
-	// Need to track whether we are hiding a vertex and any triangles attached to it,
-	// or hiding a triangle,and only vertices if they are orphaned
-	// We could be doing both at the same
-	for(v = 0; v<m_vertices.size(); v++)
-	{
-		if(m_vertices[v]->m_selected)
-		{
-			m_vertices[v]->m_marked = false;
-		}
-		else
-		{
-			m_vertices[v]->m_marked = true;
-		}
-	}
-
-	// Hide triangles with any unselected vertices
-	for(t = 0; t<m_triangles.size(); t++)
-	{
-		if(!m_triangles[t]->m_selected)
-		{
-			log_debug("triangle %d is unselected,hiding\n",t);
-			m_triangles[t]->m_visible = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked  = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked  = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked  = false;
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectTriangles);
-				undo->setHideDifference(t,m_triangles[t]->m_visible);
-				sendUndo(undo);
-			}
-		}
-	}
-
-	// Find orphaned vertices
-	for(v = 0; v<m_vertices.size(); v++)
-	{
-		m_vertices[v]->m_marked = true;
-	}
-	for(t = 0; t<m_triangles.size(); t++)
-	{
-		if(m_triangles[t]->m_visible)
-		{
-			// Triangle is visible,vertices must be too
-			m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked = false;
-			m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked = false;
-		}
-	}
-
-	// Hide selected vertices
-	for(v = 0; v<m_vertices.size(); v++)
-	{
-		if(m_vertices[v]->m_visible&&m_vertices[v]->m_marked)
-		{
-			log_debug("vertex %d is visible and marked,hiding\n",v);
-			m_vertices[v]->m_visible = false;
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectVertices);
-				undo->setHideDifference(v,m_vertices[v]->m_visible);
-				sendUndo(undo);
-			}
-		}
-	}
-
-	for(unsigned j = 0; j<m_joints.size(); j++)
-	{
-		if(m_joints[j]->m_visible&&!m_joints[j]->m_selected)
-		{
-			m_joints[j]->m_visible = false;
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectJoints);
-				undo->setHideDifference(j,m_joints[j]->m_visible);
-				sendUndo(undo);
-			}
-		}
-	}
-
-	for(unsigned p = 0; p<m_points.size(); p++)
-	{
-		if(m_points[p]->m_visible&&!m_points[p]->m_selected)
-		{
-			m_points[p]->m_visible = false;
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectPoints);
-				undo->setHideDifference(p,m_points[p]->m_visible);
-				sendUndo(undo);
-			}
-		}
-	}
-
-	unselectAll();
-
+	if(undo) sendUndo(undo);
+	
+	//NOTE: This actually does selection undo logic, ensuring
+	//hidden elements aren't seen as selected.
+	if(how) unselectAll();
+	
 	return true;
 }
 
@@ -2805,18 +2558,15 @@ bool Model::unhideAll()
 {
 	//LOG_PROFILE(); //???
 
+	auto undo = m_undoEnabled?new MU_Hide(false):0;
+
 	for(unsigned v = 0; v<m_vertices.size(); v++)
 	{
 		if(!m_vertices[v]->m_visible)
 		{
 			m_vertices[v]->m_visible = true;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectVertices);
-				undo->setHideDifference(v,true);
-				sendUndo(undo);
-			}
+			if(undo) undo->setHideDifference(SelectVertices,v);
 		}
 	}
 	for(unsigned t = 0; t<m_triangles.size(); t++)
@@ -2825,12 +2575,7 @@ bool Model::unhideAll()
 		{
 			m_triangles[t]->m_visible = true;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectTriangles);
-				undo->setHideDifference(t,true);
-				sendUndo(undo);
-			}
+			if(undo) undo->setHideDifference(SelectTriangles,t);
 		}
 	}
 	for(unsigned j = 0; j<m_joints.size(); j++)
@@ -2839,12 +2584,7 @@ bool Model::unhideAll()
 		{
 			m_joints[j]->m_visible = true;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectJoints);
-				undo->setHideDifference(j,true);
-				sendUndo(undo);
-			}
+			if(undo) undo->setHideDifference(SelectPoints,j);
 		}
 	}
 	for(unsigned p = 0; p<m_points.size(); p++)
@@ -2853,19 +2593,15 @@ bool Model::unhideAll()
 		{
 			m_points[p]->m_visible = true;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Hide(SelectPoints);
-				undo->setHideDifference(p,true);
-				sendUndo(undo);
-			}
+			if(undo) undo->setHideDifference(SelectPoints,p);
 		}
 	}
 
-	return true;
+	if(undo) sendUndo(undo); return true;
 }
 
-void Model::hideTrianglesFromVertices()
+/*REFERENCE
+void Model::hideTrianglesFromVertices() //UNUSED
 {
 	//LOG_PROFILE(); //???
 
@@ -2873,12 +2609,12 @@ void Model::hideTrianglesFromVertices()
 	for(auto*ea:m_triangles)	
 	if(!m_vertices[ea->m_vertexIndices[0]]->m_visible
 	 ||!m_vertices[ea->m_vertexIndices[1]]->m_visible
-	 ||!m_vertices[ea->m_vertexIndices[2]]->m_visible )
+	 ||!m_vertices[ea->m_vertexIndices[2]]->m_visible)
 	{
-		ea->m_visible = false;
+		ea->m_visible = false; //UNSAFE???
 	}
 }
-void Model::unhideTrianglesFromVertices()
+void Model::unhideTrianglesFromVertices() //UNUSED
 {
 	//LOG_PROFILE(); //???
 
@@ -2888,32 +2624,34 @@ void Model::unhideTrianglesFromVertices()
 	 &&m_vertices[ea->m_vertexIndices[1]]->m_visible
 	 &&m_vertices[ea->m_vertexIndices[2]]->m_visible)
 	{
-		ea->m_visible = true;
+		ea->m_visible = true; //UNSAFE???
 	}
 }
-void Model::hideVerticesFromTriangles()
+void Model::hideVerticesFromTriangles() //UNUSED
 {
 	//LOG_PROFILE(); //???
 
-	/*REFERENCE
+	//REFERENCE
 	* 
 	* 2021: This is how this was implemented
 	* (refactored for readability)
 	* 
 	// Hide vertices with all triangles hidden
-	for(auto*ea:m_vertices) ea->m_visible = false; //???
+	{
+	//	for(auto*ea:m_vertices) ea->m_visible = false; //???
+	//	unhideVerticesFromTriangles();
+	}
 
-	unhideVerticesFromTriangles();*/
 	//2021
 	//I'm not sure this is better but at least
 	//it has the same semantics as the others
 	for(auto*ea:m_triangles)
 	if(!ea->m_visible) for(int i:ea->m_vertexIndices)
 	{
-		m_vertices[i]->m_visible = false;
+		m_vertices[i]->m_visible = false; //UNSAFE???
 	}	
 }
-void Model::unhideVerticesFromTriangles()
+void Model::unhideVerticesFromTriangles() //UNUSED
 {
 	//LOG_PROFILE(); //???
 
@@ -2921,9 +2659,9 @@ void Model::unhideVerticesFromTriangles()
 	for(auto*ea:m_triangles)	
 	if(ea->m_visible) for(int i:ea->m_vertexIndices)
 	{
-		m_vertices[i]->m_visible = true;
+		m_vertices[i]->m_visible = true; //UNSAFE???
 	}
-}
+}*/
 
 bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, double *y2, double *z2)const
 {
@@ -3518,7 +3256,7 @@ bool Model::getVertexCoords(unsigned vertexNumber, double *coord)const
 {
 	if(coord&&vertexNumber<m_vertices.size())
 	{
-		for(int t = 0; t<3; t++)
+		for(int t=3;t-->0;)
 		{
 			coord[t] = m_vertices[vertexNumber]->m_absSource[t];
 		}
@@ -3531,7 +3269,7 @@ bool Model::getVertexCoordsUnanimated(unsigned vertexNumber, double *coord)const
 {
 	if(coord&&vertexNumber<m_vertices.size())
 	{
-		for(int t = 0; t<3; t++)
+		for(int t=3;t-->0;)
 		{
 			coord[t] = m_vertices[vertexNumber]->m_coord[t];
 		}
@@ -3662,7 +3400,7 @@ bool Model::getNormal(unsigned triangleNum, unsigned vertexIndex, double *normal
 {
 	if(triangleNum<m_triangles.size()&&vertexIndex<3)
 	{
-		for(int t = 0; t<3; t++)
+		for(int t=0;t<3;t++)
 		{
 			normal[t] = m_triangles[triangleNum]->m_normalSource[vertexIndex][t];
 		}
@@ -3674,7 +3412,7 @@ bool Model::getNormalUnanimated(unsigned triangleNum, unsigned vertexIndex, doub
 {
 	if(triangleNum<m_triangles.size()&&vertexIndex<3)
 	{
-		for(int t = 0; t<3; t++)
+		for(int t=0;t<3;t++)
 		{
 			//normal[t] = m_triangles[triangleNum]->m_vertexNormals[vertexIndex][t];
 			normal[t] = m_triangles[triangleNum]->m_finalNormals[vertexIndex][t];
@@ -3723,7 +3461,7 @@ bool Model::getFlatNormalUnanimated(unsigned t, double *normal)const
 	{
 		//2020: Don't calculate if valid.
 		for(int i=0;i<3;i++)
-		normal[i] = tri->m_flatNormals[i];
+		normal[i] = tri->m_flatNormal[i];
 		return true;
 	}
 
@@ -3790,7 +3528,8 @@ bool Model::getBoneVector(unsigned joint, double *vec, const double *coord)const
 
 void Model::Vertex::_erase_face(Triangle *f, unsigned s)
 {
-	m_faces.erase(std::find(m_faces.begin(),m_faces.end(),std::make_pair(f,s)));
+	auto it = std::find(m_faces.begin(),m_faces.end(),std::make_pair(f,s));
+	if(it!=m_faces.end()) m_faces.erase(it); else assert(0);
 }
 void Model::calculateNormals()
 {
@@ -4108,7 +3847,7 @@ bool Model::validateNormals()const
 
 void Model::calculateBspTree()
 {
-	log_debug("calculating BSP tree\n");
+	//log_debug("calculating BSP tree\n");
 	m_bspTree.clear();
 
 	for(unsigned m = 0; m<m_groups.size(); m++)
@@ -4170,7 +3909,7 @@ bool Model::isTriangleMarked(unsigned int t)const
 	return false;
 }
 
-void Model::setTriangleMarked(unsigned t,bool marked)
+void Model::setTriangleMarked(unsigned t, bool marked)
 {
 	if(t<m_triangles.size())
 	{
@@ -4189,10 +3928,10 @@ void Model::clearMarkedTriangles()
 
 void model_show_alloc_stats()
 {
-	log_debug("\n");
-	log_debug("primitive allocation stats (recycler/total)\n");
+	//log_debug("\n");
+	//log_debug("primitive allocation stats (recycler/total)\n");
 
-	log_debug("Model: none/%d\n",model_allocated);
+	//log_debug("Model: none/%d\n",model_allocated);
 	Model::Vertex::stats();
 	Model::Triangle::stats();
 	Model::Group::stats();
@@ -4206,19 +3945,19 @@ void model_show_alloc_stats()
 //	Model::FrameAnimPoint::stats();
 	BspTree::Poly::stats();
 	BspTree::Node::stats();
-	log_debug("Textures: none/%d\n",Texture::s_allocated);
-	log_debug("GlTextures: none/%d\n",Model::s_glTextures);
+	//log_debug("Textures: none/%d\n",Texture::s_allocated);
+	//log_debug("GlTextures: none/%d\n",Model::s_glTextures);
 #ifdef MM3D_EDIT
-	log_debug("ModelUndo: none/%d\n",ModelUndo::s_allocated);
+	//log_debug("ModelUndo: none/%d\n",ModelUndo::s_allocated);
 #endif // MM3D_EDIT
-	log_debug("\n");
+	//log_debug("\n");
 }
 
 int model_free_primitives()
 {
 	int c = 0;
 
-	log_debug("purging primitive recycling lists\n");
+	//log_debug("purging primitive recycling lists\n");
 
 	c += Model::Vertex::flush();
 	c += Model::Triangle::flush();

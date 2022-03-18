@@ -363,7 +363,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		if(!drawContext->m_valid)
 		{
 			loadTextures(context);
-			log_debug("loaded textures for %p\n",context);
+			//log_debug("loaded textures for %p\n",context);
 		}
 	}
 	else if(!m_validContext) //2020
@@ -637,7 +637,7 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 		if(!drawContext->m_valid)
 		{
 			loadTextures(context);
-			log_debug("loaded textures for %p\n",context);
+			//log_debug("loaded textures for %p\n",context);
 		}*/
 	}
 

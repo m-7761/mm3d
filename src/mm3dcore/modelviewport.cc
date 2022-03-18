@@ -1394,7 +1394,7 @@ bool ModelViewport::keyPressEvent(int bt, int bs, int x, int y)
 
 		if(ctrl)
 		{
-			log_debug("set viewport %d\n",bt-'1');
+			//log_debug("set viewport %d\n",bt-'1');
 
 			ViewStateT viewState;
 			getViewState(viewState);			
@@ -1405,7 +1405,7 @@ bool ModelViewport::keyPressEvent(int bt, int bs, int x, int y)
 		}
 		else
 		{
-			log_debug("viewport recall %d\n",bt-'1');
+			//log_debug("viewport recall %d\n",bt-'1');
 			
 			//emit viewportRecallState(bt-'1');
 			//emit(this,viewportRecallState,bt-'1');
@@ -1537,7 +1537,7 @@ void ModelViewport::setViewState(const ViewStateT &viewState)
 
 void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 {
-	log_debug("viewChangeEvent(%d)\n",dir);
+	//log_debug("viewChangeEvent(%d)\n",dir);
 
 	if(dir==m_view) return;
 
@@ -1553,7 +1553,7 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	}
 	else m_viewInverse.apply3(m_scroll);
 
-	log_debug("center point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
+	//log_debug("center point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
 
 	bool toFree = false;
 	bool isFree = dir<=Tool::ViewPerspective||dir>=Tool::ViewOrtho;
@@ -1569,7 +1569,7 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 
 	if(toFree) //???
 	{
-		log_debug("inverting rotation\n");
+		//log_debug("inverting rotation\n");
 		m_rotX = -m_rotX;
 		m_rotY = -m_rotY;
 		m_rotZ = -m_rotZ;
@@ -1597,7 +1597,7 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	if(toFree) m = m.getInverse();
 
 	m.apply3(m_scroll);
-	log_debug("after point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
+	//log_debug("after point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
 
 	m_view = dir;
 	
@@ -1663,7 +1663,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		//double curDist = maxDist;
 		double minDist = maxDist*maxDist;
 		double curDepth = -DBL_MAX;
-		int i,iN,curIndex = -1;
+		int i,curIndex = -1;
 		Model::PositionTypeE curType = Model::PT_MAX;
 		//HACK: I'm trying to add a click model to selecttool.cc
 		//(I got the idea from polytool.cc)
@@ -1717,35 +1717,49 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		};			
 		if(mask&1<<Model::PT_Joint)
 		{
-			iN = model->getBoneJointCount();
-			for(i=0;i<iN;i++)		
-			if(selected||!model->isBoneJointSelected(i))
+			i = -1; for(auto*ea:model->getJointList())
 			{
-				model->getBoneJointCoords(i,coord.getVector());
+				i++; if(selected||!ea->m_selected)
+				{
+					if(ea->m_visible)
+					{
+						coord.setAll(ea->m_absSource);
 
-				f(Model::PT_Joint);
+						f(Model::PT_Joint);
+					}
+				}
 			}
 		}
 		if(mask&1<<Model::PT_Point)
 		{
-			iN = model->getPointCount();
-			for(i=0;i<iN;i++)		
-			if(selected||!model->isPointSelected(i))
+			i = -1; for(auto*ea:model->getPointList())
 			{
-				model->getPointCoords(i,coord.getVector());
+				i++; if(selected||!ea->m_selected)
+				{
+					if(ea->m_visible)
+					{
+						coord.setAll(ea->m_absSource);
 
-				f(Model::PT_Point);
+						f(Model::PT_Point);
+					}
+				}
 			}
 		}			
 		if(mask&1<<Model::PT_Projection)
+		if(model->getDrawProjections()) //2022: m_visible?
 		{
-			iN = model->getProjectionCount();
-			for(i=0;i<iN;i++)
-			if(selected||!model->isProjectionSelected(i))
+			i = -1;			
+			for(auto*ea:model->getProjectionList())
 			{
-				model->getProjectionCoords(i,coord.getVector());
+				i++; if(selected||!ea->m_selected)
+				{
+					//if(ea->m_visible) //getDrawProjections?
+					{
+						coord.setAll(ea->m_absSource);
 
-				f(Model::PT_Projection);
+						f(Model::PT_Projection);
+					}
+				}
 			}
 		}
 		//There's a lot more vertices to process and they're
@@ -1755,13 +1769,17 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		if(curType==Model::PT_MAX)
 		if(mask&1<<Model::PT_Vertex)
 		{
-			iN = model->getVertexCount();
-			for(i=0;i<iN;i++)
-			if(selected||!model->isVertexSelected(i))
+			i = -1; for(auto*ea:model->getVertexList())
 			{
-				model->getVertexCoords(i,coord.getVector());
+				i++; if(selected||!ea->m_selected)
+				{
+					if(ea->m_visible)
+					{
+						coord.setAll(ea->m_absSource);
 
-				f(Model::PT_Vertex);
+						f(Model::PT_Vertex);
+					}
+				}
 			}
 			parent->snap_vertex = curIndex;
 		}
@@ -1990,7 +2008,7 @@ void ModelViewport::Parent::initializeGL(Model *m)
 	{
 		GLint texSize = 0;
 		glGetIntegerv(GL_MAX_TEXTURE_SIZE,&texSize);
-		log_debug("max texture size is %dx%d\n",texSize,texSize);
+		//log_debug("max texture size is %dx%d\n",texSize,texSize);
 	}
 
 	checkGlErrors(m);
