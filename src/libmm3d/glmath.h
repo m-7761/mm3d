@@ -171,8 +171,8 @@ class Vector
 
 		double &operator[](int index);
 		const double &operator[](int index)const;
-		Vector operator+=(const Vector &rhs);
-		Vector operator-=(const Vector &rhs);
+		Vector &operator+=(const Vector &rhs);
+		Vector &operator-=(const Vector &rhs);
 		bool operator==(const Vector &rhs)const;
 
 		friend Vector operator*(const Vector &lhs, const Matrix &rhs);

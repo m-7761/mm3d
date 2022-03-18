@@ -932,7 +932,7 @@ const double &Vector::operator[](int index)const
 	return m_val[index];
 }
 
-Vector Vector::operator+=(const Vector &rhs)
+Vector &Vector::operator+=(const Vector &rhs)
 {
 	this->m_val[0] += rhs.m_val[0];
 	this->m_val[1] += rhs.m_val[1];
@@ -941,7 +941,7 @@ Vector Vector::operator+=(const Vector &rhs)
 	return *this;
 }
 
-Vector Vector::operator-=(const Vector &rhs)
+Vector &Vector::operator-=(const Vector &rhs)
 {
 	this->m_val[0] -= rhs.m_val[0];
 	this->m_val[1] -= rhs.m_val[1];
