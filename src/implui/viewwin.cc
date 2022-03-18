@@ -812,7 +812,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection"));	
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures","Ctrl+R"));
-	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+Alt+R"));
+	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+R"));
 				
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 

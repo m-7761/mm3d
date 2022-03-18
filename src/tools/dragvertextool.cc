@@ -198,6 +198,8 @@ void DragVertexTool::mouseButtonDown()
 		auto &v = *(Vector*)vl[i]->m_absSource;
 		v.getVector3(m_multi.back().coords);
 	}
+
+	m_vertId = vid;
 }
 void DragVertexTool::mouseButtonMove()
 {
@@ -291,7 +293,6 @@ void DragVertexTool::mouseButtonMove()
 			//I guess this is in pixels since I don't know what else
 			//it could be that's square. So no texture is 1x1 pixels.
 			double tol = m_proximity+0.00001;
-			tol*=tol; //sqrt
 
 			Tri *cmp1 = nullptr, *cmp2 = nullptr;
 
@@ -327,15 +328,28 @@ void DragVertexTool::mouseButtonMove()
 				if(cmp1==&ea) cmp = cmp1; else
 				if(cmp2==&ea) cmp = cmp2; else
 				{
-					double ds = s1-s;
-					double dt = t1-t;
-					double d1 = ds*ds+dt*dt,d2;					
-					if(d1<=tol) cmp = cmp1; if(cmp2)
+					double ss = s*ea.tol[0];
+					double tt = t*ea.tol[1];
+					double ds = s1-ss;
+					double dt = t1-tt;
+					//For pixels, round distance is counterintuitive.
+				//	double d1 = ds*ds+dt*dt;
+				//	if(d1<tol)
+					if(ds<=tol&&dt<=tol) cmp = cmp1; 
+					
+					if(cmp2)
 					{
-						ds = s2-s;
-						dt = t2-t; 					
-						d2 = ds*ds+dt*dt;
-						if(d2<d1&&d2<=tol) cmp = cmp2;
+						double d1 = ds*ds+dt*dt; //...
+						ds = s2-ss;
+						dt = t2-tt;						
+					//	double d2 = ds*ds+dt*dt;
+					//	if(d2<d1)
+						if(ds<=tol&&dt<=tol) //cmp = cmp2;
+						{
+							//I don't know how to do this comparison
+							//in a 2D way?
+							if(ds*ds+dt*dt<d1) cmp = cmp2; 
+						}
 					}
 				}
 
