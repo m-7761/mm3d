@@ -1585,7 +1585,7 @@ bool Model::simplifySelectedMesh(bool ignore)
 		#error Disable me (even in debug builds)
 		#endif
 		#ifdef _DEBUG
-		enum{ debug=1 }; //2
+		enum{ debug=2 }; //1
 		#else
 		enum{ debug=0 };
 		#endif
@@ -1730,7 +1730,7 @@ bool Model::simplifySelectedMesh(bool ignore)
 					{
 						if(sides==2)
 						{
-							double s = dot3(sideplane,vl[e.vFar]->m_absSource);
+							double s = dot3(sideplane,e.vecB);
 							if((s<0)==(side==1)) continue;
 						}
 
@@ -1847,7 +1847,7 @@ bool Model::simplifySelectedMesh(bool ignore)
 
 						if(sides==2)
 						{
-							double s = dot3(sideplane,vl[e.vFar]->m_absSource);
+							double s = dot3(sideplane,e.vecB);
 							if((s<0)==(side==1)) continue;
 						}
 

@@ -50,8 +50,8 @@ struct DuplicateCommand : Command
 		switch(arg)
 		{
 		default: assert(0);
-		//NOTE: Delete occupies this space (Ctrl+Alt+D)
-		case 0: return "Shift+Ctrl+Alt+D"; 
+		//NOTE: Delete occupies this space (Ctrl+X)
+		case 0: return "Shift+Ctrl+X"; 
 		case 1: return "Ctrl+D"; 
 		case 2: return "Shift+Ctrl+D"; 
 		}

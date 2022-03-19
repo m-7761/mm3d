@@ -36,7 +36,7 @@ struct ExtrudeCommand : Command
 
 	//This is a historical shortcut. The tool is using X.
 	//virtual const char *getKeymap(int){ return "Insert"; }
-	virtual const char *getKeymap(int){ return "Shift+Ctrl+X"; }
+	virtual const char *getKeymap(int){ return "Shift+X"; }
 
 	virtual bool activated(int, Model *model)
 	{
