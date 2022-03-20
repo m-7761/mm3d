@@ -191,7 +191,7 @@ void TextureCoordWin::_menubarfunc(int id)
 			if(tw->texture._tool_bs_lock!=tw->recall_lock[1])
 			{
 				tw->texture._tool_bs_lock = tw->recall_lock[1];
-				tw->model.views.status._texshlock.underscore(tw->recall_lock[1]!=0);
+				tw->model.views.status._texshlock.indicate(tw->recall_lock[1]!=0);
 			}
 
 			tw->texture.updateWidget();
@@ -213,7 +213,7 @@ void TextureCoordWin::_menubarfunc(int id)
 		for(auto&ea:viewwin_list)
 		{
 			ea->views.status._uvfitlock.name(id==1?"Fw":"Fh");
-			ea->views.status._uvfitlock.underscore(id!=3);
+			ea->views.status._uvfitlock.indicate(id!=3);
 		}
 		break;
 	
@@ -361,6 +361,12 @@ struct MapDirectionWin : Win
 		dir.add_item("Front").add_item("Back");
 		dir.add_item("Left").add_item("Right");
 		dir.add_item("Top").add_item("Bottom");
+
+		//2022: This isn't necessary, but since the auto selection
+		//system is pretty good, it's suggestive that the selection
+		//is made for the user... what wouldn't hurt though is more
+		//options to choose from the view ports.
+		if(*lv!=-1) ok_cancel.ok.activate();
 	}
 
 	multiple dir;
@@ -596,7 +602,7 @@ void TextureCoordWin::submit(control *c)
 		if(texture._tool_bs_lock!=recall_lock[1])
 		{
 			texture._tool_bs_lock = recall_lock[1];
-			model.views.status._texshlock.underscore(recall_lock[1]!=0);
+			model.views.status._texshlock.indicate(recall_lock[1]!=0);
 		}
 
 		texture.updateWidget();
@@ -759,8 +765,8 @@ void TextureCoordWin::mapReset()
 		case 0: direction = total[index]>=0.0?3:2; break;
 		case 1: direction = total[index]>=0.0?4:5; break;
 		case 2: direction = total[index]>=0.0?0:1; break;
-		default:direction = 0;
-			log_error("bad normal index: %d\n",index);			
+		default:direction = -1;
+		//	log_error("bad normal index: %d\n",index); //???
 		}
 	}
 	if(id_ok!=MapDirectionWin(&direction).return_on_close())

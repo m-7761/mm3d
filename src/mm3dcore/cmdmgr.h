@@ -67,8 +67,14 @@ public:
 
 	int getCommandCount(){ return m_commands.size(); };
 
-	// Yeah,it would be cleaner to use iterators--but I'm not going to.
+	// Yeah, it would be cleaner to use iterators--but I'm not going to.
 	Command *getFirstCommand(),*getNextCommand();
+
+	//2022: This binds a view port to a Command::activate call.
+	//It can only be called once and Model must match the tool.
+	Tool *getViewSurrogate(Model*);
+
+	void setViewSurrogate(Tool *t=nullptr){ m_current_view = t; }
 
 protected:
 		
@@ -76,6 +82,8 @@ protected:
 	CommandList::iterator m_commandIt;
 
 	static CommandManager *s_instance;
+
+	Tool *m_current_view; //2022
 };
 
 #endif // __CMDMGR_H

@@ -157,7 +157,7 @@ protected:
 	MeshVectorInfoT	** m_meshVecInfos;
 	std::string	 m_modelPath;
 	std::string	 m_modelBaseName;
-	std::vector<int> m_animStartFrame;
+	int_list m_animStartFrame;
 	int m_standFrame; // torso
 	int m_idleFrame; // legs
 	int m_headFrame; // head
@@ -611,7 +611,7 @@ bool Md3Filter::readAnimations(bool create)
 	std::vector<std::string> animNames;
 	int last_fcount = 0;
 	bool eliteLoop = false; // Elite Force loop style
-	std::vector<int> animLoop;
+	int_list animLoop;
 	int animKeyword = 0;
 
 	m_animStartFrame.clear();
@@ -1151,7 +1151,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 			//Doesn't always compile.
 			//std::vector<int32_t[3]> triang(meshTriangleCount); //C++11
 			std::vector<std::array<int,3>> triang(meshTriangleCount);
-			std::vector<int> tri(meshTriangleCount);
+			int_list tri(meshTriangleCount);
 			int32_t groupId = m_model->addGroup(meshName);
 			for(int t = 0; t<meshTriangleCount; t++)
 			{

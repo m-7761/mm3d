@@ -31,7 +31,7 @@
 typedef void *ContextT;
 
 typedef std::map<std::string,int> FileTextureMap;
-typedef std::vector<int> MaterialTextureList;
+typedef int_list MaterialTextureList;
 
 	//NOTE: How this works is it duplicates video 
 	//memory and OpenGL lists. It's best to avoid.

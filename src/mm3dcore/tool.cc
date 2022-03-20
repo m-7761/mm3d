@@ -28,6 +28,8 @@
 
 //int Tool::s_allocated = 0; //toolbox.cc
 
+bool Tool::tool_option_face_view = true; //2022
+
 Tool::Tool(ToolType tt, int count, const char *path)
 	:
 parent(),m_tooltype(tt),m_args(count),m_path(path)

@@ -35,6 +35,8 @@ struct SpherifyCommand : Command
 		return TRANSLATE_NOOP("Command","Spherify..."); 
 	}
 
+	virtual const char *getKeymap(int){ return "Shift+O"; }
+
 	virtual bool activated(int, Model *model)
 	{
 		extern void spherifywin(Model*);

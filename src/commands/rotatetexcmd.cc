@@ -39,10 +39,11 @@ struct RotateTextureCommand : Command
 	{
 		if(getPath()==GEOM_FACES_MENU)
 		//TODO? Is this the best language?
-		return "Faces\nRotate Texture Coordinates"; 
+		//return "Faces\nRotate Texture Coordinates"; 
+		return "Rotate Texture Coordinates"; 
 		//2022: Conflaing this language is misleading.
 		//return "Groups\nRotate Texture Coordinates"; 
-		return "Groups\nTurn Texture Coordinates CCW";
+		return "Groups\nTurn Texture Coordinates CCW"; //UNUSED
 
 		(void)TRANSLATE_NOOP("Command","Rotate Texture Coordinates");
 	}
@@ -87,7 +88,7 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 			model->setTextureCoords(i,st);
 		}
 	}
-	else if(getPath()==GEOM_GROUP_MENU)
+	else if(getPath()==GEOM_GROUP_MENU) //UNUSED
 	{
 		//REMOVE ME?
 		//TextureWidget::rotateCoordinatesCcw

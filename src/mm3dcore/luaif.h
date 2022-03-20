@@ -39,8 +39,8 @@ class LuaContext
 		Model *m_scriptModel;
 		Model *m_currentModel;
 		std::vector<Model*> m_list; // Does not include m_scriptModel
-		std::vector<int> m_createdVertices;
-		std::vector<int> m_createdTriangles;
+		int_list m_createdVertices;
+		int_list m_createdTriangles;
 		std::vector<MeshRectangle*> m_createdRectangles;
 
 	protected:

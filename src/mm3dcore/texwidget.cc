@@ -1186,7 +1186,7 @@ void TextureWidget::getCoordinates(int tri, float *s, float *t)
 void TextureWidget::saveSelectedUv()
 {
 	//HACK: Is it worth optimizing for undo/redo?
-	std::vector<int> _selectedUv;
+	int_list _selectedUv;
 	auto *selectedUv = &m_model->getSelectedUv();
 	if(m_model->getUndoEnabled())
 	selectedUv = &_selectedUv;
@@ -1207,7 +1207,7 @@ void TextureWidget::restoreSelectedUv()
 	//clearSelected();
 	for(auto&ea:m_vertices) ea.selected = false;
 
-	//std::vector<int> selectedUv;
+	//int_list selectedUv;
 	//m_model->getSelectedUv(selectedUv);
 	auto &selectedUv = m_model->getSelectedUv();
 

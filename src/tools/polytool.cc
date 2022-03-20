@@ -128,7 +128,7 @@ void PolyTool::mouseButtonDown()
 		}
 	}
 	
-	std::vector<int> sel;
+	int_list sel;
 	model->getSelectedVertices(sel);
 	{
 		//2022: this wasn't actually working
@@ -167,31 +167,27 @@ void PolyTool::mouseButtonDown()
 	}
 	sel.push_back(m_lastVertex);
 
-	int tri;
-	if(3==sel.size())
-	tri = model->addTriangle(sel[0],sel[1],sel[2]);	
-	model->selectVertex(m_lastVertex);
 	if(3==sel.size())
 	{
-		const Matrix &viewMatrix = 
-		parent->getParentBestInverseMatrix();
-		//viewMatrix.show(); //???
+		auto *verts = (unsigned*)(sel.data()); //C++
 
-		Vector viewNorm(0,0,1);
-		viewNorm.transform3(viewMatrix);
+		if(tool_option_face_view) //EXPERIMENTAL
+		{
+			Vector viewNorm(0,0,1),normal;
+			viewNorm.transform3(parent->getParentBestInverseMatrix());
+			model->calculateFlatNormal(verts,normal.getVector());
+			if(viewNorm.dot3(normal)<0)
+			std::swap(verts[1],verts[2]);
+		}
+		else if(!Model::Vertex::getOrderOfSelectionCCW()) //EXPERIMENTAL
+		{
+			std::reverse(verts,verts+3); //GOOD ENOUGH?
+		}
 
-		double dNorm[3];
-		//model->getNormal(tri,0,dNorm); //invalid (at vertex?)
-		model->getFlatNormal(tri,dNorm); //2020
-
-		//log_debug("view normal is %f %f %f\n",viewNorm[0],viewNorm[1],viewNorm[2]);
-		//log_debug("triangle normal is %f %f %f\n",dNorm[0],dNorm[1],dNorm[2]);
-
-		double d = dot3(viewNorm.getVector(),dNorm);
-		//log_debug("dot product is %f\n",d);
-
-		if(d<0) model->invertNormals(tri);
+		model->addTriangle(verts[0],verts[1],verts[2]);	
 	}	
+
+	model->selectVertex(m_lastVertex);
 
 	parent->updateAllViews();	
 }

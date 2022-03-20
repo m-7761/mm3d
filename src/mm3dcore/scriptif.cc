@@ -31,7 +31,7 @@
 #include "texmgr.h"
 #include "log.h"
 
-typedef std::vector<int> IntList;
+typedef int_list IntList;
 
 static std::string scriptif_getWriteFileName(const char *file)
 {

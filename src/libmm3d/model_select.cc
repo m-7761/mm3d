@@ -86,10 +86,8 @@ bool Model::selectTriangle(unsigned t)
 			m_changeBits |= SelectionFaces; //2019
 			
 			bool o = setUndoEnabled(false);
-			//selectVerticesFromTriangles();
-			selectVertex(m_triangles[t]->m_vertexIndices[0]);
-			selectVertex(m_triangles[t]->m_vertexIndices[1]);
-			selectVertex(m_triangles[t]->m_vertexIndices[2]);
+			auto *tv = m_triangles[t]->m_vertexIndices;
+			for(int i=3;i-->0;) selectVertex(tv[i]);
 			setUndoEnabled(o);
 
 			if(m_undoEnabled)
@@ -133,7 +131,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 		if(remove_me) //2019: MU_Select called in a loop!
 		{
 			//bool o = setUndoEnabled(false);			
-			//selectVerticesFromTriangles(); //INSANE?!?
+			//_selectVerticesFromTriangles(); //INSANE?!?
 			{
 				//BETTER: leverage new connectivty data?
 				for(auto i:m_triangles[t]->m_vertexIndices)
@@ -207,7 +205,7 @@ bool Model::selectGroup(unsigned m)
 			}
 			if(sel&&!m_selecting) m_changeBits|=SelectionFaces; //2022
 
-			if(sel) selectVerticesFromTriangles();
+			if(sel) _selectVerticesFromTriangles();
 		}
 
 		setUndoEnabled(o);
@@ -240,9 +238,7 @@ bool Model::unselectGroup(unsigned m)
 		{
 			m_triangles[i]->m_selected = false;
 		}
-
-		selectVerticesFromTriangles(); //OVERKILL?
-		
+		_selectVerticesFromTriangles(); //OVERKILL?		
 		setUndoEnabled(o);
 
 		m_groups[m]->m_selected = false;
@@ -733,7 +729,7 @@ next_triangle:
 		}
 	}
 
-	selectVerticesFromTriangles(); //OVERKILL? WHY NOT SET IN THE ABOVE LOGIC?
+	_selectVerticesFromTriangles(); //OVERKILL? WHY NOT SET IN THE ABOVE LOGIC?
 
 	//endSelectionDifference();
 
@@ -1185,25 +1181,25 @@ bool Model::selectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, do
 	switch(m_selectionMode)
 	{
 	case SelectVertices:
-		return selectVerticesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
+		selectVerticesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectTriangles:
-		return selectTrianglesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,false,test);
+		selectTrianglesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,false,test);
 		break;
 	case SelectConnected:
-		return selectTrianglesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,true,test);
+		selectTrianglesInVolumeMatrix(true,viewMat,x1,y1,x2,y2,true,test);
 		break;
 	case SelectGroups:
-		return selectGroupsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
+		selectGroupsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectJoints:
-		return selectBoneJointsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
+		selectBoneJointsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectPoints:
-		return selectPointsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
+		selectPointsInVolumeMatrix(true,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectProjections:
-		return selectProjectionsInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
+		selectProjectionsInVolumeMatrix (true,viewMat,x1,y1,x2,y2,test);
 		break;
 	default:
 		break; //???
@@ -1225,28 +1221,26 @@ bool Model::unselectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, 
 	switch(m_selectionMode)
 	{
 	case SelectVertices:
-		return selectVerticesInVolumeMatrix (false,viewMat,x1,y1,x2,y2,test);
+		selectVerticesInVolumeMatrix(false,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectTriangles:
-		return selectTrianglesInVolumeMatrix (false,viewMat,x1,y1,x2,y2,false,test);
+		selectTrianglesInVolumeMatrix(false,viewMat,x1,y1,x2,y2,false,test);
 		break;
 	case SelectConnected:
-		return selectTrianglesInVolumeMatrix (false,viewMat,x1,y1,x2,y2,true,test);
+		selectTrianglesInVolumeMatrix(false,viewMat,x1,y1,x2,y2,true,test);
 		break;
 	case SelectGroups:
-		return selectGroupsInVolumeMatrix (false,viewMat,x1,y1,x2,y2,test);
+		selectGroupsInVolumeMatrix(false,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectJoints:
-		return selectBoneJointsInVolumeMatrix (false,viewMat,x1,y1,x2,y2,test);
+		selectBoneJointsInVolumeMatrix(false,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectPoints:
-		return selectPointsInVolumeMatrix (false,viewMat,x1,y1,x2,y2,test);
+		selectPointsInVolumeMatrix(false,viewMat,x1,y1,x2,y2,test);
 		break;
 	case SelectProjections:
-		return selectProjectionsInVolumeMatrix (false,viewMat,x1,y1,x2,y2,test);
+		selectProjectionsInVolumeMatrix(false,viewMat,x1,y1,x2,y2,test);
 		break;
-	default:
-		break; //???
 	}
 
 	if(!selecting) endSelectionDifference(); //2020
@@ -1254,7 +1248,7 @@ bool Model::unselectInVolumeMatrix(const Matrix &viewMat, double x1, double y1, 
 	return true; //???
 }
 
-void Model::selectVerticesFromTriangles()
+void Model::_selectVerticesFromTriangles()
 {
 	//LOG_PROFILE(); //???
 
@@ -1314,7 +1308,7 @@ bool Model::selectTrianglesFromGroups_marked(bool how)
 	//harmless and I worry callers aren't tracking it.
 	if(sel&&!m_selecting) m_changeBits|=SelectionFaces;
 
-	if(sel) selectVerticesFromTriangles(); //OVERKILL?
+	if(sel) _selectVerticesFromTriangles(); //OVERKILL?
 
 	return sel;
 }
@@ -1351,8 +1345,15 @@ bool Model::selectUngroupedTriangles(bool how) //2022
 		tp->m_selected = how;
 	}
 
-	if(sel&&!m_selecting) m_changeBits|=SelectionFaces; //2020
+	if(sel)
+	{
+		if(!m_selecting) m_changeBits|=SelectionFaces; //2020
 	
+		bool o = setUndoEnabled(false);
+		_selectVerticesFromTriangles(); 
+		setUndoEnabled(o);
+	}
+
 	sendUndo(undo); return sel;
 }
 
@@ -1377,29 +1378,15 @@ void Model::selectTrianglesFromVertices(bool all)
 				}
 
 			}
-			if(all)
+			if(count==(all?3:0))
 			{
-				if(count==3)
-				{
-					m_triangles[t]->m_selected = true;
-				}
-			}
-			else
-			{
-				if(count>0)
-				{
-					m_triangles[t]->m_selected = true;
-				}
+				m_triangles[t]->m_selected = true;
 			}
 		}
 	}
 
 	// Unselect vertices who don't have a triangle selected
-	if(all)
-	{
-		unselectAllVertices();
-		selectVerticesFromTriangles();
-	}
+	if(all) _selectVerticesFromTriangles();
 }
 
 //void Model::selectGroupsFromTriangles(bool all)
@@ -1456,7 +1443,7 @@ bool Model::invertSelection()
 
 		for(auto*p:m_triangles) if(p->m_visible) p->m_selected = !p->m_selected;
 
-		selectVerticesFromTriangles();
+		_selectVerticesFromTriangles();
 
 		break;
 
@@ -1563,7 +1550,7 @@ void Model::endSelectionDifference()
 	//These enum names are too similar. (This was a bug immediately after implementing model_select.)
 	sendUndo(model_select<Vertex>(ue,m_changeBits,m_vertices,SelectVertices,SelectionVertices)/*,true*/);
 	sendUndo(model_select<Triangle>(ue,m_changeBits,m_triangles,SelectTriangles,SelectionFaces)/*,true*/);
-	sendUndo(model_select<Group>(ue,m_changeBits,m_groups,SelectGroups,SelectionGroups)/*,true*/);
+//	sendUndo(model_select<Group>(ue,m_changeBits,m_groups,SelectGroups,SelectionGroups)/*,true*/);
 	sendUndo(model_select<Joint>(ue,m_changeBits,m_joints,SelectJoints,SelectionJoints)/*,true*/);
 	sendUndo(model_select<Point>(ue,m_changeBits,m_points,SelectPoints,SelectionPoints)/*,true*/);
 	sendUndo(model_select<TextureProjection>(ue,m_changeBits,m_projections,SelectProjections,SelectionProjections)/*,true*/);
@@ -2332,10 +2319,8 @@ bool Model::setSelectedTriangles(const int_list &l) //2022
 		
 	if(sel) //HACK: Emulate MU_Select?
 	{	
-		bool o = setUndoEnabled(false);
-		{
-			selectVerticesFromTriangles();
-		}
+		bool o = setUndoEnabled(false);		
+		_selectVerticesFromTriangles();
 		setUndoEnabled(o);
 
 		m_changeBits |= SelectionFaces;
@@ -2343,7 +2328,6 @@ bool Model::setSelectedTriangles(const int_list &l) //2022
 	
 	sendUndo(undo); return sel;
 }
-
 void Model::setSelectedUv(const int_list &uvList)
 {
 	//Inappropriate. Nothing sees UVs.
@@ -2366,14 +2350,14 @@ void Model::setSelectedUv(const int_list &uvList)
 	m_selectedUv = uvList;
 }
 
-void Model::getSelectedUv(std::vector<int> &uvList)const
+void Model::getSelectedUv(int_list &uvList)const
 {
 	uvList = m_selectedUv;
 }
 
 void Model::clearSelectedUv()
 {
-	std::vector<int> empty; setSelectedUv(empty);
+	int_list empty; setSelectedUv(empty);
 }
 
 void Model::getSelectedInterpolation(unsigned anim, unsigned frame, Get3<Interpolate2020E> pred)

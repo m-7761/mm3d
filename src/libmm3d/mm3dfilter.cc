@@ -1263,7 +1263,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		std::vector<int> j2; //2021
+		int_list j2; //2021
 
 		for(unsigned j=0;j<count;j++)
 		{

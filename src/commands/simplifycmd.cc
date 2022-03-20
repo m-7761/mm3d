@@ -34,7 +34,9 @@ struct SimplifyMeshCommand : Command
 
 	virtual const char *getName(int arg)
 	{
-		return TRANSLATE_NOOP("Command",arg?"Simplify Bare Mesh":"Simplify"); 
+		//Simplification seems to suggest removing details.
+		//return TRANSLATE_NOOP("Command","Simplify Mesh"); 
+		return TRANSLATE_NOOP("Command",arg?"Minimize Bare Mesh":"Minimize"); 
 	}
 
 	virtual const char *getKeymap(int arg){ return arg?"Shift+Ctrl+M":"Shift+M"; }	
@@ -46,6 +48,11 @@ extern Command *simplifycmd(){ return new SimplifyMeshCommand; }
 
 bool SimplifyMeshCommand::activated(int arg, Model *model)
 {
-	return model->simplifySelectedMesh(arg==1); 
+	bool ret = model->simplifySelectedMesh(arg==1); 
+	//2022: Input feedback helps to be sure keys are processed.
+	model_status(model,StatusNormal,STATUSTIME_SHORT,
+	TRANSLATE("Command",ret?"Redundant edges eliminated"
+	:"0 redundancy (elminating 1 vertex must convert 2 edges into 1 straight edge)"));
+	return ret;
 }
 

@@ -140,7 +140,8 @@ struct ViewBar::StatusBar : StatusObject
 	m_queueDisplay(),
 	nav(bar.exterior_row,bi::sunken),
 	text(nav,""),
-	flags(nav),	
+	flags(nav),		
+		//left-to-right reading (priority)
 	_vert_snap(flags,"Vs",id_snap_vert),
 	_grid_snap(flags,"Gs",id_snap_grid),
 	_uvfitlock(flags,"Fw",id_uv_editor), //?
@@ -148,6 +149,8 @@ struct ViewBar::StatusBar : StatusObject
 	_shiftlock(flags,"Sh",id_tool_shift_lock),
 	_texshlock(flags,"Uv",id_tool_shift_lock),
 	_shifthold(flags,"Lk",id_tool_shift_hold),
+	_face_view(flags,"Ccw",id_normal_order),
+		//right-to-left reading (priority)
 	_100(flags,"Wt",id_joint_100),
 	_clipboard(flags,"Ins",id_animate_insert),	
 	_keys_snap(flags,"Scr",id_animate_snap),
@@ -173,9 +176,9 @@ struct ViewBar::StatusBar : StatusObject
 	row nav;
 	textbox text;
 	row flags;
-	struct Flag:titlebar
+	struct Indicator:titlebar
 	{
-		Flag(row &r, utf8 c, int i):titlebar(r,c)
+		Indicator(row &r, utf8 c, int i):titlebar(r,c)
 		{
 			id(i); //if(hiding) 
 			{
@@ -185,7 +188,8 @@ struct ViewBar::StatusBar : StatusObject
 			}
 		}
 
-		bool underscore(bool _)
+		//bool underscore(bool _)
+		bool indicate(bool _)
 		{
 			int_val() = _; /*if(!hiding) //underscoring?
 			{
@@ -201,10 +205,11 @@ struct ViewBar::StatusBar : StatusObject
 	_vert_snap, //Vs
 	_grid_snap, //Gs
 	_uvfitlock, //Fw/Fh
-	_interlock, //Ex (invertd)
+	_interlock, //Ex (inverted)
 	_shiftlock, //Sh
 	_texshlock, //Uv 
 	_shifthold, //Lk (inverted)
+	_face_view, //Cw/Ccw (inverted)
 	_100, //1 //Wt (inverted)
 	_clipboard, //Ins
 	_keys_snap, //Scr (inverted)

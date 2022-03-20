@@ -216,7 +216,7 @@ void MU_Select::undo(Model *model)
 	}
 
 	//2019: unselectTriangle did this per triangle
-	if(unselect&&!conv) model->selectVerticesFromTriangles();
+	if(unselect&&!conv) model->_selectVerticesFromTriangles();
 }
 void MU_Select::redo(Model *model)
 {
@@ -275,13 +275,13 @@ void MU_Select::redo(Model *model)
 	}	
 
 	//2019: unselectTriangle did this per triangle
-	if(unselect&&!conv) model->selectVerticesFromTriangles();
+	if(unselect&&!conv) model->_selectVerticesFromTriangles();
 }
 
 bool MU_Select::combine(Undo *u)
 {
 	//WHY WAS THIS DISABLED?
-	//Restoring this. The selectVerticesFromTriangles
+	//Restoring this. The _selectVerticesFromTriangles
 	//fix above can't work with uncombined lists
 	//https://github.com/zturtleman/mm3d/issues/93
 	///*
@@ -360,7 +360,7 @@ unsigned MU_SetSelectedUv::size()
 	return sizeof(MU_SetSelectedUv)+m_oldUv.size()*sizeof(int)+m_newUv.size()*sizeof(int)+sizeof(m_oldUv)+sizeof(m_newUv);
 }
 
-void MU_SetSelectedUv::setSelectedUv(const std::vector<int> &newUv, const std::vector<int> &oldUv)
+void MU_SetSelectedUv::setSelectedUv(const int_list &newUv, const int_list &oldUv)
 {
 	m_newUv = newUv; m_oldUv = oldUv;
 }

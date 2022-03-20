@@ -760,8 +760,8 @@ bool ObjFilter::readTextureCoord(char *line)
 bool ObjFilter::readFace(char *line)
 {
 	line += 2;
-	std::vector<int> vlist;
-	std::vector<int> vtlist;
+	int_list vlist;
+	int_list vtlist;
 	int len = 0;
 	int v = 0;
 

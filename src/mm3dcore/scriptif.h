@@ -32,8 +32,8 @@ class MeshRectangle
 {
 public:
 
-	std::vector<int> m_vertices;
-	std::vector<int> m_faces;
+	int_list m_vertices;
+	int_list m_faces;
 };
 
 //REMINDER (DAEDALUS)

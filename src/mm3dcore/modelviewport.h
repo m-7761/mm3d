@@ -240,7 +240,10 @@ public: //slots:
 		m_scrollTextures[0] = 0;
 	}
 
-	int m_focus;
+	//2022: m_click is added for determining new face normals.
+	//It means last clicked, so that moving the mouse up to the
+	//system menu to choose a command doesn't switch mouse focus.
+	int m_focus,m_click; 
 	
 	//NOTE: This is used with Ctrl+1 through 9 to save/recall
 	//states by viewportSaveStateEvent/viewportRecallStateEvent.
@@ -259,39 +262,39 @@ public: //slots:
 	// Tool::Parent methods
 	virtual Tool::ViewE getView()
 	{
-		return ports[m_focus].m_view; 
+		return ports[m_click].m_view; //m_focus
 	}
 	virtual bool getParentXYZValue(double &xval, double &yval, double &zval, bool selected)
 	{
-		return ports[m_focus].getParentXYZValue(_bs,_bx,_by,xval,yval,zval,selected);
+		return ports[m_click].getParentXYZValue(_bs,_bx,_by,xval,yval,zval,selected);
 	}
 	virtual void getRawParentXYValue(double &xval, double &yval)
 	{
-		ports[m_focus].getRawParentXYValue(_bx,_by,xval,yval);
+		ports[m_click].getRawParentXYValue(_bx,_by,xval,yval);
 	}
 	virtual const Matrix &getParentViewMatrix()const
 	{
-		return ports[m_focus].m_viewMatrix; 
+		return ports[m_click].m_viewMatrix; 
 	}
 	virtual const Matrix &getParentViewInverseMatrix()const
 	{
-		return ports[m_focus].m_viewInverse; 
+		return ports[m_click].m_viewInverse; 
 	}
 	virtual const Matrix &getParentBestMatrix()const
 	{
 		if(tool->isSelectTool()) //REMOVE ME
-		return ports[m_focus].m_projMatrix; 
-		return ports[m_focus].m_bestMatrix; 
+		return ports[m_click].m_projMatrix; 
+		return ports[m_click].m_bestMatrix; 
 	}
 	virtual const Matrix &getParentBestInverseMatrix()const
 	{
 		if(tool->isSelectTool()) //REMOVE ME
-		return ports[m_focus].m_unprojMatrix; 
-		return ports[m_focus].m_bestInverse; 
+		return ports[m_click].m_unprojMatrix; 
+		return ports[m_click].m_bestInverse; 
 	}
 	virtual double _getParentZoom()const //TESTING
 	{
-		return ports[m_focus].m_zoom;
+		return ports[m_click].m_zoom;
 	} 
 	virtual void getXYZ(double*,double*,double*);
 };

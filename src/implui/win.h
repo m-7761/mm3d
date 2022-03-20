@@ -72,6 +72,11 @@ enum
 	id_file_prefs_rmb,
 	id_file_quit, //wxOSX needs to be Quit.
 
+	//EXPERIMENTAL
+	id_normal_order,
+	id_normal_click,
+	id_normal_ccw,
+
 	/*View->Snap menu*/
 	id_snap_grid,id_snap_vert,
 

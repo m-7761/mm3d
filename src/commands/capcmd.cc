@@ -27,8 +27,8 @@
 #include "model.h"
 #include "log.h"
 #include "modelstatus.h"
-
-#include "command.h"
+#include "cmdmgr.h"
+#include "tool.h"
 
 struct CapCommand : Command
 {
@@ -39,240 +39,203 @@ struct CapCommand : Command
 		return TRANSLATE_NOOP( "Command","Cap Holes"); 
 	}
 
-	virtual bool activated(int, Model *model);
+	virtual const char *getKeymap(int){ return "Ctrl+Enter"; }
 
-	void getConnected(
-			Model *model, int vert,
-			int_list &conList,
-			int_list &triList);
-	void addToList(int_list &l, int ignore, int val);
-	int createMissingTriangle(Model *model, unsigned int v,
-			int_list &conList,int_list &triList);
-	int triangleCount(Model *model,
-			unsigned int v1, unsigned int v2,
-			int_list &triList, int &tri);
+	double *m_view;
+	virtual bool activated(int,Model*);
+
+	typedef std::vector<Model::Triangle*> tri_list;
+	void getConnected(Model *model, int vert, int_list &conList, tri_list &triList);
+	int createMissingTriangle(Model *model, unsigned v, int_list &conList, tri_list &triList);
+	Model::Triangle *findSingleton(Model *model, unsigned v1, unsigned v2, tri_list &triList);
 };
 
 extern Command *capcmd(){ return new CapCommand; }
 
 bool CapCommand::activated(int arg, Model *model)
 {
+	assert(!m_view);
+
+	double view[4];
+	//HACK: polytool.cc uses the view port to flip the face instead
+	//of winding... I intend to add an option to control this later.
+	if(Tool*tool=CommandManager::getInstance()->getViewSurrogate(model))
+	{
+		m_view = view; //0,0,1
+		view[0] = view[1] = 0; view[2] = 1;
+		((Vector*)m_view)->transform3(tool->parent->getParentBestInverseMatrix());		
+	}
+
 	int added = 0;
+
+	//2022: This is needed to use m_faces with setting up m_user.
+	model->validateNormals(); 
 
 	// Algorithm:
 	//
 	// Selected edges
-	// For each selected vertex,check every vertex connected to it
+	// For each selected vertex, check every vertex connected to it
 	//
 	//	For each connected edge that does not belong to two triangles,
 	//	add a triangle using a third vertex from another triangle
 	//	that uses this vertex and another selected vertex
-
-	int_list vertList;
-	int_list triList;  // triangles using target vertex
+	
+	tri_list triList;  // triangles using target vertex
 	int_list conList;  // vertices connected to target vertex
-
+	int_list vertList;
+	auto &tl = model->getTriangleList();
 	model->getSelectedVertices(vertList);
-
-	int_list::iterator it;
-	for(it = vertList.begin(); it!=vertList.end(); it++)
+	for(int v:vertList)
 	{
-		getConnected(model,*it,conList,triList);
+		getConnected(model,v,conList,triList);
 
-		unsigned int vcount = conList.size();
-		unsigned int tcount = triList.size();  
+		// If I'm connected to more than two vertices, the
+		// triangle and vertex count should match, otherwise
+		// there is a gap/hole.
+
+		auto vcount = conList.size();
+		auto tcount = triList.size();  
 		if(vcount>2&&vcount!=tcount)
+		for(int tri;tcount!=vcount;)
+		if((tri=createMissingTriangle(model,v,conList,triList))>=0)
 		{
-			// If I'm connected to more than two vertices,the
-			// triangle and vertex count should match,otherwise
-			// there is a gap/hole.
-
-			int newTri = 0;
-			while(tcount!=vcount&&newTri>=0)
-			{
-				newTri = createMissingTriangle(model,*it,conList,triList);
-				if(newTri>=0)
-				{
-					added++;
-					tcount++;
-					triList.push_back(newTri);
-				}
-			}
+			added++; tcount++; 
+					
+			triList.push_back(const_cast<Model::Triangle*>(tl[tri]));
 		}
+		else break;
 	}
+
+	m_view = nullptr;
 
 	if(added!=0)
 	{
 		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Cap Holes complete"));
 		return true;
 	}
-	else
-	{
-		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Could not find gap in selected region"));
-	}
+	model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Could not find gap in selected region"));
 	return false;
 }
 
-void CapCommand::getConnected(Model *model, int v,
-		int_list &conList,
-		int_list &triList)
+void CapCommand::getConnected(Model *model, int v, int_list &conList, tri_list &triList)
 {
-	conList.clear();
-	triList.clear();
+	conList.clear(); triList.clear();
 
-	unsigned int tcount = model->getTriangleCount();
-	for(unsigned int tri = 0; tri<tcount; tri++)
+	//2022: Optimizing with m_faces I'm uncertain if all of this 
+	//infrastructure (containers/subroutines) are still required.
+	for(auto&ea:model->getVertexList()[v]->m_faces)
 	{
-		unsigned int verts[3];
-		model->getTriangleVertices(tri,verts[0],verts[1],verts[2]);
+		//NOTE: I'm not sure only considering selected faces here
+		//is correct or ideal. The algorithm depends entirely on
+		//counting vertices and faces (I think I've seen it fail)
+		//so it's necessary perhaps to collect all connections.
 
-		for(int i = 0; i<3; i++)
+		auto *verts = ea.first->m_vertexIndices;
+
+		for(int i=0;i<3;i++) if(v==(int)verts[i])
 		{
-			if((int)verts[i]==v)
+			for(int j=0;j<3;j++) if(v!=verts[j])
 			{
-				triList.push_back(tri);
-
-				addToList(conList,v,verts[0]);
-				addToList(conList,v,verts[1]);
-				addToList(conList,v,verts[2]);
-
-				break;
-			}
-		}
-	}
-}
-
-void CapCommand::addToList(int_list &l, int ignore, int val)
-{
-	if(ignore==val)
-	{
-		return;
-	}
-
-	int_list::iterator it;
-	for(it = l.begin(); it!=l.end(); it++)
-	{
-		if(*it==val)
-		{
-			return;
-		}
-	}
-	l.push_back(val);
-}
-
-
-//float Model::cosToPoint(unsigned t, double *point)const
-static float capcmd_cos2point(double *normal, double *vertex, double *compare)
-{
-	double vec[3];
-	for(int i=3;i-->0;) vec[i] = compare[i]-vertex[i];
-
-	// normalized vector from plane to point
-	normalize3(vec);
-
-	double f = dot3(normal,vec);
-	
-	//log_debug("  dot3(%f,%f,%f  %f,%f,%f)\n",normal[0],normal[1],normal[2],vec[0],vec[1],vec[2]); //???
-	//log_debug("  behind triangle dot check is %f\n",f); //???
-		
-	return (float)f; //truncate?
-}
-
-int CapCommand::createMissingTriangle(Model *model, unsigned int v,
-		int_list &conList,int_list &triList)
-{
-	int_list::iterator cit1,cit2;
-	int tri = 0;
-
-	for(cit1 = conList.begin(); cit1!=conList.end(); cit1++)
-	if(model->isVertexSelected(*cit1)
-	&&1==triangleCount(model,v,*cit1,triList,tri))
-	{
-		cit2 = cit1;
-		cit2++;
-
-		// Find third triangle vertex for normal test below
-		int tri1Vert = 0; 
-		unsigned int verts[3];
-		model->getTriangleVertices(tri,verts[0],verts[1],verts[2]);
-
-		for(int i = 0; i<3; i++)
-		if(verts[i]!=v&&verts[i]!=(unsigned int)*cit1)
-		{
-			tri1Vert = verts[i];
-		}
-
-		for(; cit2!=conList.end(); cit2++)		
-		if(model->isVertexSelected(*cit2)
-		&&1==triangleCount(model,v,*cit2,triList,tri))
-		{
-			int newTri = model->addTriangle(v,*cit1,*cit2);
-
-			double coord1[3],norm1[3];
-			double coord2[3],norm2[3];
-
-			model->getFlatNormal(tri,norm1);
-			model->getFlatNormal(newTri,norm2);
-			model->getVertexCoords(*cit1,coord2);
-			model->getVertexCoords(tri1Vert,coord1);
-
-			// this is why we needed the third vertex above,
-			// so we can check to see if we need to invert
-			// the new triangle (are the triangles behind
-			// each other or in front of each other?)
-			float f = capcmd_cos2point(norm1,coord1,coord2);
-			if(fabs(f)<0.0001f)
-			{
-				// Points are nearly co-planar,
-				// normals should face the same way
-				if(dot3(norm1,norm2)<0.0f)
-				{
-					model->invertNormals(newTri);
+				auto e = conList.end();
+				if(e==std::find(conList.begin(),e,(int)verts[j]))
+				{	
+					conList.push_back(verts[j]);
 				}
 			}
-			else
-			{
-				bool cmp = f>0;
-				if(cmp!=capcmd_cos2point(norm2,coord2,coord1)>0)
-				{
-					model->invertNormals(newTri);
-				}
-			}
-
-			return newTri;
+			triList.push_back(ea.first); break;
 		}
-	}	
-	return -1;
+	}
 }
 
-int CapCommand::triangleCount(Model *model,
-unsigned int v1, unsigned int v2,int_list &triList, int &tri)
+Model::Triangle *CapCommand::findSingleton
+(Model *model, unsigned v1, unsigned v2, tri_list &triList)
 {
-	int_list::iterator it;
-
-	unsigned int verts[3];
-	int triCount = 0;
-
-	for(it = triList.begin(); it!=triList.end(); it++)
+	Model::Triangle *tri;
+	int triCount = 0; for(auto*tp:triList)
 	{
-		model->getTriangleVertices(*it,verts[0],verts[1],verts[2]);
-
+		auto*verts = tp->m_vertexIndices;
 		bool have1 = false;
 		bool have2 = false;
-
-		for(int i = 0; i<3; i++)
+		for(int j=3;j-->0;)
 		{
-			if(verts[i]==v1)
-				have1 = true;
-			else if(verts[i]==v2)
-				have2 = true;
+			if(verts[j]==v1) have1 = true;
+			if(verts[j]==v2) have2 = true;
 		}
-
 		if(have1&&have2)
 		{
-			triCount++;
-			tri = *it;
+			triCount++; tri = tp;
 		}
 	}
-	return triCount;
+	//2022: This wasn't done prior, however I don't see any
+	//way it would spoil the algorithm, and there's no other
+	//way to keep the new created faces from being processed
+	//and if that's the rule then the outer loop should then
+	//startover from the beginning when faces are added to be
+	//consistent, which would be prohibitive.		
+	//return triCount==1?tri:nullptr;
+	return triCount==1&&tri->m_selected?tri:nullptr;
+}
+
+int CapCommand::createMissingTriangle(Model *model, unsigned v, int_list &conList, tri_list &triList)
+{
+	auto &vl = model->getVertexList();
+	auto &tl = model->getTriangleList();
+	auto itt = conList.end();
+	for(auto it=conList.begin();it<itt;it++)
+	if(vl[*it]->m_selected)
+	if(findSingleton(model,v,*it,triList))	
+	for(auto jt=it+1;jt!=itt;jt++)		
+	if(vl[*jt]->m_selected)
+	if(auto*unused=findSingleton(model,v,*jt,triList))
+	{
+		unsigned verts[3] = { v,(unsigned)*it,(unsigned)*jt };
+
+		//2022: Try to standardize with makefacecmd.cc.
+		double normal[3],sum[3] = {}; 		
+		model->calculateFlatNormal(verts,normal);
+
+		double d; if(m_view) //dot3?
+		{
+			//NOTE: Dragging a mouse to get to the menu is prone
+			//to messing up the ability to use the viewport here.
+			d = dot3(normal,m_view); if(0==d) goto sum;
+		}
+		else sum:
+		{
+			for(int i=3;i-->0;)
+			for(auto&ea:vl[verts[i]]->m_faces)
+			if(ea.first->m_selected)
+			{
+				for(int j=3;j-->0;) sum[j]+=ea.first->m_flatSource[j];
+			}
+			d = dot3(normal,m_view?m_view:sum);
+		}
+		if(d<0) std::swap(verts[1],verts[2]);
+
+		int tri = model->addTriangle(v,verts[1],verts[2]);
+
+		//FIX ME: This seems too random perhaps, but at
+		//least tri is selected.
+		int grp = unused->m_group; if(grp>=0) //ARBITRARY
+		{
+			//NOTE: Could try to match to texture ID?
+			auto *tp = model->getTriangleList()[tri];
+			for(int i=3;i-->0;)
+			for(auto&ea:vl[verts[i]]->m_faces)
+			if(grp==ea.first->m_group)
+			{
+				//NOTE: CAN WRITE DIRECTLY INTO m_s/m_t SINCE 
+				//THERE'S NO UNDO HISTORY ON THE NEW TRIANGLE.
+				const_cast<float&>(tp->m_s[i]) = ea.first->m_s[ea.second];
+				const_cast<float&>(tp->m_t[i]) = ea.first->m_t[ea.second];
+
+				//Priority to selection.
+				if(ea.first->m_selected) break;
+			}
+			model->addTriangleToGroup(grp,tri);
+		}
+
+		return tri;
+	}	
+	return -1;
 }

@@ -182,8 +182,7 @@ void GroupWin::submit(int id)
 
 			if(g==-1) ungroup: //2022
 			{
-				if(model->selectUngroupedTriangles(id!=-id_select)) //id_scene?
-				model->selectVerticesFromTriangles(); //YUCK
+				model->selectUngroupedTriangles(id!=-id_select); //id_scene?				
 			}
 			else
 			{		
@@ -267,7 +266,9 @@ void GroupWin::group_selected()
 	//if(!group.selection())
 	if(-1==group.int_val()) //2022: adding express <None> option.
 	{
-		disable(); add.enable();
+		disable();
+		sel.enable();
+		add.enable();
 		f1_ok_cancel.nav.enable();
 		faces1.enable(); add_faces.enable(); //For <None> option.	
 

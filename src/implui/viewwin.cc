@@ -59,8 +59,8 @@ viewwin_mruf_menu=0,viewwin_mrus_menu=0,
 viewwin_file_menu=0,viewwin_view_menu=0,
 viewwin_tool_menu=0,viewwin_modl_menu=0,
 viewwin_geom_menu=0,viewwin_edit_menu=0,
-viewwin_mats_menu=0,
-viewwin_infl_menu=0,viewwin_help_menu=0,
+viewwin_mats_menu=0,viewwin_infl_menu=0,
+viewwin_help_menu=0,viewwin_face_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
 viewwin_jointlock=0,
 viewwin_toolbar = 0;
@@ -70,6 +70,8 @@ viewwin_shifthold=0,viewwin_shlk_menu=0;
 
 //TODO: Need an elaborate API for this I guess
 static bool &viewwin_rmb = ModelViewport::_rmb_rotates_view;
+static bool &viewwin_face_view = Tool::tool_option_face_view;
+static bool &viewwin_face_ccw = Model::Vertex::getOrderOfSelectionCCW();
 
 std::vector<MainWin*> viewwin_list(0); //extern
 
@@ -457,6 +459,24 @@ void MainWin::_init_menu_toolbar() //2019
 		viewwin_mru(viewwin_mrus_menu);
 		#endif
 
+		if(0) //EXPERIMENTAL
+		{
+			//normal_order mode isn't quite workable, but this at
+			//least teaches that the view direction is significant.
+			//I don't know if it should be kept or not.
+
+			viewwin_face_menu = glutCreateMenu(viewwin_menubarfunc);
+
+			bool r = config.get("ui_face_view",true);
+			bool s = config.get("ui_prefs_face_ccw",true);
+			viewwin_face_view = r;
+			views.status._face_view.name(s?"Ccw":"Cw");
+			views.status._face_view.indicate(!r);
+			glutAddMenuEntry(O(r,normal_click,"View Direction (Mouse Click)","","Windows_menu+Enter")); 
+			glutAddMenuEntry(O(!r,normal_order,"Use Select Order or a Heuristic","",""));
+			glutAddMenuEntry(X(s,normal_ccw,"Use OpenGL Select Order (CCW)","",""));
+		}
+
 		viewwin_file_menu = glutCreateMenu(viewwin_menubarfunc);
 
 		//wxWidets/src/common/accelcmn.cpp has a list of obscure
@@ -479,7 +499,9 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(file_plugins,"Plugins...","File|Plugins"));
 	//Will wxWidgets detection ignore the ellipsis?
 	glutAddMenuEntry(E(file_prefs,"&Preferences...","")); //wxOSX requires this.	
-	glutext::glutMenuEnable(id_file_prefs,0); //UNIMPLEMENTED
+	glutext::glutMenuEnable(id_file_prefs,0); //UNIMPLEMENTED	
+	if(viewwin_face_menu) //EXPERIMENTAL
+	glutAddSubMenu(::tr("New Face Normal",""),viewwin_face_menu);
 	//I'm making this true so it appears as a checkbox on Windows.
 	viewwin_rmb = config.get("ui_prefs_rmb",false);
 	glutAddMenuEntry(X(!viewwin_rmb,file_prefs_rmb,"LMB Rotates View","",""));
@@ -518,7 +540,7 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(E(view_front,"&Front","","End"));
 		glutAddMenuEntry(E(view_back,"Bac&k","","Shift+End"));
 
-		//views.status._interlock.underscore(true); //inverting sense
+		//views.status._interlock.indicate(true); //inverting sense
 	}
 		bool r,s,t,u,v;
 				
@@ -580,8 +602,8 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(X(s,snap_grid,"Snap to Grid","View|Snap to Grid","Shift+G"));
 		glutAddMenuEntry(E(view_settings,"Grid Settings...","View|Grid Settings","Shift+Ctrl+G"));
 
-		views.status._vert_snap.underscore(r);
-		views.status._grid_snap.underscore(s);
+		views.status._vert_snap.indicate(r);
+		views.status._grid_snap.indicate(s);
 	}		
 	//glutAddSubMenu(::tr("Snap To"),_snap_menu);
 	glutAddMenuEntry();	
@@ -721,7 +743,7 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry();
 		viewwin_shlk_menu = glutCreateMenu(viewwin_menubarfunc);
 		r = config.get("ui_tool_shift_hold",false);
-		if(r) views.status._shifthold.underscore(true);
+		if(r) views.status._shifthold.indicate(true);
 		glutAddMenuEntry(E(tool_shift_lock,"Sticky Shift Key (Emulation)","","L"));
 		glutAddMenuEntry(X(!r,tool_shift_hold,"Unlock when Selecting Tool","","Shift+L"));
 		glutSetMenu(viewwin_tool_menu);
@@ -809,7 +831,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(material_cleanup,"Clean Up...","Materials|Clean Up","Ctrl+Delete"));
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(uv_editor,"Edit Texture Coordinates...","Materials|Edit Texture Coordinates","M")); //Ctrl+E
-	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection"));	
+	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection","Ctrl+P"));	
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures","Ctrl+R"));
 	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+R"));
@@ -819,7 +841,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(joint_settings,"Edit Joints...","Joints|Edit Joints","J")); 
 		r = config.get("ui_joint_100",true);
 	glutAddMenuEntry(X(r,joint_100,"Assign 100","","I"));
-		views.status._100.underscore(!r); //inverting sense
+		views.status._100.indicate(!r); //inverting sense
 		
 	glutAddMenuEntry(E(joint_attach_verts,"Assign Selected to Joint","Joints|Assign Selected to Joint","Ctrl+B"));
 	glutAddMenuEntry(E(joint_weight_verts,"Auto-Assign Selected...","Joints|Auto-Assign Selected","Shift+Ctrl+B"));
@@ -851,7 +873,7 @@ void MainWin::_init_menu_toolbar() //2019
 		//https://forums.wxwidgets.org/viewtopic.php?f=1&t=46722
 		glutAddMenuEntry(X(true,animate_snap,"Snap to Keyframe","","Scroll_lock")); //wxMSW (accelcmn.cpp)
 	
-		//views.status._keys_snap.underscore(true); //inverting sense
+		//views.status._keys_snap.indicate(true); //inverting sense
 
 		glutAddMenuEntry();
 		//Ctrl+Scroll_lock is system interpreted as Break like Ctrl+Pause
@@ -878,7 +900,8 @@ void MainWin::_init_menu_toolbar() //2019
 	//2021: I'm trying to use Shift+Ctrl+D for "Duplicate Animated". Alt is a little hard to input but
 	//maybe that's okay for Delete? (Although undo/redo makes it harmless.)
 	//glutAddMenuEntry(E(animate_delete,"Delete Frame","","Shift+Ctrl+D"));
-	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+Alt+D"));
+	//glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+Alt+D"));
+	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+X")); //2022
 	//Look like no-op to me. See viewwin.h notes?
 	//https://github.com/zturtleman/mm3d/issues/65#issuecomment-522878969
 	glutAddMenuEntry();	
@@ -1870,6 +1893,30 @@ void MainWin::perform_menu_action(int id)
 		config.set("ui_prefs_rmb",viewwin_rmb=!viewwin_rmb);
 		return;
 
+	case id_normal_order:
+	case id_normal_click:	
+
+		id-=id_normal_order;
+		if(viewwin_face_view==(id!=0)) //Toggle?
+		{
+			id = !id;		
+			glutext::glutMenuEnable(id_normal_order+id,glutext::GLUT_MENU_CHECK);
+		}
+		viewwin_face_view = 0!=id;
+		config.set("ui_face_view",id);
+		for(auto&ea:viewwin_list)
+		ea->views.status._face_view.indicate(!id);
+		return;
+
+	case id_normal_ccw:
+
+		id = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
+		viewwin_face_ccw = 0!=id;
+		config.set("ui_prefs_face_ccw",id);
+		for(auto&ea:viewwin_list)
+		ea->views.status._face_view.set_name(id?"Ccw":"Cw");
+		return;
+
 	case id_file_quit: 
 		
 		//TODO: Confirm close all windows if there are more than one.
@@ -1936,8 +1983,7 @@ void MainWin::perform_menu_action(int id)
 	case id_rops_show_lines:
 		
 		id-=id_rops_hide_lines;
-		//Let Shift+W toggle.
-		if(id==(int)m->getDrawSelection())
+		if(id==(int)m->getDrawSelection()) //Toggle?
 		{
 			id = !id;
 			glutext::glutMenuEnable(id_rops_hide_lines+id,glutext::GLUT_MENU_CHECK);
@@ -1950,8 +1996,7 @@ void MainWin::perform_menu_action(int id)
 	case id_rops_show_backs:
 		
 		id-=id_rops_hide_backs;
-		//Let Shift+F toggle.
-		if(id==!(Model::DO_BACKFACECULL&m->getDrawOptions()))
+		if(id==!(Model::DO_BACKFACECULL&m->getDrawOptions())) //Toggle?
 		{
 			id = !id;
 			glutext::glutMenuEnable(id_rops_hide_backs+id,glutext::GLUT_MENU_CHECK);
@@ -1972,7 +2017,7 @@ void MainWin::perform_menu_action(int id)
 	
 		viewwin_interlock = glutGet(glutext::GLUT_MENU_CHECKED);
 		for(auto&ea:viewwin_list) //inverting sense
-		ea->views.status._interlock.underscore(0==viewwin_interlock);
+		ea->views.status._interlock.indicate(0==viewwin_interlock);
 		return;
 	
 	case id_tool_shift_hold: //2022
@@ -1980,7 +2025,7 @@ void MainWin::perform_menu_action(int id)
 		id = glutGet(glutext::GLUT_MENU_CHECKED);
 		config.set("ui_tool_shift_hold",id==0);
 		viewwin_shifthold = id==0;
-		w->views.status._shifthold.underscore(id==0);
+		w->views.status._shifthold.indicate(id==0);
 
 		auto *tc = w->_texturecoord_win; //YUCK
 		//texturecoord_entry_cb/etc. is purposely
@@ -1991,13 +2036,13 @@ void MainWin::perform_menu_action(int id)
 			assert(!tc->hidden());
 			auto &f = w->views.status._texshlock;
 			if(id==f.int_val()) //inverted
-			tc->texture._tool_bs_lock = f.underscore(id==0)?Tool::BS_Shift:0;
+			tc->texture._tool_bs_lock = f.indicate(id==0)?Tool::BS_Shift:0;
 		}
 		else 
 		{
 			auto &f = w->views.status._shiftlock;
 			if(id==f.int_val()) //inverted
-			w->views._bs_lock = f.underscore(id==0)?Tool::BS_Shift:0;
+			w->views._bs_lock = f.indicate(id==0)?Tool::BS_Shift:0;
 		}
 		return;
 	}
@@ -2011,19 +2056,19 @@ void MainWin::perform_menu_action(int id)
 		{
 			assert(!tc->hidden());
 			auto &f = w->views.status._texshlock;
-			tc->texture._tool_bs_lock = f.underscore(!f)?Tool::BS_Shift:0;
+			tc->texture._tool_bs_lock = f.indicate(!f)?Tool::BS_Shift:0;
 		}
 		else
 		{
 			auto &f = w->views.status._shiftlock;
-			w->views._bs_lock = f.underscore(!f)?Tool::BS_Shift:0;
+			w->views._bs_lock = f.indicate(!f)?Tool::BS_Shift:0;
 		}
 		return;
 	}
 	case id_animate_snap:
 	
 		//inverting sense
-		w->views.status._keys_snap.underscore(0==glutGet(glutext::GLUT_MENU_CHECKED));
+		w->views.status._keys_snap.indicate(0==glutGet(glutext::GLUT_MENU_CHECKED));
 		return;
 
 	case id_animate_mode_1: case id_animate_mode_2: case id_animate_mode_3:
@@ -2032,8 +2077,8 @@ void MainWin::perform_menu_action(int id)
 		if(id!=w->animation_mode) 
 		const_cast<int&>(w->animation_mode) = id;
 		else return;
-		w->views.status._sanim_mode.underscore(1==id); //Sam
-		w->views.status._fanim_mode.underscore(2==id); //Fam
+		w->views.status._sanim_mode.indicate(1==id); //Sam
+		w->views.status._fanim_mode.indicate(2==id); //Fam
 		if(auto cmp=m->getAnimationMode())
 		{
 			m->setAnimationMode((Model::AnimationModeE)id);
@@ -2046,7 +2091,7 @@ void MainWin::perform_menu_action(int id)
 
 		const_cast<int&>(clipboard_mode) = glutGet(glutext::GLUT_MENU_CHECKED);
 		//I'm assuming this isn't a global state, but it's really hard to follow!!
-		w->views.status._clipboard.underscore(clipboard_mode!=0);
+		w->views.status._clipboard.indicate(clipboard_mode!=0);
 		extern void animwin_enable_menu(int,int);
 		animwin_enable_menu(m->inAnimationMode()?_anim_menu:-_anim_menu,clipboard_mode);		
 		//animwin_enable_menu calls this immediately (guess best not to do twice?)
@@ -2063,7 +2108,7 @@ void MainWin::perform_menu_action(int id)
 	case id_ortho_texture:
 	case id_ortho_blend:
 		
-		id-=id_ortho_wireframe; //Let W toggle modes?
+		id-=id_ortho_wireframe; //Toggle?
 		{
 			int curr = m->getCanvasDrawMode();
 			if(id==curr) std::swap(id,_prev_ortho);
@@ -2080,7 +2125,7 @@ void MainWin::perform_menu_action(int id)
 	case id_persp_texture:
 	case id_persp_blend:
 
-		id-=id_persp_wireframe; //Let ? toggle modes.
+		id-=id_persp_wireframe; //Toggle?
 		{
 			int curr = m->getPerspectiveDrawMode();
 			if(id==curr) std::swap(id,_prev_persp);			
@@ -2131,8 +2176,8 @@ void MainWin::perform_menu_action(int id)
 
 		if(x) vu.snap|=y; else vu.snap&=~y; 
 
-		if(id==id_snap_vert) w->views.status._vert_snap.underscore(x);
-		if(id==id_snap_grid) w->views.status._grid_snap.underscore(x);
+		if(id==id_snap_vert) w->views.status._vert_snap.indicate(x);
+		if(id==id_snap_grid) w->views.status._grid_snap.indicate(x);
 
 		return;
 	}
@@ -2215,7 +2260,7 @@ void MainWin::perform_menu_action(int id)
 		viewwin_joints100 = glutGet(glutext::GLUT_MENU_CHECKED);
 		config.set("ui_joint_100",viewwin_joints100);
 		for(auto&ea:viewwin_list) //inverting sense
-		ea->views.status._100.underscore(viewwin_joints100==0);
+		ea->views.status._100.indicate(viewwin_joints100==0);
 		return;
 		
 	case id_joint_attach_verts:
@@ -2303,7 +2348,7 @@ void MainWin::_view(int i, void (ViewPanel::*mf)())
 	//95% of this code deal with 2x modes.
 	//It's a simple concept otherwise.
 	bool two = 2==views.viewsN;
-	if(i==_curr_view||two&&i==id_view_2)
+	if(i==_curr_view||two&&i==id_view_2) //Toggle?
 	{
 		glutext::glutMenuEnable(_prev_view,glutext::GLUT_MENU_CHECK);
 		perform_menu_action(_prev_view);			
@@ -2412,7 +2457,7 @@ void viewwin_toolboxfunc(int id) //extern
 	if(w->views._bs_lock!=shift_lock)
 	{
 		w->views._bs_lock = shift_lock;
-		w->views.status._shiftlock.underscore(shift_lock!=0);
+		w->views.status._shiftlock.indicate(shift_lock!=0);
 	}
 
 	//texturecoord.cc?
@@ -2452,9 +2497,13 @@ static void viewwin_geomenufunc(int id)
 		int iN = cmd->getCommandCount();
 		if(id<iN&&!cmd->isSeparator())
 		{
-			Model *model = viewwin()->model;
+			MainWin *w = viewwin();
+			Model *model = w->model;
+			if(viewwin_face_view)
+			cmgr->setViewSurrogate(w->toolbox.getCurrentTool()); //2022
 			if(cmd->activated(id,model))
 			model->operationComplete(TRANSLATE("Command",cmd->getName(id)));
+			cmgr->setViewSurrogate();
 			return;
 		}
 		id-=iN;

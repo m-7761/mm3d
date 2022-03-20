@@ -85,6 +85,7 @@
 class Model
 {
 	static unsigned _op; //2022: operationComplete increments this.
+	static bool _op_ccw; //2022: Control getOrderOfSelection order.
 
 	public:
 		
@@ -474,7 +475,7 @@ class Model
 
 		void _source(AnimationModeE);
 
-		bool _isFlat()const
+		bool _degenerated()const
 		{
 			auto *tv = m_vertexIndices; 
 			return tv[0]==tv[1]||tv[0]==tv[2]||tv[1]==tv[2];
@@ -487,6 +488,8 @@ class Model
 		static std::vector<Triangle*> s_recycle;
 		static int s_allocated;
 	};
+
+	typedef std::pair<Triangle*,unsigned> Face;
 
 	// A vertex defines a polygon corner. The position is in m_coord.
 	// All triangles in all groups (meshes)references triangles from this
@@ -517,6 +520,10 @@ class Model
 		{
 			return m_selected._select_op; 
 		}
+		static bool &getOrderOfSelectionCCW()
+		{
+			return Model::_op_ccw;
+		}
 
 		// If m_free is false, the vertex will be implicitly deleted when
 		// all faces using it are deleted
@@ -533,7 +540,7 @@ class Model
 		//https://github.com/zturtleman/mm3d/issues/109
 		//Can't be stored as indices.
 		//std::basic_string<unsigned> m_faces;
-		std::vector<std::pair<Triangle*,unsigned>> m_faces;
+		std::vector<Face> m_faces;
 		void _erase_face(Triangle*,unsigned);
 
 		//This change enables editing a model having vertex animation data
@@ -1726,6 +1733,9 @@ class Model
 	bool getFlatNormalUnanimated(unsigned triangleNum, double *normal)const;
 	//NOTE: doesn't depend on validateNormals
 	bool getFlatNormal(unsigned triangleNum, double *normal)const;
+	//2022: support code
+	double calculateFlatNormal(unsigned vertices[3], double normal[3])const;
+	double calculateFlatNormalUnanimated(unsigned vertices[3], double normal[3])const;
 
 	//CAUTION: This now uses the "source" pointers to fill out 
 	//normals either for animations or the base model.
@@ -2569,7 +2579,7 @@ protected:
 	bool selectUngroupedTriangles(bool how); //2022
 	public: //This needs to be manually callable, so unselectTriangle in loop
 		//is less pathological.
-	void selectVerticesFromTriangles();
+	void _selectVerticesFromTriangles();
 	protected:
 	void selectTrianglesFromVertices(bool all = true);
 	//void selectGroupsFromTriangles(bool all = true);

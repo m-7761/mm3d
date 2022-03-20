@@ -24,11 +24,22 @@
 
 #include "cmdmgr.h"
 #include "log.h"
+#include "tool.h" //2022
+
+Tool *CommandManager::getViewSurrogate(Model *m)
+{
+	Tool *t = m_current_view; if(!t) return nullptr;
+	m_current_view = nullptr;
+	Model *mm = t->parent->getModel(); assert(m==mm);
+	return mm==m?t:nullptr;
+}
 
 CommandManager *CommandManager::s_instance = nullptr;
 
 CommandManager::CommandManager()
-{}
+{
+	m_current_view = nullptr;
+}
 CommandManager::~CommandManager()
 {
 	//log_debug("CommandManager releasing %d commands\n",m_commands.size());

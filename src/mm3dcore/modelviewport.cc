@@ -1929,7 +1929,7 @@ ModelViewport::Parent::Parent()
 	ports{this,this,this,this,this,this}, //C++11
 	views1x2(),viewsM(),viewsN(),
 	m_scrollTextures(),
-	m_focus() 
+	m_focus(),m_click()
 {	
 	ports[0].initOverlay(m_scrollTextures);
 
@@ -2054,7 +2054,7 @@ void ModelViewport::Parent::checkGlErrors(Model *m)
 
 void ModelViewport::Parent::getXYZ(double *xx, double *yy, double *zz)
 {
-	ModelViewport &mvp = ports[m_focus];
+	ModelViewport &mvp = ports[m_click]; //m_focus
 	Vector vec;
 	getRawParentXYValue(vec[0],vec[1]);
 	//2020: I'm not positive this is better, but it feels more correct?

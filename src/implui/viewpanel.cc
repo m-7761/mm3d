@@ -262,6 +262,7 @@ static void viewpanel_mouse_func(int bt, int st, int x, int y)
 	for(int i=vp.viewsN;i-->0;) if(vp.ports[i].over(xx,yy))
 	{
 		vp.m_focus = i; 
+		vp.m_click = i; //2022
 		if(st==GLUT_DOWN) vp.ports[i].mousePressEventUI(bt,cm,x,y);
 	}
 }
@@ -499,7 +500,7 @@ void ViewPanel::_makeViews(int n)
 	//REMINDER: _defaultViews uses m_focus but also it needs to be
 	//clipped to be less than viewsN. Assuming it will be assigned
 	//almost instantly.
-	_defaultViews(mem,true); m_focus = 0;
+	_defaultViews(mem,true); m_focus = m_click = 0;
 
 	//double x1,y1,z1,x2,y2,z2;
 	//if(model&&model->getBoundingRegion(&x1,&y1,&z1,&x2,&y2,&z2))

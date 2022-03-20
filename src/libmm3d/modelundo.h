@@ -177,11 +177,11 @@ class MU_SetSelectedUv : public ModelUndo
 
 		unsigned size();
 
-		void setSelectedUv(const std::vector<int> &newUv, const std::vector<int> &oldUv);
+		void setSelectedUv(const int_list &newUv, const int_list &oldUv);
 
 	private:
-		std::vector<int> m_oldUv;
-		std::vector<int> m_newUv;
+		int_list m_oldUv;
+		int_list m_newUv;
 };
 
 class MU_Hide : public ModelUndo

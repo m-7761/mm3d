@@ -64,7 +64,7 @@ struct CubeTool : Tool
 		bool m_invertedNormals;
 
 		ToolCoordList m_vertices;
-		std::vector<int> m_triangles;
+		int_list m_triangles;
 
 		double m_x1,m_y1;
 

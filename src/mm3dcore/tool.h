@@ -74,6 +74,8 @@ public:
 
 	Parent *const parent;
 
+	static bool tool_option_face_view; //2022
+
 	Tool(ToolType, int count=1, const char *path=nullptr);
 	virtual ~Tool();
 

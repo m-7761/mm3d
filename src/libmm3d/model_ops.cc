@@ -1085,7 +1085,7 @@ struct SpatialSort //credit Assimp/SpatialSort.cpp
     };
 	std::vector<Entry> entries;
 	
-	void find(double cmp[3], double radius, std::vector<int> &out)const
+	void find(double cmp[3], double radius, int_list &out)const
 	{
 		const double dist = dot3(cmp,planeNormal.getVector());
 		const double minDist = dist-radius, maxDist = dist+radius;
@@ -1187,7 +1187,7 @@ bool Model::mergeAnimations(Model *model)
 		}
 		
 		SpatialSort ss(*model);
-		std::vector<int> match;
+		int_list match;
 
 		//todo: want to configure this
 		double r = 2*std::numeric_limits<float>::epsilon();
@@ -1867,7 +1867,7 @@ bool Model::simplifySelectedMesh(bool ignore)
 
 								//NOTE: Updating m_flatSource isn't necessary
 								//as merging demands triangles to be coplanar.
-								if(tp->_isFlat()) tp->m_user = -1;
+								if(tp->_degenerated()) tp->m_user = -1;
 								
 								for(auto&uv:uvmap) if(vrt==uv.vrt)
 								{

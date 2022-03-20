@@ -905,7 +905,7 @@ void Model::deleteFlattenedTriangles()
 
 	for(int t=m_triangles.size();t-->0;)
 	{
-		if(m_triangles[t]->_isFlat()) deleteTriangle(t);	
+		if(m_triangles[t]->_degenerated()) deleteTriangle(t);	
 	}
 }
 
@@ -2264,6 +2264,7 @@ void Model::reverseOrderSelectedTriangle()
 }
 
 unsigned Model::_op = !0;
+bool Model::_op_ccw = !0;
 void Model::operationComplete(const char *opname)
 {
 	nonEditOpComplete(opname,true); Model::_op++;
@@ -3438,16 +3439,21 @@ bool Model::getFlatNormal(unsigned t, double *normal)const
 	if(m_animationMode?m_validAnimNormals:m_validNormals)
 	{
 		//2020: Don't calculate if valid.
-		for(int i=0;i<3;i++) 
-		normal[i] = tri->m_flatSource[i];
+		memcpy(normal,tri->m_flatSource,3*sizeof(double));
 		return true;
 	}	
 
-	double *v0 = m_vertices[tri->m_vertexIndices[0]]->m_absSource;
-	double *v1 = m_vertices[tri->m_vertexIndices[1]]->m_absSource;
-	double *v2 = m_vertices[tri->m_vertexIndices[2]]->m_absSource;
+	calculateFlatNormal(tri->m_vertexIndices,normal); 
+	
+	return true;
+}
+double Model::calculateFlatNormal(unsigned vertices[3], double normal[3])const
+{
+	double *v0 = m_vertices[vertices[0]]->m_absSource;
+	double *v1 = m_vertices[vertices[1]]->m_absSource;
+	double *v2 = m_vertices[vertices[2]]->m_absSource;
 
-	calculate_normal(normal,v0,v1,v2); return true;
+	return calculate_normal(normal,v0,v1,v2);
 }
 bool Model::getFlatNormalUnanimated(unsigned t, double *normal)const
 {
@@ -3460,8 +3466,7 @@ bool Model::getFlatNormalUnanimated(unsigned t, double *normal)const
 	if(m_validNormals)
 	{
 		//2020: Don't calculate if valid.
-		for(int i=0;i<3;i++)
-		normal[i] = tri->m_flatNormal[i];
+		memcpy(normal,tri->m_flatNormal,3*sizeof(double));
 		return true;
 	}
 
@@ -3469,7 +3474,17 @@ bool Model::getFlatNormalUnanimated(unsigned t, double *normal)const
 	double *v1 = m_vertices[tri->m_vertexIndices[1]]->m_coord;
 	double *v2 = m_vertices[tri->m_vertexIndices[2]]->m_coord;
 
-	calculate_normal(normal,v0,v1,v2); return true;
+	calculateFlatNormalUnanimated(tri->m_vertexIndices,normal);
+
+	return true;
+}
+double Model::calculateFlatNormalUnanimated(unsigned vertices[3], double normal[3])const
+{
+	double *v0 = m_vertices[vertices[0]]->m_coord;
+	double *v1 = m_vertices[vertices[1]]->m_coord;
+	double *v2 = m_vertices[vertices[2]]->m_coord;
+
+	return calculate_normal(normal,v0,v1,v2);
 }
 
 bool Model::getBoneVector(unsigned joint, double *vec, const double *coord)const
@@ -3786,7 +3801,7 @@ void Model::calculateNormals()
 
 	for(Group*grp:m_groups)
 	{
-		double percent = grp->m_smooth/255.0;
+		double percent = grp->m_smooth*0.0039215686274509; //1/255
 		for(int i:grp->m_triangleIndices)
 		{
 			Triangle *tri = m_triangles[i];
@@ -3980,50 +3995,43 @@ int model_free_primitives()
 //errorObj.cc
 const char *modelErrStr(Model::ModelErrorE err,Model *model)
 {
-	switch (err)
+	switch(err)
 	{
-		case Model::ERROR_NONE:
-			return transll("Success");
-		case Model::ERROR_CANCEL:
-			return transll("Canceled");
-		case Model::ERROR_UNKNOWN_TYPE:
-			return transll("Unrecognized file extension (unknown type)");
-		case Model::ERROR_UNSUPPORTED_OPERATION:
-			return transll("Operation not supported for this file type");
-		case Model::ERROR_BAD_ARGUMENT:
-			return transll("Invalid argument (internal error)");
-		case Model::ERROR_NO_FILE:
-			return transll("File does not exist");
-		case Model::ERROR_NO_ACCESS:
-			return transll("Permission denied");
-		case Model::ERROR_FILE_OPEN:
-			return transll("Could not open file");
-		case Model::ERROR_FILE_READ:
-			return transll("Could not read from file");
-		case Model::ERROR_BAD_MAGIC:
-			return transll("File is the wrong type or corrupted");
-		case Model::ERROR_UNSUPPORTED_VERSION:
-			return transll("Unsupported version");
-		case Model::ERROR_BAD_DATA:
-			return transll("File contains invalid data");
-		case Model::ERROR_UNEXPECTED_EOF:
-			return transll("Unexpected end of file");
-		case Model::ERROR_EXPORT_ONLY:
-			return transll("Write not supported,try \"Export...\"");
-		case Model::ERROR_FILTER_SPECIFIC:
-			if(model)
-			{
-				return model->getFilterSpecificError();
-			}
-			else
-			{
-				return Model::getLastFilterSpecificError();
-			}
-		case Model::ERROR_UNKNOWN:
-			return transll("Unknown error");
-		default:
-			break;
+	case Model::ERROR_NONE:
+		return transll("Success");
+	case Model::ERROR_CANCEL:
+		return transll("Canceled");
+	case Model::ERROR_UNKNOWN_TYPE:
+		return transll("Unrecognized file extension (unknown type)");
+	case Model::ERROR_UNSUPPORTED_OPERATION:
+		return transll("Operation not supported for this file type");
+	case Model::ERROR_BAD_ARGUMENT:
+		return transll("Invalid argument (internal error)");
+	case Model::ERROR_NO_FILE:
+		return transll("File does not exist");
+	case Model::ERROR_NO_ACCESS:
+		return transll("Permission denied");
+	case Model::ERROR_FILE_OPEN:
+		return transll("Could not open file");
+	case Model::ERROR_FILE_READ:
+		return transll("Could not read from file");
+	case Model::ERROR_BAD_MAGIC:
+		return transll("File is the wrong type or corrupted");
+	case Model::ERROR_UNSUPPORTED_VERSION:
+		return transll("Unsupported version");
+	case Model::ERROR_BAD_DATA:
+		return transll("File contains invalid data");
+	case Model::ERROR_UNEXPECTED_EOF:
+		return transll("Unexpected end of file");
+	case Model::ERROR_EXPORT_ONLY:
+		return transll("Write not supported,try \"Export...\"");
+	case Model::ERROR_FILTER_SPECIFIC:
+		if(model)return model->getFilterSpecificError();
+		else return Model::getLastFilterSpecificError();
+	case Model::ERROR_UNKNOWN:
+		return transll("Unknown error");
 	}
+	assert(0); //2022
 	return "FIXME: Untranslated model error";
 }
 

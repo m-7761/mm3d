@@ -28,7 +28,8 @@
 #include "modelstatus.h"
 #include "cmdmgr.h"
 #include "log.h"
-#include "command.h"
+#include "cmdmgr.h"
+#include "tool.h"
 
 struct MakeFaceCommand : Command
 {
@@ -47,22 +48,105 @@ struct MakeFaceCommand : Command
 extern Command *makefacecmd(){ return new MakeFaceCommand; }
 
 bool MakeFaceCommand::activated(int, Model *model)
-{
-	int_list verts;
-	model->getSelectedVertices(verts);
-	if(verts.size()==3)
+{	
+	//HACK: polytool.cc uses the view port to flip the face instead
+	//of winding... I intend to add an option to control this later.
+	auto view = CommandManager::getInstance()->getViewSurrogate(model);
+
+	int vi = 3;
+	auto &vl = model->getVertexList();
+	double normal[3],sum[4] = {};
+	std::pair<unsigned,int> g3[3]; 
+	std::pair<unsigned,unsigned> v3[3];
+	for(auto v=vl.size();v-->0;)
 	{
-		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Face created"));
-		int v1,v2,v3;
-		int_list::iterator it = verts.begin();
+		auto *vp = vl[v]; 
+		
+		if(vp->m_selected) if(vi-->0)
+		{			 
+			v3[vi].first = vp->getOrderOfSelection();			
+			v3[vi].second = v;
 
-		v1 = *it++; v2 = *it++; v3 = *it;
+			g3[vi].first = v;
+			for(auto&ea:vp->m_faces)
+			g3[vi].second = ea.first->m_group; //ARBITRARY
+		}
+		else break;	
+	}
+	if(view) //Use view port like polytool.cc?
+	{
+		sum[2] = 1;
+		((Vector*)sum)->transform3(view->parent->getParentBestInverseMatrix());
+	}
+	if(vi==0)
+	{		
+		std::sort(v3,v3+3);
 
-		int tri = model->addTriangle(v1,v2,v3);
+		unsigned verts[3] = {v3[0].second,v3[1].second,v3[2].second};
 
+		if(view||v3[0].first==v3[1].first||v3[1].first==v3[2].first)
+		{
+			//2022: Try to standardize with capcmd.cc.		
+			model->calculateFlatNormal(verts,normal);
+
+			//NOTE: Dragging a mouse to get to the menu is prone
+			//to messing up the ability to use the viewport here.
+			double d = dot3(normal,sum);
+			if(d==0) for(int v=3;v-->0;) //view is 0 or a bad fit?
+			{			
+				for(auto&ea:vl[verts[v]]->m_faces)
+				{
+					g3[vi].second = ea.first->m_group; //ARBITRARY
+
+					model->calculateFlatNormal(ea.first->m_vertexIndices,normal);
+					for(int i=3;i-->0;) sum[i]+=normal[i];
+				}
+				d = dot3(normal,sum);
+			}		
+			if(d<0)
+			{
+				std::swap(verts[1],verts[2]);
+			}
+		}
+		else if(!Model::Vertex::getOrderOfSelectionCCW())
+		{
+			std::reverse(verts,verts+3);
+		}
+		int tri = model->addTriangle(verts[0],verts[1],verts[2]);
+
+		//2022: Guess group w/ texcoords?
+		int grp = -1; for(int i=3;i-->0;)
+		{
+			//HACK? To be less random, at least this way the
+			//first/oldest selected vertex nominates a group.
+			if(v3[0].second==g3[i].first) grp = g3[i].second;
+		}
+		if(grp==-1) for(int i=0;i<3;i++)
+		{
+			if((grp=g3[i].second)!=-1) break; //Any will do?
+		}
+		if(grp!=-1)
+		{
+			//NOTE: Could try to match to texture ID?
+			auto *tp = model->getTriangleList()[tri];
+			for(int i=3;i-->0;) 
+			for(auto&ea:vl[verts[i]]->m_faces)
+			if(grp==ea.first->m_group)
+			{
+				//NOTE: CAN WRITE DIRECTLY INTO m_s/m_t SINCE 
+				//THERE'S NO UNDO HISTORY ON THE NEW TRIANGLE.
+				const_cast<float&>(tp->m_s[i]) = ea.first->m_s[ea.second];
+				const_cast<float&>(tp->m_t[i]) = ea.first->m_t[ea.second];
+				break;
+			}
+			model->addTriangleToGroup(grp,tri); 
+		}
+		
 		//2019: If winding is back-face it will be invisible, and may need to be flipped.
-		model->selectTriangle(tri); 
+		//2022: Rely on neighbors/getOrderOfSelection for now?
+		//model->selectTriangle(tri); 
 
+		model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Face created"));
 		return true;
 	}	
 	model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Must select exactly 3 vertices"));

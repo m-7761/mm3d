@@ -285,7 +285,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	// TODO verify file size vs. numVertices
 
-	std::vector<int>vertexJoints;
+	int_list vertexJoints;
 	for(t = 0; t<numVertices; t++)
 	{
 		MS3DVertex vertex;

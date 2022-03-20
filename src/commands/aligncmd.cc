@@ -33,6 +33,8 @@ struct AlignCommand : Command
 		return TRANSLATE_NOOP( "Command","Align..."); 
 	}
 
+	virtual const char *getKeymap(int){ return "Shift+K"; }
+
 	virtual bool activated(int, Model *model)
 	{
 		extern void alignwin(Model*);
