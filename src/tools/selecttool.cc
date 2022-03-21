@@ -112,9 +112,14 @@ public:
 		m_startX = no_draw;
 
 		m_op = arg;
-		if(m_op==Faces)
-		parent->addBool(true,&m_includeBackfacing,
-		TRANSLATE_NOOP("Param","Include Back-facing"));
+		switch(m_op)
+		{
+		case Faces: case Groups: case Meshes:
+
+			parent->addBool(true,&m_includeBackfacing,
+			TRANSLATE_NOOP("Param","Include Back-facing"));
+			break;
+		}
 
 		//NEW: InvertSelectionCommand depends on this
 		//https://github.com/zturtleman/mm3d/issues/145
@@ -268,8 +273,10 @@ void SelectTool::mouseButtonUp()
 
 	}ntest;
 	Model::SelectionTest *test = nullptr;	
-	if(m_op==Faces&&!m_includeBackfacing)
-	{	
+	if(!m_includeBackfacing) switch(m_op)
+	{
+	case Faces: case Groups: case Meshes:
+
 		test = &ntest;
 		if(parent->getView()<=ViewPerspective) //2020: new way
 		{

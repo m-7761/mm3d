@@ -2196,19 +2196,21 @@ void Model::subdivideSelectedTriangles_undo(unsigned t1, unsigned t2, unsigned t
 	//This should implement a MU object or shouldn't be a regular API method.
 	assert(!m_undoEnabled);
 
-	bool swap = false; 
-	std::swap(swap,m_undoEnabled);
+//	bool swap = false; 
+//	std::swap(swap,m_undoEnabled);
 	{
+		Triangle *t[3] = {m_triangles[t1],m_triangles[t2],m_triangles[t3]};
+
 		setTriangleVertices(t1,
-		m_triangles[t1]->m_vertexIndices[0],
-		m_triangles[t2]->m_vertexIndices[0],
-		m_triangles[t3]->m_vertexIndices[0]);
+		t[0]->m_vertexIndices[0],t[1]->m_vertexIndices[0],t[2]->m_vertexIndices[0]);
+		setTextureCoords(t1,1,t[1]->m_s[0],t[1]->m_t[0]);
+		setTextureCoords(t1,2,t[2]->m_s[0],t[2]->m_t[0]);
 
 		deleteTriangle(t4);
 		deleteTriangle(t3);
 		deleteTriangle(t2);
 	}
-	std::swap(swap,m_undoEnabled);
+//	std::swap(swap,m_undoEnabled);
 
 	invalidateNormals(); //OVERKILL
 }

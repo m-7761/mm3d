@@ -23,7 +23,6 @@
 #include "mm3dtypes.h" //PCH
 
 #include "tool.h"
-
 #include "log.h"
 
 //int Tool::s_allocated = 0; //toolbox.cc

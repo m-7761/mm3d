@@ -636,13 +636,14 @@ void AnimWin::Impl::paste(bool values)
 			return;
 		}
 
-		if(!made++)
-		frame = model->makeCurrentAnimationFrame();
+		if(!made++) frame = model->makeCurrentAnimationFrame();
 
+		auto &jl = model->getJointList();
 		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
 		{
 			Model::Position jt{Model::PT_Joint,p->object};
-			for(int i=0;i<3;i++)
+
+			if(jl[jt]->m_selected) for(int i=0;i<3;i++)			
 			{
 				auto &cd = p->data[i];
 				auto kt = Model::KeyType2020E(1<<i);
@@ -661,24 +662,22 @@ void AnimWin::Impl::paste(bool values)
 			return;
 		}
 
-		if(!made++)
-		frame = model->makeCurrentAnimationFrame();
+		if(!made++) frame = model->makeCurrentAnimationFrame();
 
+		auto &vl = model->getVertexList();
 		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
 		{
+			if(vl[p->vertex]->m_selected)
 			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,
 			values&&p->e<Model::InterpolateStep?Model::InterpolateLerp:p->e);
 		}
 
-		/*for(FramePointCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
-		{
-			model->setFrameAnimPointCoords(anim,frame,p->point,p->x,p->y,p->z);
-			model->setFrameAnimPointRotation(anim,frame,p->point,p->rx,p->ry,p->rz);
-		}*/
+		auto &pl = model->getPointList();
 		for(KeyframeCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
 		{
 			Model::Position pt{Model::PT_Point,p->object};
-			for(int i=0;i<3;i++)
+
+			if(pl[pt]->m_selected) for(int i=0;i<3;i++)			
 			{
 				auto &cd = p->data[i];
 				auto kt = Model::KeyType2020E(1<<i);

@@ -1358,12 +1358,14 @@ void MU_SubdivideTriangle::undo(Model *model)
 {
 	//log_debug("undo subdivide\n"); //???
 
-	for(auto&ea:m_list)
+	for(auto it=m_list.rbegin(),itt=m_list.rend();it<itt;it++)
 	{
-		//model->unsubdivideTriangles(it->a,it->b,it->c,it->d);
-		model->subdivideSelectedTriangles_undo(ea.a,ea.b,ea.c,ea.d);
+		model->subdivideSelectedTriangles_undo(it->a,it->b,it->c,it->d);
 	}
-	for(unsigned i:m_vlist) model->deleteVertex(i);
+	for(auto it=m_vlist.rbegin(),itt=m_vlist.rend();it<itt;it++)
+	{
+		model->deleteVertex(*it);
+	}
 }
 bool MU_SubdivideTriangle::combine(Undo *u)
 {
@@ -1384,8 +1386,7 @@ bool MU_SubdivideTriangle::combine(Undo *u)
 unsigned MU_SubdivideTriangle::size()
 {
 	return sizeof(MU_SubdivideTriangle)
-	+m_list.size()*sizeof(SubdivideTriangleT)
-	+m_vlist.size()*sizeof(int);
+	+m_list.size()*sizeof(SubdivideTriangleT)+m_vlist.size()*sizeof(int);
 }
 void MU_SubdivideTriangle::subdivide(unsigned a, unsigned b, unsigned c, unsigned d)
 {
