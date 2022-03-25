@@ -1014,7 +1014,7 @@ bool ObjFilter::readMaterial(char *line)
 	}
 	else m_curMaterial = m_model->getMaterialByName("default");
 
-	if(m_needGroup)
+	//if(m_needGroup)
 	//log_debug("need group for %d %d\n",m_curGroup,m_curMaterial);
 
 	//free(temp);

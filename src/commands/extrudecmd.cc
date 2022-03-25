@@ -80,7 +80,7 @@ bool ExtrudeImpl::extrude(Model *model, double x, double y, double z, bool make_
 		coord[0]+=x;
 		coord[1]+=y;
 		coord[2]+=z;
-		m_evMap[vrt] = model->addVertex(coord[0],coord[1],coord[2]);
+		m_evMap[vrt] = model->addVertex(vrt,coord);
 
 		//log_debug("added vertex %d for %d at %f,%f,%f\n",
 		//m_evMap[vrt],vrt,coord[0],coord[1],coord[2]);

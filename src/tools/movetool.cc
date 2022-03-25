@@ -87,7 +87,7 @@ void MoveTool::mouseButtonMove()
 		m_selecting = false;
 
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
-		TRANSLATE("Tool","Moving selected primitives"));
+		TRANSLATE("Tool","Moving"));
 	}
 	//2021: Reserving BS_Right
 	if(!m_left) return;

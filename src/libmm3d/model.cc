@@ -494,30 +494,111 @@ bool Model::isPointVisible(unsigned p)const
 	return false;
 }
 
+static bool model_inv_infls_msg(Model *m, int n) //2021
+{
+	//NOTE: Even if this could be solved in an acceptable way
+	//it's not likely to be reversible without saving the old
+	//coordinates so that undo operations can restore them :(
+
+	if(m->getUndoEnabled())
+	model_status(m,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel",
+	"%d multiply influenced vertices not transformed"),n);
+	return false;
+}
+
 int Model::addVertex(double x, double y, double z)
 {
 	int num = m_vertices.size();
 
 	m_changeBits |= AddGeometry;
 
-	Vertex *vertex = Vertex::get(m_animationMode);
+	Vertex *vp = Vertex::get(m_animationMode);
 
-	vertex->m_coord[0] = x;
-	vertex->m_coord[1] = y;
-	vertex->m_coord[2] = z;
-	//vertex->m_free = false;
-	m_vertices.push_back(vertex);
+	vp->m_coord[0] = x;
+	vp->m_coord[1] = y;
+	vp->m_coord[2] = z;
+	memcpy(vp->m_kfCoord,vp->m_coord,3*sizeof(double));
+	//vp->m_free = false;
+	m_vertices.push_back(vp);
 
 	if(auto fp=m_vertices.front()->m_frames.size())
 	{
-		vertex->m_frames.assign(fp,nullptr);
-		while(fp-->0) vertex->m_frames[fp] = FrameAnimVertex::get();
+		vp->m_frames.assign(fp,nullptr);
+		while(fp-->0) vp->m_frames[fp] = FrameAnimVertex::get();
 	}
 
 	if(m_undoEnabled)
 	{
 		MU_AddVertex *undo = new MU_AddVertex();
-		undo->addVertex(num,vertex);
+		undo->addVertex(num,vp);
+		sendUndo(undo);
+	}
+
+	return num;
+}
+int Model::addVertex(int copy, const double pos[3])
+{
+	size_t num = m_vertices.size();
+
+	if((unsigned)copy>=num){ assert(0); return -1; }
+
+	auto *cp = m_vertices[copy];
+
+	m_changeBits |= AddGeometry;
+
+	Vertex *vp = Vertex::get(m_animationMode);	
+	m_vertices.push_back(vp);
+
+	if(auto fp=m_vertices.front()->m_frames.size())
+	{
+		vp->m_frames.assign(fp,nullptr);
+		while(fp-->0)
+		{
+			auto &f = vp->m_frames[fp];
+			auto &g = cp->m_frames[fp];
+			f = FrameAnimVertex::get();			
+			f->m_interp2020 = g->m_interp2020;
+			memcpy(f->m_coord,g->m_coord,3*sizeof(double));
+		}
+	}
+	vp->m_influences = cp->m_influences;
+
+	if(!pos)
+	{
+		memcpy(vp->m_coord,cp->m_coord,3*sizeof(double));
+		memcpy(vp->m_kfCoord,cp->m_kfCoord,3*sizeof(double));
+	}
+	else //TODO: Should this insert frames?
+	{
+		//memcpy(vp->m_coord,pos,3*sizeof(double));
+		memcpy(vp->m_kfCoord,pos,3*sizeof(double));
+
+		Vector os(pos); if(m_animationMode&ANIMMODE_SKELETAL) 
+		{
+			validateAnim(); //I guess?
+
+			if(!_skel_xform_abs(-1,vp->m_influences,os))
+			{
+				model_inv_infls_msg(this,1);
+			}
+		}
+		memcpy(vp->m_coord,os.getVector(),3*sizeof(double));
+
+		if(!vp->m_frames.empty())
+		{
+			for(int i=3;i-->0;) os[i]-=cp->m_coord[i];
+
+			for(auto&ea:vp->m_frames) if(ea->m_interp2020)
+			{
+				for(int i=3;i-->0;) ea->m_coord[i]+=os[i];
+			}
+		}
+	}
+
+	if(m_undoEnabled)
+	{
+		MU_AddVertex *undo = new MU_AddVertex();
+		undo->addVertex(num,vp);
 		sendUndo(undo);
 	}
 
@@ -715,18 +796,22 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 }
 
 bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3)
-{
-	auto &vs = m_vertices;
-	unsigned vsz = m_vertices.size();
-	if(triangleNum<m_triangles.size()&&vert1<vsz&&vert2<vsz&&vert3<vsz)
+{		
+	if(triangleNum<m_triangles.size())
 	{
-		auto tri = m_triangles[triangleNum];
-		auto &vi = tri->m_vertexIndices;
+		auto *tp = m_triangles[triangleNum];
+		auto *tv = tp->m_vertexIndices;
+
+		if(tv[0]==vert1&&tv[1]==vert2&&tv[2]==vert3) return true; //2022
+
+		auto &vl = m_vertices;
+		unsigned vsz = vl.size();
+		if(vert1>=vsz||vert2>=vsz||vert3>=vsz) return false;	
 
 		if(m_undoEnabled)
 		{
 			auto undo = new MU_SetTriangleVertices;
-			undo->setTriangleVertices(triangleNum,vert1,vert2,vert3,vi[0],vi[1],vi[2]);
+			undo->setTriangleVertices(triangleNum,vert1,vert2,vert3,tv[0],tv[1],tv[2]);
 			sendUndo(undo);
 		}
 
@@ -734,9 +819,9 @@ bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned v
 		unsigned v[3] = {vert1,vert2,vert3};
 		for(int i=3;i-->0;)
 		{
-			vs[vi[i]]->_erase_face(tri,i);
-			vs[v[i]]->m_faces.push_back({tri,i});
-			vi[i] = v[i];
+			vl[tv[i]]->_erase_face(tp,i);
+			vl[v[i]]->m_faces.push_back({tp,i});
+			tv[i] = v[i];
 		}
 
 		m_changeBits |= AddGeometry;
@@ -905,7 +990,7 @@ void Model::deleteFlattenedTriangles()
 
 	for(int t=m_triangles.size();t-->0;)
 	{
-		if(m_triangles[t]->_degenerated()) deleteTriangle(t);	
+		if(m_triangles[t]->_flattened()) deleteTriangle(t);	
 	}
 }
 
@@ -1000,18 +1085,6 @@ bool Model::movePositionUnanimated(const Position &pos, double x, double y, doub
 	if(swap) m_animationMode = swap; return ret;
 }
 
-static bool model_inv_infls_msg(Model *m, int n) //2021
-{
-	//NOTE: Even if this could be solved in an acceptable way
-	//it's not likely to be reversible without saving the old
-	//coordinates so that undo operations can restore them :(
-
-	if(m->getUndoEnabled())
-	model_status(m,StatusError,STATUSTIME_LONG,TRANSLATE("LowLevel",
-	"%d multiply influenced vertices not transformed"),n);
-	return false;
-}
-
 bool Model::moveVertex(unsigned index, double x, double y, double z)
 {
 	if(index>=m_vertices.size()) return false;
@@ -1035,7 +1108,6 @@ bool Model::moveVertex(unsigned index, double x, double y, double z)
 	else invalidateAnim();
 
 	double old[3];
-
 	old[0] = v->m_coord[0]; v->m_coord[0] = x;
 	old[1] = v->m_coord[1]; v->m_coord[1] = y;
 	old[2] = v->m_coord[2]; v->m_coord[2] = z;
@@ -1289,7 +1361,10 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 		{
 			i++; if(ea->m_selected)
 			{
-				if(0==~fp) _anim_valloc(fa);
+				//Have to reset fp?
+				//if(0==~fp) _anim_valloc(fa);
+				if(0==~fp) fp = fa->_frame0(this);
+
 				auto vf = ea->m_frames[fp+cf];
 				auto &cmp = vf->m_interp2020;
 				if(cmp!=e) 
@@ -2084,32 +2159,36 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 		f(*m_projections[r]);
 
 		applyProjection(r); //2020
-	}
-	
+	}	
 }
 
-void Model::subdivideSelectedTriangles()
+bool Model::subdivideSelectedTriangles()
 {
 	//LOG_PROFILE(); //???
 
-	m_changeBits|=SelectionVertices|SelectionFaces; //2020
-
 	sorted_list<SplitEdgesT> seList;
 
-	//NOTICE: m_undoEnabled = false!
-	auto undo = m_undoEnabled?new MU_SubdivideTriangle:nullptr;
-	if(undo) sendUndo(new MU_SubdivideSelected);
-	if(undo) m_undoEnabled = false;
+	MU_SubdivideTriangle *undo = nullptr;
 
 	unsigned vertexStart = m_vertices.size();
-	unsigned tlen = m_triangles.size();
-	unsigned tnew = tlen;
 	
+	unsigned tlen = m_triangles.size();
+	unsigned tnew = tlen;	
 	for(unsigned t=0;t<tlen;t++)	
 	{
 		auto *tp = m_triangles[t];
 
 		if(!tp->m_selected) continue;
+				
+		if(!undo&&m_undoEnabled)
+		{
+			m_undoEnabled = false; //!!!
+
+			undo = new MU_SubdivideTriangle;
+			sendUndo(new MU_SubdivideSelected);
+
+			m_changeBits|=SelectionVertices|SelectionFaces; //2020
+		}				
 
 		unsigned verts[3];
 		for(unsigned v=0;v<3;v++)
@@ -2123,11 +2202,13 @@ void Model::subdivideSelectedTriangles()
 			if(!seList.find_sorted(e,index))
 			{
 				double pa[3],pb[3];
-				getVertexCoordsUnanimated(a,pa);
-				getVertexCoordsUnanimated(b,pb);
+				getVertexCoords(a,pa);
+				getVertexCoords(b,pb);
+				for(int i=3;i-->0;)
+				pa[i] = (pa[i]+pb[i])*0.5f;
 
 				int vNew = m_vertices.size();
-				addVertex((pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2);
+				addVertex(a,pa);
 				m_vertices.back()->m_selected = true;
 				e.vNew = vNew;
 				seList.insert_sorted(e);
@@ -2185,7 +2266,11 @@ void Model::subdivideSelectedTriangles()
 		sendUndo(undo);
 	}	
 
+	if(vertexStart==m_vertices.size()) return false;
+
 	invalidateNormals(); //OVERKILL
+
+	return true;
 }
 
 //void Model::unsubdivideTriangles(unsigned t1, unsigned t2, unsigned t3, unsigned t4)
@@ -2439,24 +2524,40 @@ void Model::undoCurrent()
 	m_selecting = false; //??? //endSelectionDifference?
 }
 
-void Model::hideVertex(unsigned v, bool how) //UNSAFE???
+void Model::hideVertex(unsigned i, int how) //UNSAFE???
 {
-	if(v<m_vertices.size()) m_vertices[v]->m_visible = !how;
+	if(i<m_vertices.size()) 
+	{
+		bool &v = m_vertices[i]->m_visible;
+		v = how==-1?!v:!how;
+	}
 	else assert(0);
 }
-void Model::hideTriangle(unsigned t, bool how) //UNSAFE???
+void Model::hideTriangle(unsigned i, int how) //UNSAFE???
 {
-	if(t<m_triangles.size()) m_triangles[t]->m_visible = !how;
+	if(i<m_triangles.size())
+	{
+		bool &v = m_triangles[i]->m_visible;
+		v = how==-1?!v:!how;
+	}
 	else assert(0);
 }
-void Model::hideJoint(unsigned j, bool how) //UNSAFE???
+void Model::hideJoint(unsigned i, int how) //UNSAFE???
 {
-	if(j<m_joints.size()) m_joints[j]->m_visible = !how;
+	if(i<m_joints.size())
+	{
+		bool &v = m_joints[i]->m_visible;
+		v = how==-1?!v:!how;
+	}
 	else assert(0);
 }
-void Model::hidePoint(unsigned p, bool how) //UNSAFE???
+void Model::hidePoint(unsigned i, int how) //UNSAFE???
 {
-	if(p<m_points.size()) m_points[p]->m_visible = !how;
+	if(i<m_points.size()) 
+	{
+		bool &v = m_points[i]->m_visible;
+		v = how==-1?!v:!how;
+	}
 	else assert(0);
 }
 
@@ -2563,44 +2664,112 @@ bool Model::unhideAll()
 
 	auto undo = m_undoEnabled?new MU_Hide(false):0;
 
-	for(unsigned v = 0; v<m_vertices.size(); v++)
+	int i = -1; for(auto*p:m_vertices)
 	{
-		if(!m_vertices[v]->m_visible)
+		i++; if(!p->m_visible)
 		{
-			m_vertices[v]->m_visible = true;
+			p->m_visible = true;
 
-			if(undo) undo->setHideDifference(SelectVertices,v);
+			if(undo) undo->setHideDifference(SelectVertices,i);
 		}
 	}
-	for(unsigned t = 0; t<m_triangles.size(); t++)
+	i = -1; for(auto*p:m_triangles)
 	{
-		if(!m_triangles[t]->m_visible)
+		i++; if(!p->m_visible)
 		{
-			m_triangles[t]->m_visible = true;
+			p->m_visible = true;
 
-			if(undo) undo->setHideDifference(SelectTriangles,t);
+			if(undo) undo->setHideDifference(SelectTriangles,i);
 		}
 	}
-	for(unsigned j = 0; j<m_joints.size(); j++)
+	i = -1; for(auto*p:m_joints)
 	{
-		if(!m_joints[j]->m_visible)
+		i++; if(!p->m_visible)
 		{
-			m_joints[j]->m_visible = true;
+			p->m_visible = true;
 
-			if(undo) undo->setHideDifference(SelectPoints,j);
+			if(undo) undo->setHideDifference(SelectPoints,i);
+		}
+	}	
+	i = -1; for(auto*p:m_points)
+	{
+		i++; if(!p->m_visible)
+		{
+			p->m_visible = true;
+
+			if(undo) undo->setHideDifference(SelectPoints,i);
 		}
 	}
-	for(unsigned p = 0; p<m_points.size(); p++)
-	{
-		if(!m_points[p]->m_visible)
-		{
-			m_points[p]->m_visible = true;
 
-			if(undo) undo->setHideDifference(SelectPoints,p);
+	sendUndo(undo); return true;
+}
+
+void Model::invertHidden()
+{
+	//LOG_PROFILE(); //???
+
+	//first pass (undo)
+	{
+		int i = -1; for(auto*p:m_triangles)
+		{
+			i++;if(p->m_selected&&p->m_visible)
+			{
+				unselectTriangle(i);
+			}
+		}
+		i = -1; for(auto*p:m_vertices)
+		{
+			i++; if(p->m_selected&&p->m_visible)
+			{
+				unselectVertex(i);
+			}
+		}		
+		i = -1; for(auto*p:m_joints)
+		{
+			i++; if(p->m_selected&&p->m_visible)
+			{
+				unselectBoneJoint(i);
+			}
+		}	
+		i = -1; for(auto*p:m_points)
+		{
+			i++; if(p->m_selected&&p->m_visible)
+			{
+				unselectPoint(i);
+			}
 		}
 	}
+	//second pass (undo)
+	{
+		auto undo = m_undoEnabled?new MU_Hide(-1):0;
 
-	if(undo) sendUndo(undo); return true;
+		int i = -1; for(auto*p:m_vertices)
+		{
+			i++; p->m_visible = !p->m_visible;
+		
+			if(undo) undo->setHideDifference(SelectVertices,i);
+		}
+		i = -1; for(auto*p:m_triangles)
+		{
+			i++; p->m_visible = !p->m_visible;
+		
+			if(undo) undo->setHideDifference(SelectTriangles,i);
+		}
+		i = -1; for(auto*p:m_joints)
+		{
+			i++; p->m_visible = !p->m_visible;
+
+			if(undo) undo->setHideDifference(SelectPoints,i);
+		}	
+		i = -1; for(auto*p:m_points)
+		{
+			i++; p->m_visible = !p->m_visible;
+		
+			if(undo) undo->setHideDifference(SelectPoints,i);
+		}
+
+		sendUndo(undo);
+	}
 }
 
 /*REFERENCE

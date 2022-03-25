@@ -475,7 +475,9 @@ class Model
 
 		void _source(AnimationModeE);
 
-		bool _degenerated()const
+		//NOTE: Flat is a "degenerated" triangle by virtue of 
+		//its indices alone. See too deleteFlattenedTriangles.
+		bool _flattened()const
 		{
 			auto *tv = m_vertexIndices; 
 			return tv[0]==tv[1]||tv[0]==tv[2]||tv[1]==tv[2];
@@ -509,8 +511,8 @@ class Model
 		double m_coord[3];	  // Absolute vertex location
 		double m_kfCoord[3];	// Animated position
 		double *m_absSource;  // Points to m_coord or m_kfCoord for drawing
-		//bool m_selected;
-		_OrderedSelection m_selected;		
+		//mutable bool m_selected;
+		mutable _OrderedSelection m_selected;		
 		//mutable bool m_marked;
 		mutable _OrderedSelection::Marker m_marked;
 		mutable bool m_marked2;
@@ -1655,8 +1657,12 @@ class Model
 	// Not undo-able
 	//NOTE: Historically InterpolateStep is a more correct default but my sense is
 	//users would prefer importers to defaul to InterpolateLerp.
-	bool setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
+	void setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
 			double x, double y, double z, Interpolate2020E interp=InterpolateLerp);
+	void setQuickFrameAnimVertexCoords_final() //undo
+	{
+		invalidateAnim(); m_changeBits|=MoveGeometry; 
+	}
 		
 	//TEMPORARY API
 	//PT_Joint: Skeletal animation keyframes 
@@ -1816,6 +1822,7 @@ class Model
 	AnimationList &getAnimationList(){ return *(AnimationList*)&m_anims; };
 
 	int addVertex(double x, double y, double z);
+	int addVertex(int copy, const double pos[3]=0);
 	int addTriangle(unsigned vert1, unsigned vert2, unsigned vert3);
 
 	//2020: This API leaves dangling references to vertices! (UNSAFE)
@@ -1843,7 +1850,7 @@ class Model
 
 	bool isTriangleMarked(unsigned t)const;
 
-	void subdivideSelectedTriangles();
+	bool subdivideSelectedTriangles();
 	//void unsubdivideTriangles(CAN'T BE UNDONE... IT'S REALLY FOR MU_SubdivideSelected use.) 
 	void subdivideSelectedTriangles_undo(unsigned t1, unsigned t2, unsigned t3, unsigned t4);
 
@@ -1852,10 +1859,12 @@ class Model
 	// performs this operation to combine all faces that do not add detail to
 	// the model.
 	//
-	// 2022: ignore_visual_factors says to keep going even if groups or texture
-	// maps must be sacrificed. The texture map is still maintained best it can.
+	// 2022: texture_map_tolerance says to consider groups and textures to within
+	// this percent of a pixel vis-a-vis a group's texture's width and height. If
+	// set to 0 then the old behavior of disregarding groups/textures applies but
+	// texture coordinates are still preserved to the extend possible.
 	//
-	bool simplifySelectedMesh(bool ignore_visual_factors=false);
+	bool simplifySelectedMesh(float texture_map_tolerance=0.1666f);
 
 	bool setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3);
 	bool getTriangleVertices(unsigned triangleNum, unsigned &vert1, unsigned &vert2, unsigned &vert3)const;
@@ -1903,6 +1912,7 @@ class Model
 	inline int getTextureCount()const { return m_materials.size(); };
 
 	int addGroup(const char *name);
+	int addGroup(int cp, const char *name=0); //Copy Constructor
 
 	// Textures and Color materials go into the same material list
 	int addTexture(Texture *tex);
@@ -2309,6 +2319,7 @@ class Model
 	unsigned getSelectedPointCount()const;
 	unsigned getSelectedProjectionCount()const;
 
+	bool setSelectedTriangles(const int_list &presorted); //2022
 	void getSelectedTriangles(int_list &l)const;
 	void getSelectedGroups(int_list &l)const;
 
@@ -2358,9 +2369,6 @@ class Model
 	bool unselectAllPoints(){ return selectAllPoints(false); }
 	bool unselectAllProjections(){ return selectAllProjections(false); }
 	bool unselectAllPositions(PositionTypeE pt){ return selectAllPositions(pt,false); }
-
-	//2022: This is modeled on setSelectedUv.
-	bool setSelectedTriangles(const int_list &presorted);
 
 	// A selection test is an additional condition you can attach to whether
 	// or not an object in the selection volume should be selected. For example,
@@ -2448,6 +2456,8 @@ class Model
 	// like a manual analog to the deleteOrphanedVertices() function).
 	void selectFreeVertices();
 
+	bool selectUngroupedTriangles(bool how); //2022
+
 	//FIX ME
 	//https://github.com/zturtleman/mm3d/issues/63
 	//#ifdef MM3D_EDIT 
@@ -2468,6 +2478,7 @@ class Model
 	bool hideSelected(bool how=true);
 	bool hideUnselected(){ return hideSelected(false); }
 	bool unhideAll();
+	void invertHidden(); //2022
 
 	bool isVertexVisible(unsigned v)const;
 	bool isTriangleVisible(unsigned t)const;
@@ -2477,13 +2488,13 @@ class Model
 
 	//WARNING: THESE ARE UNSAFE FOR UNDO/CHANGE-BITS
 	// Don't call these directly... use selection/hide selection
-	void hideVertex(unsigned,bool=true);
+	void hideVertex(unsigned,int=true);
 	//bool unhideVertex(unsigned);
-	void hideTriangle(unsigned,bool=true);
+	void hideTriangle(unsigned,int=true);
 	//bool unhideTriangle(unsigned);
-	void hideJoint(unsigned,bool=true);
+	void hideJoint(unsigned,int=true);
 	//bool unhideJoint(unsigned);
-	void hidePoint(unsigned,bool=true);
+	void hidePoint(unsigned,int=true);
 	//bool unhidePoint(unsigned);
 
 	// ------------------------------------------------------------------
@@ -2568,22 +2579,18 @@ protected:
 	bool selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, double a1, double b1, double a2, double b2,SelectionTest *test = nullptr);
 	bool selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, double a1, double b1, double a2, double b2,SelectionTest *test = nullptr);
 
+	friend class MU_Select;
+
 	// When primitives of one type are selected, other primitives may need to
 	// be selected at the same time.
 	/*2022: "From" is misleading because there isn't a 1-to-1 relationship
 	//for groups. I actually don't think this should be used in any scenario.
 	//Otherwise it would be good to rename it.
 	bool selectTrianglesFromGroups();*/
-	bool selectTrianglesFromGroups_marked(bool how);
-	public:
-	bool selectUngroupedTriangles(bool how); //2022
-	public: //This needs to be manually callable, so unselectTriangle in loop
-		//is less pathological.
+	bool _selectTrianglesFromGroups_marked(bool how);
+	//void selectGroupsFromTriangles(bool all=true);
+	void _selectGroupsFromTriangles_marked2(bool how);	
 	void _selectVerticesFromTriangles();
-	protected:
-	void selectTrianglesFromVertices(bool all = true);
-	//void selectGroupsFromTriangles(bool all = true);
-	void selectGroupsFromTriangles_marked2(bool how);
 
 	public:
 	bool parentJointSelected(int joint)const;

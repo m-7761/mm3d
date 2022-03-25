@@ -188,10 +188,10 @@ class MU_Hide : public ModelUndo
 {
 public:
 
-	MU_Hide(bool how):m_hide(how){}
+	MU_Hide(int how):m_hide(how){}
 
-	void undo(Model*m){ hide(m,!m_hide); }
-	void redo(Model*m){ hide(m,m_hide); }
+	void undo(Model*m){ hide(m,m_hide==-1?-1:0==m_hide); }
+	void redo(Model*m){ hide(m,m_hide==-1?-1:0!=m_hide); }
 	bool combine(Undo *);
 
 	unsigned size();
@@ -203,7 +203,7 @@ public:
 
 private:
 
-	void hide(Model*,bool);
+	void hide(Model*,int);
 
 	typedef struct _HideDifference_t
 	{
@@ -213,7 +213,7 @@ private:
 
 	typedef std::vector<HideDifferenceT> HideDifferenceList;
 
-	bool m_hide;
+	int m_hide;
 	HideDifferenceList m_diff;
 };
 

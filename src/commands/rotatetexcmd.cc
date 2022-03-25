@@ -37,35 +37,29 @@ struct RotateTextureCommand : Command
 
 	virtual const char *getName(int)
 	{
-		if(getPath()==GEOM_FACES_MENU)
+		//if(getPath()==GEOM_FACES_MENU)
 		//TODO? Is this the best language?
 		//return "Faces\nRotate Texture Coordinates"; 
-		return "Rotate Texture Coordinates"; 
+		return "Turn Texture Coordinates"; 
 		//2022: Conflaing this language is misleading.
-		//return "Groups\nRotate Texture Coordinates"; 
-		return "Groups\nTurn Texture Coordinates CCW"; //UNUSED
-
-		(void)TRANSLATE_NOOP("Command","Rotate Texture Coordinates");
+		//return "Groups\nRotate Texture Coordinates"; //UNUSED
 	}
 
 	virtual const char *getKeymap(int)
-	{
-		//REMINDER: Misfit assigns Unhide to Shift+U. This is
-		//the current default also.
-		//NOTE: I don't know if U is useful. Theoretically it
-		//should be as convenient as flipping normals (N) but
-		//I don't know how often UVs are legitimately off, if
-		//ever, aside from UV editing.
+	{	
 		//NOTE: USING Ctrl+Shift+U SO THE MENUS ARE SAME SIZE.
-		return getPath()==GEOM_FACES_MENU?"U":"Shift+Ctrl+U"; 
+	//	return getPath()==GEOM_FACES_MENU?"U":"Shift+Ctrl+U"; 
+		//2022: Note, / is probably beside Shift, so "Shift+/"
+		//should be avoided.
+		return "Alt+/"; 
 	}
 
 	virtual bool activated(int, Model *model);
 };
 
-extern Command *rotatetexcmd(const char *menu)
+extern Command *rotatetexcmd(/*const char *menu*/)
 {
-	return new RotateTextureCommand(menu); 
+	return new RotateTextureCommand(GEOM_FACES_MENU); 
 }
   
 bool RotateTextureCommand::activated(int arg, Model *model)
@@ -77,7 +71,7 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 		return false;
 	}
 
-	if(getPath()==GEOM_FACES_MENU)
+	//if(getPath()==GEOM_FACES_MENU)
 	{
 		for(int i:tris) //2->0, 1->2, 0->1
 		{
@@ -88,6 +82,7 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 			model->setTextureCoords(i,st);
 		}
 	}
+	/*REFERENCE
 	else if(getPath()==GEOM_GROUP_MENU) //UNUSED
 	{
 		//REMOVE ME?
@@ -118,7 +113,7 @@ bool RotateTextureCommand::activated(int arg, Model *model)
 	else
 	{
 		assert(0); return false;
-	}
+	}*/
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Texture coordinates rotated"));
 	return true;
 }

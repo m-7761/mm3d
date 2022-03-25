@@ -477,14 +477,19 @@ bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned ver
 	return true;
 }
 
-bool Model::setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
+void Model::setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
 		double x, double y, double z, Interpolate2020E interp2020)
 {
-	auto fa = _anim(anim,ANIMMODE_FRAME); if(!fa) return false;
+	//auto fa = _anim(anim,ANIMMODE_FRAME); //2022
+	auto fa = m_anims[anim];
+	
+	//if(!fa) return false; //2022: Quick?
+	//const auto fc = fa->_frame_count();
+	//if(frame>=fc||vertex>=m_vertices.size()) return false;
+	assert(fa&&frame<fa->_frame_count()&&vertex<m_vertices.size());
 
-	const auto fc = fa->_frame_count();
-	if(frame>=fc||vertex>=m_vertices.size()) return false;
-
+	//2022: Can it skip _frame0?
+	//assert(0!=~fa->m_frame0);
 	const auto fp = fa->_frame0(this);	
 	auto list = &m_vertices[vertex]->m_frames[fp];
 	FrameAnimVertex *fav = list[frame];
@@ -498,7 +503,7 @@ bool Model::setQuickFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigne
 	assert(interp2020!=InterpolateKeep);
 	fav->m_interp2020 = interp2020;
 
-	return true;
+	//return true;
 }
 
 int Model::copyAnimation(unsigned index, const char *newName)

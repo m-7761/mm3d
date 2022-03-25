@@ -1555,8 +1555,10 @@ struct model_ops_SimplifyVertT
 {
 	unsigned vrt; float s,t;
 };
-bool Model::simplifySelectedMesh(bool ignore)
+bool Model::simplifySelectedMesh(float subpixel)
 {
+	bool preserve = subpixel!=0;
+
 	std::vector<model_ops_SimplifyEdgeT> edges;
 	std::vector<model_ops_SimplifyVertT> uvmap;
 
@@ -1690,6 +1692,8 @@ bool Model::simplifySelectedMesh(bool ignore)
 		Vector coords,delta,vecA;
 		coords.setAll(vp->m_absSource);
 
+		float uvtol[2];
+
 		for(auto&b:edges) //vecB
 		{
 			//getVertexCoordsb.vFar,vecB);
@@ -1716,13 +1720,26 @@ bool Model::simplifySelectedMesh(bool ignore)
 				double sideplane[3];
 				if(a.polyCount>1||b.polyCount>1)
 				{
-					sides = 2;
-					auto *tp = tl[(a.polyCount>1?a:b).poly[1]];
-					cross_product(sideplane,b.vecB,tp->m_flatSource);
+				//	sides = 2;
+					auto &ab = a.polyCount>1?a:b;
+					auto *t0 = tl[ab.poly[0]];
+					auto *t1 = tl[ab.poly[1]];
+					double avg[3], sum = 0;
+					for(int i=3;i-->0;)
+					sum+=avg[i]=(t0->m_flatSource[i]+t1->m_flatSource[i])*0.5;
+					if(fabs(sum)>0.00001)
+					{
+						sides = 2; cross_product(sideplane,b.vecB,avg);
+					}
 				}				
 				for(int side=sides;side-->0;)
 				{
 					int grp = -2; uvmap.clear(); //2022
+
+					//2022: This is just a commonsense optimization, that
+					//I'm not 100% clear won't negatively impact outcomes
+					//by changing the order which eliminations will occur.
+					enum{ prefilter_flipped_winding=0 };
 
 					//log_debug("  found a straight line\n");
 					bool canWeld = true;
@@ -1743,11 +1760,21 @@ bool Model::simplifySelectedMesh(bool ignore)
 
 						auto *t0 = tl[e.poly[0]], *t1 = tl[e.poly[1]];
 
-						if(!ignore) //2022: Don't ignore appearances?
+						if(preserve) //2022: Don't ignore appearances?
 						{
 							//Triangles on one side must share groups.
 
-							if(grp==-2) grp = t0->m_group;
+							if(grp==-2)
+							{
+								grp = t0->m_group;
+
+								if(auto*t=getTextureData(getGroupTextureId(grp)))
+								{
+									uvtol[0] = subpixel/t->m_origWidth;
+									uvtol[1] = subpixel/t->m_origHeight;
+								}
+								else uvtol[0] = uvtol[0] = 0.0001f; //ARBITARY
+							}
 
 							if(grp!=t0->m_group||grp!=t1->m_group)
 							{
@@ -1771,8 +1798,8 @@ bool Model::simplifySelectedMesh(bool ignore)
 
 								for(auto&uv:uvmap) if(uv.vrt==vrt)
 								{
-									if(!ignore)
-									if(fabsf(s-uv.s)>0.0001f||fabsf(t-uv.t)>0.0001f)
+									if(preserve)
+									if(fabsf(s-uv.s)>uvtol[0]||fabsf(t-uv.t)>uvtol[1])
 									{
 										canWeld = false; i = 0; //OPTIMIZING?
 									}
@@ -1793,6 +1820,8 @@ bool Model::simplifySelectedMesh(bool ignore)
 						else for(int i=e.polyCount;i-->0;) // check inverted normals
 						{
 							//WHY??? ISN'T THE PREVIOUS TEST ABOUT NORMALS? WINDING?
+
+							if(!prefilter_flipped_winding) break; //EXPERIMENTAL
 
 							auto *tp = tl[e.poly[i]];
 							auto *tv = tp->m_vertexIndices;
@@ -1833,6 +1862,50 @@ bool Model::simplifySelectedMesh(bool ignore)
 					}
 					if(!canWeld) continue;
 
+					if(preserve) //Avoid UV collapse?
+					{
+						//NOTE: This has to stay on sides.
+
+						float s[3],t[3]; for(auto&ea:uvmap)
+						{
+							//NOTE: To get this far these
+							//must all be equal.
+							if(ea.vrt==a.vFar)
+							{
+								s[0] = ea.s; t[0] = ea.t;
+							}
+							else if(ea.vrt==b.vFar)
+							{
+								s[2] = ea.s; t[2] = ea.t;
+							}
+							else if(ea.vrt==v)
+							{
+								s[1] = ea.s; t[1] = ea.t;
+							}
+						}
+
+						//Reducing this tolerance helps with little nicks
+						//left over from boolean (CSG) operations. In the
+						//test I did I couldn't see a difference visually.
+					//	static const float err = 0.005f; //0.0001f;
+
+						//Same as vecA==vecB in UV space.
+						float stA[2] = { s[0]-s[1],t[0]-t[1] };
+					//	normalize2(stA);
+						float stB[2] = { s[1]-s[2],t[1]-t[2] };
+					//	normalize2(stB);
+						//dot2 is trying just to eliminate opposite directions
+						//as if that is a test for mirrored UVs. It just seems
+						//like requiring them to line up is eliminating things
+						//that look fine to me. Hopefully this is happy medium
+						//since you can still narrow the input selection where
+						//dot2 goes too far.
+					//	if(fabsf(stA[0]-stB[0])>err||fabsf(stA[1]-stB[1])>err)
+						if(dot2(stA,stB)<0)
+						{
+							continue; //canWeld = false;
+						}
+					}
 								// Yay! We can collapse v to vA
 
 					//log_debug("*** vertex %d can be collapsed to %d\n",v,a.vFar);
@@ -1858,16 +1931,31 @@ bool Model::simplifySelectedMesh(bool ignore)
 
 							//log_debug("finding %d in triangle %d\n",v,j);
 
-							for(int vrt=a.vFar,k=3;k-->0;) if(tv[k]==v) switch(k)
+							for(int vrt=a.vFar,k=3;k-->0;) if(tv[k]==v) 
 							{
-							case 0: setTriangleVertices(j,vrt,tv[1],tv[2]); goto welded;
-							case 1: setTriangleVertices(j,tv[0],vrt,tv[2]); goto welded;
-							case 2: setTriangleVertices(j,tv[0],tv[1],vrt); goto welded;
-							welded:
+								unsigned tw[3] = { tv[0],tv[1],tv[2] }; tw[k] = vrt;
+
+								bool flat = tw[0]==tw[1]||tw[0]==tw[2]||tw[1]==tw[2];
+
+								if(!flat&&!prefilter_flipped_winding) //EXPERIMENTAL
+								{
+									double normal[3];
+									calculateFlatNormal(tw,normal);
+									if(0>=dot3(normal,tp->m_flatSource))									
+									switch(k) //Must avoid vrt in uvmap below.
+									{
+									case 0: std::swap(tw[1],tw[2]); break;
+									case 1: std::swap(tw[0],tw[2]); break;
+									case 2: std::swap(tw[0],tw[1]); break;
+									}									
+								}
+
+								setTriangleVertices(j,tw[0],tw[1],tw[2]); 
 
 								//NOTE: Updating m_flatSource isn't necessary
 								//as merging demands triangles to be coplanar.
-								if(tp->_degenerated()) tp->m_user = -1;
+								//if(tp->_flattened()) tp->m_user = -1;
+								if(flat) tp->m_user = -1;
 								
 								for(auto&uv:uvmap) if(vrt==uv.vrt)
 								{

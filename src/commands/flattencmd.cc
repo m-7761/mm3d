@@ -94,7 +94,7 @@ bool FlattenCommand::activated(int index, Model *model)
 		model->movePosition(i,coords[0],coords[1],coords[2]);
 	}
 
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives flattened"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection flattened"));
 
 	return true;
 }

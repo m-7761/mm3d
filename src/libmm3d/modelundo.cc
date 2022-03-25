@@ -292,11 +292,8 @@ bool MU_Select::combine(Undo *u)
 		//since it will affect performance bad / can't think of any
 		//reason to sort
 
-		SelectionDifferenceList::iterator it;
-		for(it = undo->m_diff.begin(); it!=undo->m_diff.end(); it++)
-		{
-			setSelectionDifference(it->number,it->selected,it->oldSelected);
-		}
+		for(auto &ea:undo->m_diff)
+		setSelectionDifference(ea.number,ea.selected,ea.oldSelected);
 		return true;
 	}
 	//*/ 
@@ -365,7 +362,7 @@ void MU_SetSelectedUv::setSelectedUv(const int_list &newUv, const int_list &oldU
 	m_newUv = newUv; m_oldUv = oldUv;
 }
 
-void MU_Hide::hide(Model *model, bool how)
+void MU_Hide::hide(Model *model, int how)
 {
 	//log_debug("undo hide\n"); //???
 
@@ -1749,6 +1746,7 @@ void MU_MoveFrameVertex::undo(Model *model)
 	// Modify a vertex we already have
 	for(auto&ea:m_vertices)
 	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.oldx,ea.oldy,ea.oldz,ea.olde);	
+	model->setQuickFrameAnimVertexCoords_final(); //2022
 
 	if(m_anim==model->getCurrentAnimation()) 
 	model->setCurrentAnimationFrame(m_frame);
@@ -1758,6 +1756,7 @@ void MU_MoveFrameVertex::redo(Model *model)
 	// Modify a vertex we already have
 	for(auto&ea:m_vertices)
 	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.x,ea.y,ea.z,ea.e);
+	model->setQuickFrameAnimVertexCoords_final(); //2022
 
 	if(m_anim==model->getCurrentAnimation()) 
 	model->setCurrentAnimationFrame(m_frame);

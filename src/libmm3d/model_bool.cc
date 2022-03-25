@@ -228,8 +228,8 @@ static void model_bool_cutTriangle(Model *model,
 
 	auto nc1 = p1,nc2 = p2; if(a1>=a2) std::swap(nc1,nc2);
 
-	int v1 = model->addVertex(nc1[0],nc1[1],nc1[2]);
-	int v2 = model->addVertex(nc2[0],nc2[1],nc2[2]);
+	int v1 = model->addVertex(ut.v[0],nc1);
+	int v2 = model->addVertex(ut.v[1],nc2);
 	unsigned int v3[3] = { ut.v[0],ut.v[1],ut.v[2] }; //2022
 
 	model_bool_NewTriangle nt;

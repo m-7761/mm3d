@@ -48,7 +48,11 @@ extern Command *simplifycmd(){ return new SimplifyMeshCommand; }
 
 bool SimplifyMeshCommand::activated(int arg, Model *model)
 {
-	bool ret = model->simplifySelectedMesh(arg==1); 
+	//TODO: 0.1666f needs a global preference of some kind
+	//NOTE: Another good option would be forcing both sides
+	//to be able to remove their vertex before elimination.
+	bool ret = model->simplifySelectedMesh(arg==1?0:0.1666f); 
+
 	//2022: Input feedback helps to be sure keys are processed.
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
 	TRANSLATE("Command",ret?"Redundant edges eliminated"

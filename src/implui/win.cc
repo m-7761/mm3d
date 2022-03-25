@@ -176,7 +176,7 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 		k = id_file_save_prompt;
 		else break; //break;
 
-	case 127: //Delete?
+	case 127: //Hardcoded Delete?
 		
 		glutSetWindow(w->glut_parent_id());
 		extern void viewwin_menubarfunc(int);
@@ -195,7 +195,7 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 
 		win_close(); return false;
 
-	case 'z': case 'y': z: //Hardcoded undo/redo.
+	case 'z': case 'y': z: //Hardcoded undo/redo? Shift+Ctrl+Z?
 		
 		extern void viewwin_undo(int,bool);
 		if(m&GLUT_ACTIVE_CTRL&&!w->modal())

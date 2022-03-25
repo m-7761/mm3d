@@ -32,7 +32,7 @@ struct SelectFreeCommand : Command
 {
 	SelectFreeCommand():Command(1,GEOM_VERTICES_MENU){}
 
-	virtual const char *getKeymap(int){ return "Ctrl+Alt+Z"; }
+	virtual const char *getKeymap(int){ return "Ctrl+F"; }
 
 	virtual const char *getName(int)
 	{

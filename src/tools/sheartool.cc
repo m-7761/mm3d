@@ -148,7 +148,7 @@ void ShearTool::mouseButtonDown()
 	m_startLength = fabs(m_far-(m_axis?curX:curY));
 
 	model_status(parent->getModel(),StatusNormal,STATUSTIME_SHORT,
-	TRANSLATE("Tool","Starting shear on selected primitives"));
+	TRANSLATE("Tool","Shearing"));
 }
 void ShearTool::mouseButtonMove()
 {

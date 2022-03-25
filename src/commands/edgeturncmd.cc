@@ -36,19 +36,21 @@ struct EdgeTurnCommand : Command
 	
 	virtual const char *getName(int)
 	{
-		return TRANSLATE_NOOP("Command","Edge Turn"); 
+		//return TRANSLATE_NOOP("Command","Edge Turn"); 
+		return TRANSLATE_NOOP("Command","Turn Edge"); 
 	}
 
 	//NOTE: Shift is to avoid proximity to Ctrl+D (duplicate).
-	virtual const char *getKeymap(int){ return "Shift+Ctrl+F"; }
+	//virtual const char *getKeymap(int){ return "Shift+Ctrl+F"; }
+	virtual const char *getKeymap(int){ return "/"; }
 
 	virtual bool activated(int,Model*);
 		
 	bool canTurnEdge(Model *model, const Model::Triangle *tri1, const Model::Triangle *tri2,
-	unsigned int &edge_v1, unsigned int &edge_v2, unsigned int &tri1_v, unsigned int &tri2_v);
+	unsigned &edge_v1, unsigned &edge_v2, unsigned &tri1_v, unsigned &tri2_v);
 	
 	void getTriangleVertices(Model *model, const Model::Triangle *,
-	unsigned int edge_v1, unsigned int edge_v2, unsigned int tri_v,
+	unsigned edge_v1, unsigned edge_v2, unsigned tri_v,
 	int &a, int &b, int &c);
 };
 
@@ -60,7 +62,7 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 	model->getSelectedTriangles(triList);
 
 	// Only turns one edge, deal with it //???
-	unsigned int edge_v1,edge_v2, tri1_v,tri2_v;
+	unsigned edge_v1,edge_v2, tri1_v,tri2_v;
 	
 	//TODO: Maybe model needs its own edgeTurn API and 
 	//corresponding undo object?
@@ -207,9 +209,9 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 		model->setTextureCoords(ea.t2->m_user,ea.d2,s2,t2);
 	}
 	if(vst.empty())
-	model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","You must have at least 2 adjacent faces to Edge Turn"));
+	model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Select 2 adjacent faces"));
 	else
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Edge Turn complete"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Turn complete"));
 	return !vst.empty();
 }
 
@@ -217,12 +219,12 @@ bool EdgeTurnCommand::activated(int arg, Model *model)
 // tri1_v and tri2_v are the opposite vertices of the respective triangles
 bool EdgeTurnCommand::canTurnEdge(Model *model, 
 const Model::Triangle *tri1, const Model::Triangle *tri2,
-unsigned int &edge_v1, unsigned int &edge_v2, unsigned int &tri1_v, unsigned int &tri2_v)
+unsigned &edge_v1, unsigned &edge_v2, unsigned &tri1_v, unsigned &tri2_v)
 {
 	auto *verts1 = tri1->m_vertexIndices;
 	auto *verts2 = tri2->m_vertexIndices;
 
-	const unsigned int invalid = (unsigned)~0;
+	const unsigned invalid = (unsigned)~0;
 
 	edge_v1 = invalid;
 	edge_v2 = invalid;
@@ -231,11 +233,11 @@ unsigned int &edge_v1, unsigned int &edge_v2, unsigned int &tri1_v, unsigned int
 
 	for(int i1 = 0; i1<3; i1++)
 	{
-		unsigned int v1 = verts1[i1];
+		unsigned v1 = verts1[i1];
 		if(v1!=edge_v1&&v1!=edge_v2)
 		for(int i2 = 0; i2<3; i2++)
 		{
-			unsigned int v2 = verts2[i2];
+			unsigned v2 = verts2[i2];
 			if(v2!=edge_v1&&v2!=edge_v2)			
 			if(v1==v2)
 			{
@@ -275,12 +277,11 @@ unsigned int &edge_v1, unsigned int &edge_v2, unsigned int &tri1_v, unsigned int
 // not the index of the model vertices
 void EdgeTurnCommand::getTriangleVertices(Model *model,
 const Model::Triangle *tri,
-unsigned int edge_v1, unsigned int edge_v2, unsigned int tri_v,
+unsigned edge_v1, unsigned edge_v2, unsigned tri_v,
 int &a, int &b, int &c)
 {
-	auto &v = tri->m_vertexIndices;
-
-	for(int i = 0; i<3; i++)
+	auto *v = tri->m_vertexIndices;
+	for(int i=0;i<3;i++)
 	{
 		if(v[i]==edge_v1)
 			a = i;

@@ -383,7 +383,7 @@ bool Model::isPositionSelected(Position p)const
 	return false;
 }
 
-bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
+bool Model::selectVerticesInVolumeMatrix(bool how, const Matrix &viewMat, double x1, double y1, double x2, double y2,SelectionTest *test)
 {
 	//LOG_PROFILE(); //???
 
@@ -392,17 +392,17 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
 
-	Vector vert;
+	Vector vert; bool tris = false;
 
 	for(unsigned v=0;v<m_vertices.size();v++)
 	{
-		if(m_vertices[v]->m_selected!=select)
+		auto *vp = m_vertices[v]; 
+		
+		if(vp->m_selected!=how&&vp->m_visible)
 		{
-			vert.setAll(m_vertices[v]->m_absSource,3);
+			vert.setAll(vp->m_absSource,3);
 			
-			vert[3] = 1;
-
-			viewMat.apply(vert);
+			vert[3] = 1; viewMat.apply(vert);
 
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
@@ -415,18 +415,31 @@ bool Model::selectVerticesInVolumeMatrix(bool select, const Matrix &viewMat, dou
 				vert.scale(1/w);
 			}
 
-			if( m_vertices[v]->m_visible
-				  &&vert[0]>=x1&&vert[0]<=x2 
-				  &&vert[1]>=y1&&vert[1]<=y2)
+			if(vert[0]>=x1&&vert[0]<=x2&&vert[1]>=y1&&vert[1]<=y2)			
+			if(!test||test->shouldSelect(vp))
 			{
-				if(test)
-					m_vertices[v]->m_selected = test->shouldSelect(m_vertices[v])? select : m_vertices[v]->m_selected;
-				else
-					m_vertices[v]->m_selected = select;
+				vp->m_selected = how;
+
+				if(!how&&!tris) for(auto&ea:vp->m_faces)
+				{
+					if(ea.first->m_selected) tris = true;
+				}
 			}
 		}
 	}
-	
+
+	if(!how&&tris) //2022
+	{	
+		for(auto*tp:m_triangles) if(tp->m_visible)
+		{		
+			int count = 0; for(auto i:tp->m_vertexIndices)
+			{
+				count+=m_vertices[i]->m_selected;
+			}
+			if(count!=3) tp->m_selected = false;
+		}
+	}
+
 	//endSelectionDifference();
 
 	return true;
@@ -437,18 +450,17 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 	//LOG_PROFILE(); //???
 
 	//beginSelectionDifference(); //OVERKILL!
-
-	unsigned i;
-	for(i = 0; i<m_vertices.size(); i++)
+	
+	for(auto i=m_vertices.size();i-->0;)
 	{
 		//Note, I think only "connected" uses these?
 		m_vertices[i]->m_marked2 = false; 
 	}
 
-	for(i = 0; i<m_triangles.size(); i++)
+	for(auto i=m_triangles.size();i-->0;)
 	{
 		//These weren't actually used, but is needed
-		//for selectGroupsFromTriangles_marked2 now?
+		//for _selectGroupsFromTriangles_marked2 now.
 		m_triangles[i]->m_marked2 = false; 
 	}
 
@@ -508,7 +520,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 					// A vertex of the triangle is within the selection area
 					tri->m_selected = select;
 
-					tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+					tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 					vert[0]->m_marked2 = true;
 					vert[1]->m_marked2 = true;
@@ -576,7 +588,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 					{
 						tri->m_selected = select;
 
-						tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+						tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 						vert[0]->m_marked2 = true;
 						vert[1]->m_marked2 = true;
@@ -601,7 +613,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 					{
 						tri->m_selected = select;
 
-						tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+						tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 						vert[0]->m_marked2 = true;
 						vert[1]->m_marked2 = true;
@@ -618,7 +630,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
-							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
@@ -633,7 +645,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
-							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
@@ -651,7 +663,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
-							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
@@ -666,7 +678,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						{
 							tri->m_selected = select;
 
-							tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 							vert[0]->m_marked2 = true;
 							vert[1]->m_marked2 = true;
@@ -683,7 +695,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 				// This means we're inside the triangle, so add it to our selection list
 				tri->m_selected = select;
 
-				tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+				tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 				vert[0]->m_marked2 = true;
 				vert[1]->m_marked2 = true;
@@ -718,7 +730,7 @@ next_triangle:
 
 					tri->m_selected = select;
 
-					tri->m_marked2 = true; //selectGroupsFromTriangles_marked2?
+					tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
 					for(unsigned v = 0; v<3; v++)
 					{
@@ -745,7 +757,7 @@ bool Model::selectGroupsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 	selectTrianglesInVolumeMatrix(select,viewMat,x1,y1,x2,y2,false,test);
 
 	//selectGroupsFromTriangles(!select);
-	selectGroupsFromTriangles_marked2(select);
+	_selectGroupsFromTriangles_marked2(select);
 
 	//endSelectionDifference();
 
@@ -1273,7 +1285,7 @@ void Model::_selectVerticesFromTriangles()
 }
 
 //bool Model::selectTrianglesFromGroups() 
-bool Model::selectTrianglesFromGroups_marked(bool how) 
+bool Model::_selectTrianglesFromGroups_marked(bool how) 
 {
 	//LOG_PROFILE(); //???
 
@@ -1288,7 +1300,7 @@ bool Model::selectTrianglesFromGroups_marked(bool how)
 
 	for(auto*grp:m_groups)
 	{
-		//if(grp->m_selected) //selectGroupsFromTriangles_marked2?
+		//if(grp->m_selected) //_selectGroupsFromTriangles_marked2?
 		if(grp->m_marked)
 		{
 			for(auto i:grp->m_triangleIndices)
@@ -1357,40 +1369,8 @@ bool Model::selectUngroupedTriangles(bool how) //2022
 	sendUndo(undo); return sel;
 }
 
-void Model::selectTrianglesFromVertices(bool all)
-{
-	//LOG_PROFILE(); //???
-
-	unselectAllTriangles();
-
-	assert(m_selecting||!m_undoEnabled); //BELOW CODE IS NOT UNDOABLE
-
-	for(unsigned t = 0; t<m_triangles.size(); t++)
-	{
-		if(m_triangles[t]->m_visible)
-		{
-			int count = 0;
-			for(int v = 0; v<3; v++)
-			{
-				if(m_vertices[m_triangles[t]->m_vertexIndices[v]]->m_selected)
-				{
-					count++;
-				}
-
-			}
-			if(count==(all?3:0))
-			{
-				m_triangles[t]->m_selected = true;
-			}
-		}
-	}
-
-	// Unselect vertices who don't have a triangle selected
-	if(all) _selectVerticesFromTriangles();
-}
-
 //void Model::selectGroupsFromTriangles(bool all)
-void Model::selectGroupsFromTriangles_marked2(bool how)
+void Model::_selectGroupsFromTriangles_marked2(bool how)
 {
 	//LOG_PROFILE(); //???
 
@@ -1420,7 +1400,7 @@ void Model::selectGroupsFromTriangles_marked2(bool how)
 	//but it shouldn't have
 	//unselectAllTriangles();
 	//selectTrianglesFromGroups();
-	selectTrianglesFromGroups_marked(how); //REMOVE ME
+	_selectTrianglesFromGroups_marked(how); //REMOVE ME
 }
 
 bool Model::invertSelection()

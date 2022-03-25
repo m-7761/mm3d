@@ -345,19 +345,13 @@ bool Model::duplicateSelected(bool animated, bool separate)
 		{
 			if(!m_vertices[v]->m_selected) continue;
 
-			//	vc++;
-
-			double coords[3]; if(animated)
+			if(animated)
 			{
+				double coords[3]; 
 				getVertexCoords(v,coords);
+				vertMap[v] = addVertex(coords[0],coords[1],coords[2]); 
 			}
-			else getVertexCoordsUnanimated(v,coords);
-
-			int nv = addVertex(coords[0],coords[1],coords[2]);
-
-			//if(isVertexFree(v)) setVertexFree(nv,true);
-
-			vertMap[v] = nv;
+			else vertMap[v] = addVertex(v);
 		}
 
 		// Duplicate faces

@@ -35,7 +35,6 @@ typedef struct _NewVertices_t
 {
 	int index;
 	unsigned v[3];
-	bool selected[3];
 } NewVerticesT;
 
 typedef std::vector<NewVerticesT> NewVerticesList;
@@ -92,28 +91,22 @@ void weldSelectedVertices(Model *model, double tolerance, int &unweldnum, int &w
 	}
 
 	// Move triangles to welded vertices
-	for(int t = 0; t<model->getTriangleCount(); t++)
+	for(int t=0,tN=model->getTriangleCount();t<tN;t++)
 	{
 		unsigned v[3];
 		bool changeVertices = false;
 		model->getTriangleVertices(t,v[0],v[1],v[2]);
-		for(int i = 0; i<3; i++)
+		for(int i=3;i-->0;)
+		if(welded.find(v[i])!=welded.end())
 		{
-			if(welded.find(v[i])!=welded.end())
-			{
-				v[i] = welded[v[i]];
-				changeVertices = true;
-			}
+			v[i] = welded[v[i]];
+			changeVertices = true;
 		}
-
 		if(changeVertices)
 		{
 			model->setTriangleVertices(t,v[0],v[1],v[2]);
 		}
 	}
-
-	// Delete orphaned vertices
-	std::map<int,int>::reverse_iterator mit;
 
 	model->deleteFlattenedTriangles();
 	model->deleteOrphanedVertices();
@@ -134,89 +127,49 @@ void unweldSelectedVertices(Model *model, int &unweldnum, int &weldnum)
 	int_list vert;
 	model->getSelectedVertices(vert);
 
+	std::map<int,int> vertCount;
+	for(int i:vert) vertCount[i] = 0;
+
+	auto &vl = model->getVertexList();
+
 	NewVerticesList nvl;
 	int added = 0;
-
-	std::map<int,int> vertCount;
-
-	int_list::iterator it;
-
-	for(it = vert.begin(); it!=vert.end(); it++)
+	for(int t=0,tN=model->getTriangleCount();t<tN;t++)
 	{
-		vertCount[*it] = 0;
-	}
-
-	for(int t = 0; t<model->getTriangleCount(); t++)
-	{
-		NewVerticesT nv;
-		nv.index = t;
-
-		bool changeVertices = false;
+		NewVerticesT nv; nv.index = t;
 
 		model->getTriangleVertices(t,nv.v[0],nv.v[1],nv.v[2]);
 		for(int i = 0; i<3; i++)		
 		if(vertCount.find(nv.v[i])!=vertCount.end())
 		{
-			nv.selected[i] = true;
+	//		nv.selected[i] = true;
 			vertCount[nv.v[i]]++;
 
 			if(vertCount[nv.v[i]]>1)
 			{
-				changeVertices = true;
-
-				double coords[3];
-
-				model->getVertexCoords(nv.v[i],coords);
-				int temp  = model->addVertex(coords[0],coords[1],coords[2]);
-
-				//infl_list inf;
-				//model->getVertexInfluences(nv.v[i],inf);
-				const infl_list &inf = model->getVertexInfluences(nv.v[i]);
-				for(infl_list::const_iterator it = inf.begin();
-						it!=inf.end(); ++it)
-				{
-					model->setVertexInfluence(temp,
-							it->m_boneId,it->m_type,it->m_weight);
-				}
-
-				nv.v[i] = temp;
+				nv.v[i] = model->addVertex(nv.v[i]);
+				vl.back()->m_selected = true; //2022
 				added++;
 				unweldnum++;
 			}
 			else weldnum++;
 		}
-		else nv.selected[i] = false;		
+	//	else nv.selected[i] = false;		
 
 		nvl.push_back(nv);
 	}
 
-	NewVerticesList::iterator nvit;
-	for(nvit = nvl.begin(); nvit!=nvl.end(); nvit++)
-	{
-		model->setTriangleVertices((*nvit).index,
-				(*nvit).v[0],(*nvit).v[1],(*nvit).v[2]);
-	}
+	for(auto&ea:nvl)
+	model->setTriangleVertices(ea.index,ea.v[0],ea.v[1],ea.v[2]);
 
+	/*HACK? This is what the existing code here amounted
+	//to, however this seems quite silly, so instead the
+	//new vertices are selected above. For instance this
+	//command might not be initiated on a face selection.
 	int_list tri;
 	model->getSelectedTriangles(tri);
-
-	model->unselectAll();
-	model->unselectAll();
-	for(it = tri.begin(); it!=tri.end(); it++)
-	{
-		model->selectTriangle(*it);
-	}
-
-	for(nvit = nvl.begin(); nvit!=nvl.end(); nvit++)
-	{
-		for(int i = 0; i<3; i++)
-		{
-			if((*nvit).selected[i])
-			{
-				model->selectVertex((*nvit).v[i]);
-			}
-		}
-	}
+	model->setSelectedTriangles(tri);*/
+	if(added) model->setChangeBits(Model::SelectionVertices); //2022
 
 	unweldnum += weldnum;
 }

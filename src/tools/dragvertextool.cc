@@ -44,7 +44,7 @@ struct DragVertexTool: public Tool
 		return TRANSLATE_NOOP("Tool","Drag Vertex on Edge");
 	}
 
-	virtual const char *getKeymap(int){ return "Shift+T"; } //"D"
+	virtual const char *getKeymap(int){ return "D"; }
 
 	virtual const char **getPixmap(int){ return dragvertextool_xpm; }
 

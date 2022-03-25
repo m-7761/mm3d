@@ -281,7 +281,7 @@ void RotateTool::mouseButtonDown()
 	if(int mode=mouse2())
 	{
 		const char *msg;
-		if(mode==1) msg = TRANSLATE("Tool","Rotating selected primitives");	
+		if(mode==1) msg = TRANSLATE("Tool","Rotating");	
 		if(mode!=1) msg = TRANSLATE("Tool","Setting rotation point");
 		model_status(model,StatusNormal,STATUSTIME_SHORT,msg);
 	}

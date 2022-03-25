@@ -34,10 +34,26 @@
 
 int Model::addGroup(const char *name)
 {
+	return addGroup(-1,name);
+}
+int Model::addGroup(int cp, const char *name)
+{
 	//LOG_PROFILE(); //???
 
-	m_changeBits |= AddOther; 
+	Group *p; if(cp>=0) //2022
+	{
+		if((unsigned)cp>=m_groups.size()) 
+		{
+			assert(0); return -1;
+		}
+		else p = m_groups[cp];
 
+		if(!name) name = p->m_name.c_str();
+	}
+	else p = nullptr;
+
+	m_changeBits |= AddOther; 
+	
 	//2021: preventing surprise (MM3D)
 	//doesn't allow setting names to a
 	//blank but filters can.
@@ -47,7 +63,12 @@ int Model::addGroup(const char *name)
 	int num = m_groups.size();
 
 	Group *group = Group::get();
-	group->m_name = name;
+	group->m_name = name; if(p)
+	{
+		group->m_materialIndex = p->m_materialIndex;
+		group->m_smooth = p->m_smooth;
+		group->m_angle = p->m_angle;
+	}
 	m_groups.push_back(group);
 
 	if(m_undoEnabled)

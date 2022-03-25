@@ -114,8 +114,8 @@ void AttractTool::mouseButtonDown()
 	m_minDistance = min; m_sepDistance = max-min;
 	
 	model_status(model,StatusNormal,STATUSTIME_SHORT,m_op?
-	TRANSLATE("Tool","Attracting far selected primitives"):
-	TRANSLATE("Tool","Attracting near selected primitives"));
+	TRANSLATE("Tool","Attract far complete"):
+	TRANSLATE("Tool","Attract near complete"));
 }
 void AttractTool::mouseButtonMove()
 {

@@ -292,13 +292,11 @@ void GroupWin::group_selected()
 }
 void GroupWin::new_group_or_name(int id)
 {
-	utf8 title = "Rename group"; //NEW
-	std::string name; int g; if(id==id_name)
-	{
-		title = "New group";
-		g = group; name = model->getGroupName(g);		
-	}
-	if(id_ok==EditBox(&name,::tr(title,"window title"),
+	int g = group; std::string name;
+	utf8 str = model->getGroupName(g);
+	if(str) name = str;
+	str = id==id_new?"New group":"Rename group";	
+	if(id_ok==EditBox(&name,::tr(str,"window title"),
 	::tr("Enter new group name:"),1,Model::MAX_GROUP_NAME_LEN))
 	{
 		if(id==id_name)
@@ -308,7 +306,7 @@ void GroupWin::new_group_or_name(int id)
 		}
 		else if(id==id_new)
 		{
-			g = model->addGroup(name.c_str());
+			g = model->addGroup(g,name.c_str());
 			group.add_item(g,name);
 			group.select_id(g);
 			group_selected();

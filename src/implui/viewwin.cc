@@ -761,6 +761,9 @@ void MainWin::_init_menu_toolbar() //2019
 	{
 		viewwin_modl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
+	//Note, Shift+Ctrl+Z is hardwired as Redo since although
+	//Ctrl+Y is standard these days, Shift+Ctrl+Z has a long
+	//history is an is more efficient.
 	glutAddMenuEntry(E(edit_undo,"Undo","Undo shortcut","Ctrl+Z"));
 	glutAddMenuEntry(E(edit_redo,"Redo","Redo shortcut","Ctrl+Y"));
 	glutAddMenuEntry();

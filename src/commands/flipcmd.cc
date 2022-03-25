@@ -95,7 +95,7 @@ bool FlipCommand::activated(int index, Model *model)
 		 }
 	}
 
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selected primitives flipped"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection flipped"));
 
 	return true;
 }

@@ -925,10 +925,15 @@ void SideBar::PropPanel::group_props::submit(int id)
 		}
 		else if(!event.wheel_event)
 		{	
+			int was = -1;
+			if(auto*e=event.get_edited())
+			was = *e; else assert(0);
 			std::string groupName;
+			if(auto*str=model->getGroupName(was)) groupName = str;
+			else was = -1;
 			if(id_ok==Win::EditBox(&groupName,::tr("New Group","Name of new group window title"),::tr("Enter new group name:")))
 			{
-				model->addGroup(groupName.c_str());
+				model->addGroup(was,groupName.c_str());
 				group.menu.selection()->set_text(groupName);
 				group.menu.last_item()->set_text(::tr("<New Group>"));
 				group.menu.add_item(iN+1,::tr("<New Material>"));

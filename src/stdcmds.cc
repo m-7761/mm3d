@@ -35,65 +35,28 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 
 	#define _(x) \
 	extern Command *x##cmd(); cmdMgr->addCommand(x##cmd());
+	#define __() cmdMgr->addSeparator();
 
-	_(copy)
-	cmdMgr->addSeparator();
-	_(delete)_(dup)
-	cmdMgr->addSeparator();
-	_(invert)
+	_(copy)__()_(delete)_(dup)__()_(invert)__()
 
-	cmdMgr->addSeparator();
-
-	// Vertices
+	// Vertices submenu
 	
-	//_(makeface)
+	_(weld)_(snap)__()_(selectfree)
 
-	_(weld)_(snap)
-
-	cmdMgr->addSeparator(); //NEW
-
-	_(selectfree)
-
-	// Faces
+	// Faces submenu
 	
-	_(makeface)
-	//REMINDER: This is positioning to overlap 
-	//with Group->Turn Texture Coordinates CCW.
-	//_(rotatetex,"Faces")
-	extern Command *rotatetexcmd(const char*);
-	cmdMgr->addCommand(rotatetexcmd(GEOM_FACES_MENU));
-	cmdMgr->addSeparator();
-	_(subdivide)
-	_(edgediv)_(edgeturn) //Edges?
-	cmdMgr->addSeparator();
-	_(invnormal)
-	_(faceout) //INSANE //OVERKILL
-		
-	// Groups (MISNOMER)
-					
-	//NOTE: This doesn't really have to do with groups.
-	//It applies to the texture.
-	//_(rotatetex,"Groups")
-	//
-	// 2022: I've thought about removing this... the
-	// TextureWidget::rotateCoordinatesCcw function is
-	// identical. I assume this was for fixing up some
-	// models, otherwise it's too esoteric and taking
-	// up a hotkey..
-	//
-//	extern Command *rotatetexcmd(const char*);
-//	cmdMgr->addCommand(rotatetexcmd(GEOM_GROUP_MENU));
+	_(makeface)_(subdivide)_(edgeturn)_(rotatetex)
+	__()_(invnormal)_(faceout) //INSANE //OVERKILL
 
-	// Meshes
+	// Meshes submenu
 
 	_(simplify)_(cap)_(spherify)
 
-	// Other Geometry Commands
+	// Other
 
-	cmdMgr->addSeparator();
-
-	_(hide)_(flip)_(flatten)_(align)_(extrude)
+	__()_(hide)_(flip)_(flatten)_(align)_(extrude)
 
 	#undef _
+	#undef __
 }
 

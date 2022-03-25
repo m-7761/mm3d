@@ -239,7 +239,7 @@ void ScaleTool::mouseButtonDown()
 	m_startLength = magnitude(m_startLengthX,m_startLengthY);
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
-	TRANSLATE("Tool","Scaling selected primitives"));
+	TRANSLATE("Tool","Scaling"));
 }
 
 void ScaleTool::mouseButtonMove()
