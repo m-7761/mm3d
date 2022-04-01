@@ -142,20 +142,23 @@ struct ViewBar::StatusBar : StatusObject
 	text(nav,""),
 	flags(nav),		
 		//left-to-right reading (priority)
-	_vert_snap(flags,"Vs",id_snap_vert),
-	_grid_snap(flags,"Gs",id_snap_grid),
-	_uvfitlock(flags,"Fw",id_uv_editor), //?
-	_interlock(flags,"Ex",id_frame_lock),
-	_shiftlock(flags,"Sh",id_tool_shift_lock),
-	_texshlock(flags,"Uv",id_tool_shift_lock),
-	_shifthold(flags,"Lk",id_tool_shift_hold),
-	_face_view(flags,"Ccw",id_normal_order),
+		//NOTE: IDs are notational
+	_grid_snap(flags,"Gs"), //id_snap_grid
+	_sp_snap(flags,"UGs"), //id_snap_grid
+	_vert_snap(flags,"Vs"), //id_snap_vert
+	_uv_snap(flags,"UVs"), //id_snap_vert
+	_uvfitlock(flags,"UFw"), //id_uv_editor
+	_interlock(flags,"Ex"), //id_frame_lock),
+	_shiftlock(flags,"Sh"), //id_tool_shift_lock
+	_texshlock(flags,"USh"), //id_tool_shift_lock
+	_shifthold(flags,"Lk"), //id_tool_shift_hold
+	_face_view(flags,"Ccw"), //id_normal_order
 		//right-to-left reading (priority)
-	_100(flags,"Wt",id_joint_100),
-	_clipboard(flags,"Ins",id_animate_insert),	
-	_keys_snap(flags,"Scr",id_animate_snap),
-	_sanim_mode(flags,"Sam",id_animate_mode_1),
-	_fanim_mode(flags,"Fam",id_animate_mode_2),
+	_100(flags,"Wt"), //id_joint_100
+	_clipboard(flags,"Ins"), //id_animate_insert
+	_keys_snap(flags,"Scr"), //id_animate_snap
+	_anim_mode(flags,""), //id_animate_mode
+	_anim_bind(flags,"X"), //id_animate_bind
 	stats(nav,"")
 	{
 		nav.expand();
@@ -178,9 +181,9 @@ struct ViewBar::StatusBar : StatusObject
 	row flags;
 	struct Indicator:titlebar
 	{
-		Indicator(row &r, utf8 c, int i):titlebar(r,c)
+		Indicator(row &r, utf8 c):titlebar(r,c)
 		{
-			id(i); //if(hiding) 
+			//id(i); //if(hiding) 
 			{
 				set_hidden();
 
@@ -200,10 +203,14 @@ struct ViewBar::StatusBar : StatusObject
 			else*/ set_hidden(!_); return _;
 		}
 
+		operator bool(){ return !hidden(); }
+
 		//Note, these must be dissimilar where
 	}	//unrelated.
-	_vert_snap, //Vs
 	_grid_snap, //Gs
+	_sp_snap, //UGs
+	_vert_snap, //Vs
+	_uv_snap, //UVs
 	_uvfitlock, //Fw/Fh
 	_interlock, //Ex (inverted)
 	_shiftlock, //Sh
@@ -213,8 +220,8 @@ struct ViewBar::StatusBar : StatusObject
 	_100, //1 //Wt (inverted)
 	_clipboard, //Ins
 	_keys_snap, //Scr (inverted)
-	_sanim_mode, //Sam
-	_fanim_mode; //Fam
+	_anim_mode, //Sam/Fam
+	_anim_bind; //X (inverted) (final)
 	titlebar stats;
 
 	// StatusObject methods

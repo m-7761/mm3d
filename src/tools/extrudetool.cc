@@ -61,7 +61,7 @@ struct ExtrudeTool : Tool
 		TRANSLATE("Tool","Extrude complete"));
 		parent->updateAllViews();
 	}
-		double m_x,m_y;
+		double m_x,m_y,m_xx,m_yy;
 
 		bool m_allowX,m_allowY;
 	
@@ -74,9 +74,13 @@ void ExtrudeTool::mouseButtonDown()
 {
 	Model *model = parent->getModel();
 
-	m_allowX = m_allowY = true;
+	int bs = parent->getButtonsLocked();
 
-	parent->getParentXYValue(m_x,m_y,true);
+	m_allowX = m_allowY = 0!=(bs&BS_Shift);
+
+	parent->getParentXYValue(m_xx,m_yy,true);
+
+	m_x = m_xx; m_y = m_yy;
 		
 	// TODO widget for back-facing
 	if(!m_impl.extrude(model,0,0,0,false))
@@ -95,17 +99,21 @@ void ExtrudeTool::mouseButtonMove()
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1]);
 
-	if(parent->getButtonsLocked()&BS_Shift&&m_allowX&&m_allowY)
+	//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
+	if(m_allowX||m_allowY)
 	{
-		double ax = fabs(pos[0]-m_x);
-		double ay = fabs(pos[1]-m_y);
+		if(m_allowX&&m_allowY)
+		{
+			double ax = fabs(pos[0]-m_xx);
+			double ay = fabs(pos[1]-m_yy);
 
-		if(ax>ay) m_allowY = false;
-		if(ay>ax) m_allowX = false;
-	}
+			if(ax>ay) m_allowY = false;
+			if(ay>ax) m_allowX = false;
+		}
 
-	if(!m_allowX) pos[0] = m_x;
-	if(!m_allowY) pos[1] = m_y;
+		if(!m_allowX) pos[0] = m_xx;
+		if(!m_allowY) pos[1] = m_yy;
+	}	
 
 	double v[4] = { pos[0]-m_x,pos[1]-m_y,0,1 };
 

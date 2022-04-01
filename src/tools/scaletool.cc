@@ -98,7 +98,7 @@ struct ScaleTool : Tool
 		int m_proportion,m_point;		
 		bool m_translate,m_scale;
 
-		double m_x,m_y;
+		double m_xx,m_yy;
 		bool m_allowX,m_allowY;		
 
 		double m_pointX;
@@ -130,7 +130,9 @@ void ScaleTool::mouseButtonDown()
 
 	Model *model = parent->getModel();
 
-	m_allowX = m_allowY = true;
+	int bs = parent->getButtonsLocked();
+
+	m_allowX = m_allowY = 0!=(bs&BS_Shift);
 			
 	pos_list posList;
 	model->getSelectedPositions(posList);
@@ -170,8 +172,8 @@ void ScaleTool::mouseButtonDown()
 
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1],true);
-	m_x = pos[0];
-	m_y = pos[1];
+	m_xx = pos[0];
+	m_yy = pos[1];
 	if(m_point==ST_ScalePointFar)
 	{
 		//NOTE: This looks wrong, but seems to not matter.
@@ -253,18 +255,21 @@ void ScaleTool::mouseButtonMove()
 	double pos[2];
 	parent->getParentXYValue(pos[0],pos[1]);
 
-	//Should tools be responsible for this?
-	if(parent->getButtonsLocked()&BS_Shift&&m_allowX&&m_allowY)
+	//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
+	if(m_allowX||m_allowY)
 	{
-		double ax = fabs(pos[0]-m_x);
-		double ay = fabs(pos[1]-m_y);
+		if(m_allowX&&m_allowY)
+		{
+			double ax = fabs(pos[0]-m_xx);
+			double ay = fabs(pos[1]-m_yy);
 
-		if(ax>ay) m_allowY = false;
-		if(ay>ax) m_allowX = false;
+			if(ax>ay) m_allowY = false;
+			if(ay>ax) m_allowX = false;
+		}
+
+		if(!m_allowX) pos[0] = m_xx;
+		if(!m_allowY) pos[1] = m_yy;
 	}
-
-	if(!m_allowX) pos[0] = m_x;
-	if(!m_allowY) pos[1] = m_y;
 
 	const double &spX = m_pointX;
 	const double &spY = m_pointY;

@@ -1762,7 +1762,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(fps);
 			m_src->read(frameCount);
 			
-			unsigned anim = model->addAnimation(Model::ANIMMODE_SKELETAL,name);
+			unsigned anim = model->addAnimation(Model::ANIMMODE_JOINT,name);
 			model->setAnimFPS(anim,fps);
 			model->setAnimFrameCount(anim,frameCount);
 			model->setAnimWrap(anim,(flags&MSAF_ANIM_WRAP)!=0);

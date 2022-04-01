@@ -101,6 +101,7 @@ void MoveTool::mouseButtonMove()
 		pos[2] = m_zz; //m_z
 	}
 
+	//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
 	if(m_allowX||m_allowY)
 	{
 		if(m_allowX&&m_allowY)

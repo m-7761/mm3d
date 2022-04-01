@@ -168,7 +168,7 @@ void SideBar::AnimPanel::refresh_list()
 	dropdown *r = animation.reference();
 	if(!r) r = &animation;
 
-	//sep_animation = model->getAnimationCount(Model::ANIMMODE_SKELETAL);
+	//sep_animation = model->getAnimationCount(Model::ANIMMODE_JOINT);
 	//new_animation = model->getAnimationCount(Model::ANIMMODE_FRAME);
 	new_animation = model->getAnimationCount();
 	//new_animation+=sep_animation;
@@ -472,7 +472,7 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	if(show) switch(ss.type)
 	{
 	case Model::PT_Point:
-		show = mode!=Model::ANIMMODE_SKELETAL;
+		show = mode!=Model::ANIMMODE_JOINT;
 		break;
 	case Model::PT_Joint:
 		show = mode!=Model::ANIMMODE_FRAME;
@@ -490,7 +490,7 @@ void SideBar::PropPanel::modelChanged(int changeBits)
 	if(show) scale.change(changeBits);
 
 	show = mode?sz!=0:false;
-	if(mode==Model::ANIMMODE_SKELETAL)
+	if(mode==Model::ANIMMODE_JOINT)
 	for(auto&i:model.selection) 
 	if(i.type!=Model::PT_Joint)
 	show = false;

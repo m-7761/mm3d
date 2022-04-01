@@ -45,7 +45,7 @@ struct CubeTool : Tool
 
 	virtual const char **getPixmap(int){ return cubetool_xpm; }
  
-	virtual const char *getKeymap(int){ return "F6"; }
+	virtual const char *getKeymap(int){ return "Alt+F6"; }
 
 	virtual void activated(int)
 	{

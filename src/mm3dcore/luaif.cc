@@ -718,7 +718,7 @@ static Model::AnimationModeE _stringToAnimationMode(const char *str)
 {
 	if(PORT_strcasecmp(str,"skeletal")==0)
 	{
-		return Model::ANIMMODE_SKELETAL;
+		return Model::ANIMMODE_JOINT;
 	}
 	else if(PORT_strcasecmp(str,"frame")==0)
 	{

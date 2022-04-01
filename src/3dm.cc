@@ -63,6 +63,14 @@ extern int main(int argc, char *argv[])
 {
 	int rval = 0;
 	
+	//2022: I'm trying to prevent assert from aborting
+	//debug/console builds since it prevents debugging.
+	#ifdef _WIN32
+	#ifdef MM3D_MSGBOX
+	_set_error_mode(_OUT_TO_MSGBOX); 
+	#endif
+	#endif
+
 	/*2021: ui.cc now has code that does this... it may conflict
 	#ifdef _WIN32
 	// If started from command prompt,print messages there.

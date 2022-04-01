@@ -877,6 +877,25 @@ class MU_ChangeAnimState : public ModelUndo
 		Model::RestorePoint m_new,m_old;
 };
 
+
+class MU_ChangeSkeletalMode : public ModelUndo //COMBINE ME?
+{
+	public:
+		
+		MU_ChangeSkeletalMode(bool how):m_how(how){}
+
+		void undo(Model*),redo(Model*);
+
+		bool combine(Undo *);
+
+		unsigned size(){ return sizeof(MU_ChangeSkeletalMode); }
+
+	private:
+
+		bool m_how;
+};
+
+
 class MU_SetAnimName : public ModelUndo
 {
 	public:
@@ -959,13 +978,12 @@ class MU_SetAnimWrap : public ModelUndo
 
 		unsigned size(){ return sizeof(MU_SetAnimWrap); }
 
-		void setAnimWrap(unsigned animNum,bool newLoop,bool oldLoop);
+		void setAnimWrap(unsigned animNum, bool newWrap, bool oldWrap);
 
 	private:
 
 		unsigned m_animNum;
-		bool	m_newLoop;
-		bool	m_oldLoop;
+		bool m_new, m_old;
 };
 
 //https://github.com/zturtleman/mm3d/issues/106

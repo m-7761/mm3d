@@ -54,7 +54,7 @@ extern void init_std_cmds(CommandManager *cmdMgr)
 
 	// Other
 
-	__()_(hide)_(flip)_(flatten)_(align)_(extrude)
+	__()_(hide)_(flatten)_(flip)_(align)_(extrude)
 
 	#undef _
 	#undef __

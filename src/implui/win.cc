@@ -71,7 +71,7 @@ static void win_enter()
 	else w->basic_submit(id_ok);
 }
 
-static void win_help(const char *typeid_name)
+extern void win_help(const char *typeid_name)
 {
 	#ifdef __GNUC__
 	int _; (void)_;
@@ -503,7 +503,7 @@ bool ScrollWidget::mouseReleaseEventUI(int bt, int bs, int x, int y)
 bool ScrollWidget::mouseMoveEventUI(int bs, int x, int y)
 {
 	getXY(x,y);
-	if(m_activeButton||over(x,y)||m_autoOverlay==2)
+	if(m_activeButton||over(x,y))
 	mouseMoveEvent(win_state(bs),x,y);
 	else return false; return true;
 }

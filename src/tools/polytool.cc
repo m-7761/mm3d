@@ -70,7 +70,9 @@ struct PolyTool : Tool
 		//FIX ME
 		//TODO: Add this and lift getParentXYValue(false)
 		//constraint. Refer to MoveTool.
-		bool m_allowX,m_allowY; double m_x,m_y,m_z;
+		bool m_allowX,m_allowY; 
+		
+		double m_xx,m_yy;
 
 		bool m_selecting; //2020
 };
@@ -86,7 +88,7 @@ void PolyTool::mouseButtonDown()
 	m_selecting = false; 
 	m_allowX = m_allowY = 0!=(bt&BS_Shift);
 	if(m_allowX) 
-	parent->getParentXYZValue(m_x,m_y,m_z,true);
+	parent->getParentXYValue(m_xx,m_yy,true);
 	
 	//EXPANDED BEHAVIOR (2020)
 	//
@@ -200,19 +202,20 @@ void PolyTool::mouseButtonMove()
 		double pos[3];
 		parent->getParentXYZValue(pos[0],pos[1],pos[2],false);
 
-		if(m_allowX||m_allowY) //2020
+		//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
+		if(m_allowX||m_allowY)
 		{
 			if(m_allowX&&m_allowY)
 			{
-				double ax = fabs(pos[0]-m_x);
-				double ay = fabs(pos[1]-m_y);
+				double ax = fabs(pos[0]-m_xx);
+				double ay = fabs(pos[1]-m_yy);
 
 				if(ax>ay) m_allowY = false;
 				if(ay>ax) m_allowX = false;
 			}
 
-			if(!m_allowX) pos[0] = m_x;
-			if(!m_allowY) pos[1] = m_y;
+			if(!m_allowX) pos[0] = m_xx;
+			if(!m_allowY) pos[1] = m_yy;
 		}
 
 		movePositionUnanimated(m_lastVertex.pos,pos[0],pos[1],pos[2]);

@@ -97,8 +97,9 @@ public:
 	Model *const model;
 		
 	const int glut_window_id;
-	const int clipboard_mode;
+	const int animate_insert; //Ctrl+C and Ctrl+V
 	const int animation_mode;
+	const int animation_bind;
 	
 	Toolbox toolbox;	
 	ViewPanel views; SideBar sidebar; //IN Z-ORDER

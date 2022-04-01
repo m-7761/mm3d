@@ -46,11 +46,22 @@ void Model::setSelectionMode(Model::SelectionModeE m)
 
 bool Model::selectVertex(unsigned v, unsigned how)
 {
-	if(v<m_vertices.size()
-	&&m_vertices[v]->m_selected!=(how!=0)) //2019
+	if(v>=m_vertices.size()) return false;
+
+	auto *vp = m_vertices[v];
+
+	if(vp->m_selected!=(how!=0)) //2019
 	{
+		if(how&&!vp->m_visible) //2022
+		{
+			assert(m_undoEnabled);
+			
+			//TODO: modelundo.cc can use a lightweight path.
+			if(!m_undoEnabled) return false;
+		}
+
 		//2022: PolyTool uses this to sort by selection order.
-		auto &s_op = m_vertices[v]->m_selected._select_op;
+		auto &s_op = vp->m_selected._select_op;
 		
 		if(!m_selecting) //2020: make foolproof?
 		{
@@ -77,16 +88,25 @@ bool Model::selectVertex(unsigned v, unsigned how)
 
 bool Model::selectTriangle(unsigned t)
 {
-	if(t<m_triangles.size()
-	&&!m_triangles[t]->m_selected) //2019
+	if(t>=m_triangles.size()) return false;
+
+	auto *tp = m_triangles[t]; if(!tp->m_selected) //2019
 	{
+		if(!tp->m_visible) //2022
+		{
+			assert(m_undoEnabled);
+			
+			//TODO: modelundo.cc can use a lightweight path.
+			if(!m_undoEnabled) return false;
+		}
+
 		if(!m_selecting) //2020: make foolproof?
 		{
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionFaces; //2019
 			
 			bool o = setUndoEnabled(false);
-			auto *tv = m_triangles[t]->m_vertexIndices;
+			auto *tv = tp->m_vertexIndices;
 			for(int i=3;i-->0;) selectVertex(tv[i]);
 			setUndoEnabled(o);
 
@@ -97,12 +117,12 @@ bool Model::selectTriangle(unsigned t)
 				sendUndo(undo);
 			}
 		}
-		else for(int i:m_triangles[t]->m_vertexIndices)
+		else for(int i:tp->m_vertexIndices)
 		{
 			m_vertices[i]->m_selected = true;
 		}
 
-		m_triangles[t]->m_selected = true;
+		tp->m_selected = true;
 
 		return true;
 	}
@@ -110,8 +130,9 @@ bool Model::selectTriangle(unsigned t)
 }
 bool Model::unselectTriangle(unsigned t, bool remove_me)
 {
-	if(t<m_triangles.size()
-	&&m_triangles[t]->m_selected) //2019
+	if(t>=m_triangles.size()) return false;
+
+	auto *tp = m_triangles[t]; if(tp->m_selected) //2019
 	{
 		if(!m_selecting) //2020: make foolproof?
 		{
@@ -126,7 +147,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 			}
 		}
 
-		m_triangles[t]->m_selected = false;
+		tp->m_selected = false;
 		
 		if(remove_me) //2019: MU_Select called in a loop!
 		{
@@ -134,7 +155,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 			//_selectVerticesFromTriangles(); //INSANE?!?
 			{
 				//BETTER: leverage new connectivty data?
-				for(auto i:m_triangles[t]->m_vertexIndices)
+				for(auto i:tp->m_vertexIndices)
 				if(m_vertices[i]->m_selected)
 				{
 					bool selected = false;
@@ -875,304 +896,301 @@ bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, 
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
 
-	if(m_animationMode==ANIMMODE_NONE)
+	for(unsigned p=0;p<m_projections.size();p++)
 	{
-		for(unsigned p = 0; p<m_projections.size(); p++)
+		TextureProjection *proj = m_projections[p];
+
+		if(proj->m_selected!=select)
 		{
-			TextureProjection *proj = m_projections[p];
+			Matrix m = proj->getMatrixUnanimated();
+			auto &left = *(Vector*)m.getVector(0);
+			auto &up = *(Vector*)m.getVector(1);
+			//auto &seam = *(Vector*)m.getVector(2);
+			auto &pos = *(Vector*)m.getVector(3);
 
-			if(proj->m_selected!=select)
+			viewMat.apply(pos);
+			//TESTING
+			//This lets a projection matrix be used to do the selection.
+			//I guess it should be a permanent feature.				
+			double w = pos[3]; if(1!=w) 
 			{
-				Matrix m = proj->getMatrixUnanimated();
-				auto &left = *(Vector*)m.getVector(0);
-				auto &up = *(Vector*)m.getVector(1);
-				//auto &seam = *(Vector*)m.getVector(2);
-				auto &pos = *(Vector*)m.getVector(3);
+				//HACK: Reject if behind Z plane.
+				if(w<=0) continue;
 
-				viewMat.apply(pos);
-				//TESTING
-				//This lets a projection matrix be used to do the selection.
-				//I guess it should be a permanent feature.				
-				double w = pos[3]; if(1!=w) 
+				pos.scale(1/w);
+			}
+			viewMat.apply3(up);
+			//viewMat.apply3(seam);
+			viewMat.apply3(left);
+
+			bool selectable = false;
+
+			if(proj->m_type==TPT_Plane)
+			{
+				bool above = false;
+				bool below = false;
+
+				int v;
+				double tCords[4][3];
+
+				// 0. Assign vert to triangle's verticies 
+				// 1. Check for vertices within the selection volume in the process
+				for(v = 0; v<4; v++)
 				{
-					//HACK: Reject if behind Z plane.
-					if(w<=0) continue;
+					double x = (v==0||v==3)? -1.0 : 1.0;
+					double y = (v>=2)? -1.0 : 1.0;
 
-					pos.scale(1/w);
+					tCords[v][0] = pos[0]+up[0] *y+left[0] *x;
+					tCords[v][1] = pos[1]+up[1] *y+left[1] *x;
+					tCords[v][2] = pos[2]+up[2] *y+left[2] *x;
+
+					//log_debug("vertex %d: %f,%f,%f\n",v,tCords[v][0],tCords[v][1],tCords[v][2]); //???
 				}
-				viewMat.apply3(up);
-				//viewMat.apply3(seam);
-				viewMat.apply3(left);
 
-				bool selectable = false;
-
-				if(proj->m_type==TPT_Plane)
+				for(v = 0; v<4; v++)
 				{
-					bool above = false;
-					bool below = false;
-
-					int v;
-					double tCords[4][3];
-
-					// 0. Assign vert to triangle's verticies 
-					// 1. Check for vertices within the selection volume in the process
-					for(v = 0; v<4; v++)
+					if( tCords[v][0]>=x1&&tCords[v][0]<=x2 
+							&&tCords[v][1]>=y1&&tCords[v][1]<=y2)
 					{
-						double x = (v==0||v==3)? -1.0 : 1.0;
-						double y = (v>=2)? -1.0 : 1.0;
-
-						tCords[v][0] = pos[0]+up[0] *y+left[0] *x;
-						tCords[v][1] = pos[1]+up[1] *y+left[1] *x;
-						tCords[v][2] = pos[2]+up[2] *y+left[2] *x;
-
-						//log_debug("vertex %d: %f,%f,%f\n",v,tCords[v][0],tCords[v][1],tCords[v][2]); //???
+						// A vertex of the square is within the selection area
+						selectable = true;
 					}
 
-					for(v = 0; v<4; v++)
+					//log_debug("xform: %d: %f,%f,%f\n",v,tCords[v][0],tCords[v][1],tCords[v][2]); //???
+				}
+
+				// 2. Find intersections between triangle edges and selection edges
+				// 3. Also,check to see if the selection box is completely within triangle
+
+				double m[4];
+				double b[4];
+				double *coord[4][2];
+
+				m[0] = (tCords[0][1]-tCords[1][1])/(tCords[0][0]-tCords[1][0]);
+				coord[0][0] = tCords[0];
+				coord[0][1] = tCords[1];
+				m[1] = (tCords[1][1]-tCords[2][1])/(tCords[1][0]-tCords[2][0]);
+				coord[1][0] = tCords[1];
+				coord[1][1] = tCords[2];
+				m[2] = (tCords[2][1]-tCords[3][1])/(tCords[2][0]-tCords[3][0]);
+				coord[2][0] = tCords[2];
+				coord[2][1] = tCords[3];
+				m[3] = (tCords[3][1]-tCords[0][1])/(tCords[3][0]-tCords[0][0]);
+				coord[3][0] = tCords[3];
+				coord[3][1] = tCords[0];
+
+				b[0] = tCords[0][1]-(m[0] *tCords[0][0]);
+				b[1] = tCords[1][1]-(m[1] *tCords[1][0]);
+				b[2] = tCords[2][1]-(m[2] *tCords[2][0]);
+				b[3] = tCords[3][1]-(m[3] *tCords[3][0]);
+
+
+				for(int line = 0; !selectable&&line<4; line++)
+				{
+					//log_debug("line %d:	m = %f	b = %f	x = %f	y = %f\n",line,m[line],b[line],coord[line][0][0],coord[line][0][1]);
+
+					double y;
+					double x;
+					double xmin;
+					double xmax;
+					double ymin;
+					double ymax;
+
+					if(coord[line][0][0]<coord[line][1][0])
 					{
-						if( tCords[v][0]>=x1&&tCords[v][0]<=x2 
-							  &&tCords[v][1]>=y1&&tCords[v][1]<=y2)
+						xmin = coord[line][0][0];
+						xmax = coord[line][1][0];
+					}
+					else
+					{
+						xmin = coord[line][1][0];
+						xmax = coord[line][0][0];
+					}
+
+					if(coord[line][0][1]<coord[line][1][1])
+					{
+						ymin = coord[line][0][1];
+						ymax = coord[line][1][1];
+					}
+					else
+					{
+						ymin = coord[line][1][1];
+						ymax = coord[line][0][1];
+					}
+
+					if(x1>=xmin&&x1<=xmax)
+					{
+						y = m[line] *x1+b[line];
+						if(y>=y1&&y<=y2)
 						{
-							// A vertex of the square is within the selection area
 							selectable = true;
 						}
 
-						//log_debug("xform: %d: %f,%f,%f\n",v,tCords[v][0],tCords[v][1],tCords[v][2]); //???
+						if(y>y1)
+						{
+							above = true;
+						}
+						if(y<y1)
+						{
+							below = true;
+						}
 					}
 
-					// 2. Find intersections between triangle edges and selection edges
-					// 3. Also,check to see if the selection box is completely within triangle
-
-					double m[4];
-					double b[4];
-					double *coord[4][2];
-
-					m[0] = (tCords[0][1]-tCords[1][1])/(tCords[0][0]-tCords[1][0]);
-					coord[0][0] = tCords[0];
-					coord[0][1] = tCords[1];
-					m[1] = (tCords[1][1]-tCords[2][1])/(tCords[1][0]-tCords[2][0]);
-					coord[1][0] = tCords[1];
-					coord[1][1] = tCords[2];
-					m[2] = (tCords[2][1]-tCords[3][1])/(tCords[2][0]-tCords[3][0]);
-					coord[2][0] = tCords[2];
-					coord[2][1] = tCords[3];
-					m[3] = (tCords[3][1]-tCords[0][1])/(tCords[3][0]-tCords[0][0]);
-					coord[3][0] = tCords[3];
-					coord[3][1] = tCords[0];
-
-					b[0] = tCords[0][1]-(m[0] *tCords[0][0]);
-					b[1] = tCords[1][1]-(m[1] *tCords[1][0]);
-					b[2] = tCords[2][1]-(m[2] *tCords[2][0]);
-					b[3] = tCords[3][1]-(m[3] *tCords[3][0]);
-
-
-					for(int line = 0; !selectable&&line<4; line++)
+					if(!selectable&&x2>=xmin&&x2<=xmax)
 					{
-						//log_debug("line %d:	m = %f	b = %f	x = %f	y = %f\n",line,m[line],b[line],coord[line][0][0],coord[line][0][1]);
-
-						double y;
-						double x;
-						double xmin;
-						double xmax;
-						double ymin;
-						double ymax;
-
-						if(coord[line][0][0]<coord[line][1][0])
+						y = m[line] *x2+b[line];
+						if(y>=y1&&y<=y2)
 						{
-							xmin = coord[line][0][0];
-							xmax = coord[line][1][0];
+							selectable = true;
 						}
-						else
-						{
-							xmin = coord[line][1][0];
-							xmax = coord[line][0][0];
-						}
+					}
 
-						if(coord[line][0][1]<coord[line][1][1])
+					bool vertical = (fabs(coord[line][0][0]-coord[line][1][0])<0.0001);
+					if(!selectable&&y1>=ymin&&y1<=ymax)
+					{
+						if(vertical)
 						{
-							ymin = coord[line][0][1];
-							ymax = coord[line][1][1];
-						}
-						else
-						{
-							ymin = coord[line][1][1];
-							ymax = coord[line][0][1];
-						}
-
-						if(x1>=xmin&&x1<=xmax)
-						{
-							y = m[line] *x1+b[line];
-							if(y>=y1&&y<=y2)
-							{
-								selectable = true;
-							}
-
-							if(y>y1)
-							{
-								above = true;
-							}
-							if(y<y1)
-							{
-								below = true;
-							}
-						}
-
-						if(!selectable&&x2>=xmin&&x2<=xmax)
-						{
-							y = m[line] *x2+b[line];
-							if(y>=y1&&y<=y2)
+							if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
 							{
 								selectable = true;
 							}
 						}
-
-						bool vertical = (fabs(coord[line][0][0]-coord[line][1][0])<0.0001);
-						if(!selectable&&y1>=ymin&&y1<=ymax)
+						else
 						{
-							if(vertical)
+							x = (y1-b[line])/m[line];
+							if(x>=x1&&x<=x2)
 							{
-								if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
-								{
-									selectable = true;
-								}
-							}
-							else
-							{
-								x = (y1-b[line])/m[line];
-								if(x>=x1&&x<=x2)
-								{
-									selectable = true;
-								}
-							}
-						}
-
-						if(!selectable&&y2>=ymin&&y2<=ymax)
-						{
-							if(vertical)
-							{
-								if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
-								{
-									selectable = true;
-								}
-							}
-							else
-							{
-								x = (y2-b[line])/m[line];
-								if(x>=x1&&x<=x2)
-								{
-									selectable = true;
-								}
+								selectable = true;
 							}
 						}
 					}
 
-					if(above&&below)
+					if(!selectable&&y2>=ymin&&y2<=ymax)
 					{
-						// There was an intersection above and below the selection area,
-						// This means we're inside the square,so add it to our selection list
-						selectable = true;
+						if(vertical)
+						{
+							if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
+							{
+								selectable = true;
+							}
+						}
+						else
+						{
+							x = (y2-b[line])/m[line];
+							if(x>=x1&&x<=x2)
+							{
+								selectable = true;
+							}
+						}
 					}
 				}
+
+				if(above&&below)
+				{
+					// There was an intersection above and below the selection area,
+					// This means we're inside the square,so add it to our selection list
+					selectable = true;
+				}
+			}
+			else
+			{
+				int i = 0;
+				int iMax = 0;
+
+				double radius = up.mag3();
+
+				double diffX = up[0];
+				double diffY = up[1];
+
+				if(proj->m_type==TPT_Cylinder)
+				{
+					radius = radius/3;
+
+					i	 = -1;
+					iMax =  1;
+				}
+
+				for(; i<=iMax&&!selectable; i++)
+				{
+					double x = pos[0];
+					double y = pos[1];
+
+					x += diffX *(double)i;
+					y += diffY *(double)i;
+
+					// check if center is inside selection region
+					bool inx = (x>=x1&&x<=x2);
+					bool iny = (y>=y1&&y<=y2);
+
+					selectable = (inx&&iny);
+
+					if(!selectable)
+					{
+						// check if lines passes through radius
+						if(inx)
+						{
+							if(fabs(y-y1)<radius
+									||fabs(y-y2)<radius)
+							{
+								selectable = true;
+							}
+						}
+						else if(iny)
+						{
+							if(fabs(x-x1)<radius
+									||fabs(x-x2)<radius)
+							{
+								selectable = true;
+							}
+						}
+						else
+						{
+							// line did not pass through radius,see if all bounding region 
+							// points are within radius
+							double diff[2];
+
+							diff[0] = fabs(x-x1);
+							diff[1] = fabs(y-y1);
+
+							if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
+							{
+								selectable = true;
+							}
+
+							diff[0] = fabs(x-x2);
+							diff[1] = fabs(y-y1);
+
+							if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
+							{
+								selectable = true;
+							}
+
+							diff[0] = fabs(x-x1);
+							diff[1] = fabs(y-y2);
+
+							if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
+							{
+								selectable = true;
+							}
+
+							diff[0] = fabs(x-x2);
+							diff[1] = fabs(y-y2);
+
+							if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
+							{
+								selectable = true;
+							}
+						}
+					}
+				}
+			}
+
+			if(selectable)
+			{
+				if(test)
+					proj->m_selected = test->shouldSelect(proj)? select : proj->m_selected;
 				else
-				{
-					int i = 0;
-					int iMax = 0;
-
-					double radius = up.mag3();
-
-					double diffX = up[0];
-					double diffY = up[1];
-
-					if(proj->m_type==TPT_Cylinder)
-					{
-						radius = radius/3;
-
-						i	 = -1;
-						iMax =  1;
-					}
-
-					for(; i<=iMax&&!selectable; i++)
-					{
-						double x = pos[0];
-						double y = pos[1];
-
-						x += diffX *(double)i;
-						y += diffY *(double)i;
-
-						// check if center is inside selection region
-						bool inx = (x>=x1&&x<=x2);
-						bool iny = (y>=y1&&y<=y2);
-
-						selectable = (inx&&iny);
-
-						if(!selectable)
-						{
-							// check if lines passes through radius
-							if(inx)
-							{
-								if(fabs(y-y1)<radius
-									  ||fabs(y-y2)<radius)
-								{
-									selectable = true;
-								}
-							}
-							else if(iny)
-							{
-								if(fabs(x-x1)<radius
-									  ||fabs(x-x2)<radius)
-								{
-									selectable = true;
-								}
-							}
-							else
-							{
-								// line did not pass through radius,see if all bounding region 
-								// points are within radius
-								double diff[2];
-
-								diff[0] = fabs(x-x1);
-								diff[1] = fabs(y-y1);
-
-								if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
-								{
-									selectable = true;
-								}
-
-								diff[0] = fabs(x-x2);
-								diff[1] = fabs(y-y1);
-
-								if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
-								{
-									selectable = true;
-								}
-
-								diff[0] = fabs(x-x1);
-								diff[1] = fabs(y-y2);
-
-								if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
-								{
-									selectable = true;
-								}
-
-								diff[0] = fabs(x-x2);
-								diff[1] = fabs(y-y2);
-
-								if(sqrt(diff[0]*diff[0]+diff[1]*diff[1])<radius)
-								{
-									selectable = true;
-								}
-							}
-						}
-					}
-				}
-
-				if(selectable)
-				{
-					if(test)
-						proj->m_selected = test->shouldSelect(proj)? select : proj->m_selected;
-					else
-						proj->m_selected = select;
-				}
+					proj->m_selected = select;
 			}
 		}
 	}
@@ -2242,19 +2260,42 @@ void Model::selectAll(bool how)
 	selectAllPoints(how);
 	selectAllProjections(how);
 
-	//endSelectionDifference();
-	//return true;
+	//endSelectionDifference(); return true;
 }
 
-void Model::selectFreeVertices()
+bool Model::selectFreeVertices(bool how)
 {
-	for(auto*ea:m_vertices)	
-	if(ea->m_faces.empty()) selectVertex(ea->m_selected);
+	assert(!m_selecting); 
+
+	bool sel = false;
+	bool ue = m_undoEnabled;	
+	MU_Select *undo = nullptr;
+	int v = -1; for(auto*vp:m_vertices)
+	{
+		v++; //selectVertex(v);
+
+		if(vp->m_faces.empty()&&how!=vp->m_selected&&vp->m_visible)
+		{	
+			sel = true; vp->m_selected = how;
+
+			if(ue)
+			{
+				if(!undo) undo = new MU_Select(SelectVertices);
+
+				undo->setSelectionDifference(v,how,!how);
+			}
+		}
+	}
+	if(sel) m_changeBits |= SelectionVertices;
+
+	sendUndo(undo); return sel;
 }
 
 bool Model::setSelectedTriangles(const int_list &l) //2022
 {
-	assert(!m_selecting);
+	assert(!m_selecting); 
+	
+	if(l.empty()) return false;
 
 	auto undo = m_undoEnabled?new MU_Select(SelectTriangles):0;
 
@@ -2356,7 +2397,7 @@ void Model::getSelectedInterpolation(unsigned anim, unsigned frame, Get3<Interpo
 			 pred(&(e[0]=ea->m_frames[fp]->m_interp2020));
 		}
 	}
-	//if(am==ANIMMODE_SKELETAL)
+	//if(am==ANIMMODE_JOINT)
 	{
 		Keyframe cmp;
 		cmp.m_frame = frame;

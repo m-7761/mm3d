@@ -342,7 +342,7 @@ void Model::removeBoneJoint(unsigned index)
 
 	//DUPLICATES removePoint
 	int anim = -1;
-	for(auto*sa:m_anims) if(anim++,1&sa->_type) //ANIMMODE_SKELETAL
+	for(auto*sa:m_anims) if(anim++,1&sa->_type) //ANIMMODE_JOINT
 	{
 		Position pos = {PT_Joint,index};
 

@@ -73,7 +73,7 @@ void SmdPrompt::submit(int id)
 		points_as_joints.set(smd->m_savePointsJoint);
 		format.select_id(smd->m_multipleVertexInfluences);
 		for(int i=0,iN=model->getAnimationCount();i<iN;i++)		
-		if(Model::ANIMMODE_SKELETAL&model->getAnimType(i))
+		if(Model::ANIMMODE_JOINT&model->getAnimType(i))
 		{
 			animation.add_item(i,model->getAnimName(i));
 		}

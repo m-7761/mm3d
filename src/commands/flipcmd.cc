@@ -50,9 +50,9 @@ struct FlipCommand : Command
 		{
 		default: assert(0);
 			//REMINDER: Windows reserves Alt+F4
-		case 0: return "Alt+F1";
-		case 1: return "Alt+F2";
-		case 2: return "Alt+F3";
+		case 0: return "Alt+F5";
+		case 1: return "Alt+F6";
+		case 2: return "Alt+F7";
 		}
 	}
 
@@ -61,7 +61,7 @@ struct FlipCommand : Command
 
 extern Command *flipcmd(){ return new FlipCommand; }
 
-bool FlipCommand::activated(int index, Model *model)
+bool FlipCommand::activated(int arg, Model *model)
 {
 	pos_list posList;
 	model->getSelectedPositions(posList);
@@ -79,7 +79,7 @@ bool FlipCommand::activated(int index, Model *model)
 		 {
 			  double coords[3];
 			  model->getPositionCoords(*it,coords);
-			  coords[index] = -coords[index];
+			  coords[arg] = -coords[arg];
 			  model->movePosition(*it,coords[0],coords[1],coords[2]);
 		 }
 	}
@@ -95,7 +95,7 @@ bool FlipCommand::activated(int index, Model *model)
 		 }
 	}
 
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection flipped"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Flipped %c axis"),'X'+arg);
 
 	return true;
 }

@@ -47,7 +47,7 @@ struct CylinderTool : Tool
 
 	virtual const char **getPixmap(int){ return cylindertool_xpm; }
 
-	virtual const char *getKeymap(int){ return "F8"; }
+	virtual const char *getKeymap(int){ return "Alt+F8"; }
 
 	virtual void activated(int)
 	{

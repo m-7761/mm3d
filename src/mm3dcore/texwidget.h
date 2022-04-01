@@ -44,7 +44,7 @@ public:
 	int m_viewportHeight;
 
 	bool m_interactive;	
-	char m_autoOverlay;
+	bool m_uvSnap;
 
 	double m_scroll[3];
 
@@ -95,7 +95,6 @@ public:
 	void drawOverlay(GLuint[2]);
 	void pressOverlayButton(bool rotate);
 	bool pressOverlayButton(int x, int y, bool rotate);
-	void setAutoHideOverlay(bool o){ m_autoOverlay = o; }
 	
 	//The UI implementation must implement these.
 	bool mousePressEventUI(int bt, int bs, int x, int y);
@@ -213,6 +212,9 @@ public:
 	void setInteractive(bool o){ m_interactive = o; }
 	void set3d(bool o);
 
+	void setUvSnap(bool o){ m_uvSnap = o; } //2022
+	void snap(double &s, double &t, bool selected); 
+
 	void setSClamp(bool o){ m_sClamp = o; setTexture(m_materialId,m_texture); }
 	void setTClamp(bool o){ m_tClamp = o; setTexture(m_materialId,m_texture); }
 
@@ -227,6 +229,7 @@ public:
 
 	void uFlipCoordinates(),vFlipCoordinates();
 	void rotateCoordinatesCcw(),rotateCoordinatesCw();
+	void uFlattenCoordinates(),vFlattenCoordinates();
 
 	void setLinesColor(int newColor){ m_linesColor = newColor; }
 	void setSelectionColor(int newColor){ m_selectionColor = newColor; }
@@ -255,11 +258,11 @@ protected:
 
 	void drawTriangles();
 
-	void selectDone();
+	void selectDone(int snap_select=0);
 
 	double getWindowXCoord(int x){ return x/m_width*m_zoom+m_xMin; }
 	double getWindowYCoord(int y){ return y/m_height*m_zoom+m_yMin; }
-
+	
 	double getWindowXDelta(int x, int xx){ return (x-xx)/m_width*m_zoom; }
 	double getWindowYDelta(int y, int yy){ return (y-yy)/m_height*m_zoom; }
 
@@ -275,8 +278,6 @@ protected:
 	GLuint m_scrollTextures[2];
 
 	bool m_sClamp,m_tClamp;
-
-	int m_lastXPos,m_lastYPos;
 
 	Model *m_model;
 
@@ -325,8 +326,12 @@ protected:
 	double m_width,m_height,m_aspect;
 	int m_x,m_y;
 
-	// For move and scale
+	//2022: For snapping?
+	double m_s,m_t;
+
+	// For move and scale (and pan)
 	int m_constrain;
+	int m_constrainX,m_constrainY;
 
 	// For select
 	double m_xSel1;

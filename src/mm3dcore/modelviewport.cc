@@ -256,13 +256,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	if(x<0||y<0||w<=0||h<=0) return;
 	
 	glScissor(x,y,w,h); //NEW
-	
-	//if(m_inOverlay) //???
-	//void setViewportDraw()
-	double aspect = (double)w/h;
-	{
-		//m_inOverlay = false; //???
 
+	double aspect = (double)w/h;
+
+	//void setViewportDraw()
+	{
 		glViewport(x,y,w,h);
 
 		glMatrixMode(GL_PROJECTION); glLoadIdentity();
@@ -641,11 +639,29 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	//Don't trust drawTool.
 	glDisable(GL_DEPTH_TEST);
 
-	if(!m_rendering) //if(this->hasFocus())
+	if(!m_rendering
+	 &&!model->getViewportUnits().no_overlay_option) //2022
 	{
-		//m_inOverlay = true; //???
 		drawOverlay(parent->m_scrollTextures);
 	}
+	else //HACK: My client code is failing to draw a viewport outline.
+	{
+		//2022: drawOverlay had done this? Inappropriate? (FIX ME)
+
+		//setViewportOverlay();
+		{
+			//glViewport(0,0,(GLint)m_viewportWidth,(GLint)m_viewportHeight);
+
+			glMatrixMode(GL_PROJECTION); glLoadIdentity();
+
+			glOrtho(0,w,0,h,m_nearOrtho,m_farOrtho); //-1,1);
+
+			//glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+
+			glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+		}
+	}
+
 	//2019: Testing correctness of updateMatrix w/ projection.
 	#if 0 && defined(_DEBUG)
 	if(m_view<=Tool::ViewPerspective)
@@ -1178,7 +1194,10 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 	//bool rotate = (e->modifiers()&Qt::ControlModifier)!=0;
 	bool rotate = (bs&Tool::BS_Ctrl)!=0;
 	
-	if(pressOverlayButton(x,y,rotate))	
+	Model *model = parent->getModel();
+
+	if(!model->getViewportUnits().no_overlay_option //2022
+	&&pressOverlayButton(x,y,rotate))	
 	{
 		if(m_overlayButton==ScrollButtonPan)
 		{
@@ -1233,19 +1252,6 @@ void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 {
 	int w = m_viewportWidth;
 	int h = m_viewportHeight;
-	
-	if(m_autoOverlay)
-	{
-		//NOTE: This can't catch when the mouse moves 
-		//out of bounds if the cursor is clipped.
-		int xx = x-m_viewportX;
-		int yy = y-m_viewportY;
-		int cmp = xx>=0&&yy>=0&&xx<w&&yy<h?2:1;
-		if(cmp!=m_autoOverlay) 
-		{
-			m_autoOverlay = cmp; parent->updateView();
-		}
-	}
 
 	if(!m_activeButton) return; //NEW
 
@@ -1810,24 +1816,19 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 	{
 		// snap to grid
 
-		double cmp[2];
-		double val[2];		
-		for(int i=0;i<2;i++)
+		double cmp[2],val[2]; for(int i=2;i-->0;)
 		{
-			double fudge = 0.5;
 			double x = (i?yval:xval)+m_scroll[i];
-			if(x<0) fudge = -0.5;
-
-			int mult = (int)(x/m_unitWidth+fudge);
+			double round = x<0?-0.5:0.5;
+			int mult = (int)(x/m_unitWidth+round);
 			val[i] = mult*m_unitWidth;
-
 			cmp[i] = fabs(x-val[i]);
 		}
 		if(cmp[0]<maxDist) xval = val[0]-m_scroll[0];
 		if(cmp[1]<maxDist) yval = val[1]-m_scroll[1];
 	}
 
-	if(m_view>Tool::ViewPerspective)
+	if(m_view>Tool::ViewPerspective) //REMOVE ME? Spam?
 	{
 		Vector pos;
 		//getParentXYValue(bs,x,y,pos[0],pos[1],false); //???

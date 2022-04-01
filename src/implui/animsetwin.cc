@@ -678,7 +678,7 @@ void AnimSetWin::refresh()
 		//2020: It looks like I've implemented this in
 		//mergeAnimations but since I didn't enable it
 		//here I likely neglected to test the new code
-		//merge.enable(mode==Model::ANIMMODE_SKELETAL);
+		//merge.enable(mode==Model::ANIMMODE_JOINT);
 		convert.enable(mode!=Model::ANIMMODE_FRAME);
 
 		int ii = model->getAnimationIndex((Model::AnimationModeE)mode);

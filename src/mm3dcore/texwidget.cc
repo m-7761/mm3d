@@ -73,7 +73,7 @@ m_zoom(1),
 m_scroll(),
 m_nearOrtho(-1),m_farOrtho(1),
 m_interactive(),
-m_autoOverlay(),
+m_uvSnap(),
 m_overlayButton(ScrollButtonMAX)
 {}
 ScrollWidget::~ScrollWidget()
@@ -108,7 +108,11 @@ static const double texwidgit_zoom = 0.75;
 //related to the near-clipping plane. Ortho
 //views can go much lower but 0.08 is enough.
 //const double ScrollWidget::zoom_min = 0.0001;
-const double ScrollWidget::zoom_min = 0.08000;
+//const double ScrollWidget::zoom_min = 0.08000;
+//2022: Seems okay? Texture widget kind of needs
+//to get closer than 0.08. It might be nice to
+//be able to speficy this range for each widget.
+const double ScrollWidget::zoom_min = 0.01000;
 const double ScrollWidget::zoom_max = 250000;
 void ScrollWidget::setZoomLevel(double z)
 {		
@@ -157,12 +161,10 @@ void ScrollWidget::zoomOut()
 }
 
 void ScrollWidget::drawOverlay(GLuint m_scrollTextures[2])
-{	
+{		
 	//Need to defer this because of GLX crumminess
 	//(it won't bind a GL context until onscreen.)
 	if(!*m_scrollTextures) initOverlay(m_scrollTextures);
-
-	if(1==m_autoOverlay) return; //EXPERIMENTAL
 
 	int w = m_viewportWidth;
 	int h = m_viewportHeight;
@@ -448,6 +450,39 @@ void TextureWidget::rotateCoordinatesCw()
 	parent->updateWidget(); //updateGL();
 }
 
+void TextureWidget::uFlattenCoordinates()
+{
+	double min = +DBL_MAX;
+	double max = -DBL_MAX;
+	for(auto&ea:m_vertices) if(ea.selected)
+	{
+		if(ea.s<min) min = ea.s;
+		if(ea.s>max) max = ea.s;
+	}
+	min+=(max-min)*0.5;
+	for(auto&ea:m_vertices) if(ea.selected)
+	{
+		ea.s = min;
+	}	
+	parent->updateWidget(); //updateGL();
+}
+void TextureWidget::vFlattenCoordinates()
+{
+	double min = +DBL_MAX;
+	double max = -DBL_MAX;
+	for(auto&ea:m_vertices) if(ea.selected)
+	{
+		if(ea.t<min) min = ea.t;
+		if(ea.t>max) max = ea.t;
+	}
+	min+=(max-min)*0.5;
+	for(auto&ea:m_vertices) if(ea.selected)
+	{
+		ea.t = min;
+	}	
+	parent->updateWidget(); //updateGL();
+}
+
 void TextureWidget::addVertex(double s, double t)
 {
 	TextureVertexT v = {s,t,true};
@@ -529,47 +564,167 @@ bool ScrollWidget::pressOverlayButton(int x, int y, bool rotate)
 	}
 	return m_overlayButton!=ScrollButtonMAX;
 }
+
+void TextureWidget::snap(double &s, double &t, bool selected)
+{		
+	Model::ViewportUnits &vu = m_model->getViewportUnits();
+ 
+	if(vu.snap&vu.UvSnap) 
+	{		
+		double ss = 6.1/m_width*m_zoom; 
+		double tt = 6.1/m_height*m_zoom;
+
+		if(1) //Square or elliptical?
+		{
+			//Existing code is square?			
+			double x1 = s-ss, x2 = s+ss;
+			double y1 = t-tt, y2 = t+tt;
+			for(auto&ea:m_vertices) if(selected||!ea.selected)
+			{		
+				if(ea.s>x1&&ea.s<x2&&ea.t>y1&&ea.t<y2)
+				{
+					//Unclear how to get the nearest vertex?
+					//Is it worth it? 
+					//The mouse wheel can zoom in to get it?
+					s = ea.s; t = ea.t; return;
+				}
+			}
+		}
+		else //Grabs the nearest vertex, but is it worth it?
+		{	
+			double d2 = ss*ss+tt*tt;
+			bool snapped = false;
+			for(auto&ea:m_vertices) if(selected||!ea.selected)
+			{		
+				double ds = ea.s-s, dt = ea.t-t; 
+				if((ds=ds*ds+dt*dt)<d2)
+				{
+					snapped = true;
+
+					d2 = ds; ss = ea.s; tt = ea.t;
+				}
+			}
+			if(snapped)
+			{
+				s = ss; t = tt; return;
+			}
+		}
+	}
+	if(vu.snap&vu.SubpixelSnap) 
+	{
+		double w = getUvWidth();
+		double h = getUvHeight();
+
+		//ARBITRARY 
+		//5 feels good but I think it's good 
+		//to have to zoom in some to make the
+		//mode to change... really this needs
+		//be to customizable, especially with
+		//high DPI.
+		enum{ box=6 }; //5 
+
+		//Roughly estimate how many times
+		//the snap box can fit in a pixel.
+		double px = m_width/m_zoom/w;
+		double py = m_height/m_zoom/h;
+		int zoom = (int)std::min(px/box,py/box);
+		zoom = std::min(zoom,vu.unitsUv);
+		switch(zoom) //Force to power-of-two?
+		{
+		case 3: zoom = 2; break;
+		case 0: zoom = 1;
+		case 1: case 2: break;
+		default: zoom = zoom>=8?8:4; break;
+		}
+		double units[2] = {1/w/zoom,1/h/zoom};
+
+		//I don't understand this??? It just works.
+		if(zoom==1) s-=units[0]*0.5f;
+		if(zoom==1) t-=units[1]*0.5f;
+
+		// snap to grid (getParentXYZValue)
+
+		double cmp[2],val[2]; for(int i=2;i-->0;)
+		{
+			double x = i?t:s;
+			double round = x<0?-0.5:0.5;
+			int mult = (int)(x/units[i]+round);
+			val[i] = mult*units[i];
+			cmp[i] = fabs(x-val[i]);
+		}
+		if(zoom>1) //Subpixel snap?
+		{		
+			//Assuming for snapping to pixels that
+			//in between coordinates are undesired.
+			//If this isn't done the behavior when
+			//in between snap points feels erratic
+			//and if the space is small it appears
+			//as if there's a snap point within it.
+
+			/*if(cmp[0]<ss)*/ s = val[0];
+			/*if(cmp[1]<tt)*/ t = val[1];
+		}
+		else //Whole pixel snap?
+		{
+			s = val[0]+vu.snapUv[0]*units[0];
+			t = val[1]+vu.snapUv[1]*units[1];
+		}
+	}
+}
 bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 {	
 	if(!m_interactive) return false;
 
 	if(!parent->mousePressSignal(bt)) return false;
-			
+	
+	x-=m_x; y-=m_y; //NEW
+	
+	m_constrain = 0;
+	m_constrainX = x; //m_lastXPos = x;
+	m_constrainY = y; //m_lastYPos = y; 	
+
 	if(!m_buttons) //NEW
 	{
 		assert(!m_activeButton);
 
-		if(pressOverlayButton(x,y,false)) 
-		{
-			m_activeButton = bt; //NEW
+		m_activeButton = bt;
 
+		if(!m_model->getViewportUnits().no_overlay_option) //2022
+		if(pressOverlayButton(x+m_x,y+m_y,false)) 
+		{
 			return true;
 		}
 	}
-
-	x-=m_x; y-=m_y; //NEW
-	
-	m_lastXPos = x; m_lastYPos = y; 	
-
-	double s = getWindowXCoord(x);
-	double t = getWindowYCoord(y);
-	
-	if(!m_buttons) m_activeButton = bt; //NEW	
 
 	m_buttons|=bt; //e->button();
 
 	if(bt!=m_activeButton) return true; //NEW
 
-	m_constrain = 0;
-
-	int bs_locked = bs|parent->_tool_bs_lock; //2022
+	double s = getWindowXCoord(x);
+	double t = getWindowYCoord(y);
 
 	//if(e->button()&Qt::MidButton)
-	if(bt==Tool::BS_Middle||bs&Tool::BS_Ctrl) //2022
+	if(bt==Tool::BS_Middle||bt&&bs&Tool::BS_Ctrl) //2022
 	{
-		// We're panning
+		return true; // We're panning
 	}
-	else switch(m_operation)
+
+	if(m_uvSnap) switch(m_operation) //2022
+	{
+	case MouseMove:
+	case MouseScale:
+	case MouseRotate: snap(s,t,true);
+	}
+	m_s = s; m_t = t;
+	
+	int bs_locked = bs|parent->_tool_bs_lock; //2022
+
+	bool shift = 0!=(bs_locked&Tool::BS_Shift);
+
+	//2022: Emulate Tool::Parent::snapSelect?
+	m_selecting = bt==Tool::BS_Left;
+
+	switch(m_operation)
 	{
 	case MouseSelect:
 
@@ -588,17 +743,18 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 		break;
 
 	case MouseScale:
-			
+
+		if(shift) m_constrain = ~3;
 		startScale(s,t);
-		//break;
+		break;
 
 	case MouseMove:
 
-		m_constrain = ~3;
+		if(shift) m_constrain = ~3;
 		break;
 
 	case MouseRotate:
-	
+
 		if(bt==Tool::BS_Right)
 		{
 			m_xRotPoint = s; m_yRotPoint = t;
@@ -635,7 +791,163 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 
 	return true; //I guess??
 }
+void TextureWidget::mouseMoveEvent(int bs, int x, int y)
+{
+	if(!m_interactive) return;
 
+	x-=m_x; y-=m_y; assert(x||y);
+
+	int bt = m_activeButton; //NEW
+
+	if(bt==Tool::BS_Middle||bt&&bs&Tool::BS_Ctrl)
+	{
+		goto pan;
+	}
+	else if(m_overlayButton!=ScrollButtonMAX)
+	{
+		switch(m_overlayButton)
+		{
+		case ScrollButtonPan: pan:
+		
+			//For some reason (things are moving) using
+			//m_s and m_t won't work)
+			double ds = getWindowXDelta(x,m_constrainX);
+			double dt = getWindowYDelta(y,m_constrainY);
+
+			m_constrainX = x; m_constrainY = y;
+
+			m_scroll[0]-=ds; m_xMin-=ds; m_xMax-=ds;
+			m_scroll[1]-=dt; m_yMin-=dt; m_yMax-=dt;
+
+			updateViewport(); break;
+		}
+
+		return;
+	}
+	else if(!bt) //!m_buttons
+	{
+		//This is peculiar to MouseRange alone.
+		//updateCursorShape(x,y);
+		if(m_operation==MouseRange) setRangeCursor(x,y);
+
+		return;
+	}
+
+	//2022: Emulate Tool::Parent::snapSelect?
+	if(m_operation!=MouseSelect) m_selecting = false;
+	
+	if(m_constrain)
+	{
+		//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
+		if(m_constrain==~3) 
+		{
+			int ax = std::abs(x-m_constrainX);
+			int ay = std::abs(y-m_constrainY);
+		
+			//if(ax==ay) return; //NEW
+			if(std::abs(ax-ay)<4) return; //2022
+
+			m_constrain = ax>ay?~1:~2;
+		}
+		if(m_constrain&1) x = m_constrainX; else m_constrainX = x;
+		if(m_constrain&2) y = m_constrainY; else m_constrainY = y;
+	}
+
+	double s,t,ds,dt;
+	s = getWindowXCoord(x); 
+	t = getWindowYCoord(y);
+	if(m_uvSnap) switch(m_operation)
+	{
+	case MouseMove:
+	case MouseScale:
+	case MouseRotate: snap(s,t,false);
+	}
+	ds = s-m_s; m_s = s; 
+	dt = t-m_t; m_t = t;
+	
+	switch(m_operation)
+	{
+	case MouseSelect:
+		
+		updateSelectRegion(s,t);
+		break;
+
+	case MouseMove:
+  
+		moveSelectedVertices(ds,dt);
+							
+		//emit updateCoordinatesSignal();
+		//emit(this,updateCoordinatesSignal);
+		parent->updateCoordinatesSignal();
+		break;
+
+	case MouseRotate:
+	{
+		s-=m_xRotPoint; t-=m_yRotPoint;
+				
+		double angle = rotatepoint_diff_to_angle(s*m_aspect,t);
+			
+		if(Tool::BS_Shift&(bs|parent->_tool_bs_lock))
+		angle = rotatepoint_adjust_to_nearest(angle,bs&Tool::BS_Alt?5:15);
+
+		rotateSelectedVertices(angle-m_startAngle);
+
+		//emit updateCoordinatesSignal();
+		//emit(this,updateCoordinatesSignal);
+		parent->updateCoordinatesSignal();
+		break;
+	}
+	case MouseScale:
+
+		scaleSelectedVertices(s,t);
+							
+		//emit updateCoordinatesSignal();
+		//emit(this,updateCoordinatesSignal);
+		parent->updateCoordinatesSignal();
+		break;
+
+	case MouseRange:
+	
+		//if(m_buttons&Qt::LeftButton)
+		if(bt==Tool::BS_Left)
+		{	
+			if(m_dragLeft||m_dragAll)
+			{
+				m_xRangeMin+=ds;
+				m_xRangeMax = std::max(m_xRangeMax,m_xRangeMin);
+			}
+			if(m_dragRight||m_dragAll)
+			{
+				m_xRangeMax+=ds;
+				m_xRangeMin = std::min(m_xRangeMin,m_xRangeMax);
+			}
+			if(m_dragBottom||m_dragAll)
+			{
+				m_yRangeMin+=dt;
+				m_yRangeMax = std::max(m_yRangeMax,m_yRangeMin);
+			}
+			if(m_dragTop||m_dragAll)
+			{
+				m_yRangeMax+=dt;
+				m_yRangeMin = std::min(m_yRangeMin,m_yRangeMax);
+			}
+
+			if(m_dragAll||m_dragTop||m_dragBottom||m_dragLeft||m_dragRight)
+			{
+				//emit updateRangeSignal();
+				//emit(this,updateRangeSignal);
+				parent->updateRangeSignal();
+			}
+		}
+		else if(m_dragAll) //???
+		{		
+			//emit updateSeamSignal(ds*-2*PI,dt*-2*PI);
+			//emit(this,updateSeamSignal,ds*-2*PI,dt*-2*PI);
+			parent->updateSeamSignal(ds*-2*PI,dt*-2*PI);
+		}
+		break;
+	}
+}
 void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 {
 	if(!m_interactive) return;
@@ -653,15 +965,24 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 		textwidget_scroll.first = 0; //Cancel timer.
 
 		return;
-	}	
-
-	x-=m_x; y-=m_y; //UNUSED
+	}		
 	
 	//if(e->button()&Qt::MidButton)
-	if(bt==Tool::BS_Middle||bs&Tool::BS_Ctrl) //2022
+	if(bt==Tool::BS_Middle||bt&&bs&Tool::BS_Ctrl) //2022
 	{
-		// We're panning
+		return; // We're panning
 	}
+
+	x-=m_x; y-=m_y;
+
+	//2022: Emulate Tool::Parent::snapSelect?
+	if(m_selecting&&m_operation!=MouseSelect)
+	{
+		m_xSel1 = m_xSel2 = getWindowXCoord(x);
+		m_ySel1 = m_ySel2 = getWindowYCoord(y);		
+		selectDone(1|bs|parent->_tool_bs_lock);
+	return parent->updateSelectionDoneSignal();
+	}	
 	else switch(m_operation)
 	{
 	case MouseSelect:
@@ -729,153 +1050,6 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 			//emit updateSeamDoneSignal();
 			//emit(this,updateSeamDoneSignal);
 			parent->updateSeamDoneSignal();
-		}
-		break;
-	}
-}
-
-void TextureWidget::mouseMoveEvent(int bs, int x, int y)
-{
-	if(!m_interactive) return;
-
-	if(m_autoOverlay) //EXPERIMENTAL
-	{
-		//NOTE: This can't catch when the mouse moves 
-		//out of bounds if the cursor is clipped.
-		int cmp = x>=m_viewportX&&y>=m_viewportY
-		&&x<m_viewportWidth&&y<m_viewportHeight?2:1;
-		if(cmp!=m_autoOverlay)
-		{
-			m_autoOverlay = cmp; parent->updateWidget();
-		}
-	}
-			
-	x-=m_x; y-=m_y; 
-		
-	int bs_locked = bs|parent->_tool_bs_lock; //2022
-
-	//bool shift = (e->modifiers()&Qt::ShiftModifier)!=0;
-	bool shift = (bs_locked&Tool::BS_Shift)!=0;
-	if(shift&&m_constrain==~3) 
-	{
-		int ax = std::abs(x-m_lastXPos);
-		int ay = std::abs(y-m_lastYPos);
-		if(ax==ay) return; //NEW
-
-		m_constrain = ax>ay?~1:~2;
-	}
-	if(m_constrain&1) x = m_lastXPos;
-	if(m_constrain&2) y = m_lastYPos;
-
-	double s,t,ds,dt;
-	s = getWindowXCoord(x); ds = getWindowXDelta(x,m_lastXPos);
-	t = getWindowYCoord(y); dt = getWindowYDelta(y,m_lastYPos);
-
-	m_lastXPos = x; m_lastYPos = y;
-	
-	int bt = m_activeButton; //NEW
-
-	if(m_overlayButton!=ScrollButtonMAX)
-	{
-		switch(m_overlayButton)
-		{
-		case ScrollButtonPan: pan:
-		
-			m_scroll[0]-=ds; m_xMin-=ds; m_xMax-=ds;
-			m_scroll[1]-=dt; m_yMin-=dt; m_yMax-=dt;
-
-			updateViewport(); break;
-		}
-	}
-	else if(!bt) //!m_buttons
-	{
-		//This is peculiar to MouseRange alone.
-		//updateCursorShape(x,y);
-		if(m_operation==MouseRange)
-		setRangeCursor(x,y);
-	}
-	else if(bt==Tool::BS_Middle||bs&Tool::BS_Ctrl) //Qt::MidButton
-	{
-		goto pan;
-	}
-	else switch(m_operation)
-	{
-	case MouseSelect:
-		
-		updateSelectRegion(s,t);
-		break;
-
-	case MouseMove:
-  
-		moveSelectedVertices(ds,dt);
-							
-		//emit updateCoordinatesSignal();
-		//emit(this,updateCoordinatesSignal);
-		parent->updateCoordinatesSignal();
-		break;
-
-	case MouseRotate:
-	{
-		s-=m_xRotPoint; t-=m_yRotPoint;
-				
-		double angle = rotatepoint_diff_to_angle(s*m_aspect,t);
-
-		if(shift) angle = rotatepoint_adjust_to_nearest(angle,bs&Tool::BS_Alt?5:15);
-
-		rotateSelectedVertices(angle-m_startAngle);
-
-		//emit updateCoordinatesSignal();
-		//emit(this,updateCoordinatesSignal);
-		parent->updateCoordinatesSignal();
-		break;
-	}
-	case MouseScale:
-
-		scaleSelectedVertices(s,t);
-							
-		//emit updateCoordinatesSignal();
-		//emit(this,updateCoordinatesSignal);
-		parent->updateCoordinatesSignal();
-		break;
-
-	case MouseRange:
-	
-		//if(m_buttons&Qt::LeftButton)
-		if(bt==Tool::BS_Left)
-		{	
-			if(m_dragLeft||m_dragAll)
-			{
-				m_xRangeMin+=ds;
-				m_xRangeMax = std::max(m_xRangeMax,m_xRangeMin);
-			}
-			if(m_dragRight||m_dragAll)
-			{
-				m_xRangeMax+=ds;
-				m_xRangeMin = std::min(m_xRangeMin,m_xRangeMax);
-			}
-			if(m_dragBottom||m_dragAll)
-			{
-				m_yRangeMin+=dt;
-				m_yRangeMax = std::max(m_yRangeMax,m_yRangeMin);
-			}
-			if(m_dragTop||m_dragAll)
-			{
-				m_yRangeMax+=dt;
-				m_yRangeMin = std::min(m_yRangeMin,m_yRangeMax);
-			}
-
-			if(m_dragAll||m_dragTop||m_dragBottom||m_dragLeft||m_dragRight)
-			{
-				//emit updateRangeSignal();
-				//emit(this,updateRangeSignal);
-				parent->updateRangeSignal();
-			}
-		}
-		else if(m_dragAll) //???
-		{		
-			//emit updateSeamSignal(ds*-2*PI,dt*-2*PI);
-			//emit(this,updateSeamSignal,ds*-2*PI,dt*-2*PI);
-			parent->updateSeamSignal(ds*-2*PI,dt*-2*PI);
 		}
 		break;
 	}
@@ -990,27 +1164,56 @@ void TextureWidget::updateSelectRegion(double x, double y)
 	parent->updateWidget(); //updateGL();
 }
 
-void TextureWidget::selectDone()
+void TextureWidget::selectDone(int snap_select)
 {
-	if(m_xSel1==m_xSel2) //2020
+	double x1 = m_xSel1, y1 = m_ySel1;
+	double x2 = m_xSel2, y2 = m_ySel2;
+
+	if(x1==x2) //2020
 	{
-		double x = 5/m_width*m_zoom;
-		m_xSel2 = m_xSel1+x; m_xSel1-=x;
+		double x = 6.1/m_width*m_zoom;
+		x2 = x1+x; x1-=x;
 	}
-	if(m_ySel1==m_ySel2) //2020
+	if(y1==y2) //2020
 	{
-		double y = 5/m_height*m_zoom;
-		m_ySel2 = m_ySel1+y; m_ySel1-=y;
+		double y = 6.1/m_height*m_zoom;
+		y2 = y1+y; y1-=y;
 	}
 
-	if(m_xSel1>m_xSel2) std::swap(m_xSel1,m_xSel2);
-	if(m_ySel1>m_ySel2) std::swap(m_ySel1,m_ySel2);
-	
-	for(auto&ea:m_vertices)
-	if(ea.s>=m_xSel1&&ea.s<=m_xSel2 
-	 &&ea.t>=m_ySel1&&ea.t<=m_ySel2)
+	if(x1>x2) std::swap(x1,x2);
+	if(y1>y2) std::swap(y1,y2);	
+
+	if(snap_select)
 	{
-		ea.selected = m_selecting;
+		//2022: Emulate Tool::Parent::snapSelect?
+
+		bool how = true;
+		for(auto&ea:m_vertices)
+		if(ea.s>x1&&ea.s<x2&&ea.t>y1&&ea.t<y2)
+		if(ea.selected)
+		{
+			how = false; break;
+		}
+
+		bool unselect = false;
+		if(how&&snap_select&&~snap_select&Tool::BS_Shift)
+		unselect = true;
+
+		for(auto&ea:m_vertices)
+		if(ea.s>x1&&ea.s<x2&&ea.t>y1&&ea.t<y2)
+		{
+			ea.selected = how;
+		}
+		else if(unselect) ea.selected = false;
+	}
+	else
+	{
+		bool how = m_selecting;
+		for(auto&ea:m_vertices)
+		if(ea.s>x1&&ea.s<x2&&ea.t>y1&&ea.t<y2)
+		{
+			ea.selected = how;
+		}
 	}
 	
 	parent->updateWidget(); //updateGL();
@@ -1067,26 +1270,27 @@ int TextureWidget::getRangeDirection(double windowX, double windowY, bool press)
 	bool dragLeft = false;
 	bool dragRight = false;
 
-	double prox = 6.0/m_width*m_zoom;
+	double prox = 6.1/m_width*m_zoom;
+	double proy = 6.1/m_height*m_zoom; //2022
 
 	if(windowX>=m_xRangeMin-prox
 	 &&windowX<=m_xRangeMax+prox
-	 &&windowY>=m_yRangeMin-prox
-	 &&windowY<=m_yRangeMax+prox)
+	 &&windowY>=m_yRangeMin-proy
+	 &&windowY<=m_yRangeMax+proy)
 	{
-		if(fabs(m_xRangeMin-windowX)<=prox)
+		if(fabs(m_xRangeMin-windowX)<prox)
 		{
 			dragLeft = true;
 		}
-		if(fabs(m_xRangeMax-windowX)<=prox)
+		if(fabs(m_xRangeMax-windowX)<prox)
 		{
 			dragRight = true;
 		}
-		if(fabs(m_yRangeMin-windowY)<=prox)
+		if(fabs(m_yRangeMin-windowY)<proy)
 		{
 			dragBottom = true;
 		}
-		if(fabs(m_yRangeMax-windowY)<=prox)
+		if(fabs(m_yRangeMax-windowY)<proy)
 		{
 			dragTop = true;
 		}
@@ -1813,6 +2017,7 @@ void TextureWidget::draw(int x, int y, int w, int h)
 	}
 
 	if(m_interactive) 
+	if(!m_model->getViewportUnits().no_overlay_option) //2022
 	{
 		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
 

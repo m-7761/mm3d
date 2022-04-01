@@ -43,7 +43,7 @@ struct PointTool : Tool
 
 	virtual const char **getPixmap(int){ return pointtool_xpm; }
 
-	virtual const char *getKeymap(int){ return "F12"; }
+	virtual const char *getKeymap(int){ return "F9"; }
 
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();

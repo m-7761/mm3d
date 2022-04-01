@@ -64,9 +64,25 @@ enum
 	id_uv_cmd_select_all=2000,
 	id_uv_cmd_select_faces_incl,
 	id_uv_cmd_select_faces_excl,
+	id_uv_cmd_flip_u,
+	id_uv_cmd_flip_v,
+	id_uv_cmd_flip_uv,
+	id_uv_cmd_snap_u,
+	id_uv_cmd_snap_v,
+	id_uv_cmd_snap_uv,
+	id_uv_cmd_turn_ccw,
+	id_uv_cmd_turn_cw,
+	id_uv_cmd_turn_180,
+
+	id_uv_tools_f1,
+	id_uv_tools_f2,
+	id_uv_tools_f3,
+
+	id_uv_close, //M
 };
 extern int viewwin_shifthold;
 static int texturecoord_fit_uv = 1|2;
+extern void win_help(const char*);
 void TextureCoordWin::_menubarfunc(int id)
 {
 	TextureCoordWin *tw;
@@ -145,6 +161,24 @@ void TextureCoordWin::_menubarfunc(int id)
 	}
 	else switch(id) //Tool?
 	{
+	case id_help:
+
+		//tw->f1.execute_callback();
+		win_help(typeid(TextureCoordWin).name());
+		break;
+
+	case id_uv_editor:
+
+		tw->submit(tw->ok); //HACK
+		break;
+
+	case id_uv_tools_f1:
+	case id_uv_tools_f2:
+	case id_uv_tools_f3:
+
+		tw->toggle_toolbar(id-id_uv_tools_f1);
+		break;
+
 	case id_edit_undo:
 	case id_edit_redo:
 
@@ -162,6 +196,30 @@ void TextureCoordWin::_menubarfunc(int id)
 		glutSetWindow(tw->model.glut_window_id);				
 		extern void viewwin_toolboxfunc(int);
 		viewwin_toolboxfunc(id-id_uv_model); //tool_select_faces?
+		break;
+
+	case id_snap_grid: case id_snap_vert:	
+	{
+		bool x = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
+
+		config.set(id==id_snap_grid?"uv_snap_grid":"uv_snap_vertex",x);
+		
+		Model::ViewportUnits &vu = tw->model->getViewportUnits();
+
+		int y = id==id_snap_grid?vu.SubpixelSnap:vu.UvSnap;
+
+		if(x) vu.snap|=y; else vu.snap&=~y; 
+
+		if(id==id_snap_vert) tw->model.views.status._uv_snap.indicate(x);
+		if(id==id_snap_grid) tw->model.views.status._sp_snap.indicate(x);
+
+		tw->texture.setUvSnap(0!=(vu.snap&(vu.SubpixelSnap|vu.UvSnap)));
+		break;	
+	}
+	case id_view_settings:		
+		
+		extern void viewportsettings(Model*);
+		viewportsettings(tw->model); 
 		break;
 
 	case id_uv_tool_select: case id_uv_tool_move: 
@@ -212,7 +270,7 @@ void TextureCoordWin::_menubarfunc(int id)
 		extern std::vector<MainWin*> viewwin_list;
 		for(auto&ea:viewwin_list)
 		{
-			ea->views.status._uvfitlock.name(id==1?"Fw":"Fh");
+			ea->views.status._uvfitlock.name(id==1?"UFw":"UFh");
 			ea->views.status._uvfitlock.indicate(id!=3);
 		}
 		break;
@@ -226,6 +284,38 @@ void TextureCoordWin::_menubarfunc(int id)
 
 		tw->select_faces(id==id_uv_cmd_select_faces_excl); 
 		break;
+
+	case id_uv_cmd_flip_u:
+	case id_uv_cmd_flip_v:
+	case id_uv_cmd_flip_uv:
+
+		id-=id_uv_cmd_flip_u;
+		if(id!=1) tw->texture.uFlipCoordinates();
+		if(id!=0) tw->texture.vFlipCoordinates();
+		tw->updateTextureCoordsDone(); 
+		break;
+
+	case id_uv_cmd_snap_u:
+	case id_uv_cmd_snap_v:
+	case id_uv_cmd_snap_uv:
+
+		id-=id_uv_cmd_snap_u;
+		if(id!=1) tw->texture.uFlattenCoordinates();
+		if(id!=0) tw->texture.vFlattenCoordinates();
+		tw->updateTextureCoordsDone(); 
+		break;
+
+	case id_uv_cmd_turn_ccw:
+	case id_uv_cmd_turn_cw:
+	case id_uv_cmd_turn_180:
+
+		id-=id_uv_cmd_turn_ccw;
+		if(id!=1) tw->texture.rotateCoordinatesCcw();
+		if(id==2) tw->texture.rotateCoordinatesCcw();
+		if(id==1) tw->texture.rotateCoordinatesCw();			
+		tw->updateTextureCoordsDone(); 
+		break;
+
 	}
 }
 bool TextureCoordWin::select_all()
@@ -257,7 +347,24 @@ bool TextureCoordWin::select_faces(bool excl)
 	}
 	else return false; return true;
 }
-static int texturecoord_init_menu()
+void TextureCoordWin::toggle_toolbar(int f)
+{
+	control *c; switch(f)
+	{
+	default: assert(0); return;
+	case 2: c = &toolbar1;break; 
+	case 1: c = &toolbar2; break;	
+	case 0: c = &f1; break;
+	}
+	bool x = !c->hidden();
+	c->set_hidden(x,f!=0); 
+	if(f==0) ok.set_hidden(x);
+	int bts = toolbar1.hidden()|(int)toolbar2.hidden()<<1;
+	map_remap.set_hidden(bts!=0);
+	bts|=f1.hidden()<<2;		 	
+	config.set("uv_buttons_mask",bts);	
+}
+void TextureCoordWin::_init_menu_toolbar()
 {	
 	std::string o; //radio	
 	#define E(id,...) viewwin_menu_entry(o,#id,__VA_ARGS__),id_##id
@@ -280,6 +387,10 @@ static int texturecoord_init_menu()
 		glutAddMenuEntry(E(uv_fit_1,"Unscale","","1"));
 		glutAddMenuEntry(E(uv_fit_2_x,"Upscale","","2"));
 		glutAddMenuEntry(E(uv_fit_2,"Scale 1/2","","Ctrl+2"));
+		//REMOVE US?
+		//I don't know how useful this is. Even PlayStation
+		//uses 255 instead of 256, so these are more or less
+		//off by 1.
 		glutAddMenuEntry(E(uv_fit_4,"Scale 1/4","","Ctrl+3"));
 		glutAddMenuEntry(E(uv_fit_8,"Scale 1/8","","Ctrl+4"));
 		glutAddMenuEntry(E(uv_fit_16,"Scale 1/16","","Ctrl+5"));
@@ -289,13 +400,26 @@ static int texturecoord_init_menu()
 		glutAddMenuEntry(E(uv_fit_256,"Scale 1/256","","Ctrl+9"));
 		
 	}
-	static int view_menu=0; if(!view_menu)
+	static int conf_menu=0; if(!conf_menu)
 	{
-		view_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		conf_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
 		//NOTE: viewwini.cc uses "Restore to Normal" but it
 		//doesn't use Home (Home comes from Misfit Model 3D.)
 		glutAddMenuEntry(E(uv_view_init,"Reset","","Home"));
 	}
+
+	_viewmenu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+	glutAddSubMenu("Reconfigure",conf_menu);
+	glutAddMenuEntry();
+	bool r = config.get("uv_snap_vertex",false);
+	bool s = config.get("uv_snap_grid",false);
+	glutAddMenuEntry(X(r,snap_vert,"Snap to Vertex","View|Snap to Vertex","Shift+V"));
+	glutAddMenuEntry(X(s,snap_grid,"Snap to Grid","View|Snap to Grid","Shift+G"));	
+	texture.setUvSnap(r||s);
+	model.views.status._uv_snap.indicate(r);
+	model.views.status._sp_snap.indicate(s);
+	glutAddMenuEntry(E(view_settings,"Grid Settings...","View|Grid Settings","Shift+Ctrl+G"));
+
 	static int tool_menu=0; if(!tool_menu) //2022
 	{
 		tool_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
@@ -304,8 +428,21 @@ static int texturecoord_init_menu()
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_rotate","Rotate","Tool","R"),id_uv_tool_rotate);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_scale","Scale","Tool","S"),id_uv_tool_scale);
 		glutAddMenuEntry();
-		extern int viewwin_shlk_menu; //Not sure GTK will like this!
-		glutAddSubMenu(::tr("Shift Lock",""),viewwin_shlk_menu);
+		//extern int viewwin_shlk_menu; //Not sure GTK will like this!
+		//glutAddSubMenu(::tr("Shift Lock",""),viewwin_shlk_menu);
+		{
+			extern void viewwin_menubarfunc(int);
+
+			//DUPLICATE (viewin.cc)
+			int shlk = glutCreateMenu(viewwin_menubarfunc);
+		//	r = config.get("ui_tool_shift_hold",false);
+		//	if(r) model.views.status._shifthold.indicate(true);
+			bool r = model.views.status._shifthold;
+			glutAddMenuEntry(E(tool_shift_lock,"Sticky Shift Key (Emulation)","","L"));
+			glutAddMenuEntry(X(!r,tool_shift_hold,"Unlock when Selecting Tool","","Shift+L"));
+			glutSetMenu(tool_menu);
+			glutAddSubMenu(::tr("Shift Lock",""),shlk);
+		}		
 		glutAddMenuEntry();
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_recall","Switch Tool","","Space"),id_tool_recall);
 	}
@@ -323,26 +460,65 @@ static int texturecoord_init_menu()
 	}
 	static int cmd_menu=0; if(!cmd_menu)
 	{
-		cmd_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		int edit = glutCreateMenu(TextureCoordWin::_menubarfunc);
 		glutAddMenuEntry(viewwin_menu_entry(o,"cmd_select_all","Select All UVs","Command","Ctrl+A"),id_uv_cmd_select_all+0);
-		glutAddMenuEntry();
-		glutAddMenuEntry(E(uv_cmd_select_faces_incl,"Select Faces from UVs","","M"));
-		glutAddMenuEntry(E(uv_cmd_select_faces_excl,"Select Inscribed Faces","","N"));
-	}
+		int faces = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(E(uv_cmd_select_faces_incl,"Select Faces from UVs","","Ctrl+F"));
+		glutAddMenuEntry(E(uv_cmd_select_faces_excl,"Select Inscribed Faces","","Shift+Ctrl+F"));		
+		//Note, trying to match flipcmd.cc and flattencmd.cc
+		//Snap is just shorter than "Flatten" in the button layout.
+		int snap = glutCreateMenu(TextureCoordWin::_menubarfunc);		
+		glutAddMenuEntry(E(uv_cmd_snap_u,"Snap on U","","F5"));
+		glutAddMenuEntry(E(uv_cmd_snap_v,"Snap on V","","F6"));
+		glutAddMenuEntry(E(uv_cmd_snap_uv,"Snap Both","","F7"));
+		int flip = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(E(uv_cmd_flip_u,"Flip on U","","Alt+F5"));
+		glutAddMenuEntry(E(uv_cmd_flip_v,"Flip on V","","Alt+F6"));
+		glutAddMenuEntry(E(uv_cmd_flip_uv,"Flip Both","","Alt+F7"));		
+		int turn = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(E(uv_cmd_turn_ccw,"Turn CCW","","F8"));
+		glutAddMenuEntry(E(uv_cmd_turn_cw,"Turn CW","","F9"));
+		glutAddMenuEntry(E(uv_cmd_turn_180,"Turn 180","","F10"));
 
-	int menubar = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		cmd_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddSubMenu(TRANSLATE_NOOP("Command","Edit"),edit);
+		glutAddMenuEntry();
+		glutAddSubMenu(TRANSLATE_NOOP("Command","Faces"),faces);
+		glutAddMenuEntry();
+		glutAddSubMenu(TRANSLATE_NOOP("Command","Snap"),snap);
+		glutAddSubMenu(TRANSLATE_NOOP("Command","Flip"),flip);		
+		glutAddSubMenu(TRANSLATE_NOOP("Command","Turn"),turn);
+	}
+	static int f1_menu=0; if(!f1_menu)
+	{
+		int buttons = glutCreateMenu(TextureCoordWin::_menubarfunc);		
+		glutAddMenuEntry(E(uv_tools_f3,"Toggle Row 3","","Shift+F3"));		
+		glutAddMenuEntry(E(uv_tools_f2,"Toggle Row 2","","Shift+F2"));
+		glutAddMenuEntry(E(uv_tools_f1,"Toggle Row 1","","Shift+F1"));
+		f1_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		glutAddMenuEntry(E(help,"&Contents","Help|Contents","F1"));
+		glutAddMenuEntry();
+		glutAddSubMenu("Buttons",buttons);
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(uv_editor,"&Close","","M"));
+	}
+	int bts = config.get("uv_buttons_mask",0);
+	if(bts&1) toggle_toolbar(0);
+	if(bts&2) toggle_toolbar(1);
+	if(bts&4) toggle_toolbar(2);
+
+	_menubar = glutCreateMenu(TextureCoordWin::_menubarfunc);
 	glutAddSubMenu(::tr("&Fit","menu bar"),fit_menu);
-	glutAddSubMenu(::tr("&View","menu bar"),view_menu);
+	glutAddSubMenu(::tr("&View","menu bar"),_viewmenu);
 	glutAddSubMenu(::tr("&Tools","menu bar"),tool_menu);
 	glutAddSubMenu(::tr("&Model","menu bar"),model_menu);
 	glutAddSubMenu(::tr("&Geometry","menu bar"),cmd_menu);
+	glutAddSubMenu(::tr("&Help","menu bar"),f1_menu);
 	glutAttachMenu(glutext::GLUT_NON_BUTTON);
 
 	#undef E //viewwin_menu_entry
 	#undef O //viewwin_menu_radio
 	#undef X //viewwin_menu_check
-
-	return menubar;
 }
 TextureCoordWin::~TextureCoordWin()
 {
@@ -351,16 +527,24 @@ TextureCoordWin::~TextureCoordWin()
 
 struct MapDirectionWin : Win
 {
-	MapDirectionWin(int *lv)
+	static utf8 dir_str(unsigned dir) //MAGIC NUMBER
+	{
+		const char *dirs[] =
+		{"Front","Back","Left","Right","Top","Bottom"};
+		assert(dir<6);
+		return dirs[dir];
+	}
+
+	MapDirectionWin(int *lv, bool *grp)
 		:
-	Win("Which direction?"),
-	dir(main,"Set new texture coordinates from which direction?",lv),
+	Win("Set new texture coordinates from which direction?"),
+	dir(main,"",lv),	
+	group(main,"Group",grp),
 	ok_cancel(main)
 	{
-		//MAGIC NUMBER
-		dir.add_item("Front").add_item("Back");
-		dir.add_item("Left").add_item("Right");
-		dir.add_item("Top").add_item("Bottom");
+		main_panel()->row_pack().cspace<top>();
+
+		for(int i=0;i<6;i++) dir.add_item(dir_str(i));
 
 		//2022: This isn't necessary, but since the auto selection
 		//system is pretty good, it's suggestive that the selection
@@ -370,7 +554,8 @@ struct MapDirectionWin : Win
 	}
 
 	multiple dir;
-	ok_cancel_panel ok_cancel;
+	boolean group;
+	ok_cancel_panel ok_cancel;	
 };
 
 void TextureCoordWin::open()
@@ -528,7 +713,7 @@ void TextureCoordWin::init()
 	entry_callback = texturecoord_entry_cb;
 	motion_callback = texturecoord_motion_cb; 
 
-	_menubar = texturecoord_init_menu();
+	_init_menu_toolbar(); //_menubar //_viewmenu
 
 	m_ignoreChange = false; 
 
@@ -566,8 +751,12 @@ void TextureCoordWin::init()
 	scale_sfc.set(config.get("ui_texcoord_scale_center",true));
 	scale_kar.set(config.get("ui_texcoord_scale_aspect",false));
 
-	map.add_item(3,"Triangle").add_item(4,"Quad");
-	map.add_item(0,"Group"); //Group???
+	map.add_item(3,"Triangle");
+	map.add_item(4,"Quad");	
+	map.add_item(0,"View"); //"Group"	
+	map_keep.set_parent(map.inl);
+	map_group.set_parent(map);
+	map.cspace<top>().space(0);
 }
 void TextureCoordWin::submit(control *c)
 {
@@ -608,9 +797,18 @@ void TextureCoordWin::submit(control *c)
 		texture.updateWidget();
 		break;
 
-	case id_subitem:
+	case id_reset:
 
-		mapReset(); break;
+		map_keep.set_hidden();
+		map_group.set_hidden();
+		current_direction = -1;
+		map.find(0)->set_name("View"); 		
+		break;
+
+	case id_subitem:
+	case id_subitem+1:
+
+		mapReset(id); break;
 
 	case id_white: 
 
@@ -634,6 +832,17 @@ void TextureCoordWin::submit(control *c)
 			if(c==cw) texture.rotateCoordinatesCw();
 			if(c==uflip) texture.uFlipCoordinates();
 			if(c==vflip) texture.vFlipCoordinates();
+
+			updateTextureCoordsDone();	
+		}
+		if(c>=l80&&c<=snap)
+		{
+			if(c==l80) texture.rotateCoordinatesCcw();
+			if(c==l80) texture.rotateCoordinatesCcw();
+			if(c==snap) texture.uFlattenCoordinates();
+			if(c==snap) texture.vFlattenCoordinates();
+			if(c==usnap) texture.uFlattenCoordinates();
+			if(c==vsnap) texture.vFlattenCoordinates();
 
 			updateTextureCoordsDone();	
 		}
@@ -712,11 +921,11 @@ static void texturecoord_2d(Model *m, int v, int dir, double coord[2])
 	}
 }
 
-void TextureCoordWin::mapReset()
+void TextureCoordWin::mapReset(int id)
 {
 	double min = 0, max = 1; //goto
 
-	if(map)
+	if(map&&id!=id_subitem+1)
 	{
 		texture.clearCoordinates();
 
@@ -745,7 +954,12 @@ void TextureCoordWin::mapReset()
 	if(trilist.empty()) //???
 	return log_error("no triangles selected\n"); //???
 
-	int direction;
+	int direction = -1;
+	if(!map_remap.hidden()) //2022
+	{
+		direction = current_direction;
+	}
+	if(direction==-1||id==id_subitem+1)
 	{
 		double normal[3],total[3] = {};
 		for(int ea:trilist)
@@ -768,9 +982,27 @@ void TextureCoordWin::mapReset()
 		default:direction = -1;
 		//	log_error("bad normal index: %d\n",index); //???
 		}
+	
+		bool group = true;
+		if(id==id_subitem+1||current_direction!=direction)
+		if(id_ok!=MapDirectionWin(&direction,&group).return_on_close())
+		return;
+
+		if(current_direction!=direction) //2022
+		{
+			current_direction = direction;
+
+			map.find(0)->name() = MapDirectionWin::dir_str(direction);
+
+			map_keep.set(); map_keep.set_hidden(false);
+		}
+		map_group.set(group); map_group.set_hidden(false);
+
+		if(id==id_subitem+1) //Choosing?
+		{
+			map.select_id(0); return; 
+		}
 	}
-	if(id_ok!=MapDirectionWin(&direction).return_on_close())
-	return;
 
 	//log_debug("mapGroup(%d)\n",direction); //???
 
@@ -789,6 +1021,9 @@ void TextureCoordWin::mapReset()
 	//log_debug("Bounds = (%f,%f)-(%f,%f)\n",xMin,yMin,xMax,yMax); //???
 
 	x = 1/(x-xMin); y = 1/(y-yMin);
+
+	bool ungroup = !map_group;
+
 	int v = 0; for(int ea:trilist)
 	{
 		for(int i=0;i<3;i++)
@@ -797,9 +1032,26 @@ void TextureCoordWin::mapReset()
 			texturecoord_2d(model,vv,direction,coord);
 			texture.addVertex((coord[0]-xMin)*x,(coord[1]-yMin)*y);	
 		}
+
+		if(ungroup) //2022
+		{
+			auto *p = &texture.m_vertices[v];
+		
+			coord[0] = coord[1] = DBL_MAX;
+			for(int i=3;i-->0;)
+			{
+				if(p[i].s<coord[0]) coord[0] = p[i].s;
+				if(p[i].t<coord[1]) coord[1] = p[i].t;
+			}
+			for(int i=3;i-->0;)
+			{
+				p[i].s-=coord[0]; p[i].t-=coord[1];
+			}
+		}
+
 		texture.addTriangle(v,v+1,v+2); v+=3;
 	}
-
+	
 	goto done;
 }
 

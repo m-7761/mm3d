@@ -439,7 +439,7 @@ public:
 		getParentXYZValue(_[0],_[1],_[2],true);
 		if(-1!=snap_object)
 		{
-			Model * model = getModel();
+			Model *model = getModel();
 			bool how = !model->isPositionSelected(pos);
 			if(how&&~getButtonsLocked()&BS_Shift)
 			model->selectAllPositions(pos.type,false); //OVERKILL

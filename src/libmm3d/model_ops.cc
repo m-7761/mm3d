@@ -521,7 +521,7 @@ bool Model::equivalent(const Model *model, double tolerance)const
 	//
 	// Compare skeletal animations. This assumes animations are in the
 	// same order.
-	Model::AnimationModeE mode = Model::ANIMMODE_SKELETAL;
+	Model::AnimationModeE mode = Model::ANIMMODE_JOINT;
 	unsigned acount = getAnimationCount(mode);
 	if(acount!=model->getAnimationCount(mode))
 	{
@@ -582,7 +582,7 @@ bool Model::equivalent(const Model *model, double tolerance)const
 		int type = getAnimType(a);
 		for(int f=0;f<fcount;f++)
 		{
-			if(type&ANIMMODE_SKELETAL)
+			if(type&ANIMMODE_JOINT)
 			{			
 				auto time = sa->m_timetable2020[f];
 				if(fabs(time-sb->m_timetable2020[f])>tolerance)
@@ -937,7 +937,7 @@ bool Model::propEqual(const Model *model, int partBits, int propBits,
 
 	if(partBits&PartSkelAnims)
 	{
-		auto cmp = model->getAnimationCount(ANIMMODE_SKELETAL);
+		auto cmp = model->getAnimationCount(ANIMMODE_JOINT);
 		if(numSkelAnims!=cmp)
 		{
 			log_warning("match failed at skel anim count %d!=%d\n",
@@ -1146,7 +1146,7 @@ bool Model::mergeAnimations(Model *model)
 		return false;
 	}
 
-	unsigned sa_count = model->getAnimationCount(ANIMMODE_SKELETAL);
+	unsigned sa_count = model->getAnimationCount(ANIMMODE_JOINT);
 
 	if(sa_count)
 	{

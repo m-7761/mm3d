@@ -75,14 +75,14 @@ static void snap_together(Model *model, int_list &selection)
 	for(iter= selection.begin(); iter!=selection.end(); iter++)
 	{
 		model->getVertexCoords(*iter,coord_temp);
-		coord[0]+= coord_temp[0];
-		coord[1]+= coord_temp[1];
-		coord[2]+= coord_temp[2];
+		coord[0]+=coord_temp[0];
+		coord[1]+=coord_temp[1];
+		coord[2]+=coord_temp[2];
 	}
 
-	coord[0]/= selection.size();
-	coord[1]/= selection.size();
-	coord[2]/= selection.size();
+	coord[0]/=selection.size();
+	coord[1]/=selection.size();
+	coord[2]/=selection.size();
 
 	for(iter= selection.begin(); iter!=selection.end(); iter++)
 	{
@@ -95,9 +95,9 @@ static void snap_together_two(Model *model, int v0, int v1)
 	double coord_v0[3],coord_v1[3];
 	model->getVertexCoords(v0,coord_v0);
 	model->getVertexCoords(v1,coord_v1);
-	coord_v0[0]= (coord_v0[0]+coord_v1[0])/2;
-	coord_v0[1]= (coord_v0[1]+coord_v1[1])/2;
-	coord_v0[2]= (coord_v0[2]+coord_v1[2])/2;
+	coord_v0[0] = (coord_v0[0]+coord_v1[0])/2;
+	coord_v0[1] = (coord_v0[1]+coord_v1[1])/2;
+	coord_v0[2] = (coord_v0[2]+coord_v1[2])/2;
 	model->moveVertex(v0,coord_v0[0],coord_v0[1],coord_v0[2]);
 	model->moveVertex(v1,coord_v0[0],coord_v0[1],coord_v0[2]);
 }

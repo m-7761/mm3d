@@ -155,7 +155,7 @@ void AnimExportWin::submit(int id)
 		//i = config.get("ui_animexport_?",1);
 		duration.mult.select_id(1);
 	
-		size_t scount = model->getAnimationCount(Model::ANIMMODE_SKELETAL);
+		size_t scount = model->getAnimationCount(Model::ANIMMODE_JOINT);
 		size_t fcount = model->getAnimationCount(Model::ANIMMODE_FRAME);
 		bool labelAnims = scount&&fcount;
 

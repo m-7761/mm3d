@@ -55,7 +55,7 @@ bool DeleteCommand::activated(int arg,Model *model)
 {
 	/*2021: Is this nececessary? Could print a message inside deleteSelected?
 	//if(!model->inAnimationMode())
-	//if(model->getAnimationCount(Model::ANIMMODE_SKELETAL)
+	//if(model->getAnimationCount(Model::ANIMMODE_JOINT)
 	if(model->getAnimationCount()!=model->getAnimCount(Model::ANIMMODE_FRAME)
 	 &&model->getSelectedBoneJointCount())
 	{

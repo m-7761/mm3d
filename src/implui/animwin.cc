@@ -141,11 +141,11 @@ struct AnimWin::Impl
 		/*
 		if(i>=sep_animation&&i<new_animation)
 		return Model::ANIMMODE_FRAME;
-		return Model::ANIMMODE_SKELETAL;
+		return Model::ANIMMODE_JOINT;
 		*/
 		i = model->getAnimType(i);
-		if(i==3)
-		i = win.model.animation_mode;
+		int cmp =  win.model.animation_mode;
+		if(i==3||cmp==7&&(i&1)) i = cmp;
 		return (Model::AnimationModeE)i;
 	}
 	unsigned item_anim(int i)
@@ -200,7 +200,7 @@ static int animwin_tick_interval(int val)
 	if(val>=25) return 5;       return 1;
 }*/
 
-extern void animwin_enable_menu(int menu, int clipboard)
+extern void animwin_enable_menu(int menu, int ins)
 {
 	extern void viewwin_status_func(int=0);
 	viewwin_status_func();
@@ -213,7 +213,7 @@ extern void animwin_enable_menu(int menu, int clipboard)
 	if(menu) glutSetMenu(menu);
 
 	//glutext::glutMenuEnable(id_animate_play,on);
-	if(clipboard) on = 0;
+	if(!ins) on = 0;
 	glutext::glutMenuEnable(id_animate_copy,on); 
 	glutext::glutMenuEnable(id_animate_copy_all,on); 
 	glutext::glutMenuEnable(id_animate_paste,0); // Disabled until copy occurs
@@ -223,7 +223,7 @@ extern void animwin_enable_menu(int menu, int clipboard)
 
 void AnimWin::open(bool undo)
 {	
-	//animwin_enable_menu(menu,win.model.clipboard_mode);
+	//animwin_enable_menu(menu,win.model.animate_insert);
 
 	impl->open2(undo);
 
@@ -295,7 +295,7 @@ void AnimWin::Impl::open2(bool undo)
 
 	//Not disabling on model swapping???
 	//if(mode) animwin_enable_menu(win.menu);
-	animwin_enable_menu(mode?win.menu:-win.menu,win.model.clipboard_mode);
+	animwin_enable_menu(mode?win.menu:-win.menu,win.model.animate_insert);
 
 	shelf1.animation.select_id(anim_item());
 	sidebar.animation.select_id(anim_item());
@@ -375,7 +375,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	}
 	else if(was<0&&item>=0)
 	{
-		animwin_enable_menu(win.menu,win.model.clipboard_mode);
+		animwin_enable_menu(win.menu,win.model.animate_insert);
 	}
 
 	if(item>=new_animation)
@@ -390,7 +390,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 
 			config.set("ui_new_anim_type",type);
 
-			//mode = type?Model::ANIMMODE_FRAME:Model::ANIMMODE_SKELETAL;
+			//mode = type?Model::ANIMMODE_FRAME:Model::ANIMMODE_JOINT;
 			anim = model->addAnimation((Model::AnimationModeE)type,name.c_str());
 			mode = item_mode(anim);
 			model->setCurrentAnimation(anim,mode);
@@ -449,11 +449,7 @@ void AnimWin::modelChanged(int changeBits)
 	impl->frames_edited(model->getAnimTimeFrame(impl->anim));
 }
 void AnimWin::Impl::frames_edited(double n)
-{	
-	//modelChanged?
-	//Model::AnimationProperty is ambiguous.
-	if(n==shelf1.frames.float_val()) return; 
-
+{
 	bool op = model->setAnimTimeFrame(anim,n);
 	if(!op) n = model->getAnimTimeFrame(anim);
 
@@ -520,7 +516,7 @@ bool AnimWin::Impl::copy(bool selected)
 
 	double t = model->getCurrentAnimationFrameTime();
 
-	if(mode&Model::ANIMMODE_SKELETAL)
+	if(mode&Model::ANIMMODE_JOINT)
 	{	
 		KeyframeCopy cp;
 
@@ -605,7 +601,7 @@ bool AnimWin::Impl::copy(bool selected)
 		}
 
 		if(copy2.empty()&&copy3.empty())
-		if(~mode&Model::ANIMMODE_SKELETAL) //2021
+		if(~mode&Model::ANIMMODE_JOINT) //2021
 		{
 			//msg_error(::tr("No frame animation data to copy"));
 			model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to copy");		
@@ -626,8 +622,8 @@ void AnimWin::Impl::paste(bool values)
 
 	int made = false;
 
-	if(mode==Model::ANIMMODE_SKELETAL
-	||mode&Model::ANIMMODE_SKELETAL&&!copy1.empty())
+	if(mode==Model::ANIMMODE_JOINT
+	||mode&Model::ANIMMODE_JOINT&&!copy1.empty())
 	{
 		if(copy1.empty())
 		{
@@ -740,7 +736,7 @@ void AnimWin::Impl::play(int id)
 		glutTimerFunc(step_ms,animwin_step,win.glut_window_id());
 
 		//log_debug("starting %s animation,update every %.03f seconds\n",
-		//(mode==Model::ANIMMODE_SKELETAL?"skeletal":"frame"),step);
+		//(mode==Model::ANIMMODE_JOINT?"skeletal":"frame"),step);
 
 		//HACK: Woops! Draw the first frame?
 		Impl::step();
@@ -869,7 +865,7 @@ void AnimWin::Impl::refresh_item(bool undo)
 
 		if(soft_mode_bones) model->setDrawJoints(soft_mode_bones); break;
 
-	default: model->setDrawJoints(mode&Model::ANIMMODE_SKELETAL); break;
+	default: model->setDrawJoints(mode&Model::ANIMMODE_JOINT); break;
 	}		
 }
 
@@ -926,7 +922,7 @@ void AnimWin::Impl::close()
 
 		//editEnableEvent(); //UNUSED?
 
-		animwin_enable_menu(-win.menu,win.model.clipboard_mode);	
+		animwin_enable_menu(-win.menu,win.model.animate_insert);	
 	}
 }
 

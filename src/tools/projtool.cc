@@ -48,7 +48,7 @@ struct ProjTool : Tool
 
 	virtual const char **getPixmap(int){ return projtool_xpm; }
 
-	virtual const char *getKeymap(int){ return "Shift+F12"; }
+	virtual const char *getKeymap(int){ return "F10"; }
 
 	virtual void activated(int)
 	{
@@ -64,12 +64,9 @@ struct ProjTool : Tool
 	void mouseButtonDown();	
 	void mouseButtonMove();
 	
-		int	 m_type;
-
-		double m_orig[3];
-		int m_x,m_y;
-		bool m_allowX,m_allowY;		
-		
+		int m_type;
+		int m_x,m_y;	
+		double m_orig[3];		
 		ToolCoordT m_proj;
 };
 
@@ -77,8 +74,8 @@ extern Tool *projtool(){ return new ProjTool; }
 
 void ProjTool::mouseButtonDown()
 {
-	m_x = parent->getButtonX(); m_allowX = true;
-	m_y = parent->getButtonY(); m_allowY = true;
+	m_x = parent->getButtonX();
+	m_y = parent->getButtonY();
 
 	Model *model = parent->getModel();
 
@@ -144,23 +141,6 @@ void ProjTool::mouseButtonMove()
 	if(m_proj.pos.type!=Model::PT_Projection) return;
 
 	Model *model = parent->getModel();
-
-	/*2020: No, rotation semantics make most sense given 
-	//how this works!
-	//Should tools be responsible for this?
-	if(parent->getButtonsLocked()&BS_Shift&&m_allowX&&m_allowY)
-	{
-		double ax = fabs(parent->getButtonX()-m_x);
-		double ay = fabs(parent->getButtonY()-m_y);
-
-		if(ax>ay) m_allowY = false;
-		if(ay>ax) m_allowX = false;
-	}
-
-	//REMOVE ME
-	if(!m_allowX) parent->getButtonX() = m_x;
-	if(!m_allowY) parent->getButtonY() = m_y;
-	*/
 
 	// Convert 2D coords to 3D in parent's view space
 	double pos[4];

@@ -134,34 +134,31 @@ bool Model::setProjectionRange(unsigned proj,
 
 bool Model::moveProjection(unsigned p, double x, double y, double z)
 {
-	//if(m_animationMode==ANIMMODE_NONE) //2021: Why micromanage this?
+	if(p<m_projections.size())
 	{
-		if(p<m_projections.size())
+		m_changeBits|=MoveOther; //2020
+
+		double old[3];
+
+		old[0] = m_projections[p]->m_abs[0];
+		old[1] = m_projections[p]->m_abs[1];
+		old[2] = m_projections[p]->m_abs[2];
+
+		m_projections[p]->m_abs[0] = x;
+		m_projections[p]->m_abs[1] = y;
+		m_projections[p]->m_abs[2] = z;
+
+		applyProjection(p);
+
+		if(m_undoEnabled)
 		{
-			m_changeBits|=MoveOther; //2020
-
-			double old[3];
-
-			old[0] = m_projections[p]->m_abs[0];
-			old[1] = m_projections[p]->m_abs[1];
-			old[2] = m_projections[p]->m_abs[2];
-
-			m_projections[p]->m_abs[0] = x;
-			m_projections[p]->m_abs[1] = y;
-			m_projections[p]->m_abs[2] = z;
-
-			applyProjection(p);
-
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_MoveUnanimated;
-				undo->addPosition({PT_Projection,p},x,y,z,
-						old[0],old[1],old[2]);
-				sendUndo(undo/*,true*/);
-			}
-
-			return true;
+			auto undo = new MU_MoveUnanimated;
+			undo->addPosition({PT_Projection,p},x,y,z,
+					old[0],old[1],old[2]);
+			sendUndo(undo/*,true*/);
 		}
+
+		return true;
 	}
 	return false;
 }

@@ -1411,31 +1411,42 @@ unsigned MU_ChangeAnimState::size()
 	return sizeof(MU_ChangeAnimState);
 }
 
+void MU_ChangeSkeletalMode::undo(Model *model)
+{
+	model->setSkeletalModeEnabled(!m_how);
+}
+void MU_ChangeSkeletalMode::redo(Model *model)
+{
+	model->setSkeletalModeEnabled(m_how);
+}
+bool MU_ChangeSkeletalMode::combine(Undo *u)
+{
+	if(auto*undo=dynamic_cast<MU_ChangeSkeletalMode*>(u))
+	{
+		m_how = undo->m_how; return true;
+	}
+	return false;
+}
+
 void MU_SetAnimName::undo(Model *model)
 {
 	model->setAnimName(m_animNum,m_oldName.c_str());
 }
-
 void MU_SetAnimName::redo(Model *model)
 {
 	model->setAnimName(m_animNum,m_newName.c_str());
 }
-
 bool MU_SetAnimName::combine(Undo *u)
 {
 	return false;
 }
-
 unsigned MU_SetAnimName::size()
 {
 	return sizeof(MU_SetAnimName);
 }
-
 void MU_SetAnimName::setName(unsigned animNum, const char *newName, const char *oldName)
 {
-	m_animNum	 = animNum;
-	m_newName	 = newName;
-	m_oldName	 = oldName;
+	m_animNum = animNum; m_newName = newName; m_oldName = oldName;
 }
 
 void MU_SetAnimFrameCount::undo(Model *model)
@@ -1500,12 +1511,10 @@ void MU_SetAnimFPS::undo(Model *model)
 {
 	model->setAnimFPS(m_animNum,m_oldFPS);
 }
-
 void MU_SetAnimFPS::redo(Model *model)
 {
 	model->setAnimFPS(m_animNum,m_newFPS);
 }
-
 bool MU_SetAnimFPS::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetAnimFPS*>(u))
@@ -1515,12 +1524,10 @@ bool MU_SetAnimFPS::combine(Undo *u)
 	}
 	return false;
 }
-
 unsigned MU_SetAnimFPS::size()
 {
 	return sizeof(MU_SetAnimFPS);
 }
-
 void MU_SetAnimFPS::setFPS(unsigned animNum, double newFps, double oldFps)
 {
 	m_animNum = animNum; m_newFPS = newFps; m_oldFPS = oldFps;
@@ -1528,26 +1535,24 @@ void MU_SetAnimFPS::setFPS(unsigned animNum, double newFps, double oldFps)
 
 void MU_SetAnimWrap::undo(Model *model)
 {
-	model->setAnimWrap(m_animNum,m_oldLoop);
+	model->setAnimWrap(m_animNum,m_old);
 }
 void MU_SetAnimWrap::redo(Model *model)
 {
-	model->setAnimWrap(m_animNum,m_newLoop);
+	model->setAnimWrap(m_animNum,m_new);
 }
 bool MU_SetAnimWrap::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetAnimWrap*>(u))
 	if(undo->m_animNum==m_animNum)
 	{
-		m_newLoop = undo->m_newLoop; return true;
+		m_new = undo->m_new; return true;
 	}
 	return false;
 }
-void MU_SetAnimWrap::setAnimWrap(unsigned animNum,bool newLoop,bool oldLoop)
+void MU_SetAnimWrap::setAnimWrap(unsigned animNum, bool newWrap, bool oldWrap)
 {
-	m_animNum	 = animNum;
-	m_newLoop	 = newLoop;
-	m_oldLoop	 = oldLoop;
+	m_animNum = animNum; m_new = newWrap; m_old = oldWrap;
 }
 
 void MU_SetAnimTime::undo(Model *model)

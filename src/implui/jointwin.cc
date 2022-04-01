@@ -137,6 +137,7 @@ void JointWin::submit(control *c)
 		{
 			disable(); 
 			joint.enable();
+			sel.uninfl.enable();
 			f1_ok_cancel.nav.enable();
 		}
 		else enable(); model->updateObservers();

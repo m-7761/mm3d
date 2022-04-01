@@ -43,7 +43,7 @@ struct JointTool : Tool
 
 	virtual const char **getPixmap(int){ return jointtool_xpm; }
 
-	virtual const char *getKeymap(int){ return "F10"; }
+	virtual const char *getKeymap(int){ return "F8"; }
 	
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();

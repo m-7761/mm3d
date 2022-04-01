@@ -96,7 +96,7 @@ struct RotateTool : Tool
 			for(auto&ea:model->getFlatJointList())			
 			if(ea.second->m_selected)
 			{
-				if(m_skel_mode=model->inSkeletalMode())
+				if(m_skel_mode=model->inJointAnimMode())
 				{
 					model->getBoneJointCoords(ea.first,m_rotatePoint);
 					parent->updateParams();
@@ -178,7 +178,7 @@ void RotateTool::activated2()
 	Model *model = parent->getModel();
 		
 	int am = model->getAnimationMode();
-	if(am&Model::ANIMMODE_SKELETAL)
+	if(am&Model::ANIMMODE_JOINT)
 	{
 		int iN = model->getBoneJointCount();
 		for(int i=0;i<iN;i++)		
@@ -187,7 +187,7 @@ void RotateTool::activated2()
 			model->getBoneJointCoords(i,m_rotatePoint);
 			goto empty2;
 		}
-		if(am!=Model::ANIMMODE_SKELETAL) //2021
+		if(am!=Model::ANIMMODE_JOINT) //2021
 		goto empty3;
 		
 	empty1: m_rotatePoint.x = m_rotatePoint.y = m_rotatePoint.z = 0;

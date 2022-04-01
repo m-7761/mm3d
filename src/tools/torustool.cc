@@ -48,7 +48,7 @@ struct TorusTool : Tool
 
 	virtual const char **getPixmap(int){ return torustool_xpm; }
 
-	virtual const char *getKeymap(int){ return "F9"; }
+	virtual const char *getKeymap(int){ return "Alt+F9"; }
 
 	virtual void activated(int)
 	{

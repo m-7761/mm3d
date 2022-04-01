@@ -32,16 +32,17 @@
 struct FlattenCommand : Command
 {
 	FlattenCommand():Command(3,
-	TRANSLATE_NOOP("Command","Flatten")){}
+	TRANSLATE_NOOP("Command","Snap")){} //"Flatten"
 
 	virtual const char *getName(int arg)
 	{
 		switch(arg)
 		{
-		default: assert(0);
-		case 0: return TRANSLATE_NOOP("Command","Flatten X");
-		case 1: return TRANSLATE_NOOP("Command","Flatten Y");
-		case 2: return TRANSLATE_NOOP("Command","Flatten Z");
+		default: assert(0); 
+		//2022: UV editor says "Snap" for smaller buttons.
+		case 0: return TRANSLATE_NOOP("Command","Snap X");
+		case 1: return TRANSLATE_NOOP("Command","Snap Y");
+		case 2: return TRANSLATE_NOOP("Command","Snap Z");
 		}
 	}
 
@@ -50,10 +51,9 @@ struct FlattenCommand : Command
 		switch(arg)
 		{
 		default: assert(0);
-			//REMINDER: Windows reserves Alt+F4
-		case 0: return "Alt+F5";
-		case 1: return "Alt+F6";
-		case 2: return "Alt+F7";
+		case 0: return "F5";
+		case 1: return "F6";
+		case 2: return "F7";
 		}
 	}
 
@@ -62,7 +62,7 @@ struct FlattenCommand : Command
 
 extern Command *flattencmd(){ return new FlattenCommand; }
 
-bool FlattenCommand::activated(int index, Model *model)
+bool FlattenCommand::activated(int arg, Model *model)
 {
 	pos_list posList;
 	model->getSelectedPositions(posList);
@@ -81,7 +81,7 @@ bool FlattenCommand::activated(int index, Model *model)
 	for(auto i:posList)
 	{		
 		model->getPositionCoords(i,coords);
-		newVal+=(float)coords[index];
+		newVal+=(float)coords[arg];
 		countVal++;
 	}
 
@@ -90,11 +90,12 @@ bool FlattenCommand::activated(int index, Model *model)
 	for(auto i:posList)
 	{
 		model->getPositionCoords(i,coords);
-		coords[index] = newVal;
+		coords[arg] = newVal;
 		model->movePosition(i,coords[0],coords[1],coords[2]);
 	}
 
-	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Selection flattened"));
+	model_status(model,StatusNormal,STATUSTIME_SHORT,
+	TRANSLATE("Command","Snapped %c axis"),'X'+arg); //"Selection flattened"
 
 	return true;
 }

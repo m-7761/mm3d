@@ -36,7 +36,7 @@ Model::Animation *Model::_anim(unsigned index, AnimationModeE m)const
 {
 	/*switch(m)
 	{
-	case ANIMMODE_SKELETAL: if(index<m_skelAnims.size()) return m_skelAnims[index]; break;
+	case ANIMMODE_JOINT: if(index<m_skelAnims.size()) return m_skelAnims[index]; break;
 	case ANIMMODE_FRAME: if(index<m_frameAnims.size()) return m_frameAnims[index]; break;
 	}*/
 
@@ -128,9 +128,7 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 {
 	//LOG_PROFILE(); //???
 
-	int num = -1;
-
-	if(!name||(unsigned)m>3) return num; //-1
+	if(!name||!m||(unsigned)m>=ANIMMODE_Max) return -1;
 
 	//2021: preventing surprise (MM3D)
 	//doesn't allow setting names to a
@@ -139,9 +137,8 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 	if(!name[0]) name = "_";
 
 	//2021: Enforce partitions.
-	num = (unsigned)m_anims.size();
-	while(num&&m_anims[num-1]->_type>m)
-	num--;
+	auto num = (unsigned)m_anims.size();
+	while(num&&m_anims[num-1]->_type>m) num--;
 
 	auto p = Animation::get();
 		
@@ -1057,7 +1054,7 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 	{
 		for(auto&ea:ab->m_keyframes)
 		{
-			if(e==ANIMMODE_SKELETAL)
+			if(e==ANIMMODE_JOINT)
 			{
 				if(ea.first.type==PT_Joint) continue;
 			}
@@ -1490,6 +1487,26 @@ void Model::removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData 
 
 #endif // MM3D_EDIT
 
+bool Model::setSkeletalModeEnabled(bool how) //2022
+{
+	if(m_skeletalMode2!=how)
+	{
+		if(m_undoEnabled)
+		{
+			sendUndo(new MU_ChangeSkeletalMode(how));
+		}
+		m_skeletalMode2 = how;
+
+		if(m_skeletalMode!=how&&m_animationMode&1)
+		{
+			m_changeBits |= AnimationMode;
+
+			m_skeletalMode = how; invalidateAnim();
+		}
+		return true;
+	}
+	return false;
+}
 bool Model::setCurrentAnimation(const RestorePoint &rp)
 {
 	if(rp!=makeRestorePoint())
@@ -1568,6 +1585,7 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 		}
 	}	
 	m_animationMode = m;
+	m_skeletalMode = m&1&&m_skeletalMode2;
 	if(m_undoEnabled)
 	sendUndo(new MU_ChangeAnimState(this,old));
 
@@ -1615,7 +1633,7 @@ void Model::Point::_source(AnimationModeE m)
 }
 void Model::Joint::_source(AnimationModeE m)
 {
-	bool mm = m&ANIMMODE_SKELETAL;
+	bool mm = 0!=(m&ANIMMODE_JOINT);
 	m_absSource = mm?m_kfAbs():m_abs;
 	m_rotSource = mm?m_kfRot:m_rot;
 	m_xyzSource = mm?m_kfXyz:m_xyz;
@@ -1731,7 +1749,7 @@ void Model::invalidateSkel()
 	//2021: movePositionUnanimated may be in animation
 	//mode, plus there's no longer a clean split
 	//between animation off or on.
-	//if(inSkeletalMode()) 
+	//if(inJointAnimMode()) 
 	m_validAnimJoints = false;
 
 	m_validJoints = false; 
@@ -1770,7 +1788,7 @@ void Model::calculateSkel()
 
 	m_validJoints = true;
 
-	if(inSkeletalMode()) //2020
+	if(inJointAnimMode()) //2020
 	{
 		invalidateAnim(); //invalidateNormals?
 	}
@@ -1829,7 +1847,7 @@ void Model::calculateAnimSkel()
 	//double t = m_currentTime*getAnimFPS(am,anim);
 	double t = m_currentTime;
 
-	if(inSkeletalMode())
+	if(inJointAnimMode())
 	{
 		//LOG_PROFILE(); //???
 
@@ -1890,27 +1908,32 @@ void Model::calculateAnim()
 	//NOTE: This exists so when valid joint (m_final) data
 	//is required but vertex data isn't the vertex data can
 	//wait until it's required (e.g. draw).
-	if(inSkeletalMode()) validateAnimSkel();
+	if(inJointAnimMode()) validateAnimSkel();
 
-	for(unsigned v=m_vertices.size();v-->0;)
+	//Could avoid if _source was not the animation vector
+	//or if they were initialized by setCurrentAnimation.
+	//if(inFrameAnimMode()||inSkeletalMode())
 	{
-		m_vertices[v]->_resample(*this,v);
-	}
+		for(unsigned v=m_vertices.size();v-->0;)
+		{
+			m_vertices[v]->_resample(*this,v);
+		}
 
-	for(unsigned p=m_points.size();p-->0;)
-	{
-		m_points[p]->_resample(*this,p);
+		for(unsigned p=m_points.size();p-->0;)
+		{
+			m_points[p]->_resample(*this,p);
+		}
 	}
 }
 void Model::Vertex::_resample(Model &model, unsigned v)
 {		
 	Vector source; 
-	int am; if(2&(am=model.m_animationMode))
+	if(model.inFrameAnimMode())
 	model.interpKeyframe(model.m_currentAnim,
 	model.m_currentFrame,model.m_currentTime,v,source.getVector());
 	else source.setAll(m_coord);
 
-	if(1&am&&!m_influences.empty())	
+	if(!m_influences.empty()&&model.inSkeletalMode())	
 	model._skel_xform_abs(1,m_influences,source);	
 	for(int i=3;i-->0;) m_kfCoord[i] = source[i];
 }
@@ -1920,7 +1943,7 @@ void Model::Point::_resample(Model &model, unsigned pt)
 	model.interpKeyframe(model.m_currentAnim,
 	model.m_currentFrame,model.m_currentTime,{PT_Point,pt},m_kfAbs,m_kfRot,m_kfXyz);
 
-	if(1&am&&!m_influences.empty())
+	if(!m_influences.empty()&&model.inSkeletalMode())
 	{
 		//NOTE: Historically this was done with matrices.
 		//Componentwise would probably be an improvement.

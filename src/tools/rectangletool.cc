@@ -42,7 +42,7 @@ struct RectangleTool : Tool
 
 	virtual const char **getPixmap(int){ return rectangletool_xpm; }
  
-	virtual const char *getKeymap(int){ return "F5"; }
+	virtual const char *getKeymap(int){ return "Alt+F5"; }
 
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();

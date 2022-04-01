@@ -23,6 +23,7 @@
 #include "mm3dtypes.h" //PCH
 #include "win.h"
 #include "model.h"
+#include "modelstatus.h"
 
 struct ViewportSettings : Win
 {	
@@ -30,8 +31,10 @@ struct ViewportSettings : Win
 
 	ViewportSettings(Model *model)
 		:
-	Win("Viewport Settings"),model(model),
-	ortho(main),persp(main),f1_ok_cancel(main)
+	//Win("Viewport Settings"),model(model),
+	Win("Grid Settings"),model(model),
+	ortho(main),persp(main),
+	uvmap(main),f1_ok_cancel(main)
 	{
 		active_callback = &ViewportSettings::submit;
 
@@ -44,8 +47,8 @@ struct ViewportSettings : Win
 	{	
 		ortho_group(node *main)
 			:
-		nav(main,"2D Grid"),
-		unit(nav,"Default Grid Unit\t"),
+		nav(main,"2D View"),
+		unit(nav,"Default Grid Unit"),
 		mult(nav)
 		{
 			//unit.edit(4.0);
@@ -62,10 +65,10 @@ struct ViewportSettings : Win
 	{
 		persp_group(node *main)
 			:
-		nav(main,"3D Grid"),
-		unit(nav,"Default Grid Unit\t"),
-		lines(nav,"Grid Lines\t"),
-		points(nav,"Point Size\t"),
+		nav(main,"3D View"),
+		unit(nav,"Default Grid Unit"),
+		lines(nav,"Grid Lines"),
+		points(nav,"Point Size"),
 		xy(nav,"X/Y Plane"),
 		xz(nav,"X/Z Plane"),
 		yz(nav,"Y/Z Plane")
@@ -78,8 +81,32 @@ struct ViewportSettings : Win
 		textbox unit,lines,points;
 		boolean xy,xz,yz;
 	};
+	struct uvmap_group
+	{
+		uvmap_group(node *main)
+			:
+		nav(main,"UV View"),
+		zin(nav,"Zooming In:"),
+		units(nav,"Maximum Units",'2'),
+		zout(nav,"Zooming Out:"),
+		u(nav,"U Snap"),
+		v(nav,"V Snap")
+		{
+			//units.edit(1,2,8);
+
+			//u.edit(0.0,0.0,1.0);
+			//v.edit(0.0,0.0,1.0);
+		}
+
+		panel nav;
+		titlebar zin;
+		textbox units;
+		titlebar zout;
+		textbox u,v;
+	};
 	ortho_group ortho;
 	persp_group persp;
+	uvmap_group uvmap;
 	f1_ok_cancel_panel f1_ok_cancel;	
 };
 void ViewportSettings::submit(int i)
@@ -112,7 +139,26 @@ void ViewportSettings::submit(int i)
 		persp.xy.set(vu.xyz3d&4);
 		persp.xz.set(vu.xyz3d&2);
 		persp.yz.set(vu.xyz3d&1);
+		persp.lines.sspace<left>({persp.points});
+		uvmap.units.edit(1,vu.unitsUv?vu.unitsUv:2,8); 
+		uvmap.u.edit(0.0,vu.snapUv[0],1.0);
+		uvmap.v.edit(0.0,vu.snapUv[1],1.0);
+		uvmap.u.sspace<left>({uvmap.v});
 		break;
+
+	case '2': //uvmap.units
+
+		switch(i=uvmap.units) //Power-of-two?
+		{
+		case 0: case 1: 
+		case 2: case 4: case 8: return;
+		case 3: i = 4; break;
+		default: i = 8; break;
+		}
+		uvmap.units.set_int_val(i);
+		model_status(model,StatusError,STATUSTIME_LONG,
+		"Maximum Units rounded up to nearest power-of-two (%d)",i);
+		return; //break;
 
 	case id_ok:
 
@@ -124,6 +170,9 @@ void ViewportSettings::submit(int i)
 		config.set("ui_3dgrid_xy",(bool)persp.xy);
 		config.set("ui_3dgrid_xz",(bool)persp.xz);
 		config.set("ui_3dgrid_yz",(bool)persp.yz);
+		config.set("uv_grid_subpixels",(int)uvmap.units);
+		config.set("uv_grid_default_u",(double)uvmap.u);
+		config.set("uv_grid_default_v",(double)uvmap.v);
 		vu.inc = ortho.unit;
 		vu.grid = ortho.mult;
 		vu.inc3d = persp.unit;
@@ -133,6 +182,9 @@ void ViewportSettings::submit(int i)
 		if(persp.xy) vu.xyz3d|=4;
 		if(persp.xz) vu.xyz3d|=2;
 		if(persp.yz) vu.xyz3d|=1;
+		vu.unitsUv = uvmap.units;
+		vu.snapUv[0] = uvmap.u;
+		vu.snapUv[1] = uvmap.v;
 		break;
 	}
 

@@ -81,17 +81,13 @@ enum
 	id_snap_grid,id_snap_vert,
 
 	/*View->Render Options menu*/
+	id_rops_draw_bones,
 	id_rops_hide_joints,
-	id_rops_line_joints,
-	id_rops_show_joints,
-	id_rops_hide_projections,
-	id_rops_show_projections,
-	id_rops_hide_badtex,
-	id_rops_show_badtex,
+	id_rops_hide_projections,	
 	id_rops_hide_lines,
-	id_rops_show_lines,
 	id_rops_hide_backs,
-	id_rops_show_backs,
+	id_rops_draw_badtex,
+	id_rops_draw_buttons,
 
 	/*View menu*/
 	id_frame_all,
@@ -183,6 +179,7 @@ enum
 	id_animate_mode_1,
 	id_animate_mode_2,
 	id_animate_mode_3,
+	id_animate_bind,
 	
 	/*Help menu*/
 	id_help,  //wxOSX needs to be Help.

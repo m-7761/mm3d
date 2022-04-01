@@ -486,7 +486,7 @@ void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
 				#endif
 			}
 			break;
-		case Model::ANIMMODE_SKELETAL:
+		case Model::ANIMMODE_JOINT:
 			{
 				unsigned count = model->getBoneJointCount();
 				for(Model::Position j{Model::PT_Joint,0}; j<count; j++)

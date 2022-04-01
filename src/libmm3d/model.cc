@@ -227,6 +227,8 @@ Model::Model()
 	  m_validJoints(false),
 	m_validAnimJoints(false),
 	  //m_forceAddOrDelete(false),
+		m_skeletalMode(false),
+		m_skeletalMode2(true),
 	  m_animationMode(ANIMMODE_NONE),
 	  m_currentFrame(0),
 	  m_currentAnim(0),
@@ -573,7 +575,7 @@ int Model::addVertex(int copy, const double pos[3])
 		//memcpy(vp->m_coord,pos,3*sizeof(double));
 		memcpy(vp->m_kfCoord,pos,3*sizeof(double));
 
-		Vector os(pos); if(m_animationMode&ANIMMODE_SKELETAL) 
+		Vector os(pos); if(inSkeletalMode()) 
 		{
 			validateAnim(); //I guess?
 
@@ -795,55 +797,50 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 	return num;
 }
 
-bool Model::setTriangleVertices(unsigned triangleNum, unsigned vert1, unsigned vert2, unsigned vert3)
+bool Model::setTriangleVertices(unsigned t, unsigned v1, unsigned v2, unsigned v3)
 {		
-	if(triangleNum<m_triangles.size())
+	if(t>=m_triangles.size()) return false;
+
+	auto *tp = m_triangles[t];	
+	auto *tv = tp->m_vertexIndices;
+
+	if(tv[0]==v1&&tv[1]==v2&&tv[2]==v3) return true; //2022
+
+	auto &vl = m_vertices;
+	unsigned vsz = vl.size();
+	if(v1>=vsz||v2>=vsz||v3>=vsz) return false;	
+
+	if(m_undoEnabled)
 	{
-		auto *tp = m_triangles[triangleNum];
-		auto *tv = tp->m_vertexIndices;
-
-		if(tv[0]==vert1&&tv[1]==vert2&&tv[2]==vert3) return true; //2022
-
-		auto &vl = m_vertices;
-		unsigned vsz = vl.size();
-		if(vert1>=vsz||vert2>=vsz||vert3>=vsz) return false;	
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetTriangleVertices;
-			undo->setTriangleVertices(triangleNum,vert1,vert2,vert3,tv[0],tv[1],tv[2]);
-			sendUndo(undo);
-		}
-
-		//2020: Keep connectivity to help calculateNormals
-		unsigned v[3] = {vert1,vert2,vert3};
-		for(int i=3;i-->0;)
-		{
-			vl[tv[i]]->_erase_face(tp,i);
-			vl[v[i]]->m_faces.push_back({tp,i});
-			tv[i] = v[i];
-		}
-
-		m_changeBits |= AddGeometry;
-
-		invalidateNormals(); //OVERKILL
-
-		return true;
+		auto undo = new MU_SetTriangleVertices;
+		undo->setTriangleVertices(t,v1,v2,v3,tv[0],tv[1],tv[2]);
+		sendUndo(undo);
 	}
-	return false;
+
+	//2020: Keep connectivity to help calculateNormals
+	unsigned v[3] = {v1,v2,v3};
+	for(int i=3;i-->0;)
+	{
+		vl[tv[i]]->_erase_face(tp,i);
+		vl[v[i]]->m_faces.push_back({tp,i});
+		tv[i] = v[i];
+	}
+
+	m_changeBits |= AddGeometry;
+
+	invalidateNormals(); //OVERKILL
+
+	return true;
 }
 
-bool Model::getTriangleVertices(unsigned triangleNum, unsigned &vert1, unsigned &vert2, unsigned &vert3)const
+bool Model::getTriangleVertices(unsigned t, unsigned &v1, unsigned &v2, unsigned &v3)const
 {
-	if(triangleNum<m_triangles.size())
-	{
-		vert1 = m_triangles[triangleNum]->m_vertexIndices[0];
-		vert2 = m_triangles[triangleNum]->m_vertexIndices[1];
-		vert3 = m_triangles[triangleNum]->m_vertexIndices[2];
+	if(t>=m_triangles.size()) return false;
 
-		return true;
-	}
-	return false;
+	auto *tp = m_triangles[t];	
+	v1 = tp->m_vertexIndices[0];
+	v2 = tp->m_vertexIndices[1];
+	v3 = tp->m_vertexIndices[2]; return true;
 }
 
 void Model::deleteVertex(unsigned vertexNum)
@@ -864,16 +861,17 @@ void Model::deleteVertex(unsigned vertexNum)
 	removeVertex(vertexNum);
 }
 
-void Model::deleteTriangle(unsigned triangleNum)
+void Model::deleteTriangle(unsigned t)
 {
 	//LOG_PROFILE(); //???
 
-	if(triangleNum>=m_triangles.size()) return;
+	if(t>=m_triangles.size()) return;
 
-	// remove it from any groups
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	auto *tp = m_triangles[t];
+
+	if(tp->m_group>=0)
 	{
-		removeTriangleFromGroup(g,triangleNum);
+		removeTriangleFromGroup(tp->m_group,t);
 	}
 
 	//m_changeBits |= AddGeometry
@@ -882,11 +880,11 @@ void Model::deleteTriangle(unsigned triangleNum)
 	{
 		// Delete triangle
 		auto undo = new MU_DeleteTriangle;
-		undo->deleteTriangle(triangleNum,m_triangles[triangleNum]);
+		undo->deleteTriangle(t,tp);
 		sendUndo(undo);
 	}
 
-	removeTriangle(triangleNum);
+	removeTriangle(t);
 }
 
 void Model::deleteBoneJoint(unsigned joint)
@@ -999,70 +997,47 @@ void Model::deleteSelected()
 	//LOG_PROFILE(); //???
 
 	//THIS CAN BE SIMPLIFIED
-	for(auto v=m_vertices.size();v-->0;)
+	for(auto&vp:m_vertices) vp->m_marked = false;
+	
+	for(auto t=m_triangles.size();t-->0;) if(m_triangles[t]->m_selected)
 	{
-		m_vertices[v]->m_marked = false;
-	}
-	for(auto t=m_triangles.size();t-->0;)
-	{
-		if(m_triangles[t]->m_selected)
+		for(int i:m_triangles[t]->m_vertexIndices)
 		{
-			m_vertices[m_triangles[t]->m_vertexIndices[0]]->m_marked = true;
-			m_vertices[m_triangles[t]->m_vertexIndices[1]]->m_marked = true;
-			m_vertices[m_triangles[t]->m_vertexIndices[2]]->m_marked = true;
-			deleteTriangle(t);
+			m_vertices[i]->m_marked = true;
+		}
+		deleteTriangle(t);
+	}
+	for(auto t=m_triangles.size();t-->0;) if(m_triangles[t]->m_visible)
+	{
+		for(int i:m_triangles[t]->m_vertexIndices)
+		if(m_vertices[i]->m_selected&&!m_vertices[i]->m_marked)
+		{
+			deleteTriangle(t); break;
 		}
 	}
-	for(auto t=m_triangles.size();t-->0;)
+	for(auto v=m_vertices.size();v-->0;)	
+	if(m_vertices[v]->m_selected&&!m_vertices[v]->m_marked)
 	{
-		if(m_triangles[t]->m_visible)
-		{
-			for(int i:m_triangles[t]->m_vertexIndices)
-			{
-				if(m_vertices[i]->m_selected&&!m_vertices[i]->m_marked)
-				{
-					deleteTriangle(t);
-					break;
-				}
-			}
-		}
-	}
-	for(auto v=m_vertices.size();v-->0;)
-	{
-		if(m_vertices[v]->m_selected&&!m_vertices[v]->m_marked)
-		{
-			deleteVertex(v);
-		}
-	}
-	deleteOrphanedVertices();
+		deleteVertex(v); //Or dissolveVertex?
+	}	
+	deleteOrphanedVertices(); //???
 
-	for(int j = m_joints.size()-1; j>=0; j--)
+	for(auto j=m_joints.size();j-->0;) if(m_joints[j]->m_selected)
 	{
-		if(m_joints[j]->m_selected)
-		{
-			deleteBoneJoint(j);
-		}
+		deleteBoneJoint(j);
 	}
-
-	for(int p = m_points.size()-1; p>=0; p--)
+	for(auto p=m_points.size()-1;p-->0;) if(m_points[p]->m_selected)
 	{
-		if(m_points[p]->m_selected)
-		{
-			deletePoint(p);
-		}
+		deletePoint(p);
 	}
-
-	for(int r = m_projections.size()-1; r>=0; r--)
+	for(auto p=m_projections.size();p-->0;) if(m_projections[p]->m_selected)
 	{
-		if(m_projections[r]->m_selected)
-		{
-			deleteProjection(r);
-		}
+		deleteProjection(p);
 	}
 
 	// Some selected vertices may not be deleted if their parent
 	// triangle was deleted
-//	unselectAllVertices();
+	unselectAllVertices(); //NOTE: REALLY SOME SHOULD BE HIDDEN
 }
 
 bool Model::movePosition(const Position &pos, double x, double y, double z)
@@ -1129,7 +1104,9 @@ bool Model::movePoint(unsigned index, double x, double y, double z)
 {
 	if(index>=m_points.size()) return false;
 
-	auto p = m_points[index]; if(inSkeletalMode())
+	auto *p = m_points[index];
+	
+	if(inSkeletalMode())
 	{
 		Vector tmp(x,y,z);
 		if(_skel_xform_abs(-1,p->m_influences,tmp))
@@ -1153,9 +1130,8 @@ bool Model::movePoint(unsigned index, double x, double y, double z)
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_MoveUnanimated;
-		undo->addPosition({PT_Point,index},x,y,z,
-				p->m_abs[0],p->m_abs[1],p->m_abs[2]);
-		sendUndo(undo/*,true*/);
+		undo->addPosition({PT_Point,index},x,y,z,p->m_abs[0],p->m_abs[1],p->m_abs[2]);
+		sendUndo(undo);
 	}
 
 	p->m_abs[0] = x; p->m_abs[1] = y; p->m_abs[2] = z; return true;
@@ -1164,12 +1140,13 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 {
 	if(j>=m_joints.size()) return false;
 
-	if(inSkeletalMode()) //2020
+	auto *p = m_joints[j];
+
+	if(inJointAnimMode()) //2020
 	{	
 		//HACK? Need to update m_final matrix.
 		validateAnimSkel();
 
-		auto p = m_joints[j]; 
 		double coord[3] = {x,y,z};
 		if(!memcmp(coord,p->m_kfAbs(),sizeof(coord)))
 		{
@@ -1197,16 +1174,13 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 	
 	validateSkel();
 
-	double *cmp = m_joints[j]->m_abs;
+	double *cmp = p->m_abs;
 	if(x==cmp[0]&&y==cmp[1]&&z==cmp[2]) return true; //2020
 
 	if(m_undoEnabled)
 	{
 		auto undo = new MU_MoveUnanimated;
-		undo->addPosition({PT_Joint,j},x,y,z,
-				m_joints[j]->m_abs[0],//m_absolute.get(3,0),
-				m_joints[j]->m_abs[1],//m_absolute.get(3,1),
-				m_joints[j]->m_abs[2]);//m_absolute.get(3,2));
+		undo->addPosition({PT_Joint,j},x,y,z,p->m_abs[0],p->m_abs[1],p->m_abs[2]);
 		sendUndo(undo/*,true*/);
 	}
 
@@ -1218,42 +1192,39 @@ bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool dow
 	
 	m_changeBits|=MoveOther; //2020
 
-	double old[3];
-	double diff[3];
-	double tran[3];
+	double old[3],diff[3],tran[3];
 
-	old[0] = m_joints[j]->m_absolute.get(3,0);
-	old[1] = m_joints[j]->m_absolute.get(3,1);
-	old[2] = m_joints[j]->m_absolute.get(3,2);
+	auto *p = m_joints[j];
+
+	old[0] = p->m_absolute.get(3,0);
+	old[1] = p->m_absolute.get(3,1);
+	old[2] = p->m_absolute.get(3,2);
 
 	tran[0] = diff[0] = (x-old[0]);
 	tran[1] = diff[1] = (y-old[1]);
 	tran[2] = diff[2] = (z-old[2]);
 
-	if(m_joints[j]->m_parent>=0)
+	if(p->m_parent>=0)
 	{
-		m_joints[m_joints[j]->m_parent]->m_absolute.inverseRotateVector(tran);
+		m_joints[p->m_parent]->m_absolute.inverseRotateVector(tran);
 	}
 
-	m_joints[j]->m_rel[0] += tran[0];
-	m_joints[j]->m_rel[1] += tran[1];
-	m_joints[j]->m_rel[2] += tran[2];
+	p->m_rel[0] += tran[0];
+	p->m_rel[1] += tran[1];
+	p->m_rel[2] += tran[2];
 
 	if(!downstream)
-	for(unsigned t = 0; t<m_joints.size(); t++)
+	for(unsigned t=0;t<m_joints.size();t++) if((int)j==m_joints[t]->m_parent)
 	{
-		if(m_joints[t]->m_parent==(signed)j)
-		{
-			tran[0] = diff[0];
-			tran[1] = diff[1];
-			tran[2] = diff[2];
+		tran[0] = diff[0];
+		tran[1] = diff[1];
+		tran[2] = diff[2];
 
-			m_joints[m_joints[t]->m_parent]->m_absolute.inverseRotateVector(tran);
+		m_joints[m_joints[t]->m_parent]->m_absolute.inverseRotateVector(tran);
 
-			m_joints[t]->m_rel[0] -= tran[0];
-			m_joints[t]->m_rel[1] -= tran[1];
-			m_joints[t]->m_rel[2] -= tran[2];
-		}
+		m_joints[t]->m_rel[0] -= tran[0];
+		m_joints[t]->m_rel[1] -= tran[1];
+		m_joints[t]->m_rel[2] -= tran[2];
 	}
 
 	invalidateSkel(); return true;
@@ -1406,6 +1377,7 @@ void Model::translateSelected(const double vec[3])
 
 	int multi = 0; //2021
 	bool skel = inSkeletalMode();
+	bool skam = inJointAnimMode(); //ANIMMODE_BONELESS?
 	bool fram = inFrameAnimMode();
 	
 	bool sel = false; if(inAnimationMode())
@@ -1414,7 +1386,7 @@ void Model::translateSelected(const double vec[3])
 
 		auto ca = m_currentAnim, cf = m_currentFrame;
 
-		if(skel)
+		if(skam)
 		{
 			//for(Position j{PT_Joint,0};j<m_joints.size();j++)
 			for(auto&ea:m_joints2)
@@ -1571,7 +1543,7 @@ void Model::translateSelected(const double vec[3])
 			}
 		}
 
-		if(!skel)
+		if(!skam)
 		{
 			//for(unsigned j=0;j<m_joints.size();j++) 		
 			for(auto&ea:m_joints2)
@@ -1639,7 +1611,7 @@ void Model::translateSelected(const double vec[3])
 			}
 		}
 
-			if(skel&&sel) invalidateAnim();
+			if(skam&&sel) invalidateAnim();
 
 
 		for(unsigned p=0;p<m_projections.size();p++)
@@ -1682,6 +1654,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 
 	int multi = 0 ; //2021
 	bool skel = inSkeletalMode();
+	bool skam = inJointAnimMode(); //ANIMMODE_BONELESS?
 	bool fram = inFrameAnimMode();
 
 	bool sel = false; if(inAnimationMode())
@@ -1690,7 +1663,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 
 		auto ca = m_currentAnim, cf = m_currentFrame;
 
-		if(skel)
+		if(skam)
 		{
 			//for(Position j{PT_Joint,0};j<m_joints.size();j++)
 			for(auto&ea:m_joints2)
@@ -1852,7 +1825,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 		//NOTE: qm is just in case m is not affine.
 		Matrix pm,qm;
 
-		if(!skel)
+		if(!skam)
 		{
 			bool inval = false;
 
@@ -1950,7 +1923,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			}
 		}
 
-			if(skel&&sel) invalidateAnim();
+			if(skam&&sel) invalidateAnim();
 
 
 		for(unsigned p=0;p<m_projections.size();p++)
@@ -2611,13 +2584,19 @@ bool Model::hideSelected(bool how)
 		auto *vp = m_vertices[v]; 
 		if(vp->m_visible) //if(vp->m_marked)
 		{
-			// Triangle is visible, vertices must be too
-			bool mark = false;
-			for(auto&ea:vp->m_faces) if(ea.first->m_visible)
+			if(vp->m_faces.empty()) //Orphan?
 			{
-				mark = true; break;
+				if(how!=vp->m_selected) continue;
 			}
-			if(mark) continue;
+			else // Triangle is visible, vertices must be too
+			{				
+				bool mark = false;
+				for(auto&ea:vp->m_faces) if(ea.first->m_visible)
+				{
+					mark = true; break;
+				}
+				if(mark) continue;
+			}
 
 			vp->m_visible = false;
 
@@ -4321,7 +4300,7 @@ bool Model::getPositionCoordsUnanimated(const Position &pos, double *coord)const
 bool Model::setPositionRotation(const Position &pos, const double rot[3])
 {
 	if(pos.type==PT_Point&&inFrameAnimMode()
-	 ||pos.type==PT_Joint&&inSkeletalMode())
+	 ||pos.type==PT_Joint&&inJointAnimMode())
 	{
 		Object2020 *obj = getPositionObject(pos);
 		if(!obj) return false;
@@ -4374,7 +4353,7 @@ bool Model::setPositionScale(const Position &pos, const double *scale)
 {
 	//HACK: Compatibility fix.
 	if(pos.type==PT_Point&&inFrameAnimMode()
-	 ||pos.type==PT_Joint&&inSkeletalMode())
+	 ||pos.type==PT_Joint&&inJointAnimMode())
 	{
 		Object2020 *obj = getPositionObject(pos); 
 		if(!obj) return false;
@@ -4495,7 +4474,7 @@ bool Model::setBoneJointOffset(unsigned j, const double rel[3], const double rot
 
 	if(rel)
 	{
-		if(inSkeletalMode())
+		if(inJointAnimMode())
 		{
 			makeCurrentAnimationFrame();
 
@@ -4563,7 +4542,7 @@ bool Model::getBoneJointOffset(unsigned j, double rel[3], double rot[3], double 
 {
 	if(j>=m_joints.size()) return false;
 
-	if(!inSkeletalMode()) return getBoneJointOffsetUnanimated(j,rel,rot,xyz);
+	if(!inJointAnimMode()) return getBoneJointOffsetUnanimated(j,rel,rot,xyz);
 
 	if(rel) memcpy(rel,m_joints[j]->m_kfRel,sizeof(*rel)*3);
 	if(rot) memcpy(rot,m_joints[j]->m_kfRot,sizeof(*rot)*3);

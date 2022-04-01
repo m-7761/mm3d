@@ -111,7 +111,7 @@ class Model
 		MoveNormals			 = 0x00010000, // Surface normals changed
 		MoveTexture			 = 0x00020000, // Texture coordinates changed
 		MoveOther			 = 0x00040000, // Moved object
-		AnimationMode        = 0x00080000, // Changed animation mode
+		AnimationMode        = 0x00080000, // Changed animation mode (or bind mode)
 		AnimationSet		 = 0x00100000, // Changed current animation
 		AnimationFrame       = 0x00200000, // Changed current animation frame
 		AnimationProperty    = 0x00400000, // Set animation times/frames/fps/wrap
@@ -343,13 +343,10 @@ class Model
 	enum AnimationModeE
 	{
 		ANIMMODE_NONE = 0,
-		ANIMMODE_SKELETAL, //1
+		ANIMMODE_JOINT, //1 //ANIMMODE_SKELETAL
 		ANIMMODE_FRAME, //2
-		//UNIMPLEMENTED
-		//ANIMMODE_FRAMERELATIVE, // Not implemented
-		//WIP
-		ANIMMODE = ANIMMODE_SKELETAL|ANIMMODE_FRAME, //3
-		ANIMMODE_MAX
+		ANIMMODE = ANIMMODE_JOINT|ANIMMODE_FRAME, //3
+		ANIMMODE_Max,
 	};
 
 	//RENAME US
@@ -621,7 +618,7 @@ class Model
 			MATTYPE_BLANK	 =  1,  // Blank texture,lighting only
 			MATTYPE_COLOR	 =  2,  // Unused
 			MATTYPE_GRADIENT =  3,  // Unused
-			MATTYPE_MAX		=  4	 // For convenience
+			MATTYPE_Max		=  4	 // For convenience
 		};
 
 		static int flush();
@@ -1144,6 +1141,7 @@ class Model
 	struct ViewportUnits
 	{
 		enum{ VertexSnap=1,UnitSnap=2 };
+		enum{ UvSnap=4,SubpixelSnap=8 };
 
 		int snap;
 			
@@ -1156,6 +1154,12 @@ class Model
 		double inc,inc3d,ptsz3d;
 
 		int xyz3d; //1|2|4
+
+		int unitsUv;
+
+		double snapUv[2];
+
+		bool no_overlay_option;
 
 		ViewportUnits(){ memset(this,0x00,sizeof(*this)); }
 	};
@@ -1278,7 +1282,7 @@ class Model
 		JOINTMODE_NONE = 0,
 		JOINTMODE_LINES,
 		JOINTMODE_BONES,
-		JOINTMODE_MAX
+		JOINTMODE_Max
 	};*/
 
 	enum AnimationMergeE
@@ -1420,7 +1424,7 @@ class Model
 	BspTree &draw_bspTree(){ return m_bspTree; }
 	void drawLines(float alpha=1);
 	void drawVertices(float alpha=1);
-	void _drawPolygons(int,bool mark=false); //2019
+	void _drawPolygons(int); //2019
 	void drawPoints();
 	void drawProjections();
 	void drawJoints(float alpha=1, float axis=0);
@@ -1509,11 +1513,7 @@ class Model
 	// Animation functions
 	// ------------------------------------------------------------------
 
-	//2021: I designed this for modelundo.h/cc because it
-	//had had every animation undo save/restore the state.
-	//But when I went to implement it I decided to rip it
-	//out.
-	struct RestorePoint
+	struct RestorePoint //2021
 	{
 		unsigned anim; AnimationModeE mode; double time; 
 
@@ -1583,9 +1583,12 @@ class Model
 	// Stop animation mode; Go back to standard pose editing.
 	void setNoAnimation(){ setCurrentAnimation(m_currentAnim,ANIMMODE_NONE); }
 	AnimationModeE getAnimationMode()const{ return m_animationMode; }
-	bool inAnimationMode()const{ return m_animationMode!=ANIMMODE_NONE; }
-	bool inSkeletalMode()const{ return 0!=(m_animationMode&ANIMMODE_SKELETAL); }
+	bool inAnimationMode()const{ return m_animationMode!=ANIMMODE_NONE; }	
 	bool inFrameAnimMode()const{ return 0!=(m_animationMode&ANIMMODE_FRAME); }
+	bool inJointAnimMode()const{ return 0!=(m_animationMode&ANIMMODE_JOINT); }
+	bool inSkeletalMode()const{ return m_skeletalMode; }
+	bool setSkeletalModeEnabled(bool); //2022
+	bool getSkeletalModeEnabled(bool){ return m_skeletalMode2; }
 
 	// Common animation properties
 	int addAnimation(AnimationModeE mode, const char *name);
@@ -2454,7 +2457,7 @@ class Model
 	// Select all vertices that have the m_free property set and are not used
 	// by any triangles (this can be used to clean up unused free vertices,
 	// like a manual analog to the deleteOrphanedVertices() function).
-	void selectFreeVertices();
+	bool selectFreeVertices(bool how=true);
 
 	bool selectUngroupedTriangles(bool how); //2022
 
@@ -2678,6 +2681,9 @@ protected:
 
 	bool m_validNormals;		
 	bool m_validAnimNormals; //2020
+
+	bool m_skeletalMode;
+	bool m_skeletalMode2;
 
 	AnimationModeE m_animationMode;
 	unsigned m_currentFrame;

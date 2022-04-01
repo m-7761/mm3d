@@ -728,12 +728,9 @@ void Model::drawVertices(float a)
 		glDepthFunc(GL_ALWAYS);
 		glColor3ub(255,0,0);
 		glBegin(GL_POINTS);
-		Vertex **v = m_vertices.data();
-		for(size_t i=m_vertices.size();i-->0;)	
-		if(v[i]->m_selected&&v[i]->m_visible)
-		{
-			glVertex3dv(v[i]->m_absSource);
-		}
+		for(auto*vp:m_vertices)
+		if(vp->m_selected&&vp->m_visible)		
+		glVertex3dv(vp->m_absSource);
 		glEnd();
 		glDepthFunc(GL_LEQUAL);
 		//glEnable(GL_DEPTH_TEST);
@@ -742,45 +739,47 @@ void Model::drawVertices(float a)
 
 	if(1!=a) glEnable(GL_BLEND);
 
-	Vertex **v = m_vertices.data();
-	for(size_t i=m_vertices.size();i-->0;)
+	int cull = m_drawOptions&DO_BACKFACECULL;
+	//YUCK: Degenerate triangles (in screen space)
+	//don't draw vertices.
+	if(cull)
 	{
-		v[i]->m_marked = false;
-		v[i]->m_marked2 = false;
-	}
+		//2019: Don't draw back-faces.
+		//https://github.com/zturtleman/mm3d/issues/96
+		glPolygonMode(GL_FRONT_AND_BACK,GL_POINT); 
+		glPointSize(3); 
+		glColor4f(1,1,1,a); //white
 
-	//2019: Don't draw back-faces.
-	//https://github.com/zturtleman/mm3d/issues/96
-	glPolygonMode(GL_FRONT_AND_BACK,GL_POINT); 
-	glPointSize(3); 
-	glColor4f(1,1,1,a); //white
-
-		_drawPolygons(0,true);
+			_drawPolygons(0/*,true*/);
 	
-	glDisable(GL_BLEND);
+		glDisable(GL_BLEND);
 
-	//CAUTION: These need a way to come out on top.
-	//glPoloygonOffset is unreliable, so the only
-	//other technique is to do everything in 2D.
-	//THIS DISABLES glDepthMask
-	//glDisable(GL_DEPTH_TEST);
-	glDepthFunc(GL_ALWAYS);
-	glPointSize(5); //4	
-	glColor3ub(255,0,0); //red
+		//CAUTION: These need a way to come out on top.
+		//glPoloygonOffset is unreliable, so the only
+		//other technique is to do everything in 2D.
+		//THIS DISABLES glDepthMask
+		//glDisable(GL_DEPTH_TEST);
+		glDepthFunc(GL_ALWAYS);
+		glPointSize(5); //4	
+		glColor3ub(255,0,0); //red
 
-		_drawPolygons(1,true);
+			_drawPolygons(1/*,true*/);
 
-	glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); 
+		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); 
+	}
 
 	//Draw "free" vertices, and vertices that
 	//don't match their triangle's selections.
 	//Or, typically all the selected vertices.
 	bool colorSelected = true;
 	glBegin(GL_POINTS);
-	for(size_t i=m_vertices.size();i-->0;)	
-	if(!v[i]->m_marked&&!v[i]->m_marked2&&v[i]->m_visible)
+	for(auto*vp:m_vertices) if(vp->m_visible)
 	{
-		if(v[i]->m_selected)
+		/*2022 Can leverage m_faces for this.
+		if(vp->m_marked||vp->m_marked2) continue;*/
+		if(cull&&!vp->m_faces.empty()) continue;
+
+		if(vp->m_selected)
 		{
 			if(colorSelected==false)
 			{
@@ -806,18 +805,18 @@ void Model::drawVertices(float a)
 				glPointSize(3);
 				glDepthFunc(GL_LESS);
 				//glEnable(GL_DEPTH_TEST);
-				glColor3ub(255,255,255);
+				glColor4f(1,1,1,a);
 				glBegin(GL_POINTS);
 				colorSelected = false;
 			}
 		}		
-		glVertex3dv(v[i]->m_absSource);
+		glVertex3dv(vp->m_absSource);
 	}
 	glEnd();
 	glDepthFunc(GL_LEQUAL);
 	//glEnable(GL_DEPTH_TEST);
 }
-void Model::_drawPolygons(int pass, bool mark)
+void Model::_drawPolygons(int pass/*,bool mark*/)
 {	
 	validateAnim();
 
@@ -825,7 +824,7 @@ void Model::_drawPolygons(int pass, bool mark)
 	
 	//YUCK: Degenerate triangles (in screen space)
 	//don't draw vertices.
-	if(!cull&&mark) return; //FIX ME
+	//if(!cull&&mark) return; //FIX ME
 
 	glDisable(GL_TEXTURE_2D);
 
@@ -846,10 +845,11 @@ void Model::_drawPolygons(int pass, bool mark)
 		{
 			if(pass==0) //continue;
 			{
+				/*2022: Can leverage m_faces for this.
 				if(mark) for(int i=0;i<3;i++)
 				{							
 					v[vi[i]]->m_marked2 = true;
-				}
+				}*/
 				continue;
 			}
 		}
@@ -858,11 +858,12 @@ void Model::_drawPolygons(int pass, bool mark)
 			//if(pass==1) continue;
 			if(pass==0) 
 			{
+				/*2022: Can leverage m_faces for this.
 				if(mark) for(int i=0;i<3;i++)
 				{
 					if(!v[vi[i]]->m_selected)
 					v[vi[i]]->m_marked = true;
-				}
+				}*/
 			}
 			else continue;
 		}
@@ -916,7 +917,7 @@ void Model::drawJoints(float a, float axis)
 	//https://github.com/zturtleman/mm3d/issues/118
 	float l = (float)(alpha?0:1);
 
-	bool skel = inSkeletalMode();
+	bool skel = inJointAnimMode();
 	bool skel2 = false;
 
 	glPointSize(5); //3

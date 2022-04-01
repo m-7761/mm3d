@@ -516,7 +516,7 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 
 	if(numFrames>0)
 	{
-		model->addAnimation(Model::ANIMMODE_SKELETAL,"Keyframe");
+		model->addAnimation(Model::ANIMMODE_JOINT,"Keyframe");
 		model->setAnimFPS(0,fps);
 		model->setAnimFrameCount(0,numFrames);
 	}
@@ -998,10 +998,10 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 	int32_t numFrames = 0;
 
 	float32_t fps = 0;
-	//unsigned animcount = model->getAnimationCount(Model::ANIMMODE_SKELETAL);
+	//unsigned animcount = model->getAnimationCount(Model::ANIMMODE_JOINT);
 	unsigned animcount = model->getAnimationCount();
 	for(unsigned anim = 0; anim<animcount; anim++)
-	if(model->getAnimType(anim)&Model::ANIMMODE_SKELETAL) //2021
+	if(model->getAnimType(anim)&Model::ANIMMODE_JOINT) //2021
 	{
 		if(!fps) fps = (float)model->getAnimFPS(anim);
 
@@ -1059,7 +1059,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		double z = 0;
 
 		for(a = 0; a<animcount; a++)
-		if(model->getAnimType(a)&Model::ANIMMODE_SKELETAL) //2021
+		if(model->getAnimType(a)&Model::ANIMMODE_JOINT) //2021
 		{
 			framecount = model->getAnimFrameCount(a);
 
@@ -1100,7 +1100,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		// Rotation keyframes
 		prevcount = 0;
 		for(a = 0; a<animcount; a++)
-		if(model->getAnimType(a)&Model::ANIMMODE_SKELETAL) //2021
+		if(model->getAnimType(a)&Model::ANIMMODE_JOINT) //2021
 		{
 			framecount = model->getAnimFrameCount(a);
 			loop = model->getAnimWrap(a);
@@ -1140,7 +1140,7 @@ Model::ModelErrorE Ms3dFilter::writeFile(Model *model, const char *const filenam
 		// Translation keyframes
 		prevcount = 0;
 		for(a = 0; a<animcount; a++)
-		if(model->getAnimType(a)&Model::ANIMMODE_SKELETAL) //2021
+		if(model->getAnimType(a)&Model::ANIMMODE_JOINT) //2021
 		{
 			framecount = model->getAnimFrameCount(a);
 			loop = model->getAnimWrap(a);
