@@ -182,6 +182,10 @@ void UndoManager::operationComplete(const char *opname, bool edit)
 		//playing animations.
 		if(edit) m_saveLevel++; 
 		else m_currentList->markNonEditing(); //'@'
+			
+		checkSize(); //???
+
+		showStatistics(); //???
 	}
 	else
 	{
@@ -191,9 +195,9 @@ void UndoManager::operationComplete(const char *opname, bool edit)
 	m_currentUndo = nullptr;
 	//m_listCombine = true; //RETIRED
 
-	checkSize();
+//	checkSize(); //???
 
-	showStatistics();
+//	showStatistics(); //???
 }
 
 UndoList *UndoManager::undo()

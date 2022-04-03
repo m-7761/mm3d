@@ -874,7 +874,9 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddSubMenu(::tr("Scroll Lock"),_anim_menu2);	
 	glutAddMenuEntry();
 		r = config.get("ui_anim_insert",false);
-	glutAddMenuEntry(X(r,animate_insert,"Clipboard Mode","","Insert"));
+		const_cast<int&>(animate_insert) = r;
+		views.status._clipboard.indicate(r);
+	glutAddMenuEntry(X(r,animate_insert,"Clipboard Mode","","Insert"));		
 	//glutAddMenuEntry(E(animate_copy_all,"Copy Animation Frame","Animation|Copy Animation Frame"));
 	glutAddMenuEntry(E(animate_copy_all,"Copy Frame","","Shift+Ctrl+C"));
 	//glutAddMenuEntry(E(animate_paste,"Paste Animation Frame","Animation|Paste Animation Frame"));	

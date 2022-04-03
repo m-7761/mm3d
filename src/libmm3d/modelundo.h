@@ -1627,23 +1627,29 @@ public:
 	(Model::Interpolate2020E e, unsigned anim, unsigned frame)
 	:m_e(e),m_anim(anim),m_frame(frame){}
 
-	void undo(Model *m){ _do(m,true); }
-	void redo(Model *m){ _do(m,false); }
+	void undo(Model *m){ _do(m,false); }
+	void redo(Model *m){ _do(m,true); }
 	bool combine(Undo*){ return false; }
 
 	unsigned size();
 
-	void addVertex(Model::Interpolate2020E e)
+	void addVertex(unsigned v, Model::Interpolate2020E e)
 	{
-		m_eold.push_back(e);
+		m_eold.push_back({v,e});
 	}
 
 private:
 
+	struct InterpT
+	{
+		unsigned v;
+		Model::Interpolate2020E e;
+	};
+
 	Model::Interpolate2020E m_e;
 	unsigned m_anim;
 	unsigned m_frame;
-	std::vector<Model::Interpolate2020E> m_eold;
+	std::vector<InterpT> m_eold;
 
 	//NOTE: Had synchronized animation (AnimRP needed?)
 	void _do(Model*,bool);

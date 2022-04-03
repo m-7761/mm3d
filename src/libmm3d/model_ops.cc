@@ -1283,10 +1283,13 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 			if(emptyGroups||!model->getGroupTriangles(n).empty())
 			{
 				const char *name = model->getGroupName(n);
-				groupMap[n] = addGroup(name);
-				uint8_t val = model->getGroupSmooth(n);
-				setGroupSmooth(groupMap[n],val);
-				int mat = model->getGroupTextureId(n);
+				int g = addGroup(n,name);
+				groupMap[n] = g;
+				auto *gp = m_groups[g];
+				auto *gq = model->m_groups[n];
+				gp->m_smooth = gq->m_smooth;
+				gp->m_angle = gq->m_angle; //2022
+				int mat = gq->m_materialIndex;
 				if(mat>=0) materialsNeeded.insert(mat);
 			}
 		}

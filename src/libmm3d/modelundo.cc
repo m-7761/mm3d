@@ -2778,7 +2778,7 @@ unsigned MU_InterpolateSelected::size()
 {
 	return sizeof(*this)+m_eold.size()*sizeof(Model::Interpolate2020E);
 }
-void MU_InterpolateSelected::_do(Model *model, bool undoing)
+void MU_InterpolateSelected::_do(Model *model, bool redoing)
 {	
 	model->m_changeBits|=Model::MoveGeometry;
 
@@ -2786,36 +2786,37 @@ void MU_InterpolateSelected::_do(Model *model, bool undoing)
 	//it's just an optimization for vertex animation data
 	auto fa = model->m_anims[m_anim];
 	auto fp = fa->m_frame0+m_frame;
-	auto it = m_eold.begin();
 	auto e = m_e; //optimizing
-	int v = -1;
-	for(auto*ea:model->m_vertices) if(v++,ea->m_selected)
+	auto &vl = model->getVertexList();
+	for(auto&ea:m_eold)
 	{
-		auto vf = ea->m_frames[fp];
+		auto vp = vl[ea.v];
+		auto vf = vp->m_frames[fp];
 		auto &cmp = vf->m_interp2020;
 
-		if(cmp!=e)
+		if(redoing)
 		{
-			if(!undoing)
+			//HACK: Maybe this value should already be stored.
+			if(ea.e<=Model::InterpolateCopy)
 			{
-				//HACK: Maybe this value should already be stored.
-				if(*it<=Model::InterpolateCopy)
-				{
-					/*I think this can be better now.
-					assert(m_anim==model->getCurrentAnimation()); //2021
-					model->validateAnim();
-					memcpy(vf->m_coord,ea->m_kfCoord,sizeof(ea->m_kfCoord));*/
-					model->interpKeyframe(m_anim,m_frame,v,vf->m_coord);
-				}
-
-				cmp = e;
+				/*I think this can be better now.
+				assert(m_anim==model->getCurrentAnimation()); //2021
+				model->validateAnim();
+				memcpy(vf->m_coord,vp->m_kfCoord,sizeof(vp->m_kfCoord));*/
+				model->interpKeyframe(m_anim,m_frame,ea.v,vf->m_coord);
 			}
-			else cmp = *it; it++;
+
+			cmp = e;
 		}
+		else cmp = ea.e;
 	}
 
 	if(m_anim==model->getCurrentAnimation()) 
-	model->setCurrentAnimationFrame(m_frame);
+	{
+		model->invalidateAnim(); //2022
+
+		model->setCurrentAnimationFrame(m_frame);
+	}
 }
 
 size_t MU_RemapTrianglesIndices::size()

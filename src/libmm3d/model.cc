@@ -1324,13 +1324,13 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 		MU_InterpolateSelected *undo = nullptr;
 
 		auto fa = m_anims[m_currentAnim];
-		unsigned i=0, fp = fa->m_frame0;
+		unsigned fp = fa->m_frame0;
 		
 		bool verts = false;
 
-		if(e||~fp) for(auto*ea:m_vertices) 
+		int v = -1; if(e||~fp) for(auto*ea:m_vertices) 
 		{
-			i++; if(ea->m_selected)
+			v++; if(ea->m_selected)
 			{
 				//Have to reset fp?
 				//if(0==~fp) _anim_valloc(fa);
@@ -1344,7 +1344,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 					if(ue&&!undo)
 					undo = new MU_InterpolateSelected(e,ca,cf);
-					if(ue) undo->addVertex(cmp); 
+					if(ue) undo->addVertex(v,cmp); 
 				
 					//HACK: Maybe this value should already be stored.
 					if(cmp<=InterpolateCopy)					

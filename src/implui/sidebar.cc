@@ -795,7 +795,7 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 		||model->getCurrentAnimationFrameTime()
 		!=model->getAnimFrameTime(anim,frame))
 		for(int i=3;i-->0;) cmp[i] = Model::InterpolateNone;
-		for(int i=3;i-->0;) menu[i].set_int_val(cmp[i]);	
+		for(int i=3;i-->0;) menu[i].select_id(cmp[i]);	
 	}
 	else // Change model based on text field input
 	{
