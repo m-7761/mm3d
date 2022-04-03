@@ -241,6 +241,8 @@ protected:
 
 	void toggle_toolbar(int);
 
+	void toggle_indicators(bool);
+
 	bool m_ignoreChange;
 	
 	int_list trilist; //NEW: Reuse buffer.

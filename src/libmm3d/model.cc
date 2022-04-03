@@ -1026,7 +1026,7 @@ void Model::deleteSelected()
 	{
 		deleteBoneJoint(j);
 	}
-	for(auto p=m_points.size()-1;p-->0;) if(m_points[p]->m_selected)
+	for(auto p=m_points.size();p-->0;) if(m_points[p]->m_selected)
 	{
 		deletePoint(p);
 	}

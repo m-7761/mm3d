@@ -359,7 +359,7 @@ void TextureCoordWin::toggle_toolbar(int f)
 	bool x = !c->hidden();
 	c->set_hidden(x,f!=0); 
 	if(f==0) ok.set_hidden(x);
-	int bts = toolbar1.hidden()|(int)toolbar2.hidden()<<1;
+	int bts = (int)toolbar1.hidden()|(int)toolbar2.hidden()<<1; //C4805?
 	map_remap.set_hidden(bts!=0);
 	bts|=f1.hidden()<<2;		 	
 	config.set("uv_buttons_mask",bts);	
@@ -571,6 +571,19 @@ void TextureCoordWin::open()
 		
 		if(trilist.empty()) openModel();
 	}
+	toggle_indicators(true); //2022
+}
+void TextureCoordWin::toggle_indicators(bool how) 
+{
+	//The goal here is just to remove clutter from the main
+	//window's status bar when not in use. I think probably
+	//TextureCoordWin should get its own statusbar later on.
+	auto &st = model.views.status;
+	auto &vp = model->getViewportUnits();
+	st._texshlock.indicate(how?texture._tool_bs_lock!=0:false);
+	st._uvfitlock.indicate(how?texturecoord_fit_uv!=3:false);
+	st._uv_snap.indicate(how?0!=(vp.snap&vp.UvSnap):false);
+	st._sp_snap.indicate(how?0!=(vp.snap&vp.SubpixelSnap):false);
 }
 void TextureCoordWin::setModel()
 {
@@ -882,6 +895,8 @@ void TextureCoordWin::submit(control *c)
 		//be removed once the bug is long fixed. Other windows are using this too.
 		glutSetWindow(0);
 		
+		toggle_indicators(false); //2022
+
 		return;
 	}
 
