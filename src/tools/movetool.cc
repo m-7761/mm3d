@@ -32,7 +32,10 @@
 
 struct MoveTool : Tool
 {
-	MoveTool():Tool(TT_Other){}
+	MoveTool():Tool(TT_Other)
+	{
+		m_snap3d = false; //config defaults
+	}
 
 	virtual const char *getName(int)
 	{
@@ -49,11 +52,15 @@ struct MoveTool : Tool
 	{
 		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
 		TRANSLATE("Tool","Tip: Hold shift to restrict movement to one dimension"));
+
+		parent->addBool(true,&m_snap3d,TRANSLATE_NOOP("Param","Snap in 3D"));
 	}
 	
 	virtual void mouseButtonDown();
 	virtual void mouseButtonMove();
 	virtual void mouseButtonUp();
+
+		bool m_snap3d;
 
 		bool m_selecting,m_left;
 
@@ -78,7 +85,7 @@ void MoveTool::mouseButtonDown()
 
 	m_allowX = m_allowY = 0!=(parent->getButtonsLocked()&BS_Shift);
 
-	m_xx = m_x; m_yy = m_y; m_zz = m_z; //translateSelected?	
+	m_xx = m_x; m_yy = m_y; m_zz = m_z;
 }
 void MoveTool::mouseButtonMove()
 {	
@@ -99,6 +106,10 @@ void MoveTool::mouseButtonMove()
 		//in mouseButtonDown but now that vertex is 
 		//ineligible.
 		pos[2] = m_zz; //m_z
+	}
+	if(BS_Alt&parent->getButtons()?m_snap3d:!m_snap3d)
+	{
+		pos[2] = m_z = 0;
 	}
 
 	//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS

@@ -40,7 +40,7 @@ static void align(int dim, Model *m, int at, double val)
 		break;
 	case AT_Min: delta = val-min[dim]; break;
 	case AT_Max: delta = val-max[dim]; break;
-	default:  // Bzzt,thanks for playing
+	default:  // Bzzt, thanks for playing
 		log_error("bad align argument: %d\n",(int)at);
 		return;
 	}

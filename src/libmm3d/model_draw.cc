@@ -713,31 +713,36 @@ void Model::drawLines(float a)
 }
 void Model::drawVertices(float a)
 {
-	//REMINDER: The reason for a (alpha) is
-	//primarily to hide unselected vertices.
-
-	if(!a) //Hide unselected?
+	//HACK: This should match the below
+	//behavior. It's easier to break it
+	//out.
+	glPointSize(5);
+	//glDepthFunc(GL_LEQUAL);
+	//THIS DISABLES glDepthMask
+	//glDisable(GL_DEPTH_TEST);
+	glDepthFunc(GL_ALWAYS);
+	glColor3ub(255,0,0);
+	glBegin(GL_POINTS);
+	for(auto*vp:m_vertices)
+	if(vp->m_selected&&vp->m_visible)		
+	glVertex3dv(vp->m_absSource);
+	glEnd();
+	
+	if(0==a) //return;
 	{
-		//HACK: This should match the below
-		//behavior. It's easier to break it
-		//out.
-		glPointSize(5);
-		//glDepthFunc(GL_LEQUAL);
-		//THIS DISABLES glDepthMask
-		//glDisable(GL_DEPTH_TEST);
-		glDepthFunc(GL_ALWAYS);
-		glColor3ub(255,0,0);
-		glBegin(GL_POINTS);
-		for(auto*vp:m_vertices)
-		if(vp->m_selected&&vp->m_visible)		
-		glVertex3dv(vp->m_absSource);
-		glEnd();
 		glDepthFunc(GL_LEQUAL);
 		//glEnable(GL_DEPTH_TEST);
+	
 		return;
 	}
 
+	glDepthFunc(GL_LESS);
+
 	if(1!=a) glEnable(GL_BLEND);
+
+	glPointSize(3); 
+
+	glColor4f(1,1,1,a); //white
 
 	int cull = m_drawOptions&DO_BACKFACECULL;
 	//YUCK: Degenerate triangles (in screen space)
@@ -747,74 +752,30 @@ void Model::drawVertices(float a)
 		//2019: Don't draw back-faces.
 		//https://github.com/zturtleman/mm3d/issues/96
 		glPolygonMode(GL_FRONT_AND_BACK,GL_POINT); 
-		glPointSize(3); 
-		glColor4f(1,1,1,a); //white
 
 			_drawPolygons(0/*,true*/);
-	
-		glDisable(GL_BLEND);
-
-		//CAUTION: These need a way to come out on top.
-		//glPoloygonOffset is unreliable, so the only
-		//other technique is to do everything in 2D.
-		//THIS DISABLES glDepthMask
-		//glDisable(GL_DEPTH_TEST);
-		glDepthFunc(GL_ALWAYS);
-		glPointSize(5); //4	
-		glColor3ub(255,0,0); //red
-
-			_drawPolygons(1/*,true*/);
-
-		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); 
 	}
 
 	//Draw "free" vertices, and vertices that
 	//don't match their triangle's selections.
 	//Or, typically all the selected vertices.
-	bool colorSelected = true;
 	glBegin(GL_POINTS);
-	for(auto*vp:m_vertices) if(vp->m_visible)
+	for(auto*vp:m_vertices) 
+	if(!vp->m_selected&&vp->m_visible)
 	{
 		/*2022 Can leverage m_faces for this.
 		if(vp->m_marked||vp->m_marked2) continue;*/
-		if(cull&&!vp->m_faces.empty()) continue;
-
-		if(vp->m_selected)
-		{
-			if(colorSelected==false)
-			{
-				glEnd();
-				glPointSize(5);
-				//glDepthFunc(GL_LEQUAL);
-				//glDisable(GL_DEPTH_TEST);
-				glDepthFunc(GL_ALWAYS);
-				glColor3ub(255,0,0);
-				glBegin(GL_POINTS);
-				colorSelected = true;
-			}
+		if(!cull||vp->m_faces.empty())
+		{					
+			glVertex3dv(vp->m_absSource);
 		}
-		else
-		{		
-			//NOTE: It would be better to do this before
-			//the second pass above, but I don't think it
-			//will be a problem, since it should be "free"
-			//vertices.
-			if(colorSelected==true)
-			{
-				glEnd();
-				glPointSize(3);
-				glDepthFunc(GL_LESS);
-				//glEnable(GL_DEPTH_TEST);
-				glColor4f(1,1,1,a);
-				glBegin(GL_POINTS);
-				colorSelected = false;
-			}
-		}		
-		glVertex3dv(vp->m_absSource);
 	}
 	glEnd();
+
 	glDepthFunc(GL_LEQUAL);
 	//glEnable(GL_DEPTH_TEST);
+		
+	if(1!=a) glDisable(GL_BLEND);
 }
 void Model::_drawPolygons(int pass/*,bool mark*/)
 {	
@@ -868,15 +829,15 @@ void Model::_drawPolygons(int pass/*,bool mark*/)
 			else continue;
 		}
 
-		double *vertices[3];
-
-		for(int i=0;i<3;i++)
-		{		
-			vertices[i] = v[vi[i]]->m_absSource;
-		}
-
 		if(triangle->m_visible)
-		{
+		{			
+			double *vertices[3];
+
+			for(int i=0;i<3;i++)
+			{		
+				vertices[i] = v[vi[i]]->m_absSource;
+			}
+
 			glVertex3dv(vertices[0]); //glVertex3dv(vertices[1]);
 			glVertex3dv(vertices[1]); //glVertex3dv(vertices[2]);
 			glVertex3dv(vertices[2]); //glVertex3dv(vertices[0]);
