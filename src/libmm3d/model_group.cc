@@ -215,7 +215,7 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 		if(!c.empty()&&(unsigned)c.back()>triangleNum)
 		{
 			//c.insert(triangleNum);
-			auto it = std::lower_bound(c.begin(),c.end(),triangleNum);
+			auto it = std::lower_bound(c.begin(),c.end(),(int)triangleNum);
 			if(it==c.end()||*it!=triangleNum)
 			c.insert(it,triangleNum);
 		}

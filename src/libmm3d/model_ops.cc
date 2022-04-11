@@ -1283,7 +1283,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 			if(emptyGroups||!model->getGroupTriangles(n).empty())
 			{
 				const char *name = model->getGroupName(n);
-				int g = addGroup(n,name);
+				int g = addGroup(name);
 				groupMap[n] = g;
 				auto *gp = m_groups[g];
 				auto *gq = model->m_groups[n];

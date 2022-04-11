@@ -43,30 +43,22 @@ public:
 template<typename T> 
 void sorted_list<T>::insert_sorted(const T &val)
 {
-	typename std::vector<T>::iterator it;
-
-	unsigned len = this->size();
-	if(len==0||(*this)[len-1]<val)
+	if(!empty()&&val<back())
 	{
-		this->push_back(val);
-	}
-	else
-	{
-		for(it = this->begin(); it!=this->end(); it ++)
+		/*for(auto it=begin();it!=end();it++)
 		{
-			if(val<*it)
-			{
-				break;
-			}
-		}
-		this->insert(it,val);
+			if(val<*it) break;
+		}*/
+		auto it = std::lower_bound(begin(),end(),val);
+		insert(it,val);
 	}
+	else push_back(val);
 }
 
 template<typename T> 
 bool sorted_list<T>::find_sorted(const T &val, unsigned &index)const
 {
-	int top = this->size()-1;
+	int top = size()-1;
 	int bot = 0;
 	int mid = top/2;
 
@@ -111,30 +103,23 @@ public:
 template<typename T> 
 void sorted_ptr_list<T>::insert_sorted(const T &val)
 {
-	typename std::vector<T>::iterator it;
-
-	unsigned len = this->size();
-	if(len==0||*((*this)[len-1])<*val)
+	if(!empty()&&*val<*back())
 	{
-		this->push_back(val);
-	}
-	else
-	{
-		for(it = this->begin(); it!=this->end(); it ++)
+		/*for(auto it=begin();it!=end();it++)
 		{
-			if(*val<*(*it))
-			{
-				break;
-			}
-		}
-		this->insert(it,val);
+			if(*val<**it) break;
+		}*/
+		auto pred = [](T a, T b){ return *a<*b; };
+		auto it = std::lower_bound(begin(),end(),val,pred);
+		insert(it,val);
 	}
+	else push_back(val);
 }
 
 template<typename T> 
 bool sorted_ptr_list<T>::find_sorted(const T &val, unsigned &index)const
 {
-	int top = this->size()-1;
+	int top = size()-1;
 	int bot = 0;
 	int mid = top/2;
 
