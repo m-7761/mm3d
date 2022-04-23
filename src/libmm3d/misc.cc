@@ -699,7 +699,7 @@ void utf8strtrunc(std::string &str, size_t len)
 void utf8chrtrunc(char *str, size_t len)
 {
 	// If we're truncating
-	while(len>0&&(((unsigned char)str[len] &0xc0))==0x80)
+	while(len>0&&(((unsigned char)str[len]&0xc0))==0x80)
 	len--;
 	str[len] = '\0';
 }

@@ -32,6 +32,8 @@ enum
 	/*standard buttons*/
 	id_init=0,id_ok,id_cancel,id_apply,id_yes,id_close, //5
 
+	id_open, //6
+
 	id_no=8, //ok/cancel/yes/no occupy bits 1 though 4. //8
 
 	id_f1,
@@ -49,7 +51,7 @@ enum
 		
 	id_item,id_subitem,_id_subitems_=id_subitem+9,
 
-	id_sort,id_check,id_bar,
+	id_sort,id_check,id_check_all,id_bar,id_tab,
 
 	/*TextureWidget*/
 	id_scene,
@@ -128,7 +130,8 @@ enum
 	/*Model menu*/
 	id_edit_undo,
 	id_edit_redo,
-	id_edit_metadata,
+	id_edit_utildata,
+	id_edit_userdata,
 	id_transform,
 	id_background_settings,
 	id_merge_models,
@@ -390,7 +393,7 @@ struct Win : Widgets95::ui
 				if(parent())
 				if(cbcb f=(cbcb)list().user_cb)
 				f(s,*this);
-				else assert((cbcb)f);
+			//	else assert((cbcb)f);
 			}
 			return multisel_item::impl(s);
 		}

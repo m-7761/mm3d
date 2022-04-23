@@ -297,7 +297,7 @@ void GroupWin::new_group_or_name(int id)
 	if(str) name = str;
 	str = id==id_new?"New group":"Rename group";	
 	if(id_ok==EditBox(&name,::tr(str,"window title"),
-	::tr("Enter new group name:"),1,Model::MAX_GROUP_NAME_LEN))
+	::tr("Enter new group name:"),1,Model::MAX_NAME_LEN))
 	{
 		if(id==id_name)
 		{	

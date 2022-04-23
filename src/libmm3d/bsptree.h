@@ -44,8 +44,8 @@ public:
 		double coord[3][3];
 		double drawNormals[3][3];
 
-		int	texture;
-		void *material; // Yeah, yeah, I know... it's hackish
+		//int texture;
+		//void *material; // Yeah, yeah, I know... it's hackish
 		void *triangle; // Yeah, yeah, I know... it's hackish
 
 		float s[3];	 // texture coordinates
@@ -58,7 +58,8 @@ public:
 		void calculateD();
 		void intersection(double *p1, double *p2, double *po, float &place);
 
-		void *render(DrawingContext *context, void *currentMaterial2021);
+		//void *render(DrawingContext *context, void *currentMaterial2021);
+		int render(void *context, int compare);
 
 		void print();
 
@@ -71,7 +72,6 @@ public:
 		static std::vector<Poly*> s_recycle;
 
 		static int s_allocated;
-
 	};
 
 	class Node
@@ -85,7 +85,8 @@ public:
 		static void stats();
 
 		void addChild(Node *n);
-		void *render(double *point, DrawingContext *context, void *currentMaterial);
+		//void *render(double *point, DrawingContext *context, void *currentMaterial);
+		int render(double *point, void *context, int compare);
 
 		void splitNodes(int idx1, int idx2, int idx3,
 				double *p1, double *p2,Node *n1, Node *n2,
@@ -114,7 +115,8 @@ public:
 	~BspTree(){ clear(); };
 
 	void addPoly(Poly *p);
-	void render(double *point, DrawingContext *context);
+	//void render(double *point, DrawingContext *context);
+	void render(double *point, void *Model__draw);
 
 	void clear();
 

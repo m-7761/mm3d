@@ -34,9 +34,7 @@ public:
 
 	const char *getOpName()const{ return m_name.c_str(); };
 
-	bool isEdit()const{ return m_name[0]!='@'; }
-
-	void markNonEditing(){ m_name.insert(0,1,'@'); }
+	bool isEdit()const;
 
 protected:
 
@@ -60,10 +58,7 @@ public:
 	//See Model::sendUndo note.
 	//void addUndo(Undo *u,bool listCombine = false);
 	void addUndo(Undo *u);
-	void operationComplete(const char *opname, bool edit);
-
-	//This let's operationComplete assert(opname&&*opname);
-	void _operationCompleteInternal(int);
+	void operationComplete(const char *opname);
 
 	// Items should be applied in reverse order (back to front)
 	UndoList *undo();

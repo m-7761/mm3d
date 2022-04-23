@@ -187,12 +187,7 @@ int Model::addTexture(Texture *tex)
 		//DrawingContextList m_drawingContexts;
 		m_materials.push_back(material);
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_AddTexture;
-			undo->addTexture(num,material);
-			sendUndo(undo);
-		}
+		if(m_undoEnabled) sendUndo(new MU_Add(num,material));		
 
 		invalidateTextures(); //OVERKILL
 
@@ -238,12 +233,7 @@ int Model::addColorMaterial(const char *name)
 	//DrawingContextList m_drawingContexts;
 	m_materials.push_back(material);
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_AddTexture;
-		undo->addTexture(num,material);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,material));	
 
 	return num;
 }
@@ -261,11 +251,7 @@ void Model::deleteTexture(unsigned textureNum)
 	}
 
 	if(m_undoEnabled)
-	{
-		auto undo = new MU_DeleteTexture;
-		undo->deleteTexture(textureNum,m_materials[textureNum]);
-		sendUndo(undo);
-	}
+	sendUndo(new MU_Delete(textureNum,m_materials[textureNum]));
 
 	removeTexture(textureNum);
 }
@@ -441,18 +427,16 @@ bool Model::setTextureName(unsigned textureId, const char *name)
 {
 	if(textureId<m_materials.size()&&name&&name[0])
 	{
-		if(m_materials[textureId]->m_name!=name)
+		auto mp = m_materials[textureId];
+
+		if(mp->m_name!=name)
 		{
 			m_changeBits|=AddOther; //2020
 
 			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetTextureName;
-				undo->setTextureName(textureId,name,m_materials[textureId]->m_name.c_str());
-				sendUndo(undo);
-			}
+			sendUndo(new MU_SwapStableStr(AddOther,mp->m_name));
 
-			m_materials[textureId]->m_name = name;
+			mp->m_name = name;
 		}
 		return true;
 	}

@@ -186,7 +186,7 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		glutext::glutMenuEnable(id_rops_hide_joints,
 		id?glutext::GLUT_MENU_UNCHECK:glutext::GLUT_MENU_CHECK);	
 		if(!id&&model->unselectAllBoneJoints())
-		model->nonEditOpComplete(::tr("Hide bone joints"));
+		model->operationComplete(::tr("Hide bone joints"));
 	}
 	if(changeBits&Model::ShowProjections)
 	{
@@ -195,7 +195,7 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		glutext::glutMenuEnable(id_rops_hide_projections,
 		id?glutext::GLUT_MENU_UNCHECK:glutext::GLUT_MENU_CHECK);
 		if(!id&&model->unselectAllProjections())
-		model->nonEditOpComplete(::tr("Hide projections"));
+		model->operationComplete(::tr("Hide projections"));
 	}
 	if(changeBits&Model::AnimationMode)
 	{
@@ -342,10 +342,6 @@ static void viewwin_close_func()
 	std::swap(viewwin(w->glut_window_id),viewwin_list.back());
 	viewwin_list.pop_back();
 
-	//~MainWin can't do this since Model expects a 
-	//GLX context and GLX expects onscreen windows.
-	delete w->_swap_models(nullptr);
-
 	//close_ui_by_create_id should cover these as well.
 	//if(w->_animation_win) w->_animation_win->close();
 	//if(w->_transform_win) w->_transform_win->close();
@@ -356,7 +352,13 @@ static void viewwin_close_func()
 
 	//HACK: Wait for close_ui_by_parent_id to finish up in
 	//the idle stage.
-	glutext::glutModalLoop(); delete w;
+	glutext::glutModalLoop();
+	
+	//~MainWin can't do this since Model expects a 
+	//GLX context and GLX expects onscreen windows.
+	//REMINDER: ~UtilWin needs to call model->removeObserver.
+	delete w->_swap_models(nullptr);
+	delete w;
 }
 bool MainWin::quit()
 {
@@ -752,7 +754,9 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry();
 	//SLOT(transformWindowEvent()),g_keyConfig.getKey("viewwin_model_transform"));
 	glutAddMenuEntry(E(transform,"Transform Model...","Model|Transform Model","Ctrl+T"));
-	glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+T"));
+	glutAddMenuEntry(E(edit_utildata,"Edit Model Utilities...","","U"));
+	//glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+T"));
+	glutAddMenuEntry(E(edit_userdata,"Edit Model User Data...","","Ctrl+U"));
 	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Shift+Ctrl+Back"));
 	//SEEMS UNNECESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
@@ -1190,6 +1194,8 @@ Model *MainWin::_swap_models(Model *swap)
 		model->setDrawSelection(true);	
 		if(!config.get("ui_render_bones",true))
 		model->setDrawOption(Model::DO_BONES,false);
+		if(config.get("uv_animations",true))
+		model->setDrawOption(Model::DO_TEXTURE_MATRIX,true);
 
 		Model::ViewportUnits &vu = model->getViewportUnits();
 		vu.inc = config.get("ui_grid_inc",4.0);
@@ -1480,12 +1486,8 @@ void MainWin::frame(int scope)
 template<class W>
 static W *viewwin_position_window(W *w)
 {
-	glutSetWindow(w->glut_window_id());
-
-	int x = glutGet(glutext::GLUT_X);
-	int y = glutGet(glutext::GLUT_Y);
-	
-	glutPositionWindow(x-4,y); return w;
+	extern void win_reshape2(Widgets95::ui*,int,int);
+	win_reshape2(w,0,0); return w;
 }
 void MainWin::open_texture_window()
 {
@@ -1919,7 +1921,7 @@ void MainWin::perform_menu_action(int id)
 		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected joints.  Unselect joints now?"),"yN"))		
 		{
 			if(!id&&m->unselectAllBoneJoints())
-			m->nonEditOpComplete(::tr("Hide bone joints"));
+			m->operationComplete(::tr("Hide bone joints"));
 		}
 		//else return;
 
@@ -1935,7 +1937,7 @@ void MainWin::perform_menu_action(int id)
 		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected projections.  Unselect projections now?"),"yN"))
 		{
 			if(!id&&m->unselectAllProjections())
-			m->nonEditOpComplete(::tr("Hide projections"));
+			m->operationComplete(::tr("Hide projections"));
 		}
 		//else return; 
 		
@@ -2051,7 +2053,7 @@ void MainWin::perform_menu_action(int id)
 		const_cast<int&>(w->animation_bind) = id;
 		w->views.status._anim_bind.indicate(id==0);
 		if(m->setSkeletalModeEnabled(id!=0))
-		m->nonEditOpComplete(::tr("Set skeletal mode","operation complete"));
+		m->operationComplete(::tr("Set skeletal mode","operation complete"));
 		return;
 
 	case id_animate_mode_1: case id_animate_mode_2: case id_animate_mode_3:	
@@ -2066,7 +2068,7 @@ void MainWin::perform_menu_action(int id)
 		{
 			m->setAnimationMode((Model::AnimationModeE)id);
 			if(cmp!=m->getAnimationMode())
-			m->nonEditOpComplete(::tr("Start animation mode","operation complete"));
+			m->operationComplete(::tr("Start animation mode","operation complete"));
 		}
 		return;
 	
@@ -2166,10 +2168,11 @@ void MainWin::perform_menu_action(int id)
 	/*Model menu*/
 	case id_edit_undo: w->undo(); break;
 	case id_edit_redo: w->redo(); break;
-	case id_edit_metadata:
+	case id_edit_userdata:
+	case id_edit_utildata:
 		
-		extern void metawin(Model*);
-		metawin(m); return;
+		extern void metawin(MainWin&,bool);
+		metawin(*w,id==id_edit_utildata); return;
 
 	case id_transform: 
 		
@@ -2623,7 +2626,7 @@ bool viewwin_confirm_close(int id)
 		if(!ea->model->canUndoCurrent())
 		return true;
 
-		auto c = ui->main->find(+id_ok);
+		auto c = ui->main->find((int)id_ok);
 		if(!c) return true;
 
 		switch(Win::InfoBox(::tr("Keep changes?"),

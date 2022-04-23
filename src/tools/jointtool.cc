@@ -78,7 +78,7 @@ void JointTool::mouseButtonDown()
 			double coords[4];
 			model->getBoneJointCoords(i,coords);
 			coords[3] = 1;			
-			mat.apply(coords);
+			mat.apply4(coords);
 
 			double dist = distance(pos[0],pos[1],coords[0],coords[1]);
 			if(dist<pDist)

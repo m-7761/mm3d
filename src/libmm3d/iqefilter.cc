@@ -280,8 +280,8 @@ Model::ModelErrorE IqeFilter::writeFile(Model *model, const char *const filename
 					meshNor[1] = (*vit).norm[1];
 					meshNor[2] = (*vit).norm[2];
 
-					saveMatrix.apply(meshVec);
-					saveMatrix.apply(meshNor);
+					saveMatrix.apply4(meshVec);
+					saveMatrix.apply4(meshNor);
 
 					writeLine(dst,"vp %.8f %.8f %.8f",(float)meshVec[0],(float)meshVec[1],(float)meshVec[2]);
 					writeLine(dst,"\tvt %.8f %.8f",(*vit).uv[0],(float)(1.0f-(*vit).uv[1]));

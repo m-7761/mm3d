@@ -127,9 +127,11 @@ void Model::removeTriangle(unsigned index)
 {
 	if(index<m_triangles.size())
 	{		
+		auto *tp = m_triangles[index];
+
 		m_changeBits |= AddGeometry;
 
-		if(m_triangles[index]->m_selected)
+		if(tp->m_selected)
 		{
 			m_changeBits |= SelectionFaces; 
 		}
@@ -137,10 +139,9 @@ void Model::removeTriangle(unsigned index)
 		invalidateNormals(); //OVERKILL
 
 		//2020: Keep connectivity to help calculateNormals
-		auto triangle = m_triangles[index];
-		auto &vi = triangle->m_vertexIndices;
+		auto &vi = tp->m_vertexIndices;
 		for(int i=3;i-->0;)
-		m_vertices[vi[i]]->_erase_face(triangle,i);
+		m_vertices[vi[i]]->_erase_face(tp,i);
 
 		//FIX US
 		//https://github.com/zturtleman/mm3d/issues/92

@@ -1083,7 +1083,7 @@ void TextureCoordWin::updateSelectionDone()
 	{
 		texture.saveSelectedUv();
 		m_ignoreChange = true;
-		model->nonEditOpComplete(::tr("Select texture coordinates"));
+		model->operationComplete(::tr("Select texture coordinates"));
 		m_ignoreChange = false;
 	}
 

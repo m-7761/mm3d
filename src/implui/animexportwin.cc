@@ -62,7 +62,7 @@ struct AnimExportWin : Win
 			:
 		nav(frame,"Source"),
 		animation(nav,"Animation"),
-		viewport(nav,"Viewport\t")
+		viewport(nav,"Viewport")
 		{
 			animation.sspace<left>({viewport});
 			animation.expand();

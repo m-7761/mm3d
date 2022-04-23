@@ -459,8 +459,8 @@ Model::ModelErrorE SmdFilter::writeFile(Model *model, const char *const filename
 					model->getNormalUnanimated(*fit,vindex,meshNor);
 					model->getTextureCoords(*fit,vindex,uv[0],uv[1]);
 
-					saveMatrix.apply(meshVec);
-					saveMatrix.apply(meshNor);
+					saveMatrix.apply4(meshVec);
+					saveMatrix.apply4(meshNor);
 
 					// TODO: Move to Model::getVertexInfluencesNormalizedNonZero(vertex,list,epsilon)or something.
 					//		 model->getPrimaryVertexInfluence(vert) returns a bone even if the weight is zero or would be zero in printf.

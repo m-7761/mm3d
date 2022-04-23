@@ -87,7 +87,18 @@ class Model
 	static unsigned _op; //2022: operationComplete increments this.
 	static bool _op_ccw; //2022: Control getOrderOfSelection order.
 
-	public:
+public:
+
+	enum
+	{
+		//2022: Going to assume this is obsolete since readFile 
+		//uses a 1024B buffer and writeFile imposes no limit.
+		//MAX_GROUP_NAME_LEN = 32,
+		//2022: Basing this on some structures in mm3dfilter.cc.
+		MAX_NAME_LEN = 39,
+		MAX_BACKGROUND_IMAGES = 6,
+	//	MAX_INFLUENCES = 4, //REMOVE ME
+	};
 		
 	// ChangeBits is used to tell Model::Observer objects what has changed
 	// about the model.
@@ -103,27 +114,29 @@ class Model
 		SelectionUv          = 0x00000100, // setSelectedUv			
 		AddGeometry          = 0x00000200, // Add/removed verts/faces/indices
 		AddAnimation		 = 0x00000400, // Add/name/move/removed animation
-		AddOther			 = 0x00000800, // Add/name/removed object/group/material
-		SetGroup			 = 0x00001000, // Group membership changed
-		SetInfluence         = 0x00002000, // Vertex/point weight changed
-		SetTexture           = 0x00004000, // Texture source file changed/refreshed
-		MoveGeometry		 = 0x00008000, // Moved vertex
-		MoveNormals			 = 0x00010000, // Surface normals changed
-		MoveTexture			 = 0x00020000, // Texture coordinates changed
-		MoveOther			 = 0x00040000, // Moved object
-		AnimationMode        = 0x00080000, // Changed animation mode (or bind mode)
-		AnimationSet		 = 0x00100000, // Changed current animation
-		AnimationFrame       = 0x00200000, // Changed current animation frame
-		AnimationProperty    = 0x00400000, // Set animation times/frames/fps/wrap
-		ShowJoints           = 0x00800000, // Joints forced visible
-		ShowProjections      = 0x01000000, // Projections forced visible
+		AddUtility			 = 0x00000800, // addUtility (2022)
+		AddOther			 = 0x00001000, // Add/name/removed object/group/material
+		SetGroup			 = 0x00002000, // Group membership changed
+		SetInfluence         = 0x00004000, // Vertex/point weight changed
+		SetTexture           = 0x00008000, // Texture source file changed/refreshed
+		MoveGeometry		 = 0x00010000, // Moved vertex
+		MoveNormals			 = 0x00020000, // Surface normals changed
+		MoveTexture			 = 0x00040000, // Texture coordinates changed
+		MoveOther			 = 0x00080000, // Moved object
+		AnimationMode        = 0x00100000, // Changed animation mode (or bind mode)
+		AnimationSet		 = 0x00200000, // Changed current animation
+		AnimationFrame       = 0x00400000, // Changed current animation frame
+		AnimationProperty    = 0x00800000, // Set animation times/frames/fps/wrap
+		ShowJoints           = 0x01000000, // Joints forced visible
+		ShowProjections      = 0x02000000, // Projections forced visible
 		ChangeAll			 = 0xFFFFFFFF, // All of the above
 
 		AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty,
 	};
 	//EXPERIMENTAL
 	unsigned getChangeBits(){ return m_changeBits; }
-	void setChangeBits(unsigned cb){ m_changeBits = cb; }
+	void setChangeBits(unsigned cb){ m_changeBits|=cb; }
+	void unsetChangeBits(unsigned cb){ m_changeBits&=~cb; }
 
 	// FIXME remove this when new equal routines are ready
 	enum CompareBits
@@ -144,24 +157,25 @@ class Model
 
 	enum ComparePartsE
 	{
-		PartVertices	 = 0x0001, // 
-		PartFaces		 = 0x0002, // 
+		PartVertices	= 0x0001, // 
+		PartFaces		= 0x0002, // 
 		PartGroups		= 0x0004, // 
 		PartMaterials	= 0x0008, // 
-		PartTextures	 = 0x0010, // 
+		PartTextures	= 0x0010, // 
 		PartJoints		= 0x0020, // 
 		PartPoints		= 0x0040, // 
 		PartProjections = 0x0080, // 
 		PartBackgrounds = 0x0100, // 
-		PartMeta		  = 0x0200, // 
+		PartMeta		= 0x0200, // 
 		PartSkelAnims	= 0x0400, // 
 		PartFrameAnims  = 0x0800, // 
-		PartAnims  = 0x1000, //2021
+		PartAnims       = 0x1000, //2021
 		PartFormatData  = 0x2000, // 
 		PartFilePaths	= 0x4000, // 
+		PartUtilities	= 0x8000, // 
 		PartAll			= 0xFFFF, // 
 
-		// These are combinations of parts above,for convenience
+		// These are combinations of parts above, for convenience
 		PartGeometry	 = PartVertices | PartFaces | PartGroups, // 
 		PartTextureMap  = PartFaces | PartGroups | PartMaterials | PartTextures | PartProjections, // 
 		PartAnimations  = PartSkelAnims | PartFrameAnims | PartAnims, // 
@@ -209,11 +223,6 @@ class Model
 
 		PropKeyframes = PropCoords|PropRotation|PropScale|PropTime|PropType, //2021
 	};
-
-	/*enum //REMOVE ME 
-	{
-		MAX_INFLUENCES = 4
-	};*/
 
 	enum PositionTypeE
 	{
@@ -296,7 +305,7 @@ class Model
 
 		PositionTypeE type; unsigned index;
 
-			//2020: I'm not sure if C++ constrains ++ via a 
+		//2020: I'm not sure if C++ constrains ++ via a 
 		//reference operator, so just to be safe...
 		unsigned operator++(int){ return index++; }
 		//2020
@@ -575,7 +584,7 @@ class Model
 		void sprint(std::string &dest);
 
 		std::string m_name;
-		int			m_materialIndex;	 // Material index (-1 for none)
+		int m_materialIndex;	 // Material index (-1 for none)
 
 		//FIX ME (TEST ME)
 		//Draw code is order-independent. 
@@ -585,12 +594,12 @@ class Model
 
 		// Percentage of blending between flat normals and smooth normals
 		// 0 = 0%,255 = 100%
-		uint8_t	  m_smooth;
+		uint8_t m_smooth;
 
 		// Maximum angle around which triangle normals will be blended
 		// (ie,if m_angle = 90,triangles with an edge that forms an
 		// angle greater than 90 will not be blended).
-		uint8_t	  m_angle;
+		uint8_t m_angle;
 
 		bool m_selected;
 	//	bool m_visible; //UNUSED
@@ -598,6 +607,10 @@ class Model
 
 		bool propEqual(const Group &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 		bool operator==(const Group &rhs)const{ return propEqual(rhs); }
+
+		int_list m_utils; //2022
+
+		bool _assoc_util(unsigned index, bool how);
 
 	protected:
 		Group(),~Group();
@@ -1174,21 +1187,19 @@ class Model
 	// that is not understood by MM3D.
 	class FormatData
 	{
-		public:
-			FormatData()
-				: offsetType(),
-					index(),
-					len(),
-					data(){ };
-			virtual ~FormatData(); //???
+	public:
 
-			uint16_t		offsetType;  // 0 = none,is valid
-			std::string	format;		// Should not be empty
-			uint32_t		index;		 // for formats with multiple data sets
-			uint32_t		len;			// length of data in 'data'
-			uint8_t	  *data;		  // pointer to data
+		FormatData():offsetType(),index(),len(),data()
+		{};
+		virtual ~FormatData(); //???
 
-			virtual void serialize();
+		uint16_t offsetType;  // 0 = none,is valid
+		std::string	format;	 // Should not be empty
+		uint32_t index;		// for formats with multiple data sets
+		uint32_t len;		// length of data in 'data'
+		uint8_t *data;		// pointer to data
+
+		virtual void serialize();
 	};
 
 	// Arbitrary key/value string pairs. This is used to provide a simple interface
@@ -1197,11 +1208,120 @@ class Model
 	// (for example texture paths in MD2 and MD3 models).
 	class MetaData
 	{
-		public:
-			std::string key;
-			std::string value;
+	public: std::string key,value;
 	};
 	typedef std::vector<MetaData> MetaDataList;
+
+	enum UtilityTypeE
+	{
+		UT_NONE=0,
+		UT_UvAnimation,
+		UT_MAX
+	};
+
+	//2022: A utility is a more obscure feature that's not a plugin (although
+	//it may have a plugin interface if necessary) or key-value pair MetaData.
+	class Utility
+	{
+	public:
+
+		//These aren't recycled right now.
+		static Utility *get(UtilityTypeE); //model_meta.cc
+		void release();
+
+		//This is for access to m_undoMgr/m_changeBits
+		//to avoid passing (or mixing) a Model pointer.
+		Model * model; 
+
+		std::string name;
+
+		const UtilityTypeE type;
+
+		const int assoc;
+
+		Utility(UtilityTypeE t, int a)
+		:model(),type(t),assoc((ComparePartsE)a)
+		{}
+		virtual ~Utility(){ /*NOP*/ }
+	
+	protected:
+		
+		template<class T>
+		inline void _set(const T *m, const T &v)const
+		{
+			_set(m,&v,sizeof(T));
+		}
+		template<class T>
+		inline bool _set_if(bool cond, const T *m, const T &v)const
+		{
+			if(!cond){ assert(0); return false; }
+			else _set(m,&v,sizeof(T)); return true;
+		}
+		template<int N,class T> 
+		static inline T(&_pack(T*v))[N]{ return *(T(*)[N])v; }
+
+		template<class T> 
+		static inline T &_set_cast(const T &m){ return const_cast<T&>(m); }
+
+		void _set(const void *p, const void *cp, size_t sz)const;
+	};
+	class UvAnimation : public Utility
+	{
+	public:
+
+		double fps;
+		double frames;
+		double unit,vnit;
+		bool wrap;
+		struct Key /* Nothing too complicated? */
+		{
+			double frame;
+
+			//I guess rotate, scale, translate order
+			//since it's what the existing animation
+			//code does. I thought about using a 2x3 
+			//matrix to shear but I worry there's no
+			//way to interpolate it, with or without
+			//a rotation component.
+			//double mat[3][2];
+			double rz,sx,sy,tx,ty;			
+			Interpolate2020E r,s,t; 
+
+			bool operator<(const Key &b)const
+			{
+				return frame<b.frame;
+			}
+
+			Key():rz(),sx(1),sy(1),tx(),ty()
+			{
+				frame = 1; //For basic 0~1 animation.
+				r = s = t = InterpolateNone;
+			}
+		};
+		std::vector<Key> keys;
+
+		UvAnimation():Utility(UT_UvAnimation,PartGroups),
+		fps(1),frames(1),unit(1),vnit(1),wrap()
+		{}
+
+		bool set_fps(double)const;
+		bool set_frames(double)const;
+		bool set_units(double,double)const;
+		void set_wrap(bool)const;
+		int set_key(const Key&)const;
+		bool delete_key(unsigned)const;
+
+	public: //These aren't saved state.
+
+		mutable Key _cur_key; //validateAnim intermediate values
+
+		mutable Matrix _cur_texture_matrix; //validateAnim matrix
+
+		double _cur_time;
+		void _dirty()const,_make_cur()const;
+		void _interp_keys(Key&,double)const;
+		void _refresh_texture_matrix()const;
+	};
 
 	// See errorToString()
 	enum ModelErrorE
@@ -1252,12 +1372,6 @@ class Model
 		ViewBottom
 	};*/
 
-	enum
-	{
-		MAX_GROUP_NAME_LEN = 32,
-		MAX_BACKGROUND_IMAGES = 6
-	};
-
 	// Drawing options. These are defined as powers of 2 so that they
 	// can be combined with a bitwise OR.
 	enum
@@ -1273,6 +1387,8 @@ class Model
 		DO_BONES = 0x40, //2019 //Removing DrawJointModeE
 
 		DO_ALPHA_DEFER_BSP = 0x80, //2021: Use draw_bspTree to manually draw transparency
+
+		DO_TEXTURE_MATRIX = 0x100, //2022: UvAnimation mode
 	};
 
 	//REMOVE ME
@@ -1312,6 +1428,7 @@ class Model
 			virtual void modelChanged(int changeBits)= 0;
 	};
 	typedef std::vector<Observer*> ObserverList;
+
 #endif // MM3D_EDIT
 
 	// ==================================================================
@@ -1389,6 +1506,26 @@ class Model
 	void clearMetaData();
 	void removeLastMetaData();  // For undo only!
 
+	//2022: Utilities are adjacent to MetaData.
+	//
+	// NOTE: Use getUtilityList to read values.
+	// 
+	// So far there's only one type of utility.
+	// I think I might add one for controlling
+	// surface normals. I'm not sure what else.
+	//
+	int addUtility(UtilityTypeE type, const char *name);
+	bool deleteUtility(unsigned index);
+	void _insertUtil(unsigned,Utility*),_removeUtil(unsigned);
+	bool setUtilityName(unsigned index, const char *name);
+	bool convertUtilityToType(Model::UtilityTypeE, unsigned index);
+	bool moveUtility(unsigned oldIndex, unsigned newIndex);
+	bool addGroupToUtility(unsigned index, unsigned group, bool how=true);
+	bool removeGroupFromUtility(unsigned index, unsigned group) //UNUSED
+	{
+		return addGroupToUtility(index,group,false);
+	}
+
 	// Background image accessors. See the BackgroundImage class.
 	bool setBackgroundImage(unsigned index, const char *str);
 	bool setBackgroundScale(unsigned index, double scale);
@@ -1428,6 +1565,8 @@ class Model
 	void drawPoints();
 	void drawProjections();
 	void drawJoints(float alpha=1, float axis=0);
+	struct _draw;
+	void _drawMaterial(_draw&, int g);
 
 	//NOTE: m is ModelViewport::ViewOptionsE
 	void setCanvasDrawMode(int m){ m_canvasDrawMode = m; };
@@ -1528,7 +1667,7 @@ class Model
 	};
 	RestorePoint makeRestorePoint()const
 	{
-		return{m_currentAnim,m_animationMode,m_currentTime};
+		return{m_currentAnim,m_animationMode,m_elapsedTime};
 	}
 
 	//WARNING: This does not call validatAnim, so getVertexCoords
@@ -1558,6 +1697,7 @@ class Model
 
 	bool setCurrentAnimationFrame(unsigned frame, AnimationTimeE=AT_calculateNormals);
 	bool setCurrentAnimationFrameTime(double time, AnimationTimeE=AT_calculateNormals); 
+	bool setCurrentAnimationElapsedFrameTime(double time, AnimationTimeE=AT_calculateNormals); 
 	bool setCurrentAnimationTime(double seconds, int loop=-1, AnimationTimeE=AT_calculateNormals);
 
 	//2020: Try to make a new frame at the current time.
@@ -1578,6 +1718,7 @@ class Model
 	//2020: Internally the time is stored in frame units so it's possible to compare
 	//the value to the frames' timestamps.
 	double getCurrentAnimationFrameTime()const{ return m_currentTime; }
+	double getCurrentAnimationElapsedFrameTime()const{ return m_elapsedTime; }
 	double getCurrentAnimationTime()const;
 
 	// Stop animation mode; Go back to standard pose editing.
@@ -1612,6 +1753,7 @@ class Model
 	const char *getAnimName(unsigned anim)const;
 	bool setAnimName(unsigned anim, const char *name);
 
+	enum{ setAnimFPS_minimum=1 }; //2022
 	double getAnimFPS(unsigned anim)const;
 	bool setAnimFPS(unsigned anim, double fps);
 		
@@ -1823,6 +1965,10 @@ class Model
 	typedef std::vector<Animation*> _AnimationList;
 	typedef const std::vector<const Animation*> AnimationList;
 	AnimationList &getAnimationList(){ return *(AnimationList*)&m_anims; };
+	typedef std::vector<Utility*> _UtilityList;
+	typedef const std::vector<const Utility*> UtilityList;
+	UtilityList &getUtilityList(){ return *(UtilityList*)&m_utils; };
+	const ObserverList &getObserverList(){ return m_observers; };
 
 	int addVertex(double x, double y, double z);
 	int addVertex(int copy, const double pos[3]=0);
@@ -2221,7 +2367,7 @@ class Model
 	double &xmin, double &ymin, double &xmax, double &ymax)const;
 
 	#ifdef NDEBUG
-//		#error Need int_list versioin of setTriangleProjection
+//		#error Need int_list version of setTriangleProjection
 	#endif
 	void setTriangleProjection(unsigned triangleNum, int proj);
 	int getTriangleProjection(unsigned triangleNum)const;
@@ -2233,28 +2379,26 @@ class Model
 	// ------------------------------------------------------------------
 
 	bool setUndoEnabled(bool o);
-	bool getUndoEnabled(){ return m_undoEnabled; } //NEW
+	bool getUndoEnabled()const{ return m_undoEnabled; } //NEW
+	bool getUndoEnacted()const{ return m_undoEnacted; } //2022
 
 	// Indicates that a user-specified operation is complete. A single
 	// "operation" may span many function calls and different types of
 	// manipulations.
 	void operationComplete(const char *opname);
-	//
-	//2021: This is for ops that don't modify something that's saved.
-	void nonEditOpComplete(const char *opname, bool=false);
-
+	
 	// Clear undo list
 	void clearUndo();
 
 	bool canUndo()const;
 	bool canRedo()const;
-	void undo();
-	void redo();
+	void undo(int how=-1);
+	void redo(){ undo(+1); }
 
-	// If a manipulations have been performed,but not commited as a single
-	// undo list,undo those operations (often used when the user clicks
+	// If a manipulations have been performed, but not commited as a single
+	// undo list, undo those operations (often used when the user clicks
 	// a "Cancel" button to discard "unapplied" changes).
-	void undoCurrent();
+	void undoCurrent(){ undo(0); }
 
 	// Allow intelligent handling of window close button
 	bool canUndoCurrent()const{ return m_undoMgr->canUndoCurrent(); }
@@ -2306,7 +2450,7 @@ class Model
 
 	//INTERNAL: setFrameCount subroutines
 	void insertFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data, const Animation *draw);
-	void removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data);
+	void removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data, bool release=false);
 
 	// ------------------------------------------------------------------
 	// Selection functions
@@ -2689,6 +2833,7 @@ protected:
 	unsigned m_currentFrame;
 	unsigned m_currentAnim;
 	double m_currentTime;
+	double m_elapsedTime; //2022
 
 	//MM3D_EDIT?
 	//NOTE: These are ModelViewport::ViewOptionsE.
@@ -2709,6 +2854,8 @@ protected:
 	//BackgroundImage *m_background[6];
 	std::vector<BackgroundImage*> m_background;
 
+	std::vector<Utility*> m_utils; //2022
+
 	bool			  m_saved;
 	SelectionModeE m_selectionMode;
 	bool			  m_selecting;
@@ -2720,6 +2867,7 @@ protected:
 	UndoManager *m_undoMgr;
 	//UndoManager *m_animUndoMgr;
 	bool m_undoEnabled;
+	bool m_undoEnacted; //2022
 
 	//https://github.com/zturtleman/mm3d/issues/56
 	ViewportUnits m_viewportUnits;

@@ -77,7 +77,8 @@ void ProjectionWin::submit(int id)
 	case id_name:
 	{
 		std::string name = model->getProjectionName(p);
-		if(id_ok==EditBox(&name,::tr("Rename projection","window title"),::tr("Enter new point name:")))		
+		if(id_ok==EditBox(&name,::tr("Rename projection","window title"),
+		::tr("Enter new point name:"),1,Model::MAX_NAME_LEN))		
 		{
 			model->setProjectionName(p,name.c_str());
 			projection.selection()->set_text(name);

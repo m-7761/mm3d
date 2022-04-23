@@ -89,7 +89,8 @@ void JointWin::submit(control *c)
 	case id_name: //"Rename"
 
 		if(id_ok==EditBox(&joint.selection()->text(),
-		::tr("Rename joint","window title"),::tr("Enter new joint name:")))
+		::tr("Rename joint","window title"),
+		::tr("Enter new joint name:"),1,Model::MAX_NAME_LEN))
 		{
 			model->setBoneJointName((int)joint,joint.selection()->c_str());
 		}

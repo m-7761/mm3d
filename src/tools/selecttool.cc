@@ -339,7 +339,7 @@ void SelectTool::draw(bool focused)
 	}
 	
 	const Matrix &inv = parent->getParentBestInverseMatrix();
-	for(int i=0;i<4;i++) inv.apply(p[i]);
+	for(int i=0;i<4;i++) inv.apply4(p[i]);
 
 	glEnable(GL_COLOR_LOGIC_OP);
 

@@ -243,7 +243,7 @@ int RotateTool::mouse2()
 		double coords[4];
 		memcpy(coords,m_rotatePoint,sizeof(coords));
 		coords[3] = 1; //???
-		parent->getParentBestMatrix().apply(coords);
+		parent->getParentBestMatrix().apply4(coords);
 
 		double xDiff = pos[0]-coords[0];
 		double yDiff = pos[1]-coords[1];
@@ -264,7 +264,7 @@ int RotateTool::mouse2()
 		m_rotatePoint.y = pos[1];
 		m_rotatePoint.z = 0;
 		m_rotatePoint.w = 1; //???
-		parent->getParentBestInverseMatrix().apply(m_rotatePoint);
+		parent->getParentBestInverseMatrix().apply4(m_rotatePoint);
 		parent->updateParams();
 	}
 

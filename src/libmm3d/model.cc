@@ -232,7 +232,8 @@ Model::Model()
 	  m_animationMode(ANIMMODE_NONE),
 	  m_currentFrame(0),
 	  m_currentAnim(0),
-	  m_currentTime(0.0)
+	  m_currentTime(0.0),
+	m_elapsedTime(0.0) //2022
 #ifdef MM3D_EDIT
 	,
 	  m_saved(true),
@@ -241,7 +242,9 @@ Model::Model()
 	  m_selectionMode(SelectTriangles),
 	  m_selecting(false),
 	  m_changeBits(ChangeAll),
-	  m_undoEnabled(false)
+	  m_undoEnabled(false),
+	  m_undoEnacted(false)
+
 #endif // MM3D_EDIT
 {
 	model_allocated++;
@@ -529,12 +532,7 @@ int Model::addVertex(double x, double y, double z)
 		while(fp-->0) vp->m_frames[fp] = FrameAnimVertex::get();
 	}
 
-	if(m_undoEnabled)
-	{
-		MU_AddVertex *undo = new MU_AddVertex();
-		undo->addVertex(num,vp);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,vp));
 
 	return num;
 }
@@ -597,12 +595,7 @@ int Model::addVertex(int copy, const double pos[3])
 		}
 	}
 
-	if(m_undoEnabled)
-	{
-		MU_AddVertex *undo = new MU_AddVertex();
-		undo->addVertex(num,vp);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,vp));
 
 	return num;
 }
@@ -642,11 +635,7 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 		insertTriangle(num,triangle);
 				
 		if(m_undoEnabled)
-		{
-			MU_AddTriangle *undo = new MU_AddTriangle();
-			undo->addTriangle(num,triangle);
-			sendUndo(undo);
-		}
+		sendUndo(new MU_Add(num,triangle));
 
 		return num;
 	}
@@ -679,12 +668,7 @@ int Model::addBoneJoint(const char *name, int parent)
 
 	insertBoneJoint(num,joint);
 	
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_AddBoneJoint;
-		undo->addBoneJoint(num,joint);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,joint));
 
 	return num;
 }
@@ -743,12 +727,7 @@ int Model::addPoint(const char *name, double x, double y, double z,
 	num = m_points.size();
 	insertPoint(num,point);
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_AddPoint;
-		undo->addPoint(num,point);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,point));
 
 	//validateSkel(); //???
 
@@ -787,12 +766,7 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 
 	insertProjection(num,proj);
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_AddProjection;
-		undo->addProjection(num,proj);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,proj));
 
 	return num;
 }
@@ -852,11 +826,7 @@ void Model::deleteVertex(unsigned vertexNum)
 	m_changeBits |= AddGeometry; //2020
 
 	if(m_undoEnabled)
-	{
-		auto undo = new MU_DeleteVertex;
-		undo->deleteVertex(vertexNum,m_vertices[vertexNum]);
-		sendUndo(undo);
-	}
+	sendUndo(new MU_Delete(vertexNum,m_vertices[vertexNum]));
 
 	removeVertex(vertexNum);
 }
@@ -876,13 +846,7 @@ void Model::deleteTriangle(unsigned t)
 
 	//m_changeBits |= AddGeometry
 
-	if(m_undoEnabled)
-	{
-		// Delete triangle
-		auto undo = new MU_DeleteTriangle;
-		undo->deleteTriangle(t,tp);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Delete(t,tp));
 
 	removeTriangle(t);
 }
@@ -912,15 +876,10 @@ void Model::deleteBoneJoint(unsigned joint)
 		setBoneJointParent(j,new_parent,false);
 	}	
 
-	Joint *swap = m_joints[joint];
-	removeBoneJoint(joint);
-		
 	if(m_undoEnabled)
-	{
-		auto undo = new MU_DeleteBoneJoint;
-		undo->deleteBoneJoint(joint,swap);
-		sendUndo(undo);
-	}
+	sendUndo(new MU_Delete(joint,m_joints[joint]));
+
+	removeBoneJoint(joint);
 
 	//log_debug("new parent was %d\n",new_parent);
 
@@ -938,15 +897,10 @@ void Model::deletePoint(unsigned point)
 
 	if(point<m_points.size())
 	{
-		Point *ptr = m_points[point];
-		removePoint(point);
+		if(m_undoEnabled) 
+		sendUndo(new MU_Delete(point,m_points[point]));
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_DeletePoint;
-			undo->deletePoint(point,ptr);
-			sendUndo(undo);
-		}
+		removePoint(point);
 	}
 }
 
@@ -956,15 +910,10 @@ void Model::deleteProjection(unsigned proj)
 	{
 		m_changeBits |= AddOther; //2020
 
-		TextureProjection *ptr = m_projections[proj];
-		removeProjection(proj);
-
 		if(m_undoEnabled)
-		{
-			auto undo = new MU_DeleteProjection;
-			undo->deleteProjection(proj,ptr);
-			sendUndo(undo);
-		}
+		sendUndo(new MU_Delete(proj,m_projections[proj]));
+
+		removeProjection(proj);
 	}
 }
 
@@ -2327,15 +2276,11 @@ unsigned Model::_op = !0;
 bool Model::_op_ccw = !0;
 void Model::operationComplete(const char *opname)
 {
-	nonEditOpComplete(opname,true); Model::_op++;
-}
-void Model::nonEditOpComplete(const char *opname, bool _)
-{
 	validateSkel();
 	validateAnim();
 	endSelectionDifference();
 
-	m_undoMgr->operationComplete(opname,_);
+	m_undoMgr->operationComplete(opname);
 	
 	//https://github.com/zturtleman/mm3d/issues/90
 	//Treating operationComplete as-if calling updateObservers from outside.
@@ -2403,98 +2348,78 @@ const char *Model::getRedoOpName()const
 	}
 }
 
-void Model::undo()
+void Model::undo(int how)
 {
 	//LOG_PROFILE(); //???
 
-	//UndoList *list = (m_animationMode)? m_animUndoMgr->undo(): m_undoMgr->undo();
-	UndoList *list = m_undoMgr->undo();
+	assert(m_undoEnabled); //2022
 
-	if(list)
+	UndoList *list; switch(how)
 	{
-		//log_debug("got atomic undo list\n");
-		setUndoEnabled(false);
+	default: assert(0); return;
+	case -1: list = m_undoMgr->undo(); break;
+	case +1: list = m_undoMgr->redo(); break;
+	case  0: list = m_undoMgr->undoCurrent(); break;
+	}	
+	if(list==nullptr) return;
 
-		// process back to front
-		UndoList::reverse_iterator it;
+	//log_debug("got atomic undo list\n"); //???
+	
+	//2022: m_undoEnacted helps to distinguish between
+	//a scenario where undo facilities are disabled, in
+	//which case everything seems to come from an undo.
+	//NOTE: There's a larger problem where non "modal" 
+	//"dialogs" have to use "ignoreChange" states when
+	//making changes. This can help with that in theory
+	//... especially if dialogs can know if they're the
+	//active window or not.
+	//setUndoEnabled(false);
+	m_undoEnabled = false; m_undoEnacted = true; 
 
-		for(it = list->rbegin(); it!=list->rend(); it++)
+	if(how==1) //redo 
+	{
+		// process front to back	
+		for(auto it=list->begin();it!=list->end();it++)
 		{
-			ModelUndo *undo = static_cast<ModelUndo*>(*it);
-			undo->undo(this);
+			ModelUndo *redo = static_cast<ModelUndo*>(*it);
+			redo->redo(this);
 		}
-
-		validateSkel();
-
-		updateObservers(false);
-
-		setUndoEnabled(true);
+	}
+	else //undo/undoCurrent()
+	{
+		// process back to front
+		for(auto rit=list->rbegin();rit!=list->rend();rit++)
+		{
+			ModelUndo *undo = static_cast<ModelUndo*>(*rit);
+			undo->undo(this);
+		}		
 	}
 
+	validateSkel();
+
 	m_selecting = false; //??? //endSelectionDifference?
-}
 
-void Model::redo()
-{
-	//LOG_PROFILE(); //???
-
-	//UndoList *list = (m_animationMode)? m_animUndoMgr->redo(): m_undoMgr->redo();
-	UndoList *list = m_undoMgr->redo();
-
-	if(list)
+	if(how!=0) //undo/redo //Continued below...
 	{
-		//log_debug("got atomic redo list\n");
-		setUndoEnabled(false);
-
-		// process front to back
-		UndoList::iterator it;
-		for(it = list->begin(); it!=list->end(); it++)
-		{
-			ModelUndo *undo = static_cast<ModelUndo*>((*it));
-			undo->redo(this);
-		}
-
-		validateSkel();
-		
 		updateObservers(false);
-
-		setUndoEnabled(true);
 	}
 
-	m_selecting = false; //??? //endSelectionDifference?
-}
+	//setUndoEnabled(true);
+	m_undoEnabled = true; m_undoEnacted = false;
 
-void Model::undoCurrent()
-{
-	//LOG_PROFILE(); //???
-
-	//UndoList *list = (m_animationMode)? m_animUndoMgr->undoCurrent(): m_undoMgr->undoCurrent();
-	UndoList *list = m_undoMgr->undoCurrent();
-
-	if(list)
+	if(how==0) //undoCurrent? Continued???
 	{
-		//log_debug("got atomic undo list\n");
-		setUndoEnabled(false);
-
-		// process back to front
-		UndoList::reverse_iterator it;
-		for(it = list->rbegin(); it!=list->rend(); it++)
-		{
-			ModelUndo *undo = static_cast<ModelUndo*>((*it));
-			undo->undo(this);
-		}
-
-		validateSkel();
-
-		setUndoEnabled(true);
+		//2022: In consolidating these three APIs to add m_undoEnacted
+		//I'm looking at this and I'm not so confident the undoCurrent
+		//path should differ from undo/redo in this way? I believe the
+		//point of this is to make "Cancel" button behavior match "OK"
+		//button behavior, i.e. operationComplete().
 
 		//https://github.com/zturtleman/mm3d/issues/90
 		//Treating operationComplete as-if calling updateObservers from outside.
 		//updateObservers(false);
 		updateObservers(!false);
 	}
-
-	m_selecting = false; //??? //endSelectionDifference?
 }
 
 void Model::hideVertex(unsigned i, int how) //UNSAFE???
@@ -3824,8 +3749,11 @@ void Model::calculateNormals()
 			dp[1]+=a[1][i]*-a[0][i];
 			dp[2]+=a[2][i]*-a[1][i];
 		}
-		for(int i=3;i-->0;) 
-		tri->m_angleSource[i] = acos(dp[i]);
+		for(int i=3;i-->0;) if(1)
+		{
+			tri->m_angleSource[i] = acos(dp[i]);
+		}
+		else tri->m_angleSource[i] = 1; //TESTING
 	}
 
 	// Apply accumulated normals to triangles
@@ -3849,15 +3777,12 @@ void Model::calculateNormals()
 			{
 				unsigned v = tri->m_vertexIndices[vert];
 								
-				//std::vector<NormAngleAccum> &acl = acl_normmap[v];
 				auto &acl = m_vertices[v]->m_faces;
 
 				double A = 0;
 				double B = 0;
 				double C = 0; for(auto&ea:acl)
 				{
-					//float dotprod = dot3(tri->m_flatSource,ea.norm);
-					//auto tri2 = m_triangles[ea&0x3fffffff];
 					auto tri2 = ea.first;
 					auto ea_norm = tri2->m_flatSource;
 					double dotprod = dot3(tri->m_flatSource,ea_norm);
@@ -3869,7 +3794,6 @@ void Model::calculateNormals()
 						angle = fabs(acos(dotprod));
 					}
 
-					//float w = tri2->m_angleSource[ea>>30];
 					double w = tri2->m_angleSource[ea.second];
 
 					if(angle<=maxAngle)
@@ -3909,8 +3833,6 @@ void Model::calculateNormals()
 			double B = 0;
 			double C = 0; for(auto&ea:acl)
 			{
-				//float dotprod = dot3(tri->m_flatSource,ea.norm);
-				//auto tri2 = m_triangles[ea&0x3fffffff];
 				auto tri2 = ea.first;
 				auto ea_norm = tri2->m_flatSource;
 				double dotprod = dot3(tri->m_flatSource,ea_norm);
@@ -3922,7 +3844,6 @@ void Model::calculateNormals()
 					angle = fabs(acos(dotprod));
 				}
 
-				//float w = tri2->m_angleSource[ea>>30];
 				double w = tri2->m_angleSource[ea.second];
 
 				if(angle<=45.0f *PIOVER180)
@@ -4048,8 +3969,8 @@ void Model::calculateBspTree()
 					poly->s[i] = triangle->m_s[i];
 					poly->t[i] = triangle->m_t[i];
 				}
-				poly->texture = index;
-				poly->material = static_cast<void*>(m_materials[index]);
+				//poly->texture = index;
+				//poly->material = static_cast<void*>(m_materials[index]);
 				poly->triangle = static_cast<void*>(triangle);
 				poly->calculateD();
 				m_bspTree.addPoly(poly);
@@ -4411,11 +4332,7 @@ bool Model::setPositionName(const Position &pos, const char *name)
 			m_changeBits|=AddOther; //2020
 
 			if(m_undoEnabled)
-			{			
-				auto undo = new MU_SetObjectName(pos);
-				undo->setName(name,obj->m_name.c_str());
-				sendUndo(undo);
-			}
+			sendUndo(new MU_SwapStableStr(AddOther,obj->m_name));
 
 			obj->m_name = name;
 		}

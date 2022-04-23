@@ -108,7 +108,8 @@ void PointWin::submit(int id)
 	case id_name:
 	{
 		std::string name = model->getPointName((int)point);
-		if(id_ok==EditBox(&name,::tr("Rename point","window title"),::tr("Enter new point name:")))
+		if(id_ok==EditBox(&name,::tr("Rename point","window title"),
+		::tr("Enter new point name:"),1,Model::MAX_NAME_LEN))
 		{
 			model->setPointName((int)point,name.c_str());
 			point.selection()->set_text(name);

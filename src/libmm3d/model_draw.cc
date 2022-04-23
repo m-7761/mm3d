@@ -40,6 +40,87 @@ static void model_draw_defaultMaterial()
 	glMaterialfv(GL_FRONT,GL_EMISSION,fval);
 	glMaterialf(GL_FRONT,GL_SHININESS,0.0f);
 }
+struct Model::_draw
+{
+	unsigned ops;
+	
+	int texture_matrix;
+	
+	DrawingContext *context;
+
+	Model *bsp;
+};
+void Model::_drawMaterial(Model::_draw &d, int g)
+{
+	auto &gl = m_groups;
+
+	if(~d.ops&DO_TEXTURE||g<0||gl[g]->m_materialIndex<0)
+	{
+		model_draw_defaultMaterial();
+		glDisable(GL_TEXTURE_2D);
+	//	glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
+
+		return;
+	}	
+
+	auto *grp = gl[g];
+	
+	int mi = grp->m_materialIndex;
+							
+	auto *mp = m_materials[mi];
+
+	if(d.ops&DO_ALPHA)
+	{
+		//2021: these modes are supported by Assimp and needed by games
+		int dst = mp->m_accumulate?GL_ONE:GL_ONE_MINUS_SRC_ALPHA;
+		glBlendFunc(GL_SRC_ALPHA,dst);
+	}
+
+	glMaterialfv(GL_FRONT,GL_AMBIENT,mp->m_ambient);
+	glMaterialfv(GL_FRONT,GL_DIFFUSE,mp->m_diffuse);
+	glMaterialfv(GL_FRONT,GL_SPECULAR,mp->m_specular);
+	glMaterialfv(GL_FRONT,GL_EMISSION,mp->m_emissive);
+	glMaterialf(GL_FRONT,GL_SHININESS,mp->m_shininess);
+
+	if(mp->m_type==Model::Material::MATTYPE_TEXTURE
+	&&(!mp->m_textureData->m_isBad||d.ops&DO_BADTEX))
+	{
+		if(d.context)
+		glBindTexture(GL_TEXTURE_2D,d.context->m_matTextures[mi]);
+		else
+		glBindTexture(GL_TEXTURE_2D,mp->m_texture);
+
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,mp->m_sClamp?GL_CLAMP:GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,mp->m_tClamp?GL_CLAMP:GL_REPEAT);
+
+		if(d.ops&DO_TEXTURE_MATRIX&&m_animationMode) 
+		{
+			for(int i:grp->m_utils) 
+			if(m_utils[i]->type==UT_UvAnimation)
+			{
+				auto *uv = (UvAnimation*)m_utils[i];
+				uv->_make_cur();
+						
+				if(d.texture_matrix!=g)
+				{
+					if(d.texture_matrix==-1)
+					glMatrixMode(GL_TEXTURE);
+					glLoadMatrixd(uv->_cur_texture_matrix.getMatrix());
+
+					d.texture_matrix = g;
+				}
+				else glMultMatrixd(uv->_cur_texture_matrix.getMatrix());
+			}					
+		}
+
+		glEnable(GL_TEXTURE_2D);
+	}
+	else glDisable(GL_TEXTURE_2D);
+}
+extern void model_draw_material_bsp(void *bsp, int group)
+{
+	((Model::_draw*)bsp)->bsp->_drawMaterial(*(Model::_draw*)bsp,group);
+}
 
 static void model_draw_drawPointOrientation(bool selected, double scale, const Matrix &m)
 {
@@ -395,63 +476,30 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	glDisable(GL_LIGHT1);
 	//glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
 
+	Model::_draw d = 
+	{
+		drawOptions&~DO_ALPHA,-1,drawContext,nullptr 
+	};
+
 	//https://github.com/zturtleman/mm3d/issues/98
 	//bool colorSelected = false;
-	int colorSelected;
-	for(unsigned m=0;m<m_groups.size();m++)
+	int colorSelected;	
+	for(unsigned g=0;g<m_groups.size();g++)
 	{
-		Group *grp = m_groups[m];
+		Group *grp = m_groups[g];
 
-		if(drawOptions&DO_TEXTURE)
+		int mi = grp->m_materialIndex;
+
+		if(alpha&&mi>=0&&m_materials[mi]->needsAlpha())
 		{
-			//glColor3f(1,1,1); //??? //glColorMaterial?
-
-			if(grp->m_materialIndex>=0)
+			// Alpha blended groups are drawn by bspTree later
+			for(unsigned i:grp->m_triangleIndices)
 			{
-				int index = grp->m_materialIndex;
-
-				if(alpha&&m_materials[index]->needsAlpha())
-				{
-					// Alpha blended groups are drawn by bspTree later
-					for(unsigned triIndex:grp->m_triangleIndices)
-					{
-						Triangle *triangle = m_triangles[triIndex];
-						triangle->m_marked = true;
-					}
-					continue;
-				}
-
-				glMaterialfv(GL_FRONT,GL_AMBIENT,m_materials[index]->m_ambient);
-				glMaterialfv(GL_FRONT,GL_DIFFUSE,m_materials[index]->m_diffuse);
-				glMaterialfv(GL_FRONT,GL_SPECULAR,m_materials[index]->m_specular);
-				glMaterialfv(GL_FRONT,GL_EMISSION,m_materials[index]->m_emissive);
-				glMaterialf(GL_FRONT,GL_SHININESS,m_materials[index]->m_shininess);
-
-				if(m_materials[index]->m_type==Model::Material::MATTYPE_TEXTURE
-				&&(!m_materials[index]->m_textureData->m_isBad||drawOptions&DO_BADTEX))
-				{
-					if(drawContext)					
-					glBindTexture(GL_TEXTURE_2D,drawContext->m_matTextures[grp->m_materialIndex]);
-					else
-					glBindTexture(GL_TEXTURE_2D,m_materials[grp->m_materialIndex]->m_texture);
-
-					glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,
-					(m_materials[grp->m_materialIndex]->m_sClamp ? GL_CLAMP : GL_REPEAT));
-					glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,
-					(m_materials[grp->m_materialIndex]->m_tClamp ? GL_CLAMP : GL_REPEAT));
-
-					glEnable(GL_TEXTURE_2D);
-				}
-				else glDisable(GL_TEXTURE_2D);
+				m_triangles[i]->m_marked = true;
 			}
-			else goto defmat;
+			continue;
 		}
-		else defmat:
-		{
-			model_draw_defaultMaterial();
-			glDisable(GL_TEXTURE_2D);
-		//	glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
-		}
+		else _drawMaterial(d,g);
 
 		//colorSelected = false;
 		colorSelected = -1;
@@ -459,64 +507,63 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		glBegin(GL_TRIANGLES);
 		for(int i:grp->m_triangleIndices)
 		{
-			Triangle *triangle = m_triangles[i];
-			triangle->m_marked = true;
+			auto tp = m_triangles[i]; 
+			
+			tp->m_marked = true;
 
-			if(triangle->m_visible)
+			if(!tp->m_visible) continue;
+			
+			if(tp->m_selected)
 			{
-				if(triangle->m_selected)
+				//if(colorSelected==false)
+				if(colorSelected!=(int)true)
 				{
-					//if(colorSelected==false)
-					if(colorSelected!=(int)true)
+					/*if(0==(drawOptions&DO_TEXTURE))
 					{
-						/*if(0==(drawOptions&DO_TEXTURE))
-						{
-							glColor3f(1,0,0); //??? //glColorMaterial?
-						}*/
-						glEnd();
-						glDisable(GL_LIGHT0);
-						glEnable(GL_LIGHT1);
-						glBegin(GL_TRIANGLES);
-						colorSelected = true;
-					}
+						glColor3f(1,0,0); //??? //glColorMaterial?
+					}*/
+					glEnd();
+					glDisable(GL_LIGHT0);
+					glEnable(GL_LIGHT1);
+					glBegin(GL_TRIANGLES);
+					colorSelected = true;
 				}
-				else
+			}
+			else
+			{
+				//if(colorSelected==true)
+				if(colorSelected!=(int)false)
 				{
-					//if(colorSelected==true)
-					if(colorSelected!=(int)false)
+					/*if(0==(drawOptions&DO_TEXTURE))
 					{
-						/*if(0==(drawOptions&DO_TEXTURE))
-						{
-							glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
-						}*/
-						glEnd();
-						glDisable(GL_LIGHT1);
-						glEnable(GL_LIGHT0);
-						glBegin(GL_TRIANGLES);
-						colorSelected = false;
-					}						
-				}
+						glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
+					}*/
+					glEnd();
+					glDisable(GL_LIGHT1);
+					glEnable(GL_LIGHT0);
+					glBegin(GL_TRIANGLES);
+					colorSelected = false;
+				}						
+			}
 
-				for(int v=0;v<3;v++)
-				{
-					Vertex *vertex = (m_vertices[triangle->m_vertexIndices[v]]);
-
-					glTexCoord2f(triangle->m_s[v],triangle->m_t[v]);
-					if(0!=(drawOptions&DO_SMOOTHING))
-					{
-						glNormal3dv(triangle->m_normalSource[v]);
-					}
-					else
-					{
-						glNormal3dv(triangle->m_flatSource);
-					}
-					glVertex3dv(vertex->m_absSource);
-				}
+			for(int v=0;v<3;v++)
+			{
+				glTexCoord2f(tp->m_s[v],tp->m_t[v]);
+				if(drawOptions&DO_SMOOTHING)
+				glNormal3dv(tp->m_normalSource[v]);
+				else glNormal3dv(tp->m_flatSource);
+				glVertex3dv(m_vertices[tp->m_vertexIndices[v]]->m_absSource);
 			}
 		}
 		glEnd();
 
 		if(colorSelected==(int)true) glDisable(GL_LIGHT1); //2020
+	}
+
+	if(d.texture_matrix!=-1)
+	{	
+		glLoadIdentity();
+		glMatrixMode(GL_MODELVIEW);
 	}
 
 	glDisable(GL_TEXTURE_2D);
@@ -528,54 +575,46 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		model_draw_defaultMaterial();
 
 		glBegin(GL_TRIANGLES);
-		for(auto*triangle:m_triangles) if(!triangle->m_marked)
+		for(auto*tp:m_triangles) if(!tp->m_marked)
 		{
-			triangle->m_marked = true;
+			tp->m_marked = true;
 
-			if(triangle->m_visible)
+			if(tp->m_visible) continue;
+			
+			if(tp->m_selected)
 			{
-				if(triangle->m_selected)
+				//if(colorSelected==false)
+				if(colorSelected!=(int)true)
 				{
-					//if(colorSelected==false)
-					if(colorSelected!=(int)true)
-					{
-					//	glColor3f(1,0,0); //??? //glColorMaterial?
-						glEnd();
-						glDisable(GL_LIGHT0);
-						glEnable(GL_LIGHT1);
-						glBegin(GL_TRIANGLES);
-						colorSelected = true;
-					}
+				//	glColor3f(1,0,0); //??? //glColorMaterial?
+					glEnd();
+					glDisable(GL_LIGHT0);
+					glEnable(GL_LIGHT1);
+					glBegin(GL_TRIANGLES);
+					colorSelected = true;
 				}
-				else
+			}
+			else
+			{
+				//if(colorSelected==true)
+				if(colorSelected!=(int)false)
 				{
-					//if(colorSelected==true)
-					if(colorSelected!=(int)false)
-					{
-					//	glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
-						glEnd();
-						glDisable(GL_LIGHT1);
-						glEnable(GL_LIGHT0);
-						glBegin(GL_TRIANGLES);
-						colorSelected = false;
-					}							
-				}
+				//	glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
+					glEnd();
+					glDisable(GL_LIGHT1);
+					glEnable(GL_LIGHT0);
+					glBegin(GL_TRIANGLES);
+					colorSelected = false;
+				}							
+			}
 
-				for(int v=0;v<3;v++)
-				{
-					Vertex *vertex = m_vertices[triangle->m_vertexIndices[v]];
-
-					if(0!=(drawOptions&DO_SMOOTHING))
-					{
-						glNormal3dv(triangle->m_normalSource[v]);
-					}
-					else
-					{
-						glNormal3dv(triangle->m_flatSource);
-					}
-							
-					glVertex3dv(vertex->m_absSource);
-				}				
+			for(int v=0;v<3;v++)
+			{
+				glTexCoord2f(tp->m_s[v],tp->m_t[v]);
+				if(drawOptions&DO_SMOOTHING)
+				glNormal3dv(tp->m_normalSource[v]);
+				else glNormal3dv(tp->m_flatSource);
+				glVertex3dv(m_vertices[tp->m_vertexIndices[v]]->m_absSource);
 			}
 		}
 		glEnd();
@@ -641,16 +680,27 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 		}*/
 	}
 
+	Model::_draw d = //2022
+	{
+		drawOptions,-1,drawContext,this
+	};
+
 	//if(!m_bspTree.empty())
 	{
 		glDepthMask(0);
 		glEnable(GL_BLEND);		
-		m_bspTree.render(viewPoint,drawContext);		
+		m_bspTree.render(viewPoint,&d); //drawContext
 		glDisable(GL_BLEND);
 		glDepthMask(1);
 
 		glDisable(GL_TEXTURE_2D);
 	}	
+
+	if(d.texture_matrix!=-1)
+	{	
+		glLoadIdentity();
+		glMatrixMode(GL_MODELVIEW_MATRIX);
+	}
 }
 
 void Model::drawLines(float a)

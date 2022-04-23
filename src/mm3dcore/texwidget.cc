@@ -606,7 +606,8 @@ void TextureWidget::snap(double &s, double &t, bool selected)
 			}
 			if(snapped)
 			{
-				s = ss; t = tt; return;
+				s = ss; 
+				t = tt; return;
 			}
 		}
 	}
@@ -836,6 +837,15 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 	//2022: Emulate Tool::Parent::snapSelect?
 	if(m_operation!=MouseSelect) m_selecting = false;
 	
+	double s,t,ds,dt;
+	s = getWindowXCoord(x); 
+	t = getWindowYCoord(y);
+	if(m_uvSnap) switch(m_operation)
+	{
+	case MouseMove:
+	case MouseScale:
+	case MouseRotate: snap(s,t,false);
+	}
 	if(m_constrain)
 	{
 		//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
@@ -851,17 +861,10 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 		}
 		if(m_constrain&1) x = m_constrainX; else m_constrainX = x;
 		if(m_constrain&2) y = m_constrainY; else m_constrainY = y;
-	}
 
-	double s,t,ds,dt;
-	s = getWindowXCoord(x); 
-	t = getWindowYCoord(y);
-	if(m_uvSnap) switch(m_operation)
-	{
-	case MouseMove:
-	case MouseScale:
-	case MouseRotate: snap(s,t,false);
-	}
+		if(m_constrain&1) s = getWindowXCoord(x); 
+		if(m_constrain&2) t = getWindowYCoord(y);
+	}	
 	ds = s-m_s; m_s = s; 
 	dt = t-m_t; m_t = t;
 	

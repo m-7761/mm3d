@@ -291,15 +291,12 @@ void TextureWin::source_texture(int id)
 
 void TextureWin::new_material_or_name(int id)
 {
-	utf8 title = "Rename material";
-	std::string name; int m; if(id==id_name)
-	{
-		title = "New material";
-		m = material; name = model->getTextureName(m);		
-	}
-	
-	if(id_ok==EditBox(&name,
-	::tr(title,"window title"),::tr("Enter new material name:")))
+	int m = material; std::string name;
+	utf8 str = model->getTextureName(m);
+	if(str) name = str;
+	str = id==id_new?"New material":"Rename material";	
+	if(id_ok==EditBox(&name,::tr(str,"window title"),
+	::tr("Enter new material name:"),1,Model::MAX_NAME_LEN))
 	{
 		if(id==id_name)
 		{	

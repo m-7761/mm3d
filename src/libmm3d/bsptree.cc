@@ -27,7 +27,9 @@
 #include "bsptree.h"
 #include "glmath.h"
 #include "log.h"
-#include "model.h" // Yes,it's hackish
+#include "model.h"
+
+extern void model_draw_material_bsp(void *bsp, int group); //2022
 
 std::vector<BspTree::Poly*> BspTree::Poly::s_recycle;
 std::vector<BspTree::Node*> BspTree::Node::s_recycle;
@@ -38,32 +40,6 @@ int BspTree::Node::s_allocated = 0;
 bool float_equiv(double rhs, double lhs)
 {
 	return fabs(rhs-lhs)<0.0001f;
-}
-
-static void bsptree_setMaterial(DrawingContext *context, int texture, Model::Material *material)
-{
-	//2021: these modes are supported by Assimp and needed by games
-	int dst = material->m_accumulate?GL_ONE:GL_ONE_MINUS_SRC_ALPHA;
-	glBlendFunc(GL_SRC_ALPHA,dst);
-
-	glMaterialfv(GL_FRONT,GL_AMBIENT,material->m_ambient);
-	glMaterialfv(GL_FRONT,GL_DIFFUSE,material->m_diffuse);
-	glMaterialfv(GL_FRONT,GL_SPECULAR,material->m_specular);
-	glMaterialfv(GL_FRONT,GL_EMISSION,material->m_emissive);
-	glMaterialf(GL_FRONT,GL_SHININESS,material->m_shininess);
-
-	if(context) context->m_currentTexture = texture;
-
-	if(material->m_type==Model::Material::MATTYPE_TEXTURE)
-	{
-		if(context)
-		glBindTexture(GL_TEXTURE_2D,context->m_matTextures[context->m_currentTexture]);
-		else
-		glBindTexture(GL_TEXTURE_2D,material->m_texture); //2021
-
-		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,material->m_sClamp?GL_CLAMP:GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,material->m_tClamp?GL_CLAMP:GL_REPEAT);
-	}
 }
 
 int BspTree::Poly::s_nextId = 0;
@@ -154,24 +130,28 @@ void BspTree::Poly::intersection(double *p1, double *p2, double *po, float &plac
 	place = oldPlace;
 }
 
-void *BspTree::Poly::render(DrawingContext *context, void *compare)
+int BspTree::Poly::render(void *context, int compare)
 {
 	//printf("render triangle %d\n",id);
 
+	auto tri = (Model::Triangle*)triangle;
+
 	//2021: this can't get other alpha sources
 	//if(context->m_currentTexture!=texture)
-	if(compare!=material)
+	//if(compare!=material)
+	if(compare!=tri->m_group)
 	{
-		compare = material;
+		compare = tri->m_group; //material
 
 		glEnd();
 
-		bsptree_setMaterial(context,texture,static_cast<Model::Material*>(material));
+		//bsptree_setMaterial(context,texture,static_cast<Model::Material*>(material));
+		model_draw_material_bsp(context,compare);
 
 		glBegin(GL_TRIANGLES);
 	}
 
-	Model::Triangle *tri = static_cast<Model::Triangle*>(triangle);
+	
 	if(tri->m_visible)
 	{
 		for(int i = 0; i<3; i++)
@@ -202,19 +182,24 @@ void BspTree::addPoly(BspTree::Poly *p)
 	else m_root->addChild(n);
 }
 
-void BspTree::render(double *point, DrawingContext *context)
+void BspTree::render(double *point, void *context)
 {
 	if(m_root)
 	{
-		bsptree_setMaterial(context,m_root->self->texture,
-		static_cast<Model::Material*>(m_root->self->material));
-		glEnable(GL_TEXTURE_2D); //???
+		auto tri = (Model::Triangle*)m_root->self->triangle;
+
+		//bsptree_setMaterial(context,m_root->self->texture,
+		//static_cast<Model::Material*>(m_root->self->material));
+		model_draw_material_bsp(context,tri->m_group);
+
+		//glEnable(GL_TEXTURE_2D); //???
 		{
 			glBegin(GL_TRIANGLES);
-			m_root->render(point,context,m_root->self->material);
+			//m_root->render(point,context,m_root->self->material);
+			m_root->render(point,context,tri->m_group);
 			glEnd();
 		}
-		glDisable(GL_TEXTURE_2D); //NEW
+		//glDisable(GL_TEXTURE_2D); //NEW
 
 		//2021: restore in case m_accumulate used GL_ONE
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -310,9 +295,9 @@ void BspTree::Node::splitNodes(int idx1, int idx2, int idx3,
 	n1->self->t[2] = self->t[idx3];
 
 	n1->self->calculateNormal();
-	n1->self->texture = self->texture;
+	//n1->self->texture = self->texture;
+	//n1->self->material = self->material;
 	n1->self->triangle = self->triangle;
-	n1->self->material = self->material;
 
 	n2->self = Poly::get();
 	//printf("split node poly: %d\n",n2->self->id);
@@ -335,9 +320,9 @@ void BspTree::Node::splitNodes(int idx1, int idx2, int idx3,
 	n2->self->t[2] = (self->t[idx3]-self->t[idx1])*place2+self->t[idx1];
 
 	n2->self->calculateNormal();
-	n2->self->texture = self->texture;
+	//n2->self->texture = self->texture;	
+	//n2->self->material = self->material;
 	n2->self->triangle = self->triangle;
-	n2->self->material = self->material;
 
 	for(int i = 0; i<3; i++)
 	{
@@ -381,9 +366,9 @@ void BspTree::Node::splitNode(int idx1, int idx2, int idx3,
 	n1->self->t[2] = (self->t[idx3]-self->t[idx2])*place+self->t[idx2];
 
 	n1->self->calculateNormal();
-	n1->self->texture = self->texture;
+	//n1->self->texture = self->texture;	
+	//n1->self->material = self->material;
 	n1->self->triangle = self->triangle;
-	n1->self->material = self->material;
 
 	for(int i = 0; i<3; i++)
 	{
@@ -675,7 +660,7 @@ void BspTree::Node::addChild(Node *n)
 	}
 }
 
-void *BspTree::Node::render(double *point, DrawingContext *context, void *compare)
+int BspTree::Node::render(double *point, void *context, int compare)
 {
 	double d = dot_product(self->norm,point);
 

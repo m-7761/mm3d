@@ -1063,7 +1063,7 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 				m_meshVecInfos[mesh][vert].lat = m_src->readI8();
 				//log_debug("normals lat,lng: %d,%d\n",m_meshVecInfos[mesh][vert].lat,m_meshVecInfos[mesh][vert].lng);
 
-				loadMatrix.apply(meshVec);
+				loadMatrix.apply4(meshVec);
 				m_meshVecInfos[mesh][vert].id = m_model->addVertex(meshVec[0],meshVec[1],meshVec[2]);
 			}
 		}
@@ -1131,11 +1131,11 @@ void Md3Filter::readFile_setMeshes(MeshSectionE section, int32_t offsetMeshes, i
 							meshVec[2] = (float)coord[2];
 							meshVec[3] = (float)1;
 
-							invMatrix.apply(meshVec);
+							invMatrix.apply4(meshVec);
 						}
 
 						meshVec[3] = 1;
-						loadMatrix.apply(meshVec);
+						loadMatrix.apply4(meshVec);
 						m_model->setQuickFrameAnimVertexCoords(animIndex,frame,m_meshVecInfos[mesh][vert].id,meshVec[0],meshVec[1],meshVec[2]);
 					}
 				}
@@ -2211,8 +2211,8 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 					}
 				}
 			}
-			saveMatrix.apply(dmin);
-			saveMatrix.apply(dmax);
+			saveMatrix.apply4(dmin);
+			saveMatrix.apply4(dmax);
 
 			//min_bounds
 			for(int v = 0; v<3; v++)
@@ -2295,7 +2295,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 						m_model->interpKeyframe(anim,t,{Model::PT_Point,j},origin,nullptr,nullptr);
 					}
 
-					saveMatrix.apply(origin);
+					saveMatrix.apply4(origin);
 
 					m_dst->write((float)origin[0]);
 					m_dst->write((float)origin[1]);
@@ -2552,7 +2552,7 @@ Model::ModelErrorE Md3Filter::writeSectionFile(const char *filename,Md3Filter::M
 						meshNor[1] = vit->norm[1];
 						meshNor[2] = vit->norm[2];							
 
-						saveMatrix.apply(meshVec);
+						saveMatrix.apply4(meshVec);
 						saveMatrix.apply3(meshNor); // only apply rotation
 						normalize3(meshNor);
 						m_dst->write((int16_t)(meshVec[0]/MD3_XYZ_SCALE+0.5));

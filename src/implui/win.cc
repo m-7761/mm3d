@@ -191,7 +191,7 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 
 		win_enter(); return false;
 
-	case 27: //ESC
+	case 27: //Esc
 
 		win_close(); return false;
 
@@ -201,6 +201,14 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 		if(m&GLUT_ACTIVE_CTRL&&!w->modal())
 		viewwin_undo(w->glut_create_id(),k=='z'&&~m&GLUT_ACTIVE_SHIFT);
 		else break; return false;
+
+	case 127: //2022
+
+		if(control*c=w->main->find(127)) //id_delete
+		{
+			w->active_callback(c); return false;
+		}
+		break;
 	}
 	return true; 
 }
@@ -267,14 +275,27 @@ static void win_reshape(Widgets95::ui *ui, int w, int h)
 		glutPositionWindow(cx+(cw-w)/2,cy+(ch-h)/2);		
 	}*/
 }
-static void win_reshape2(Widgets95::ui *ui, int w, int h)
+extern void win_reshape2(Widgets95::ui *ui, int w, int h)
 {	
 	if(!ui->seen())
 	{
 		//Note: this nudges the window to be fully onscreen.
 		int x = glutGet(glutext::GLUT_X);
 		int y = glutGet(glutext::GLUT_Y);
+
 		glutSetWindow(ui->glut_window_id());
+
+		if(!w) w = glutGet(GLUT_WINDOW_WIDTH);
+
+		//2022: The Utilities window can be quite lopsided 
+		//once it expands. So this is a hack to center it
+		//some. However, such narrow windows usually have
+		//a single vertical column, and the title will be
+		//on the left of the mouse, so this kind of makes
+		//since. I'm not sure this isn't a bad idea for all
+		//windows...
+		if(w<300||w>600) x-=w/2; else x-=100; //?
+
 		glutPositionWindow(x-4,y);
 	}
 }

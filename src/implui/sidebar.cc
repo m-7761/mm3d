@@ -137,13 +137,35 @@ void SideBar::AnimPanel::submit(control *c)
 	switch(int id=c->id())
 	{		
 	case id_init:
-
-		frame.edit(0.0); //NEW (2020)
+			
 		extern int viewwin_tick(Win::si*,int,double&,int);
 		frame.spinner.set_tick_callback(viewwin_tick);
   
+		animation.expand();
+		frame_nav.expand().space(1);
+		frame.edit(0,0,0).compact().expand();
+		frame.edit(0.0); //BLACK MAGIC?
+		window.drop(frame.drop()).span(0).ralign();
+
+		uv_window.drop(frame.drop()).span(0).ralign();
+		uv_nav.cspace<center>();
+		uv_nav.expand().space(1);		
+		uv_animate.expand().place(right);
+		uv_animate.set(config.get("uv_animations",true));
+
 		//refresh_list(); //Won't do.
 
+		break;
+
+	case 'u':
+
+		config.set("uv_animations",(bool)uv_animate);		
+		model->setDrawOption(Model::DO_TEXTURE_MATRIX,uv_animate);
+		break;
+
+	case 'v':
+
+		model.perform_menu_action(id_edit_utildata);
 		break;
 	
 	case id_animate_play: 
@@ -162,6 +184,12 @@ void SideBar::AnimPanel::submit(control *c)
 }
 void SideBar::AnimPanel::refresh_list()
 {
+	bool uv = false;
+	for(auto*up:model->getUtilityList())
+	if(up->type==Model::UT_UvAnimation) 
+	uv = true;
+	uv_nav.set_hidden(!uv);
+
 	//See AnimWin::Impl::Impl.
 	//It's easier to let the animation window manage this since
 	//it's opaque.
@@ -931,7 +959,9 @@ void SideBar::PropPanel::group_props::submit(int id)
 			std::string groupName;
 			if(auto*str=model->getGroupName(was)) groupName = str;
 			else was = -1;
-			if(id_ok==Win::EditBox(&groupName,::tr("New Group","Name of new group window title"),::tr("Enter new group name:")))
+			if(id_ok==Win::EditBox(&groupName,
+			::tr("New Group","Name of new group window title"),
+			::tr("Enter new group name:"),1,Model::MAX_NAME_LEN))
 			{
 				model->addGroup(was,groupName.c_str());
 				group.menu.selection()->set_text(groupName);

@@ -48,8 +48,11 @@ struct SideBar : Win
 		nav(bar.main,"Animation"),
 		animation(nav,"",id_item),
 		frame_nav(nav),
-		frame(frame_nav,"",id_subitem),
-		window(frame_nav,"...",id_animate_settings)
+		frame(frame_nav,"Frame",id_subitem),		
+		window(frame_nav,"...",id_animate_settings),
+		uv_nav(nav),
+		uv_animate(uv_nav,"UV Animations\t",'u'),
+		uv_window(uv_nav,"...",'v')
 		{
 			//The "media bar" is proportional so
 			//it rests beside the animation tool.
@@ -57,12 +60,6 @@ struct SideBar : Win
 			media_nav.proportion().space(1,2,1,0,-1);
 			play.expand().picture(pics[pic_play]);
 			loop.expand().picture(pics[pic_stop]);
-
-			animation.expand();
-			frame_nav.expand().space(1);
-			frame.name("Frame");
-			frame.edit(0,0,0).compact().expand();						
-			window.drop(frame.drop()).span(0).ralign();
 
 			submit(bar.main); //id_init
 		}
@@ -77,6 +74,9 @@ struct SideBar : Win
 		row frame_nav;
 		spinbox frame;
 		button window;
+		row uv_nav;
+		boolean uv_animate;
+		button uv_window;
 
 	private:
 

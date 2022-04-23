@@ -173,13 +173,20 @@ void Model::deleteAnimation(unsigned index)
 
 	auto ab = _anim(index); if(!ab) return;
 	
+	MU_DeleteAnimation *undo = nullptr;
+
 	//DUPLICATES convertAnimToType deletion of vertex data.
-	auto undo = m_undoEnabled?new MU_DeleteAnimation(index,ab):nullptr;
+	if(m_undoEnabled)
+	{
+		undo = new MU_DeleteAnimation(index,ab);
+	}
+	else ab->release(); //2022
 
 	auto fp = ab->m_frame0; if(~fp) //ANIMMODE_FRAME
 	{		
 		auto dt = undo?undo->removeVertexData():nullptr;
-		removeFrameAnimData(fp,ab->_frame_count(),dt);
+
+		removeFrameAnimData(fp,ab->_frame_count(),dt,!dt); //release?
 	}
 	
 	removeAnimation(index); if(undo) sendUndo(undo);
@@ -194,11 +201,7 @@ bool Model::setAnimName(unsigned anim, const char *name)
 			m_changeBits|=AddAnimation; //2020
 
 			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetAnimName;
-				undo->setName(anim,name,ab->m_name.c_str());
-				sendUndo(undo);
-			}
+			sendUndo(new MU_SwapStableStr(AddAnimation,ab->m_name));
 
 			ab->m_name = name; 
 		}
@@ -258,7 +261,7 @@ bool Model::setAnimFrameCount(unsigned anim, unsigned count, unsigned where, Fra
 
 			insertFrameAnimData(fp,diff,ins?ins:dt,ab);
 		}
-		else removeFrameAnimData(fp,-diff,dt);
+		else removeFrameAnimData(fp,-diff,dt,!dt); //release?
 	}
 
 	for(auto&ea:ab->m_keyframes)
@@ -313,7 +316,21 @@ bool Model::setAnimFrameCount(unsigned anim, unsigned count, unsigned where, Fra
 bool Model::setAnimFPS(unsigned anim, double fps)
 {
 	if(auto*ab=_anim(anim))
-	{
+	{		
+		if(fps<setAnimFPS_minimum) //1
+		{
+			//2022: There's no code limiting FPS
+			//to a range that would prevent many
+			//uses of m_fps from running aground.								
+			assert(fps>=setAnimFPS_minimum);
+				
+			model_status(this,StatusError,STATUSTIME_LONG,
+			TRANSLATE("LowLevel","Programmer error: FPS below minimum (%d)"),setAnimFPS_minimum);
+
+			//return false;
+			fps = setAnimFPS_minimum; 
+		}
+
 		if(ab->m_fps!=fps) 
 		{
 			m_changeBits|=AnimationProperty;
@@ -322,7 +339,7 @@ bool Model::setAnimFPS(unsigned anim, double fps)
 			{
 				auto undo = new MU_SetAnimFPS;
 				undo->setFPS(anim,fps,ab->m_fps);
-				sendUndo(undo/*,true*/);
+				sendUndo(undo);
 			}
 
 			ab->m_fps = fps; 
@@ -1076,7 +1093,7 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 			
 			auto fp = ab->m_frame0; 
 			auto dt = undo?undo->removeVertexData():nullptr;
-			removeFrameAnimData(fp,ab->_frame_count(),dt);
+			removeFrameAnimData(fp,ab->_frame_count(),dt,!dt); //release?
 
 			ab->m_frame0 = ~0; //2022: Adding dedicated MU_VoidFrameAnimation undo for this.
 
@@ -1148,7 +1165,7 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 	{
 		isNew = false;
 
-		kf->release();
+		kf->release(); //???
 
 		kf = list[index];
 
@@ -1453,13 +1470,13 @@ void Model::insertFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData 
 	}
 }
 
-void Model::removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data)
+void Model::removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData *data, bool release)
 {
 	if(!frames||0==~frame0) return;
 
 	FrameAnimData::iterator jt; if(data)
 	{
-		assert(data->empty());
+		assert(data->empty()&&!release);
 
 		data->resize(frames*m_vertices.size());
 
@@ -1473,6 +1490,11 @@ void Model::removeFrameAnimData(unsigned frame0, unsigned frames, FrameAnimData 
 		{
 			std::copy(it,itt,jt); jt+=frames;
 		}
+		else if(release) //2022 //no undo?
+		{
+			for(auto jt=it;jt<itt;jt++) (*jt)->release();
+		}
+
 		ea->m_frames.erase(it,itt);		
 	}	
 
@@ -1662,6 +1684,8 @@ bool Model::setCurrentAnimationTime(double seconds, int loop, AnimationTimeE cal
 	double len = getAnimTimeFrame(m_currentAnim);
 	if((float)t>=len) //Truncate somewhat.
 	{
+		m_elapsedTime = t; //2022
+
 		t = fmod(t,len); //Note, len may be zero.
 
 		switch(loop) //2019
@@ -1679,6 +1703,19 @@ bool Model::setCurrentAnimationTime(double seconds, int loop, AnimationTimeE cal
 	return setCurrentAnimationFrameTime(t,calc);
 }
 
+bool Model::setCurrentAnimationElapsedFrameTime(double time, AnimationTimeE calc)
+{
+	auto anim = m_currentAnim;
+	auto am = m_animationMode; if(!am) return false;
+
+	double len = getAnimTimeFrame(anim);
+
+	m_elapsedTime = time; //2022
+
+	time = fmod(time,len); //Note, len may be zero.
+
+	return setCurrentAnimationFrameTime(time,calc);
+}
 bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 {
 	auto anim = m_currentAnim;
@@ -1709,6 +1746,9 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 		if(calc==AT_calculateNormals)
 		validateNormals();
 
+		if(time!=fmod(m_elapsedTime,len)) //2022
+		m_elapsedTime = time;
+
 		return len?true:false; 
 	}
 	else assert(len);
@@ -1720,6 +1760,11 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	//m_currentFrame = (unsigned)(frameTime/spf);
 	m_currentFrame = f;
 	m_currentTime = time;
+
+	if(time!=fmod(m_elapsedTime,len)) //2022
+	{
+		m_elapsedTime = time;
+	}
 	
 	if(calc!=AT_invalidateAnim) 
 	{

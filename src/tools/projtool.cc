@@ -87,7 +87,7 @@ void ProjTool::mouseButtonDown()
 	pos[2] = 0;
 	pos[3] = 1;
 	const Matrix &m = parent->getParentBestInverseMatrix();	
-	m.apply(pos);
+	m.apply4(pos);
 	for(int i=0;i<3;i++) m_orig[i] = pos[i];
 
 	// Find a unique name for the projection
@@ -147,7 +147,7 @@ void ProjTool::mouseButtonMove()
 	parent->getParentXYValue(pos[0],pos[1]);
 	pos[2] = 0;
 	pos[3] = 1;
-	parent->getParentBestInverseMatrix().apply(pos);
+	parent->getParentBestInverseMatrix().apply4(pos);
 	pos[0]-=m_orig[0];
 	pos[1]-=m_orig[1];
 	pos[2]-=m_orig[2];

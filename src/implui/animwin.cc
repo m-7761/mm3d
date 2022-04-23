@@ -302,7 +302,7 @@ void AnimWin::Impl::open2(bool undo)
 	
 	if(!undo&&mode)
 	{
-		model->nonEditOpComplete(::tr("Start animation mode","operation complete"));
+		model->operationComplete(::tr("Start animation mode","operation complete"));
 
 		if(anim!=soft_anim)
 		{
@@ -420,7 +420,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 		//NEW: Note setCurrentAnimation seems to ignore this unless the animation
 		//mode was previously ANIMMODE_NONE?!
 		//if(!undo) 
-		model->nonEditOpComplete(::tr("Set current animation","operation complete"));
+		model->operationComplete(::tr("Set current animation","operation complete"));
 	
 		frame = 0;
 
@@ -817,7 +817,7 @@ void AnimWin::Impl::refresh_item(bool undo)
 	else
 	{
 		shelf1.nav.enable();
-		shelf1.fps.limit(1,120);
+		shelf1.fps.limit(Model::setAnimFPS_minimum,120); //1
 
 		fps = model->getAnimFPS(anim);
 		wrap = model->getAnimWrap(anim);
@@ -898,7 +898,7 @@ void AnimWin::Impl::close()
 	if(model->inAnimationMode())
 	{
 		model->setNoAnimation();
-		model->nonEditOpComplete(::tr("End animation mode","operation complete"));
+		model->operationComplete(::tr("End animation mode","operation complete"));
 	}
 		
 	//NEW: Keeping open.
@@ -1015,7 +1015,7 @@ void AnimWin::submit(int id)
 	case id_anim_fps:
 
 		//log_debug("changing FPS\n"); //???
-		model->setAnimFPS(impl->anim,shelf1.fps);
+		if(model->setAnimFPS(impl->anim,shelf1.fps))
 		model->operationComplete(::tr("Set FPS","Frames per second,operation complete"));
 		break;
 

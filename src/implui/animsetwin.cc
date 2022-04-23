@@ -45,7 +45,7 @@ struct AnimSetWin : Win
 		name_col(header,"Name"),
 		fps_col(header,"FPS"),
 		frames_col(header,"Frames"),
-		loop(name_col,"Wrap",id_check),
+		wrap(name_col,"Wrap",id_check),
 	nav1(main),		
 		up(nav1,"Up",id_up),
 		down(nav1,"Down",id_down),
@@ -78,7 +78,7 @@ struct AnimSetWin : Win
 		//But just to be safe.
 		table.expand();
 
-		loop.ctrl_tab_navigate();
+		wrap.ctrl_tab_navigate();
 		//name_col.expand(); //Doesn't work yet.
 		name_col.lock(150,false);
 		//NOTE: The end column auto-extends, so
@@ -97,7 +97,7 @@ struct AnimSetWin : Win
 	dropdown type; listbox table; //MERGE US?
 	listbar header;
 	multiple::item name_col,fps_col,frames_col;
-	boolean loop; 
+	boolean wrap; 
 	row nav1; button up,down;
 	row nav2; button add,name,del;
 	row nav3; button copy;
@@ -259,7 +259,7 @@ struct AnimEditWin : Win //EditWin
 		}
 		if(id!=id_cancel) 
 		{
-			conv = Model::AnimationModeE(a); basic_submit(id_ok);
+			conv = (Model::AnimationModeE)a; basic_submit(id_ok);
 		}
 	}
 };
@@ -388,7 +388,7 @@ void AnimSetWin::submit(int id)
 	}
 	case id_check:
 
-		table^[&](li::multisel ea){ ea->check(loop); };
+		table^[&](li::multisel ea){ ea->check(wrap); };
 		break;
 
 	case id_sort:
@@ -411,7 +411,6 @@ void AnimSetWin::submit(int id)
 	
 		switch(event.get_click())
 		{
-		default: //Spacebar????
 		case 2: id = id_name; break; //Double-click?
 		case 1:
 
@@ -434,7 +433,9 @@ void AnimSetWin::submit(int id)
 				case 2: model->setAnimTimeFrame((int)table,modal); break;
 				}
 			}
-			return;		
+			//break;
+
+		case 0: return; //2022
 		}
 		//break; //FALLING-THROUGH
 	
@@ -689,7 +690,7 @@ void AnimSetWin::refresh()
 		//I think to be sortable. unsort must go obviously.
 		if(!animsetwin_sort)
 		{
-			//header.disable(); loop.enable(); 
+			//header.disable(); wrap.enable(); 
 		}
 	}
 	else

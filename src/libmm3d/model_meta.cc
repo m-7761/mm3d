@@ -28,7 +28,7 @@
 #include "modelstatus.h"
 #include "log.h"
 
-#ifdef MM3D_EDIT
+#ifdef MM3D_EDIT //???
 
 // TODO centralize this
 static void model_meta_safe_strcpy(char *dest, const char *src, size_t len)
@@ -38,14 +38,12 @@ static void model_meta_safe_strcpy(char *dest, const char *src, size_t len)
 		strncpy(dest,src,len);
 		dest[len-1] = '\0';
 	}
-	else
-	{
-		dest[0] = '\0';
-	}
+	else dest[0] = '\0';
 }
 
 struct MetaDataKeyMatch
-	: public std::binary_function<Model::MetaData, const char *,bool>
+	:
+public std::binary_function<Model::MetaData, const char *,bool>
 {
 	bool operator()(const Model::MetaData &md, const char *key)const
 	{
@@ -71,9 +69,9 @@ void Model::addMetaData(const char *key, const char *value)
 
 void Model::updateMetaData(const char *key, const char *value)
 {
-	MetaDataList::iterator it
-		= std::find_if(m_metaData.begin(),m_metaData.end(),
-				std::bind2nd(MetaDataKeyMatch(),key));
+	auto it = std::find_if
+	(m_metaData.begin(),m_metaData.end(),
+	std::bind2nd(MetaDataKeyMatch(),key));
 	if(it==m_metaData.end())
 	{
 		MetaData md;
@@ -99,23 +97,21 @@ void Model::updateMetaData(const char *key, const char *value)
 	}
 
 	it->value = value;
-
 }
 
-bool Model::getMetaData(const char *key,char *value, size_t valueLen)const
+bool Model::getMetaData(const char *key, char *value, size_t valueLen)const
 {
-	MetaDataList::const_iterator it
-		= std::find_if(m_metaData.begin(),m_metaData.end(),
-				std::bind2nd(MetaDataKeyMatch(),key));
+	auto it = std::find_if
+	(m_metaData.begin(),m_metaData.end(),
+	std::bind2nd(MetaDataKeyMatch(),key));
 	if(it==m_metaData.end())
-		return false;
-
-	model_meta_safe_strcpy(value,(*it).value.c_str(),valueLen);
+	return false;
+	model_meta_safe_strcpy(value,it->value.c_str(),valueLen);
 	return true;
 }
 
 //REMOVE ME (TRUNCATES)
-bool Model::getMetaData(unsigned int index,char *key, size_t keyLen,char *value, size_t valueLen)const
+bool Model::getMetaData(unsigned int index, char *key, size_t keyLen, char *value, size_t valueLen)const
 {
 	if(index<m_metaData.size())
 	{
@@ -147,7 +143,7 @@ void Model::removeLastMetaData()
 {
 	// INTERNAL USE ONLY!!!
 
-	// This is just for undo purposes,so we don't need an undo
+	// This is just for undo purposes, so we don't need an undo
 
 	if(!m_metaData.empty())
 	{

@@ -38,7 +38,7 @@ struct BackgroundWin : Win
 		:
 	Win("Select Background Image"),
 	model(model),
-	tab(main,id_item),
+	tab(main,id_tab),
 	scene(tab,id_scene),
 	browse_nav(tab),
 	source(browse_nav,"",id_source),
@@ -81,7 +81,7 @@ void BackgroundWin::submit(int id)
 		texture.setModel(model);
 		//break;
 
-	case id_item:
+	case id_tab:
 
 		source.text() = model->getBackgroundImage((int)tab);
 		

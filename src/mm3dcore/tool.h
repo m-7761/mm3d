@@ -167,7 +167,7 @@ public:
 	struct ToolCoordT
 	{
 		//NEW: Help some highly unreadable code.
-		operator unsigned int(){ return pos.index; }
+		operator unsigned(){ return pos.index; }
 
 		Model::Position pos;
 
@@ -223,8 +223,7 @@ protected:
 	// These functions act like addVertex and addPoint except that they
 	// work in the viewport space instead of the model space, use these
 	// instead of addVertex/addPoint whenever possible
-	ToolCoordT addPosition(Model::PositionTypeE type,double,double,double,
-		const char *name=nullptr, int boneId=-1);
+	ToolCoordT addPosition(Model::PositionTypeE,double,double,double, const char *name=nullptr, int boneId=-1);
 	void movePosition(const Model::Position &pos, double x, double y, double z);
 	void movePositionUnanimated(const Model::Position &pos, double x, double y, double z);
 	void makeToolCoordList(ToolCoordList &list, const pos_list &positions);

@@ -32,163 +32,174 @@
 
 class ModelUndo : public Undo
 {
-	public:
+public:
 
-		ModelUndo(){ s_allocated++; };
-		virtual ~ModelUndo(){ s_allocated--; };
+	static int s_allocated;
+	ModelUndo(){ s_allocated++; };
+	virtual ~ModelUndo(){ s_allocated--; };
 		
-		virtual void undo(Model *)= 0;
-		virtual void redo(Model *)= 0;
-
-		static int s_allocated;
+	virtual void undo(Model*) = 0;
+	virtual void redo(Model*) = 0;
 };
 
 class MU_TranslateSelected : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size(){ return sizeof(MU_TranslateSelected); };
+	unsigned size(){ return sizeof(MU_TranslateSelected); };
 
-		//void setMatrix(const Matrix &rhs){ m_matrix = rhs; }
-		//Matrix getMatrix()const{ return m_matrix; };
-		void setVector(const double vec[3])
-		{
-			memcpy(m_vec,vec,sizeof(m_vec));
-		}
+	//void setMatrix(const Matrix &rhs){ m_matrix = rhs; }
+	//Matrix getMatrix()const{ return m_matrix; };
+	void setVector(const double vec[3])
+	{
+		memcpy(m_vec,vec,sizeof(m_vec));
+	}
 
-	private:
-		//Matrix m_matrix;
-		double m_vec[3];
+private:
+	//Matrix m_matrix;
+	double m_vec[3];
 };
 
 class MU_RotateSelected : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size(){ return sizeof(MU_RotateSelected); };
+	unsigned size(){ return sizeof(MU_RotateSelected); };
 
-		void setMatrixPoint(const Matrix &rhs, const double point[3]);
-		Matrix getMatrix()const { return m_matrix; };
+	void setMatrixPoint(const Matrix &rhs, const double point[3]);
+	Matrix getMatrix()const { return m_matrix; };
 
-	private:
+private:
 
-		Matrix m_matrix;
-		double m_point[3];
+	Matrix m_matrix;
+	double m_point[3];
 };
 
 class MU_ApplyMatrix : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size(){ return sizeof(MU_ApplyMatrix); };
+	unsigned size(){ return sizeof(MU_ApplyMatrix); };
 
-		void setMatrix(const Matrix &mat,Model::OperationScopeE scope);
-		Matrix getMatrix()const { return m_matrix; };
+	void setMatrix(const Matrix &mat,Model::OperationScopeE scope);
+	Matrix getMatrix()const { return m_matrix; };
 
-	private:
-		Matrix m_matrix;
-		Model::OperationScopeE m_scope;
+private:
+	Matrix m_matrix;
+	Model::OperationScopeE m_scope;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SelectionMode : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	virtual bool nonEdit(){ return true; }
 
-		unsigned size();
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		void setSelectionMode(Model::SelectionModeE mode,Model::SelectionModeE oldMode){ m_mode = mode; m_oldMode = oldMode; };
+	unsigned size();
 
-	private:
-		Model::SelectionModeE m_mode;
-		Model::SelectionModeE m_oldMode;
+	void setSelectionMode(Model::SelectionModeE mode,Model::SelectionModeE oldMode){ m_mode = mode; m_oldMode = oldMode; };
+
+private:
+	Model::SelectionModeE m_mode;
+	Model::SelectionModeE m_oldMode;
 };
 
 class MU_Select : public ModelUndo
 {
-	public:
-		MU_Select(Model::SelectionModeE mode):m_mode(mode)
-		{}
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	MU_Select(Model::SelectionModeE mode):m_mode(mode)
+	{}
 
-		unsigned size();
+	virtual bool nonEdit(){ return true; }
 
-		Model::SelectionModeE getSelectionMode()const { return m_mode; };
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		//YUCK: begin/endSelectionDifference
-		typedef Model::_OrderedSelection OS;
-		void setSelectionDifference(int number, OS &s, OS::Marker &oldS);
-		void setSelectionDifference(int number, unsigned selected, unsigned oldSelected);
+	unsigned size();
+
+	Model::SelectionModeE getSelectionMode()const { return m_mode; };
+
+	//YUCK: begin/endSelectionDifference
+	typedef Model::_OrderedSelection OS;
+	void setSelectionDifference(int number, OS &s, OS::Marker &oldS);
+	void setSelectionDifference(int number, unsigned selected, unsigned oldSelected);
 		
-		void toggle(int number);
+	void toggle(int number);
 
-		unsigned diffCount(){ return m_diff.size(); };
+	unsigned diffCount(){ return m_diff.size(); };
 
-	private:
-		typedef struct _SelectionDifference_t
+private:
+	typedef struct _SelectionDifference_t
+	{
+		int  number;
+		unsigned selected;
+		unsigned oldSelected;
+		bool operator<(const struct _SelectionDifference_t &rhs)const
 		{
-			int  number;
-			unsigned selected;
-			unsigned oldSelected;
-			bool operator<(const struct _SelectionDifference_t &rhs)const
-			{
-				return (this->number<rhs.number);
-			}
-			bool operator== (const struct _SelectionDifference_t &rhs)const
-			{
-				return (this->number==rhs.number);
-			}
-		} SelectionDifferenceT;
+			return (this->number<rhs.number);
+		}
+		bool operator== (const struct _SelectionDifference_t &rhs)const
+		{
+			return (this->number==rhs.number);
+		}
+	} SelectionDifferenceT;
 
-		//2019: setSelectionDifference used this. It seems nuts/prevents
-		//combining. 
-		//typedef sorted_list<SelectionDifferenceT> SelectionDifferenceList;
-		typedef std::vector<SelectionDifferenceT> SelectionDifferenceList;
+	//2019: setSelectionDifference used this. It seems nuts/prevents
+	//combining. 
+	//typedef sorted_list<SelectionDifferenceT> SelectionDifferenceList;
+	typedef std::vector<SelectionDifferenceT> SelectionDifferenceList;
 
-		Model::SelectionModeE m_mode;
-		SelectionDifferenceList m_diff;
+	Model::SelectionModeE m_mode;
+	SelectionDifferenceList m_diff;
 		
 };
 
 class MU_SetSelectedUv : public ModelUndo
 {
-	public:
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+public:
 
-		unsigned size();
+	virtual bool nonEdit(){ return true; }
 
-		void setSelectedUv(const int_list &newUv, const int_list &oldUv);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-	private:
-		int_list m_oldUv;
-		int_list m_newUv;
+	unsigned size();
+
+	void setSelectedUv(const int_list &newUv, const int_list &oldUv);
+
+private:
+	int_list m_oldUv; //TODO: std::swap
+	int_list m_newUv;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_Hide : public ModelUndo
 {
 public:
 
 	MU_Hide(int how):m_hide(how){}
+
+	virtual bool nonEdit(){ return true; }
 
 	void undo(Model*m){ hide(m,m_hide==-1?-1:0==m_hide); }
 	void redo(Model*m){ hide(m,m_hide==-1?-1:0!=m_hide); }
@@ -217,53 +228,55 @@ private:
 	HideDifferenceList m_diff;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_InvertNormal : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void addTriangle(int triangle);
+	void addTriangle(int triangle);
 
-	private:
-		int_list m_triangles;
+private:
+	int_list m_triangles;
 };
 
 class MU_MoveUnanimated : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void addPosition(const Model::Position &pos, double x, double y, double z,
-				double oldx, double oldy, double oldz);
+	void addPosition(const Model::Position &pos, double x, double y, double z,
+			double oldx, double oldy, double oldz);
 
-	private:
+private:
 
-		struct MovePrimitiveT : Model::Position
-		{
-			double x;
-			double y;
-			double z;
-			double oldx;
-			double oldy;
-			double oldz;
-		};
+	struct MovePrimitiveT : Model::Position
+	{
+		double x;
+		double y;
+		double z;
+		double oldx;
+		double oldy;
+		double oldz;
+	};
 
-		//TODO: Use unsorted_map/Position.
-		typedef sorted_list<MovePrimitiveT> MovePrimitiveList;
+	//TODO: Use unsorted_map/Position.
+	typedef sorted_list<MovePrimitiveT> MovePrimitiveList;
 
-		MovePrimitiveList m_objects;
+	MovePrimitiveList m_objects;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetObjectUnanimated : public ModelUndo
 {
 public:
@@ -290,1336 +303,870 @@ private:
 	double v[3], vold[3];
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetTexture : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setTexture(unsigned groupNumber, int newTexture, int oldTexture);
+	void setTexture(unsigned groupNumber, int newTexture, int oldTexture);
 
-	private:
-		typedef struct _SetTexture_t
-		{
-			unsigned groupNumber;
-			int newTexture;
-			int oldTexture;
-		} SetTextureT;
-		typedef std::vector<SetTextureT> SetTextureList;
+private:
+	typedef struct _SetTexture_t
+	{
+		unsigned groupNumber;
+		int newTexture;
+		int oldTexture;
+	} SetTextureT;
+	typedef std::vector<SetTextureT> SetTextureList;
 
-		SetTextureList m_list;
+	SetTextureList m_list;
 };
 
-class MU_AddVertex : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addVertex(unsigned index,Model::Vertex *vertex);
-
-	private:
-		typedef struct _AddVertex_t
-		{
-			unsigned index;
-			Model::Vertex *vertex;
-		} AddVertexT;
-		typedef std::vector<AddVertexT> AddVertexList;
-
-		AddVertexList m_list;
-};
-
-class MU_AddTriangle : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addTriangle(unsigned index,Model::Triangle *);
-
-	private:
-		typedef struct _AddTriangle_t
-		{
-			unsigned index;
-			Model::Triangle *triangle;
-		} AddTriangleT;
-		typedef std::vector<AddTriangleT> AddTriangleList;
-
-		AddTriangleList m_list;
-};
-
-class MU_AddGroup : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addGroup(unsigned index,Model::Group *);
-
-	private:
-		typedef struct _AddGroup_t
-		{
-			unsigned index;
-			Model::Group *group;
-		} AddGroupT;
-		typedef std::vector<AddGroupT> AddGroupList;
-
-		AddGroupList m_list;
-};
-
-class MU_AddTexture : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addTexture(unsigned index,Model::Material *);
-
-	private:
-		typedef struct _AddTexture_t
-		{
-			unsigned index;
-			Model::Material *texture;
-		} AddTextureT;
-		typedef std::vector<AddTextureT> AddTextureList;
-
-		AddTextureList m_list;
-};
-
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetTextureCoords : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void addTextureCoords(unsigned triangle, unsigned vertexIndex, float s, float t, float oldS, float oldT);
+	void addTextureCoords(unsigned triangle, unsigned vertexIndex, float s, float t, float oldS, float oldT);
 
-	private:
-		typedef struct _SetTextureCoords_t
+private:
+	typedef struct _SetTextureCoords_t
+	{
+		unsigned triangle;
+		unsigned vertexIndex;
+		float t;
+		float s;
+		float oldT;
+		float oldS;
+		bool operator<(const struct _SetTextureCoords_t &rhs)const
 		{
-			unsigned triangle;
-			unsigned vertexIndex;
-			float t;
-			float s;
-			float oldT;
-			float oldS;
-			bool operator<(const struct _SetTextureCoords_t &rhs)const
-			{
-				return (this->triangle<rhs.triangle
-					  ||(this->triangle==rhs.triangle&&this->vertexIndex<rhs.vertexIndex));
-			};
-			bool operator==(const struct _SetTextureCoords_t &rhs)const
-			{
-				return (this->triangle==rhs.triangle&&this->vertexIndex==rhs.vertexIndex);
-			};
-		} SetTextureCoordsT;
+			return (this->triangle<rhs.triangle
+					||(this->triangle==rhs.triangle&&this->vertexIndex<rhs.vertexIndex));
+		};
+		bool operator==(const struct _SetTextureCoords_t &rhs)const
+		{
+			return (this->triangle==rhs.triangle&&this->vertexIndex==rhs.vertexIndex);
+		};
+	} SetTextureCoordsT;
 
-		typedef sorted_list<SetTextureCoordsT> STCList;
+	typedef sorted_list<SetTextureCoordsT> STCList;
 
-		STCList m_list;
+	STCList m_list;
 };
 
 class MU_AddToGroup : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void addToGroup(unsigned groupNum, unsigned triangleNum);
+	void addToGroup(unsigned groupNum, unsigned triangleNum);
 
-	private:
-		typedef struct _AddToGroup_t
-		{
-			unsigned groupNum;
-			unsigned triangleNum;
-		} AddToGroupT;
-		typedef std::vector<AddToGroupT> AddToGroupList;
+private:
+	typedef struct _AddToGroup_t
+	{
+		unsigned groupNum;
+		unsigned triangleNum;
+	} AddToGroupT;
+	typedef std::vector<AddToGroupT> AddToGroupList;
 
-		AddToGroupList m_list;
+	AddToGroupList m_list;
 };
 
 class MU_RemoveFromGroup : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void removeFromGroup(unsigned groupNum, unsigned triangleNum);
+	void removeFromGroup(unsigned groupNum, unsigned triangleNum);
 
-	private:
-		typedef struct _RemoveFromGroup_t
-		{
-			unsigned groupNum;
-			unsigned triangleNum;
-		} RemoveFromGroupT;
-		typedef std::vector<RemoveFromGroupT> RemoveFromGroupList;
+private:
+	typedef struct _RemoveFromGroup_t
+	{
+		unsigned groupNum;
+		unsigned triangleNum;
+	} RemoveFromGroupT;
+	typedef std::vector<RemoveFromGroupT> RemoveFromGroupList;
 
-		RemoveFromGroupList m_list;
+	RemoveFromGroupList m_list;
 };
 
-class MU_DeleteTriangle : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deleteTriangle(unsigned triangleNum,Model::Triangle *triangle);
-
-	private:
-		typedef struct _DeleteTriangle_t
-		{
-			unsigned triangleNum;
-			Model::Triangle *triangle;
-		} DeleteTriangleT;
-		typedef std::vector<DeleteTriangleT> DeleteTriangleList;
-
-		DeleteTriangleList m_list;
-};
-
-class MU_DeleteVertex : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deleteVertex(unsigned vertexNum,Model::Vertex *vertex);
-
-	private:
-		typedef struct _DeleteVertex_t
-		{
-			unsigned vertexNum;
-			Model::Vertex *vertex;
-		} DeleteVertexT;
-		typedef std::vector<DeleteVertexT> DeleteVertexList;
-
-		DeleteVertexList m_list;
-};
-
-class MU_DeleteBoneJoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deleteBoneJoint(unsigned jointNum,Model::Joint *joint);
-
-	private:
-		unsigned		 m_jointNum;
-		Model::Joint *m_joint;
-};
-
-class MU_DeletePoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deletePoint(unsigned pointNum,Model::Point *point);
-
-	private:
-		unsigned		 m_pointNum;
-		Model::Point *m_point;
-};
-
-class MU_DeleteProjection : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deleteProjection(unsigned projNum,Model::TextureProjection *proj);
-
-	private:
-		unsigned		 m_projNum;
-		Model::TextureProjection *m_proj;
-};
-
-class MU_AddBoneJoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addBoneJoint(unsigned jointNum,Model::Joint *joint);
-
-	private:
-		unsigned		 m_jointNum;
-		Model::Joint *m_joint;
-};
-
-class MU_AddPoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addPoint(unsigned pointNum,Model::Point *point);
-
-	private:
-		unsigned		 m_pointNum;
-		Model::Point *m_point;
-};
-
-class MU_AddProjection : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void redoRelease();
-
-		unsigned size();
-
-		void addProjection(unsigned pointNum,Model::TextureProjection *point);
-
-	private:
-		unsigned		 m_projNum;
-		Model::TextureProjection *m_proj;
-};
-
-class MU_DeleteGroup : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deleteGroup(unsigned groupNum,Model::Group *group);
-
-	private:
-		typedef struct _DeleteGroup_t
-		{
-			unsigned groupNum;
-			Model::Group *group;
-		} DeleteGroupT;
-		typedef std::vector<DeleteGroupT> DeleteGroupList;
-
-		DeleteGroupList m_list;
-};
-
-class MU_DeleteTexture : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		void undoRelease();
-
-		unsigned size();
-
-		void deleteTexture(unsigned textureNum,Model::Material *texture);
-
-	private:
-		typedef struct _DeleteTexture_t
-		{
-			unsigned textureNum;
-			Model::Material *texture;
-		} DeleteTextureT;
-		typedef std::vector<DeleteTextureT> DeleteTextureList;
-
-		DeleteTextureList m_list;
-};
-
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetLightProperties : public ModelUndo
 {
-	public:
-		enum _LightType_e
-		{
-			LightAmbient  = 0,
-			LightDiffuse,
-			LightSpecular,
-			LightEmissive,
-			LightTypeMax  
-		};
-		typedef enum _LightType_e LightTypeE;
+public:
+	enum _LightType_e
+	{
+		LightAmbient  = 0,
+		LightDiffuse,
+		LightSpecular,
+		LightEmissive,
+		LightTypeMax  
+	};
+	typedef enum _LightType_e LightTypeE;
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setLightProperties(unsigned textureNum,LightTypeE type, const float *newLight, const float *oldLight);
+	void setLightProperties(unsigned textureNum,LightTypeE type, const float *newLight, const float *oldLight);
 
-	private:
-		typedef struct _LightProperties_t
-		{
-			unsigned textureNum;
-			float newLight[LightTypeMax][4];
-			float oldLight[LightTypeMax][4];
-			bool  isSet[LightTypeMax];
-		} LightPropertiesT;
+private:
+	typedef struct _LightProperties_t
+	{
+		unsigned textureNum;
+		float newLight[LightTypeMax][4];
+		float oldLight[LightTypeMax][4];
+		bool  isSet[LightTypeMax];
+	} LightPropertiesT;
 
-		typedef std::vector<LightPropertiesT> LightPropertiesList;
+	typedef std::vector<LightPropertiesT> LightPropertiesList;
 
-		LightPropertiesList m_list;
+	LightPropertiesList m_list;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetShininess : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setShininess(unsigned textureNum, const float &newValue, const float &oldValue);
+	void setShininess(unsigned textureNum, const float &newValue, const float &oldValue);
 
-	private:
-		typedef struct _Shininess_t
-		{
-			unsigned textureNum;
-			float oldValue;
-			float newValue;
-		} ShininessT;
+private:
+	typedef struct _Shininess_t
+	{
+		unsigned textureNum;
+		float oldValue;
+		float newValue;
+	} ShininessT;
 
-		typedef std::vector<ShininessT> ShininessList;
+	typedef std::vector<ShininessT> ShininessList;
 
-		std::vector<ShininessT> m_list;
+	std::vector<ShininessT> m_list;
 };
 
-class MU_SetTextureName : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setTextureName(unsigned textureNum, const char *newName, const char *oldName);
-
-	private:
-
-		unsigned m_textureNum;
-		std::string	m_newName;
-		std::string	m_oldName;
-};
-
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetTriangleVertices : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setTriangleVertices(unsigned triangleNum,
-				unsigned newV1, unsigned newV2, unsigned newV3,
-				unsigned oldV1, unsigned oldV2, unsigned oldV3);
+	void setTriangleVertices(unsigned triangleNum,
+			unsigned newV1, unsigned newV2, unsigned newV3,
+			unsigned oldV1, unsigned oldV2, unsigned oldV3);
 
-	private:
-		typedef struct _TriangleVertices_t
-		{
-			unsigned triangleNum;
-			unsigned newVertices[3];
-			unsigned oldVertices[3];
-		} TriangleVerticesT;
+private:
+	typedef struct _TriangleVertices_t
+	{
+		unsigned triangleNum;
+		unsigned newVertices[3];
+		unsigned oldVertices[3];
+	} TriangleVerticesT;
 
-		typedef std::vector<TriangleVerticesT> TriangleVerticesList;
+	typedef std::vector<TriangleVerticesT> TriangleVerticesList;
 
-		TriangleVerticesList m_list;
+	TriangleVerticesList m_list;
 };
 
 class MU_SubdivideSelected : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size(){ return sizeof(MU_SubdivideSelected); };
+	unsigned size(){ return sizeof(MU_SubdivideSelected); };
 
-	private:
+private:
 };
-
 class MU_SubdivideTriangle : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model*);
-		void redo(Model*){ /*NOP*/ }
-		bool combine(Undo *);
+	void undo(Model*);
+	void redo(Model*){ /*NOP*/ }
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void subdivide(unsigned a, unsigned b, unsigned c, unsigned d);
-		void addVertex(unsigned v);
+	void subdivide(unsigned a, unsigned b, unsigned c, unsigned d);
+	void addVertex(unsigned v);
 
-	private:
+private:
 
-		typedef struct _SubdivideTriangle_t
-		{
-			unsigned a;
-			unsigned b;
-			unsigned c;
-			unsigned d;
-		} SubdivideTriangleT;
+	typedef struct _SubdivideTriangle_t
+	{
+		unsigned a;
+		unsigned b;
+		unsigned c;
+		unsigned d;
+	} SubdivideTriangleT;
 
-		//FIX ME?
-		typedef std::vector<SubdivideTriangleT> SubdivideTriangleList;
-		SubdivideTriangleList m_list;
-		std::vector<unsigned> m_vlist;
+	//FIX ME?
+	typedef std::vector<SubdivideTriangleT> SubdivideTriangleList;
+	SubdivideTriangleList m_list;
+	std::vector<unsigned> m_vlist;
 };
 
 class MU_ChangeAnimState : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	virtual bool nonEdit(){ return true; }
 
-		unsigned size();
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		MU_ChangeAnimState(Model *newInfo, const Model::RestorePoint &old)
-		:m_new(newInfo->makeRestorePoint()),m_old(old){}
+	unsigned size();
 
-	protected:
+	MU_ChangeAnimState(Model *newInfo, const Model::RestorePoint &old)
+	:m_new(newInfo->makeRestorePoint()),m_old(old){}
 
-		Model::RestorePoint m_new,m_old;
+protected:
+
+	Model::RestorePoint m_new,m_old;
 };
 
-
-class MU_ChangeSkeletalMode : public ModelUndo //COMBINE ME?
+class MU_ChangeSkeletalMode : public ModelUndo
 {
-	public:
+public:
 		
-		MU_ChangeSkeletalMode(bool how):m_how(how){}
+	MU_ChangeSkeletalMode(bool how):m_how(how){}
 
-		void undo(Model*),redo(Model*);
+	virtual bool nonEdit(){ return true; }
 
-		bool combine(Undo *);
+	void undo(Model*),redo(Model*);
 
-		unsigned size(){ return sizeof(MU_ChangeSkeletalMode); }
+	bool combine(Undo *);
 
-	private:
+	unsigned size(){ return sizeof(MU_ChangeSkeletalMode); }
 
-		bool m_how;
-};
+private:
 
-
-class MU_SetAnimName : public ModelUndo
-{
-	public:
-
-		void undo(Model*),redo(Model*);
-
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setName(unsigned animNum, const char *newName, const char *oldName);
-
-	private:
-
-		unsigned m_animNum;
-		std::string	m_newName;
-		std::string	m_oldName;
+	bool m_how;
 };
 
 class MU_SetAnimFrameCount : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		void undoRelease();
-		void redoRelease();
+	void undoRelease();
+	void redoRelease();
 
-		unsigned size();
+	unsigned size();
 
-		void setAnimFrameCount(unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where);
+	void setAnimFrameCount(unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where);
 
-		void removeTimeTable(const std::vector<double> &tt)
-		{
-			if(m_oldCount>m_newCount) //Reminder: Dinkumware range checks +/- operators
-			m_timetable.assign(tt.begin()+m_where,tt.begin()+(m_where+m_oldCount-m_newCount)); 
-		}
+	void removeTimeTable(const std::vector<double> &tt)
+	{
+		if(m_oldCount>m_newCount) //Reminder: Dinkumware range checks +/- operators
+		m_timetable.assign(tt.begin()+m_where,tt.begin()+(m_where+m_oldCount-m_newCount)); 
+	}
 
-		Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
+	Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
 
-	private:
+private:
 
-		unsigned m_animNum;
-		unsigned m_newCount;
-		unsigned m_oldCount;		
-		unsigned m_where; 
+	unsigned m_animNum;
+	unsigned m_newCount;
+	unsigned m_oldCount;		
+	unsigned m_where; 
 
-		std::vector<double> m_timetable;
-		Model::FrameAnimData m_vertices;
+	std::vector<double> m_timetable;
+	Model::FrameAnimData m_vertices;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetAnimFPS : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setFPS(unsigned animNum, double newFps, double oldFps);
+	void setFPS(unsigned animNum, double newFps, double oldFps);
 
-	private:
+private:
 
-		unsigned m_animNum;
-		double	m_newFPS;
-		double	m_oldFPS;
+	unsigned m_animNum;
+	double	m_newFPS;
+	double	m_oldFPS;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetAnimWrap : public ModelUndo
 {
-	public:
+public:
 		
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-		unsigned size(){ return sizeof(MU_SetAnimWrap); }
+	unsigned size(){ return sizeof(MU_SetAnimWrap); }
 
-		void setAnimWrap(unsigned animNum, bool newWrap, bool oldWrap);
+	void setAnimWrap(unsigned animNum, bool newWrap, bool oldWrap);
 
-	private:
+private:
 
-		unsigned m_animNum;
-		bool m_new, m_old;
+	unsigned m_animNum;
+	bool m_new, m_old;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 //https://github.com/zturtleman/mm3d/issues/106
 class MU_SetAnimTime : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-		unsigned size(){ return sizeof(MU_SetAnimTime); }
+	unsigned size(){ return sizeof(MU_SetAnimTime); }
 
-		void setAnimFrameTime(unsigned animNum, unsigned frame, double newTime, double oldTime);
-		void setAnimTimeFrame(unsigned animNum, double newTime, double oldTime)
-		{
-			setAnimFrameTime(animNum,INT_MAX,newTime,oldTime);
-		}
+	void setAnimFrameTime(unsigned animNum, unsigned frame, double newTime, double oldTime);
+	void setAnimTimeFrame(unsigned animNum, double newTime, double oldTime)
+	{
+		setAnimFrameTime(animNum,INT_MAX,newTime,oldTime);
+	}
 
-	private:
+private:
 
-		unsigned m_animNum;
-		unsigned m_animFrame;
-		double	m_newTime;
-		double	m_oldTime;
+	unsigned m_animNum;
+	unsigned m_animFrame;
+	double	m_newTime;
+	double	m_oldTime;
 };
 
 class MU_SetObjectKeyframe : public ModelUndo
 {
-	protected:
+protected:
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-	public:
+public:
 
-		unsigned size();
+	unsigned size();
 
-		MU_SetObjectKeyframe(unsigned anim, unsigned frame, Model::KeyType2020E isRotation)
-		:m_anim(anim),m_frame(frame),m_isRotation(isRotation)
-		{}
+	MU_SetObjectKeyframe(unsigned anim, unsigned frame, Model::KeyType2020E isRotation)
+	:m_anim(anim),m_frame(frame),m_isRotation(isRotation)
+	{}
 
-		void addKeyframe(Model::Position j, bool isNew,
-			double x, double y, double z, Model::Interpolate2020E e,
-				double oldx, double oldy, double oldz, Model::Interpolate2020E olde);
+	void addKeyframe(Model::Position j, bool isNew,
+		double x, double y, double z, Model::Interpolate2020E e,
+			double oldx, double oldy, double oldz, Model::Interpolate2020E olde);
 
-	private:
+private:
 
-		struct SetKeyFrameT : Model::Position
-		{
-			using Position::operator=; //C++
+	struct SetKeyFrameT : Model::Position
+	{
+		using Position::operator=; //C++
 
-			bool isNew;
-			double x;
-			double y;
-			double z;
-			double oldx;
-			double oldy;
-			double oldz;
-			Model::Interpolate2020E e,olde;
-		};
-		typedef sorted_list<SetKeyFrameT> SetKeyframeList;
+		bool isNew;
+		double x;
+		double y;
+		double z;
+		double oldx;
+		double oldy;
+		double oldz;
+		Model::Interpolate2020E e,olde;
+	};
+	typedef sorted_list<SetKeyFrameT> SetKeyframeList;
 
-		SetKeyframeList m_keyframes;
-		unsigned m_anim;
-		unsigned m_frame;
-		Model::KeyType2020E m_isRotation;
+	SetKeyframeList m_keyframes;
+	unsigned m_anim;
+	unsigned m_frame;
+	Model::KeyType2020E m_isRotation;
 };
 
 class MU_DeleteObjectKeyframe : public ModelUndo
 {
-	protected:
+protected:
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-	public:
+public:
 
-		void undoRelease();
+	void undoRelease();
 
-		unsigned size();
+	unsigned size();
 
-		MU_DeleteObjectKeyframe(unsigned anim, unsigned frame)
-		:m_anim(anim),m_frame(frame){}
+	MU_DeleteObjectKeyframe(unsigned anim, unsigned frame)
+	:m_anim(anim),m_frame(frame){}
 
-		void deleteKeyframe(Model::Keyframe *keyframe);
+	void deleteKeyframe(Model::Keyframe *keyframe);
 
-	private:
-		typedef std::vector<Model::Keyframe*> DeleteKeyframeList;
+private:
+	typedef std::vector<Model::Keyframe*> DeleteKeyframeList;
 
-		DeleteKeyframeList m_list;
-		unsigned m_anim,m_frame;
+	DeleteKeyframeList m_list;
+	unsigned m_anim,m_frame;
 };
 
-class MU_SetObjectName : public ModelUndo
-{
-	public:
-
-		MU_SetObjectName(const Model::Position &obj):m_obj(obj)
-		{}
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setName(const char *newName, const char *oldName);
-
-	private:
-
-		Model::Position m_obj;
-		std::string	m_newName;
-		std::string	m_oldName;
-};
-
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetProjectionType : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setType(unsigned projection, int newType, int oldType);
+	void setType(unsigned projection, int newType, int oldType);
 
-	private:
+private:
 
-		unsigned m_projection;
-		int	m_newType;
-		int	m_oldType;
+	unsigned m_projection;
+	int	m_newType;
+	int	m_oldType;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 class MU_MoveFrameVertex : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo*);
+	bool combine(Undo*);
 
-		unsigned size();
+	unsigned size();
 
-		MU_MoveFrameVertex(unsigned anim, unsigned frame)
-		:m_anim(anim),m_frame(frame){}
+	MU_MoveFrameVertex(unsigned anim, unsigned frame)
+	:m_anim(anim),m_frame(frame){}
 
-		void addVertex(int v, double x, double y, double z,
-		Model::Interpolate2020E e, Model::FrameAnimVertex *old, bool sort=true);
+	void addVertex(int v, double x, double y, double z,
+	Model::Interpolate2020E e, Model::FrameAnimVertex *old, bool sort=true);
 
-	private:
+private:
 
-		struct MoveFrameVertexT
+	struct MoveFrameVertexT
+	{
+		int number;
+		double x;
+		double y;
+		double z;
+		double oldx;
+		double oldy;
+		double oldz;
+		Model::Interpolate2020E e,olde;
+
+		bool operator<(const MoveFrameVertexT &rhs)const
 		{
-			int number;
-			double x;
-			double y;
-			double z;
-			double oldx;
-			double oldy;
-			double oldz;
-			Model::Interpolate2020E e,olde;
-
-			bool operator<(const MoveFrameVertexT &rhs)const
-			{
-				return number<rhs.number;
-			};
-			bool operator==(const MoveFrameVertexT &rhs)const
-			{
-				return number==rhs.number;
-			};
+			return number<rhs.number;
 		};
-		typedef sorted_list<MoveFrameVertexT> MoveFrameVertexList;
+		bool operator==(const MoveFrameVertexT &rhs)const
+		{
+			return number==rhs.number;
+		};
+	};
+	typedef sorted_list<MoveFrameVertexT> MoveFrameVertexList;
 
-		friend Model; //2020
-		MoveFrameVertexList m_vertices;
-		unsigned m_anim;
-		unsigned m_frame;
+	friend Model; //2020
+	MoveFrameVertexList m_vertices;
+	unsigned m_anim;
+	unsigned m_frame;
 		
-		void addVertex(MoveFrameVertexT&); //2020
+	void addVertex(MoveFrameVertexT&); //2020
 };
 
 class MU_SetPositionInfluence : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setPositionInfluence(bool isAdd, const Model::Position &pos, unsigned index, const Model::InfluenceT &influence);
+	void setPositionInfluence(bool isAdd, const Model::Position &pos, unsigned index, const Model::InfluenceT &influence);
 
-	private:
-		bool m_isAdd;
-		Model::Position m_pos;
-		unsigned m_index;
-		Model::InfluenceT m_influence;
+private:
+	bool m_isAdd;
+	Model::Position m_pos;
+	unsigned m_index;
+	Model::InfluenceT m_influence;
 };
 
 class MU_UpdatePositionInfluence : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void updatePositionInfluence(const Model::Position &pos,
-				const Model::InfluenceT &newInf,
-				const Model::InfluenceT &oldInf);
+	void updatePositionInfluence(const Model::Position &pos,
+			const Model::InfluenceT &newInf,
+			const Model::InfluenceT &oldInf);
 
-	private:
-		Model::Position m_pos;
-		Model::InfluenceT m_newInf;
-		Model::InfluenceT m_oldInf;
+private:
+	Model::Position m_pos;
+	Model::InfluenceT m_newInf;
+	Model::InfluenceT m_oldInf;
 };
 
-/*UNUSED
-class MU_SetVertexBoneJoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setVertexBoneJoint(const unsigned &vertex,
-				const int &newBone, const int &oldBone);
-
-	private:
-		typedef struct _SetJoint_t
-		{
-			unsigned vertex;
-			int newBone;
-			int oldBone;
-		} SetJointT;
-		typedef std::vector<SetJointT> SetJointList;
-
-		SetJointList m_list;
-};*/
-
-/*UNUSED
-class MU_SetPointBoneJoint : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setPointBoneJoint(const unsigned &point,
-				const int &newBone, const int &oldBone);
-
-	private:
-		typedef struct _SetJoint_t
-		{
-			unsigned point;
-			int newBone;
-			int oldBone;
-		} SetJointT;
-		typedef std::vector<SetJointT> SetJointList;
-
-		SetJointList m_list;
-};*/
-
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetTriangleProjection : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setTriangleProjection(const unsigned &vertex,
-				const int &newProj, const int &oldProj);
+	void setTriangleProjection(unsigned vertex, int newProj, int oldProj);
 
-	private:
-		typedef struct _SetProjection_t
-		{
-			unsigned triangle;
-			int newProj;
-			int oldProj;
-		} SetProjectionT;
-		typedef std::vector<SetProjectionT> SetProjectionList;
+private:
+	typedef struct _SetProjection_t
+	{
+		unsigned triangle;
+		int newProj;
+		int oldProj;
+	} SetProjectionT;
+	typedef std::vector<SetProjectionT> SetProjectionList;
 
-		SetProjectionList m_list;
+	SetProjectionList m_list;
 };
 
 class MU_AddAnimation : public ModelUndo
 {
-	public:
+public:
 
-		MU_AddAnimation(unsigned a, Model::Animation *p)
-		:m_anim(a),m_animp(p){}
+	MU_AddAnimation(unsigned a, Model::Animation *p)
+	:m_anim(a),m_animp(p){}
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-		void redoRelease();
+	void redoRelease();
 
-		unsigned size();
+	unsigned size();
 
-	private:
+private:
 		
-		unsigned m_anim;
-		Model::Animation *m_animp;
+	unsigned m_anim;
+	Model::Animation *m_animp;
 };
 
 class MU_DeleteAnimation : public ModelUndo
 {
-	public:
+public:
 
-		MU_DeleteAnimation(unsigned a, Model::Animation *p)
-		:m_anim(a),m_animp(p){}
+	MU_DeleteAnimation(unsigned a, Model::Animation *p)
+	:m_anim(a),m_animp(p){}
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-		void undoRelease();
+	void undoRelease();
 
-		unsigned size();
+	unsigned size();
 
-		Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
+	Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
 
-	private:
+private:
 		
-		unsigned m_anim;
-		Model::Animation *m_animp;
+	unsigned m_anim;
+	Model::Animation *m_animp;
 
-		Model::FrameAnimData m_vertices;
+	Model::FrameAnimData m_vertices;
 };
 class MU_VoidFrameAnimation : public ModelUndo
 {
-	//NOTE: this is needed because _frame_count is used to
-	//to tell how many frames are present, and m_frame0 is
-	//taken to mean there's frame data in Vertex::m_frames
+//NOTE: this is needed because _frame_count is used to
+//to tell how many frames are present, and m_frame0 is
+//taken to mean there's frame data in Vertex::m_frames
 
-	public:
+public:
 
-		MU_VoidFrameAnimation(Model::Animation *p, unsigned frame0)
-		:m_animp(p),m_frame0(frame0){}
+	MU_VoidFrameAnimation(Model::Animation *p, unsigned frame0)
+	:m_animp(p),m_frame0(frame0){}
 
-		void undo(Model*),redo(Model*);
+	void undo(Model*),redo(Model*);
 
-		bool combine(Undo *);
+	bool combine(Undo *);
 
-		void undoRelease();
+	void undoRelease();
 
-		unsigned size();
+	unsigned size();
 
-		Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
+	Model::FrameAnimData *removeVertexData(){ return &m_vertices; }
 
-	private:
+private:
 		
-		Model::Animation *m_animp;
-		unsigned m_frame0;
+	Model::Animation *m_animp;
+	unsigned m_frame0;
 
-		Model::FrameAnimData m_vertices;
-};
-
-class MU_SetJointParent : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *){ return false; };
-
-		unsigned size(){ return sizeof(MU_SetJointParent); };
-
-		MU_SetJointParent(unsigned joint, int newParent, Matrix &redo, Model::Joint *old)
-		:m_joint(joint),m_new(newParent)
-		,m_old(old->m_parent),m_redo(redo),m_undo(old->m_relative)
-		{}
-
-	protected:
-		unsigned m_joint;
-		int m_new,m_old;
-		Matrix m_undo,m_redo; //2021
-};
-
-class MU_SetProjectionRange : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *){ return false; }; //IMPLEMENT ME
-
-		unsigned size(){ return sizeof(MU_SetProjectionRange); };
-
-		void setProjectionRange(const unsigned &proj,
-				double newXMin, double newYMin, double newXMax, double newYMax,
-				double oldXMin, double oldYMin, double oldXMax, double oldYMax);
-
-	protected:
-		unsigned m_proj;
-		double	m_newRange[4];
-		double	m_oldRange[4];
-};
-
-class MU_SetGroupSmooth : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setGroupSmooth(const unsigned &group,
-				const uint8_t &newSmooth, const uint8_t &oldSmooth);
-
-	private:
-		typedef struct _SetSmooth_t
-		{
-			unsigned group;
-			uint8_t newSmooth;
-			uint8_t oldSmooth;
-		} SetSmoothT;
-		typedef std::vector<SetSmoothT> SetSmoothList;
-
-		SetSmoothList m_list;
-};
-
-class MU_SetGroupAngle : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setGroupAngle(const unsigned &group,
-				const uint8_t &newAngle, const uint8_t &oldAngle);
-
-	private:
-		typedef struct _SetAngle_t
-		{
-			unsigned group;
-			uint8_t newAngle;
-			uint8_t oldAngle;
-		} SetAngleT;
-		typedef std::vector<SetAngleT> SetAngleList;
-
-		SetAngleList m_list;
-};
-
-class MU_SetGroupName : public ModelUndo
-{
-	public:
-
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
-
-		unsigned size();
-
-		void setGroupName(unsigned groupNum, const char *newName, const char *oldName);
-
-	private:
-
-		unsigned m_groupNum;
-		std::string m_newName;
-		std::string m_oldName;
+	Model::FrameAnimData m_vertices;
 };
 
 class MU_MoveAnimation : public ModelUndo
 {
-	public:
+public:
 
-		MU_MoveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff=0)
-		:m_oldIndex(oldIndex),m_newIndex(newIndex),m_typeDiff(typeDiff)
-		{}
+	MU_MoveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff=0)
+	:m_oldIndex(oldIndex),m_newIndex(newIndex),m_typeDiff(typeDiff)
+	{}
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-	private:
+private:
 
-		unsigned m_oldIndex,m_newIndex; int m_typeDiff;
+	unsigned m_oldIndex,m_newIndex; int m_typeDiff;
 };
 
-/*
-class MU_SetFrameAnimVertexCount : public ModelUndo
+class MU_SetJointParent : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *){ return false; };
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *){ return false; };
 
-		unsigned size();
+	unsigned size(){ return sizeof(MU_SetJointParent); };
 
-		void setCount(const unsigned &newCount, const unsigned &oldCount);
+	MU_SetJointParent(unsigned joint, int newParent, Matrix &redo, Model::Joint *old)
+	:m_joint(joint),m_new(newParent)
+	,m_old(old->m_parent),m_redo(redo),m_undo(old->m_relative)
+	{}
 
-	private:
-
-		unsigned m_newCount;
-		unsigned m_oldCount;
+protected:
+	unsigned m_joint;
+	int m_new,m_old;
+	Matrix m_undo,m_redo; //2021
 };
 
-class MU_SetFrameAnimPointCount : public ModelUndo
+//TODO: Can replace with MU_SwapStableMem?
+class MU_SetProjectionRange : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *){ return false; };
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *){ return false; }; //IMPLEMENT ME
 
-		unsigned size();
+	unsigned size(){ return sizeof(MU_SetProjectionRange); };
 
-		void setCount(const unsigned &newCount, const unsigned &oldCount);
+	void setProjectionRange(unsigned proj,
+			double newXMin, double newYMin, double newXMax, double newYMax,
+			double oldXMin, double oldYMin, double oldXMax, double oldYMax);
 
-	private:
+protected:
+	unsigned m_proj;
+	double	m_newRange[4];
+	double	m_oldRange[4];
+};
 
-		unsigned m_newCount;
-		unsigned m_oldCount;
-};*/
+//TODO: Can replace with MU_SwapStableMem?
+class MU_SetGroupSmooth : public ModelUndo
+{
+public:
 
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
+
+	unsigned size();
+
+	void setGroupSmooth(unsigned group,
+			const uint8_t &newSmooth, const uint8_t &oldSmooth);
+
+private:
+	typedef struct _SetSmooth_t
+	{
+		unsigned group;
+		uint8_t newSmooth;
+		uint8_t oldSmooth;
+	} SetSmoothT;
+	typedef std::vector<SetSmoothT> SetSmoothList;
+
+	SetSmoothList m_list;
+};
+
+//TODO: Can replace with MU_SwapStableMem?
+class MU_SetGroupAngle : public ModelUndo
+{
+public:
+
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
+
+	unsigned size();
+
+	void setGroupAngle(unsigned group,
+			const uint8_t &newAngle, const uint8_t &oldAngle);
+
+private:
+	typedef struct _SetAngle_t
+	{
+		unsigned group;
+		uint8_t newAngle;
+		uint8_t oldAngle;
+	} SetAngleT;
+	typedef std::vector<SetAngleT> SetAngleList;
+
+	SetAngleList m_list;
+};
+
+//TODO: Can replace with MU_SwapStableMem?
 class MU_SetMaterialBool : public ModelUndo //MU_SetMaterialClamp
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		MU_SetMaterialBool(unsigned material, char how, bool newBool, bool oldBool);
+	MU_SetMaterialBool(unsigned material, char how, bool newBool, bool oldBool);
 
-	private:
-		unsigned m_material;
-		//bool m_isS;
-		char m_how;
-		bool m_old;
-		bool m_new;
+private:
+	unsigned m_material;
+	//bool m_isS;
+	char m_how;
+	bool m_old;
+	bool m_new;
 };
 
 class MU_SetMaterialTexture : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void setMaterialTexture(const unsigned &material,
-				Texture *newTexture,Texture *oldTexture);
+	void setMaterialTexture(unsigned material,
+			Texture *newTexture,Texture *oldTexture);
 
-	private:
-		unsigned m_material;
-		Texture *m_oldTexture;
-		Texture *m_newTexture;
+private:
+	unsigned m_material;
+	Texture *m_oldTexture;
+	Texture *m_newTexture;
 };
 
 class MU_AddMetaData : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void addMetaData(const std::string &key,
-				const std::string &value);
+	void addMetaData(const std::string &key, const std::string &value);
 
-	private:
-		std::string m_key;
-		std::string m_value;
+private:
+
+	std::string m_key,m_value;
 };
 
 class MU_UpdateMetaData : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void updateMetaData(const std::string &key,
-				const std::string &newValue, const std::string &oldValue);
+	void updateMetaData(const std::string &key,
+			const std::string &newValue, const std::string &oldValue);
 
-	private:
-		std::string m_key;
-		std::string m_newValue;
-		std::string m_oldValue;
+private:
+	std::string m_key;
+	std::string m_newValue;
+	std::string m_oldValue;
 };
 
 class MU_ClearMetaData : public ModelUndo
 {
-	public:
+public:
 
-		void undo(Model *);
-		void redo(Model *);
-		bool combine(Undo *);
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
 
-		unsigned size();
+	unsigned size();
 
-		void clearMetaData(const Model::MetaDataList &list);
+	void clearMetaData(const Model::MetaDataList &list);
 
-	private:
-		Model::MetaDataList m_list;
+private:
+	
+	Model::MetaDataList m_list;
 };
 
+//TODO: Can replace with MU_SwapStableMem?
 //NOTE: This became too complicated for keyframes so 
 //it's just an optimization for vertex animation data
-class MU_InterpolateSelected : public ModelUndo
+class MU_InterpolateSelected : public ModelUndo 
 {
 public:
 
@@ -1655,7 +1202,8 @@ private:
 	void _do(Model*,bool);
 };
 
-class MU_RemapTrianglesIndices : public ModelUndo
+//TODO: Can replace with MU_SwapStableMem?
+class MU_RemapTrianglesIndices : public ModelUndo 
 {
 public:
 
@@ -1668,6 +1216,240 @@ public:
 	int_list map;
 
 	void swap();
+};
+
+class MU_SwapStableStr : public ModelUndo
+{
+public:
+
+	void undo(Model*);
+	void redo(Model*);
+	bool combine(Undo*);
+
+	unsigned size();
+
+	MU_SwapStableStr(unsigned cb, std::string &addr)
+	:m_changeBits(cb),m_addr(&addr),m_swap(addr){}
+
+private:
+
+	unsigned m_changeBits;
+
+	std::string	*m_addr,m_swap;
+};
+
+/*WARNING
+* 
+* This is a general purpose memory reassignment
+* solution. It's powerful but it's pretty much 
+* opaque to mistakes if it must be audited, so
+* use it with care.
+* 
+* NOTE: Technically this could swap memory but
+* it's questionable if it would do well or not.
+*/
+class MU_SwapStableMem : public ModelUndo
+{
+public:
+
+	void undo(Model*);
+	void redo(Model*);
+	bool combine(Undo*);
+
+	unsigned size();
+
+	MU_SwapStableMem():m_changeBits(){}
+
+	void addChange(unsigned c){ m_changeBits|=c; }
+	
+	template<class T>
+	void addMemory(T *addr, const T *old, const T *cp)
+	{
+		addMemory(addr,old,cp,sizeof(T));
+	}
+	void addMemory(void*,const void*,const void*,size_t);
+	
+	template<class T>
+	void setMemory(unsigned cb, const T *old, const T *cp)
+	{
+		addChange(cb); addMemory(const_cast<T*>(old),old,cp,sizeof(T));
+	}
+	void setMemory(unsigned cb, const void *old, const void *cp, size_t sz)
+	{
+		addChange(cb); addMemory(const_cast<void*>(old),old,cp,sz);
+	}
+
+private:
+
+	struct rbase
+	{
+		void *addr;
+		unsigned short rsz,dsz;
+	};
+	struct rec : rbase
+	{
+		//I tried to write a generalized swap routine
+		//but found it likely to not perform well, so
+		//I'm just stashing 2 copies in m_mem for now.
+		//void swap();
+
+		unsigned char mem[1];
+	};
+
+	unsigned m_changeBits;
+
+	std::vector<char> m_mem;
+
+	template<class F>
+	void _for_each(const F&);
+};
+
+class MU_MoveUtility : public ModelUndo
+{
+public:
+
+	MU_MoveUtility(unsigned oldIndex, unsigned newIndex)
+	:m_oldIndex(oldIndex),m_newIndex(newIndex)
+	{}
+
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
+
+	unsigned size();
+
+private:
+
+	unsigned m_oldIndex,m_newIndex;
+};
+
+class MU_AssocUtility : public ModelUndo
+{
+public:
+	
+	MU_AssocUtility(unsigned utilIndex)
+	:m_util(utilIndex){}
+
+	void undo(Model*);
+	void redo(Model*);
+	bool combine(Undo*);
+
+	unsigned size();
+
+	void addAssoc(Model::Group *g);
+	void removeAssoc(Model::Group *g);
+
+private:
+
+	struct rec
+	{
+		int m_op; void *ptr;
+	};
+	std::vector<rec> m_list;
+
+	unsigned m_util;
+};
+
+/* 2022
+ * I wrote this class when adding Utilities to consolidate
+ * several Undo objects in order to begin to get this file
+ * down to size and not contribute to its growth.
+*/
+class MU_Add : public ModelUndo
+{
+public:
+
+	void undo(Model *);
+	void redo(Model *);
+	bool combine(Undo *);
+
+	void undoRelease();
+	void redoRelease();
+
+	unsigned size();
+
+	template<class T>
+	MU_Add(unsigned index, T *ptr)
+	{
+		m_op = _op(ptr); m_list.push_back({index,ptr});
+	}
+	MU_Add(Model::ComparePartsE e, bool how=true)
+	{
+		m_op = how?e:-e;
+	}
+
+	template<class T> void add(unsigned index, T *ptr)
+	{
+		assert(m_op==_op(ptr)); m_list.push_back({index,ptr});
+	}
+
+protected:
+
+	struct rec
+	{
+		unsigned index; void *ptr;
+	};
+	std::vector<rec> m_list; int m_op;
+	
+	int _op(Model::Vertex*){ return Model::PartVertices; }
+	int _op(Model::Triangle*){ return Model::PartFaces; }
+	int _op(Model::Group*){ return Model::PartGroups; }
+	int _op(Model::Material*){ return Model::PartMaterials; }
+	int _op(Model::Joint*){ return Model::PartJoints; }
+	int _op(Model::Point*){ return Model::PartPoints; }
+	int _op(Model::TextureProjection*){ return Model::PartProjections; }
+	int _op(Model::Utility*){ return Model::PartUtilities; }
+
+	void _release();
+	bool _fg(void(Model::*&f)(int,void*), void(Model::*&g)(int));
+};
+class MU_Delete : public MU_Add
+{
+public:
+
+	template<class T>
+	MU_Delete(unsigned index, T *ptr):MU_Add(index,ptr)
+	{
+		m_op = -m_op;
+	}
+	MU_Delete(Model::ComparePartsE e):MU_Add(e,false){}
+
+	template<class T> void add(unsigned index, T *ptr)
+	{
+		assert(m_op==-_op(ptr)); m_list.push_back({index,ptr});
+	}
+};
+
+class MU_UvAnimKey : public ModelUndo
+{
+public:
+
+	void undo(Model*);
+	void redo(Model*);
+	bool combine(Undo*);
+
+	unsigned size();
+
+	typedef Model::UvAnimation::Key Key;
+
+	void deleteKey(const Key&);
+	void insertKey(const Key&);
+	void assignKey(const Key&,const Key&);
+
+	MU_UvAnimKey(const Model::UvAnimation *anim):m_anim(anim)
+	{}
+
+private:
+
+	struct rec
+	{
+		int op; Key key;
+	};
+	std::vector<rec> m_ops;
+
+	const Model::UvAnimation *m_anim;
+
+	void _delete_key(Key&);
 };
 
 #endif //  __MODELUNDO_H

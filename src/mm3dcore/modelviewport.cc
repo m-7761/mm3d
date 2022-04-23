@@ -386,7 +386,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 				//swapBuffers();
 				//return;
 			}
-			m.apply(_viewPoint);
+			m.apply4(_viewPoint);
 		}
 	}
 
@@ -564,11 +564,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		//This seems to work but there's surely better
 		//ways to compute it. Maybe not though if it's
 		//to account for scrolling.
-		Vector p; m_projMatrix.apply(p);
+		Vector p; m_projMatrix.apply4(p);
 		//If only one is done it shrinks away from the 
 		//side view.
 		p[0]+=axis*p[3];
-		p[1]+=axis*p[3]; m_unprojMatrix.apply(p);
+		p[1]+=axis*p[3]; m_unprojMatrix.apply4(p);
 		axis = (float)p.mag3();
 	}
 	
@@ -1686,7 +1686,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			coord[0]+=mat.get(3,0);
 			coord[1]+=mat.get(3,1);
 			coord[2]+=mat.get(3,2);*/
-			coord[3] = 1; mat.apply(coord);
+			coord[3] = 1; mat.apply4(coord);
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
 			//I guess it should be a permanent feature
@@ -1836,7 +1836,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		pos[1] = yval;
 		pos[2] = zval;
 		//m_viewInverse.apply(pos);
-		m_bestInverse.apply(pos);
+		m_bestInverse.apply4(pos);
 		for(int i=0;i<3;i++) 
 		if(fabs(pos[i])<=0.000005) pos[i] = 0;
 
@@ -2060,7 +2060,7 @@ void ModelViewport::Parent::getXYZ(double *xx, double *yy, double *zz)
 	getRawParentXYValue(vec[0],vec[1]);
 	//2020: I'm not positive this is better, but it feels more correct?
 	//mvp.m_bestInverse.apply(vec);
-	getParentBestInverseMatrix().apply(vec);
+	getParentBestInverseMatrix().apply4(vec);
 	*xx = vec[0]; *yy = vec[1]; *zz = vec[2];
 }
 

@@ -45,7 +45,7 @@ double x, double y, double z, const char *name, int boneId)
 
 	const Matrix &m = parent->getParentBestInverseMatrix();
 	double tranVec[4] = { x,y,z,1 };	
-	m.apply(tranVec);
+	m.apply4(tranVec);
 
 	Model::Position pos;
 	pos.type  = type;

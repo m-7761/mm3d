@@ -192,6 +192,12 @@ class DataSource
 		bool read(int32_t &val);
 		bool read(uint32_t &val);
 		bool read(float32_t &val);
+		bool read(double &val) //2022
+		{
+			float32_t tmp;
+			bool rd = read(tmp);
+			val = (double)tmp; return rd; 
+		}
 		template<class T> bool _read(T&); //2021
 
 		// For convinience,if you don't care about errors.

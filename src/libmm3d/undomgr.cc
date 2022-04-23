@@ -27,6 +27,12 @@
 #include "log.h"
 #include "undo.h"
 
+bool UndoList::isEdit()const
+{
+	for(Undo*ea:*this)
+	if(!ea->nonEdit()) return true; return false;
+}
+
 UndoManager::UndoManager()
 	: m_currentUndo(nullptr),
 	  m_currentList(nullptr),
@@ -71,8 +77,7 @@ bool UndoManager::isEdited()const
 
 void UndoManager::clear()
 {
-	//operationComplete("Doomed operation"); //???
-	_operationCompleteInternal(0); //NOT GOOD
+	operationComplete("<Doomed operation>"); //???
 	
 	for(UndoList*ea:m_atomic)
 	{
@@ -143,17 +148,7 @@ void UndoManager::addUndo(Undo *u)
 	}
 }
 
-void UndoManager::_operationCompleteInternal(int edit_or_type)
-{
-	char *opname; switch(edit_or_type)
-	{
-	case 0: opname = "<Doomed operation>"; break;
-	case 1: opname = "<Partial operation>"; break;
-	default: opname = 0; edit_or_type = 0; assert(opname); break;
-	}
-	operationComplete(opname,edit_or_type!=0);
-}
-void UndoManager::operationComplete(const char *opname, bool edit)
+void UndoManager::operationComplete(const char *opname)
 {
 	// if we have anything to undo
 	if(m_currentUndo)
@@ -170,7 +165,6 @@ void UndoManager::operationComplete(const char *opname, bool edit)
 			//opname = "<Unnamed Undo>";
 			opname = "<Unnamed operation>";
 		}
-		else assert(*opname!='@'); //non-edit conflict
 
 		//log_debug("operation complete: %s\n",opname);
 
@@ -178,10 +172,9 @@ void UndoManager::operationComplete(const char *opname, bool edit)
 		m_currentList->setOpName(opname);
 		m_atomic.push_back(m_currentList);
 
-		//NEW: Don't perster users for things like
+		//NEW: Don't pester users for things like
 		//playing animations.
-		if(edit) m_saveLevel++; 
-		else m_currentList->markNonEditing(); //'@'
+		if(m_currentList->isEdit()) m_saveLevel++; 
 			
 		checkSize(); //???
 
@@ -204,7 +197,7 @@ UndoList *UndoManager::undo()
 {
 	//LOG_PROFILE(); //???
 
-	_operationCompleteInternal(1); //NOT GOOD
+	operationComplete("<Partial operation>"); //???
 
 	if(!m_atomic.empty())
 	{
@@ -227,7 +220,7 @@ UndoList *UndoManager::redo()
 {
 	//LOG_PROFILE(); //???
 
-	_operationCompleteInternal(1); //NOT GOOD
+	operationComplete("<Partial operation>"); //???
 
 	if(!m_atomicRedo.empty())
 	{
@@ -254,7 +247,7 @@ const char *UndoManager::getUndoOpName()const
 	else if(!m_atomic.empty())
 	{
 		auto *o = m_atomic.back()->getOpName(); //isEdit?
-		return o+(o[0]=='@');
+		return o;
 	}
 	else return "";
 }
@@ -264,7 +257,7 @@ const char *UndoManager::getRedoOpName()const
 	if(!m_atomicRedo.empty())
 	{
 		auto *o = m_atomicRedo.back()->getOpName(); //isEdit?
-		return o+(o[0]=='@');
+		return o;
 	}
 	else return "";
 }
@@ -275,8 +268,7 @@ UndoList *UndoManager::undoCurrent()
 
 	if(m_currentUndo)
 	{
-		//operationComplete("Partial operation"); //???
-		_operationCompleteInternal(1); //NOT GOOD
+		operationComplete("<Partial operation>"); //???
 
 		if(!m_atomic.empty())
 		{

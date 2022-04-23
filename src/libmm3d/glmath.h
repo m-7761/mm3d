@@ -53,8 +53,8 @@ class Matrix
 		void setTranslation(const double &x, const double &y, const double &z);
 
 		void setRotation(const Vector &radians);
-		void setRotation(const double *radians);
-		void setRotationInDegrees(const double *degrees);
+		void setRotation(const double radians[3]);
+		void setRotationInDegrees(const double degrees[3]);
 		void setRotationInDegrees(const Vector &degrees);
 		void setRotationInDegrees(double x, double y, double z);
 		void getRotation(double &x, double &y, double &z)const;
@@ -64,30 +64,30 @@ class Matrix
 		void getTranslation(Vector &vector)const;
 		void getTranslation(double *vector)const;
 
-		void setInverseRotation(const double *radians);
-		void setInverseRotationInDegrees(const double *radians);
+		void setInverseRotation(const double radians[3]);
+		void setInverseRotationInDegrees(const double radians[3]);
 
-		void setRotationOnAxis(const double *pVect, double radians);
+		void setRotationOnAxis(const double pVect[3], double radians);
 		void setRotationQuaternion(const Quaternion &quat);
 		void getRotationQuaternion(Quaternion &quat)const;
 
 		//NOTE: inverseRotateVector applies scaling to the rotation 
-		void inverseTranslateVector(double *pVect)const;
-		void inverseRotateVector(double *pVect)const;
+		void inverseTranslateVector(double pVect[3])const;
+		void inverseRotateVector(double pVect[3])const;
 
-		void translateVector(double *pVect)const; //2020
-		void rotateVector(double *pVect)const; //2020
+		void translateVector(double pVect[3])const; //2020
+		void rotateVector(double pVect[3])const; //2020
 
 		void normalizeRotation();
 
-		void apply(float *pVec)const;
-		void apply(double *pVec)const;
-		void apply(Vector &pVec)const;
-		void apply3(float *pVec)const;
-		void apply3(double *pVec)const;
+		void apply4(float pVec[4])const;
+		void apply4(double pVec[4])const;
+		void apply4(Vector &pVec)const;
+		void apply3(float pVec[3])const;
+		void apply3(double pVec[3])const;
 		void apply3(Vector &pVec)const;
-		void apply3x(float *pVec)const;  // Apply 4x4 matrix to 3 element vec
-		void apply3x(double *pVec)const;
+		void apply3x(float pVec[3])const;  // Apply 4x4 matrix to 3 element vec
+		void apply3x(double pVec[3])const;
 		void apply3x(Vector &pVec)const;
 
 		//2019: This is equivalent to doing

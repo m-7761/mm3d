@@ -37,7 +37,7 @@
 #include "translate.h"
 #include "file_closer.h"
 
-namespace 
+namespace //??? 
 {
 	//NOTE: Misfit Model 3D doesn't check the version number
 	//but it does check this magic-number. 
@@ -322,7 +322,14 @@ namespace
 		//MDT_RelativeAnims, //UNIMPLEMENTED
 		MDT_Animations, //2021
 		MDT_Meta,
-		MDT_TypeInfo,		
+		//MDT_TypeInfo, //UNIMPLEMENTED???
+		MDT_Utilities, //2022
+		MDT_UvAnimations, //2022
+
+	//REMINDER: Changes here must be added to MisfitOffsetTypes
+	//too. If not the file will load but will fail in any older
+	//version or model conversion software.
+		
 		MDT_EndOfFile, // End of list
 		MDT_MAX
 	};
@@ -355,7 +362,9 @@ namespace
 //	{	0x0341,       "Frame Relative Animations" }, //UNIMPLEMENTED
 	{	0x0342,       "Animations" }, //2021
 	{	0x1001,       "Meta Information" },
-	{	0x1002,       "Type Identity" },
+//	{	0x1002,       "Type Identity" }, //UNIMPLEMENTED?
+	{	0x0352,		  "Utilities", },//2022
+	{	0x0354,		  "UV Animations", },//2022
 	{	0x3fff,       "EOF" }, //"End of File"
 	};
 
@@ -441,7 +450,7 @@ namespace
 	struct MM3DFILE_JointT
 	{
 		uint16_t  flags;
-		char		name[40];
+		char name[40]; //MAX_NAME_LEN+1 (2022)
 		int32_t	parentIndex;
 		float32_t localRot[3];
 		float32_t localTrans[3];
@@ -472,7 +481,7 @@ namespace
 	struct MM3DFILE_PointT
 	{
 		uint16_t  flags;
-		char		name[40];
+		char name[40]; //MAX_NAME_LEN+1 (2022)
 		int32_t	type; //UNUSED
 		int32_t	boneIndex; //UNUSED
 		float32_t rot[3];
@@ -728,8 +737,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		m_offsetList.push_back(mo);
 
 		bool found = false;
-		for(unsigned e = 0; !found&&e<MDT_MAX; e++)
-		if(MisfitOffsetTypes[e].f==(mo.offsetType &OFFSET_TYPE_MASK))
+		for(unsigned e=0;!found&&e<MDT_MAX;e++)
+		if(MisfitOffsetTypes[e].f==(mo.offsetType&OFFSET_TYPE_MASK))
 		{
 			//log_debug("  %08X %s\n",mo.offsetValue,MisfitOffsetTypes[e].s);
 			found = true;
@@ -767,6 +776,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	auto &modelJoints = model->getJointList();
 	auto &modelPoints = model->getPointList();
 	auto &modelAnims = model->getAnimationList();
+	auto &modelUtils = model->getUtilityList();
 
 	// Used to track whether indices are valid
 	bool missingElements = false;
@@ -994,7 +1004,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			uint16_t flags = 0; //SHADOWING
 			uint32_t texIndex = 0;
-			char name[1024];
+			char name[40]; //1024
 
 			Model::Material *mat = Model::Material::get();
 
@@ -1101,7 +1111,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			uint32_t triCount;
 			uint8_t  smoothness;
 			int32_t materialIndex; //uint32_t
-			char name[1024];
+			char name[40]; //1024 //MAX_GROUP_NAME_LEN is 32?
 
 			m_src->read(flags);
 
@@ -1749,7 +1759,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 
 			uint16_t flags; //SHADOWING
-			char name[1024];
+			char name[40]; //1024
 			float32_t fps;
 			uint32_t frameCount;
 
@@ -1874,7 +1884,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 
 			uint16_t flags; //SHADOWING
-			char name[1024];
+			char name[40]; //1024
 			float32_t fps;
 			uint32_t  frameCount;
 
@@ -2111,9 +2121,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		m_src->read(count);
 
 		uint32_t size = 0;
-		if(os->uniform())
+		if(os->uniform()) //???
 		{
-			m_src->read(size);
+			m_src->read(size); assert(0);
 		}
 
 		for(unsigned a=0;a<count;a++)
@@ -2132,7 +2142,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			}
 
 			uint16_t flags; //SHADOWING
-			char name[1024];
+			char name[40]; //1024
 			float32_t fps;
 			uint32_t frameCount;
 
@@ -2285,24 +2295,171 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		}
 	}
 
+	if(mm3d2021)
+	if(auto*os=seekOffset(MDT_Utilities))
+	{
+		uint16_t flags = 0;
+		uint32_t count = 0;
+		m_src->read(flags);
+		m_src->read(count);
+
+		uint32_t size = 0;
+		if(os->uniform()) //???
+		{
+			m_src->read(size); assert(0);
+		}
+
+		for(unsigned u=0;u<count;u++)
+		{
+			//log_debug("reading animation %d/%d\n",a,count);
+			if(os->variable())
+			{
+				m_src->read(size);
+			}
+			
+			uint16_t flags; //SHADOWING
+			
+			m_src->read(flags);
+			char name[40]; //1024
+			m_src->readAsciiz(name,sizeof(name));
+			utf8chrtrunc(name,sizeof(name)-1);
+
+			uint16_t type;
+			uint32_t assoc;
+			m_src->read(type);
+			m_src->read(assoc);
+
+			int util = model->addUtility((Model::UtilityTypeE)type,name);
+			auto *up = modelUtils[util];			
+			if(assoc!=(assoc&up->assoc))
+			const_cast<int&>(up->assoc) = assoc; //ILLUSTRATING
+			
+			while(assoc&&m_src->read(assoc)&&assoc)
+			{
+				uint16_t i = 0; m_src->read(i);
+
+				for(int j=i;j-->0;)				
+				if(m_src->read(i)) switch(assoc)
+				{
+				case Model::PartGroups:
+
+					model->addGroupToUtility(util,i);
+					break;
+
+				default:
+							
+					log_error("Utility association is unimplemented in this version\n");
+					return Model::ERROR_BAD_DATA;
+				}
+			}			
+		}
+	}
+	if(mm3d2021)
+	if(auto*os=seekOffset(MDT_UvAnimations))
+	{
+		uint16_t flags = 0;
+		uint32_t count = 0;
+		m_src->read(flags);
+		m_src->read(count);
+
+		uint32_t size = 0;
+		if(os->uniform()) //???
+		{
+			m_src->read(size); assert(0);
+		}
+
+		for(unsigned u=0;u<count;u++)
+		{
+			//log_debug("reading animation %d/%d\n",a,count);
+			if(os->variable())
+			{
+				m_src->read(size);
+			}
+			
+			uint16_t util,flags; //SHADOWING
+
+			m_src->read(flags);
+			m_src->read(util);
+
+			if(util>=modelUtils.size()
+			||Model::UT_UvAnimation!=modelUtils[util]->type)
+			{
+				log_error("Utility index out-of-range or not type (UV Animation)\n");
+				return Model::ERROR_BAD_DATA;
+			}
+			auto *uv = (Model::UvAnimation*)modelUtils[util];
+
+			uv->wrap = 0!=(flags&MAF_ANIM_WRAP);
+			m_src->read(uv->fps);
+			m_src->read(uv->frames);
+			m_src->read(uv->unit);
+			m_src->read(uv->vnit);
+
+			uint32_t i;
+			if(m_src->read(i)) while(i-->0)
+			{
+				Model::UvAnimation::Key k;
+				m_src->read(k.frame);
+
+				uint8_t fd[4];
+				m_src->readBytes(fd,4);
+
+				for(int n=fd[0];n-->0;)
+				{
+					m_src->readBytes(fd,4);
+
+					bool ok = false;
+					double *p; switch(fd[2])
+					{
+					case Model::KeyRotate:
+
+						k.r = (Model::Interpolate2020E)fd[0];
+
+						p = &k.rz; ok = 1==fd[3]; break;
+
+					case Model::KeyScale:
+
+						k.s = (Model::Interpolate2020E)fd[0];
+
+						p = &k.sx; ok = 2==fd[3]; break;
+
+					case Model::KeyTranslate:
+
+						k.t = (Model::Interpolate2020E)fd[0];
+
+						p = &k.tx; ok = 2==fd[3]; break;
+					}
+					switch(fd[1]?0:fd[0])
+					{
+					case (int)Model::InterpolateLerp:
+					case (int)Model::InterpolateStep: break;
+					default: ok = false;
+					}
+					if(!ok) log_error("Uv Animation format descriptor unrecognized by this version\n");
+					if(!ok) return Model::ERROR_BAD_DATA;
+
+					for(int j=fd[3];j-->0;) m_src->read(*p++);
+				}
+
+				uv->set_key(k);
+			}
+		}			
+	}
+
 	// Read unknown data
-	UnknownDataList::iterator it;
-	for(it = unknownList.begin(); it!=unknownList.end(); it++)
+	for(auto it=unknownList.begin();it!=unknownList.end();it++)
 	{
 		Model::FormatData *fd = new Model::FormatData;
-		fd->offsetType = (*it).offsetType;
-		m_src->seek((*it).offsetValue);
+		fd->offsetType = it->offsetType;
+		m_src->seek(it->offsetValue);
 
 		//log_debug("unknown data is type %x...\n",fd->offsetType);
 
-		fd->data = new uint8_t[(*it).dataLen];
-		fd->len  = (*it).dataLen;
-		m_src->readBytes(fd->data,(*it).dataLen);
+		fd->data = new uint8_t[it->dataLen];
+		fd->len  = it->dataLen;
+		m_src->readBytes(fd->data,it->dataLen);
 
-		if(model->addFormatData(fd)<0)
-		{
-			delete fd;
-		}
+		if(model->addFormatData(fd)<0) delete fd;
 	}
 
 	// Account for missing elements (vertices,triangles,textures,joints)
@@ -2341,7 +2498,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				if(i>=(signed)tcount)
 				{
 					missingElements = true;
-					log_error("Group %d uses missing triangle %d\n",g,*it);
+					log_error("Group %d uses missing triangle %d\n",g,i);
 				}
 			}
 
@@ -2392,6 +2549,10 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	auto &modelProjections = model->getProjectionList();
 	auto &modelBackgrounds = model->getBackgroundList();
 	auto &modelAnims = model->getAnimationList();
+	auto &modelUtils = model->getUtilityList();
+	size_t uvAnims = 0;
+	for(auto*up:modelUtils)
+	if(up->type==Model::UT_UvAnimation) uvAnims++;
 
 	bool haveProjectionTriangles = false;
 	if(modelProjections.size())
@@ -2444,6 +2605,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	//addOffset(MDT_FrameAnimPoints	  , !modelFrameAnims.empty()&&!modelPoints.empty());
 	addOffset(MDT_ScaleFactors        , 0!=basescaled);
 	addOffset(MDT_Animations		  , !modelAnims.empty());
+	addOffset(MDT_Utilities			  , !modelUtils.empty());
+	addOffset(MDT_UvAnimations		  , 0!=uvAnims);	
 	for(int f=0,fc=model->getFormatDataCount();f<fc;f++)
 	{
 		Model::FormatData *fd = model->getFormatData(f);
@@ -2640,7 +2803,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write(matSize);
 			m_dst->write(flags);
 			m_dst->write(texIndex);
-			m_dst->writeBytes(mat->m_name.c_str(),mat->m_name.size()+1);
+			m_dst->writeBytes(mat->m_name.c_str(),mat->m_name.size()+1); //:(
 
 			unsigned i = 0;
 			float32_t lightProp = 0;
@@ -2698,7 +2861,8 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 			m_dst->write(groupSize);
 			m_dst->write(flags);
-			m_dst->writeBytes(grp->m_name.c_str(),grp->m_name.size()+1);
+			//NOTE: MAX_GROUP_NAME_LEN=32. readFile has name[1024] buffer.
+			m_dst->writeBytes(grp->m_name.c_str(),grp->m_name.size()+1);  //:(
 			m_dst->write(triCount);
 
 			for(int i:grp->m_triangleIndices)
@@ -2751,7 +2915,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			getRelativePath(modelPath.c_str(),ea.first.c_str());
 
 			char filename[PATH_MAX];
-			strncpy(filename,fileStr.c_str(),PATH_MAX);
+			strncpy(filename,fileStr.c_str(),PATH_MAX); //0 padded?
 			utf8chrtrunc(filename,sizeof(filename)-1);
 
 			replaceSlash(filename);
@@ -2905,7 +3069,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			if(!modelJoints[j]->m_bone)
 			fileJoint.flags |= MF_VERTFREE; //2020 (draw as line?)
 
-			strncpy(fileJoint.name,joint->m_name.c_str(),sizeof(fileJoint.name));
+			strncpy(fileJoint.name,joint->m_name.c_str(),sizeof(fileJoint.name)); //0 padded?
 			utf8chrtrunc(fileJoint.name,sizeof(fileJoint.name)-1);
 
 			fileJoint.parentIndex = joint->m_parent;
@@ -2945,7 +3109,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			if(model->isPointSelected(p))
 			filePoint.flags |= MF_SELECTED;
 
-			strncpy(filePoint.name,model->getPointName(p),sizeof(filePoint.name));
+			strncpy(filePoint.name,model->getPointName(p),sizeof(filePoint.name)); //0 padded?
 			utf8chrtrunc(filePoint.name,sizeof(filePoint.name)-1);
 
 			//MM3D2020: Same deal as MDT_JointVertices?
@@ -3015,7 +3179,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			uint16_t flags = 0;
 			m_dst->write(flags);
 
-			char name[40];
+			char name[40]; //MAX_NAME_LEN+1 (2022)
 			snprintf(name,sizeof(name),"%s",model->getProjectionName(p));
 			utf8chrtrunc(name,sizeof(name)-1);
 			m_dst->writeBytes(name,sizeof(name));
@@ -3078,7 +3242,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	//2021: Animations
 	if(setOffset(MDT_Animations,false))
 	{
-		writeHeaderA(0x0000,modelAnims.size());
+		unsigned count = modelAnims.size();
+
+		writeHeaderA(0x0000,count);
 
 		int anim = -1; for(auto*ab:modelAnims)
 		{
@@ -3094,7 +3260,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			if(ab->m_wrap) flags|=MAF_ANIM_WRAP; //8
 			
 			m_dst->write(flags);
-			m_dst->writeBytes(ab->m_name.c_str(),ab->m_name.size()+1);
+			m_dst->writeBytes(ab->m_name.c_str(),ab->m_name.size()+1); //:(
 			m_dst->write((float32_t)ab->m_fps);
 			m_dst->write(frameCount);			
 			for(uint32_t f=0;f<frameCount;f++)
@@ -3188,6 +3354,133 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->seek(off2);
 		}
 		//log_debug("wrote %d animations\n",modelAnims.size());
+	}
+
+	//2022: Utilties
+	if(setOffset(MDT_Utilities,false))
+	{
+		unsigned count = modelUtils.size();
+
+		writeHeaderA(0x0000,count);
+
+		for(unsigned u=0;u<count;u++)
+		{
+			auto *up = modelUtils[u];
+
+			uint16_t flags = 0x0000;
+
+			//2020: Filled in afterward.
+			auto off1 = m_dst->offset(); 
+			m_dst->write((uint32_t)0); //utilSize
+			m_dst->write(flags);
+			m_dst->writeBytes(up->name.c_str(),up->name.size()+1); //:(
+
+			//NOTE: Should there ever be a plugin/registration like
+			//system there would be a block before MDT_Utilies with
+			//a UUID table.
+			uint16_t type = (uint16_t)up->type;
+			m_dst->write(type);
+
+			//NOTE: It may make sense for some types to change this.
+			m_dst->write((uint32_t)up->assoc);
+			
+			if(up->assoc)
+			{
+				if(up->assoc&Model::PartGroups)
+				{
+					int16_t i = 0; for(auto*gp:modelGroups)
+					{
+						for(unsigned j:gp->m_utils) if(j==u) i++;
+					}
+					if(i!=0)
+					{
+						m_dst->write((uint32_t)Model::PartGroups); 
+						m_dst->write(i); 
+						i = -1; for(auto*gp:modelGroups)
+						{
+							i++; for(unsigned j:gp->m_utils)
+							{
+								 if(j==u) m_dst->write(i); 
+							}
+						}
+					}
+				}
+			
+				m_dst->write((uint32_t)0); //0-terminator?
+			}
+
+			//TODO: Can MisfitOffsetList do this?
+			auto off2 = m_dst->offset();
+			uint32_t utilSize = off2-off1-sizeof(utilSize);
+			m_dst->seek(off1);
+			m_dst->write(utilSize);
+			m_dst->seek(off2);
+		}
+	}
+	if(setOffset(MDT_UvAnimations,false)) //2022
+	{
+		writeHeaderA(0x0000,uvAnims);
+
+		int util = -1; for(auto*up:modelUtils)
+		{
+			util++; if(up->type!=Model::UT_UvAnimation) continue;
+
+			auto *uv = (Model::UvAnimation*)up;
+
+			uint16_t flags = uv->wrap?MAF_ANIM_WRAP:0;
+
+			//2020: Filled in afterward.
+			auto off1 = m_dst->offset(); 
+			m_dst->write((uint32_t)0); //utilSize
+			m_dst->write(flags);
+
+			m_dst->write((uint16_t)util);
+
+			m_dst->write((float32_t)uv->fps);
+			m_dst->write((float32_t)uv->frames);
+			m_dst->write((float32_t)uv->unit);
+			m_dst->write((float32_t)uv->vnit);
+
+			m_dst->write((uint32_t)uv->keys.size());
+			for(auto&ea:uv->keys)
+			{
+				m_dst->write((float32_t)ea.frame);
+
+				int i,j = 0;
+				auto *f = &ea.r;
+				for(i=j=0;i<3;i++) if(f[i]) j++;
+				
+				uint8_t reserved[4] = {(uint8_t)j};
+				m_dst->writeBytes(reserved,4);
+
+				double *p = &ea.rz;
+				for(i=0;i<3;p+=i++?2:1) if(f[i])
+				{
+					char kt; switch(i)
+					{
+					case 0: kt = Model::KeyRotate; break;
+					case 1: kt = Model::KeyScale; break;
+					case 2: kt = Model::KeyTranslate; break;
+					}
+					//This is roughly analogous to MDT_Animations 
+					uint8_t format_descriptor[4] = 
+					{
+						(char)f[i],0,kt,(i==0?1:2)
+					};
+					m_dst->writeBytes(format_descriptor,4);
+
+					if(1) m_dst->write((float32_t)p[0]);
+					if(i) m_dst->write((float32_t)p[1]);
+				}
+			}
+
+			//TODO: Can MisfitOffsetList do this?
+			auto off2 = m_dst->offset();
+			uint32_t utilSize = off2-off1-sizeof(utilSize);
+			m_dst->seek(off1);
+			m_dst->write(utilSize);
+			m_dst->seek(off2);
+		}
 	}
 
 	// Write unknown data (add dirty flag to offset type)

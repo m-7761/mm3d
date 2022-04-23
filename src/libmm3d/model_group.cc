@@ -71,12 +71,7 @@ int Model::addGroup(int cp, const char *name)
 	}
 	m_groups.push_back(group);
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_AddGroup();
-		undo->addGroup(num,group);
-		sendUndo(undo);
-	}
+	if(m_undoEnabled) sendUndo(new MU_Add(num,group));
 
 	return num;
 }
@@ -86,11 +81,7 @@ void Model::deleteGroup(unsigned groupNum)
 	//LOG_PROFILE(); //???
 
 	if(m_undoEnabled)
-	{
-		auto undo = new MU_DeleteGroup;
-		undo->deleteGroup(groupNum,m_groups[groupNum]);
-		sendUndo(undo);
-	}
+	sendUndo(new MU_Delete(groupNum,m_groups[groupNum]));	
 
 	removeGroup(groupNum);
 }
@@ -139,18 +130,16 @@ bool Model::setGroupName(unsigned groupNum, const char *name)
 {
 	if(groupNum>=0&&groupNum<m_groups.size()&&name&&name[0])
 	{
-		if(m_groups[groupNum]->m_name!=name)
+		auto *gp = m_groups[groupNum];
+
+		if(gp->m_name!=name)
 		{
 			m_changeBits|=AddOther; //2020
 
 			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetGroupName;
-				undo->setGroupName(groupNum,name,m_groups[groupNum]->m_name.c_str());
-				sendUndo(undo);
-			}
+			sendUndo(new MU_SwapStableStr(AddOther,gp->m_name));
 
-			m_groups[groupNum]->m_name = name;
+			gp->m_name = name;
 		}
 		return true;
 	}
@@ -163,11 +152,11 @@ void Model::setSelectedAsGroup(unsigned groupNum)
 
 	if(groupNum<m_groups.size())
 	{
-		Group *grp = m_groups[groupNum];
-		while(!grp->m_triangleIndices.empty()) //OVERKILL
+		Group *gp = m_groups[groupNum];
+		while(!gp->m_triangleIndices.empty()) //OVERKILL
 		{
-			//removeTriangleFromGroup(groupNum,grp->m_triangleIndices.front());
-			removeTriangleFromGroup(groupNum,grp->m_triangleIndices.back());
+			//removeTriangleFromGroup(groupNum,gp->m_triangleIndices.front());
+			removeTriangleFromGroup(groupNum,gp->m_triangleIndices.back());
 		}
 
 		// Put selected triangles into group groupNum

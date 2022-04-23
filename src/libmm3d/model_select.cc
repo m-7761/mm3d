@@ -423,7 +423,7 @@ bool Model::selectVerticesInVolumeMatrix(bool how, const Matrix &viewMat, double
 		{
 			vert.setAll(vp->m_absSource,3);
 			
-			vert[3] = 1; viewMat.apply(vert);
+			vert[3] = 1; viewMat.apply4(vert);
 
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
@@ -518,7 +518,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 				tCords[v][2] = vert[v]->m_absSource[2]; 
 				tCords[v][3] = 1.0;
 
-				viewMat.apply(tCords[v]);				
+				viewMat.apply4(tCords[v]);				
 
 				//TESTING
 				//This lets a projection matrix be used to do the selection.
@@ -810,7 +810,7 @@ bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, d
 			vec[2] = joint->m_final.get(3,2);
 			vec[3] = 1.0;
 
-			viewMat.apply(vec);
+			viewMat.apply4(vec);
 
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
@@ -859,7 +859,7 @@ bool Model::selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 			vec.setAll(point->m_absSource,3);
 			vec[3] = 1.0;
 
-			viewMat.apply(vec);
+			viewMat.apply4(vec);
 
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
@@ -908,7 +908,7 @@ bool Model::selectProjectionsInVolumeMatrix(bool select, const Matrix &viewMat, 
 			//auto &seam = *(Vector*)m.getVector(2);
 			auto &pos = *(Vector*)m.getVector(3);
 
-			viewMat.apply(pos);
+			viewMat.apply4(pos);
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
 			//I guess it should be a permanent feature.				

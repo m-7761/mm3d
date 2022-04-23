@@ -41,6 +41,8 @@ class Undo
 		//Plugin business???
 		virtual void release(){ delete this; }
 
+		virtual bool nonEdit(){ return false; } //WIP
+
 	protected:
 		virtual ~Undo(){}
 };

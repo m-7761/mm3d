@@ -47,13 +47,13 @@ static bool matrixEquiv(const Matrix &lhs, const Matrix &rhs, double tolerance =
 	Vector rup(0,2,0);
 	Vector rfront(0,0,2);
 
-	lhs.apply(lright);
-	lhs.apply(lup);
-	lhs.apply(lfront);
+	lhs.apply4(lright);
+	lhs.apply4(lup);
+	lhs.apply4(lfront);
 
-	rhs.apply(rright);
-	rhs.apply(rup);
-	rhs.apply(rfront);
+	rhs.apply4(rright);
+	rhs.apply4(rup);
+	rhs.apply4(rfront);
 
 	if((lright-rright).mag3()>tolerance)
 		return false;
@@ -1341,87 +1341,65 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 
 	if(textures)
 	{
-		TextureManager *texmgr = TextureManager::getInstance();
-
 		count = model->getTextureCount();
 		for(n=0;n<count;n++)
 		{
 			if(materialsNeeded.find(n)!=materialsNeeded.end())
 			{
-				int newMat = 0;
+				int newMat;
 				if(model->getMaterialType(n)==Model::Material::MATTYPE_TEXTURE)
 				{
-					const char *filename = model->getTextureFilename(n);
-					Texture *newtex = texmgr->getTexture(filename);
-
+					auto *texmgr = TextureManager::getInstance();
+					auto *newtex = texmgr->getTexture(model->getTextureFilename(n));
 					newMat = addTexture(newtex);
-
-					const char *name = model->getTextureName(n);
-					setTextureName(newMat,name);
+					setTextureName(newMat,model->getTextureName(n));
 				}
-				else
-				{
-					const char *name = model->getTextureName(n);
-					newMat = addColorMaterial(name);
-				}
+				else newMat = addColorMaterial(model->getTextureName(n));
 				materialMap[n] = newMat;
 
-				float val[4] = { 0.0,0.0,0.0,0.0 };
-				float shin = 0.0;
-
-				model->getTextureAmbient( n,val);
-				setTextureAmbient( newMat,val);
-				model->getTextureDiffuse( n,val);
-				setTextureDiffuse( newMat,val);
+				float val[4], shin;
+				model->getTextureAmbient(n,val);
+				setTextureAmbient(newMat,val);
+				model->getTextureDiffuse(n,val);
+				setTextureDiffuse(newMat,val);
 				model->getTextureEmissive(n,val);
 				setTextureEmissive(newMat,val);
 				model->getTextureSpecular(n,val);
 				setTextureSpecular(newMat,val);
-
 				model->getTextureShininess(n,shin);
 				setTextureShininess(newMat,shin);
 			}
 		}
 
 		count = model->m_groups.size();
-		for(n=0;n<count;n++)
+		for(n=0;n<count;n++)		
+		if(groupMap.find(n)!=groupMap.end())
 		{
-			if(groupMap.find(n)!=groupMap.end())
-			{
-				int oldMat = model->getGroupTextureId(n);
-				setGroupTextureId(groupMap[n],materialMap[oldMat]);
-			}
-		}
+			int oldMat = model->getGroupTextureId(n);
+			setGroupTextureId(groupMap[n],materialMap[oldMat]);
+		}		
 	}
 	//if(textures) //2020: why rope this in?
 	{
 		count = model->getProjectionCount();
 		for(n=0;n<count;n++)
 		{
-			const char *name = model->getProjectionName(n);
+			double pos[3],rot[3],scale,range[2][2];
 			int type = model->getProjectionType(n);
-
-			double pos[3];
-			double rot[3];
-			double scale;
-			double range[2][2];
 
 			model->getProjectionCoords(n,pos);
 			model->getProjectionRotation(n,rot);
 			scale = model->getProjectionScale(n);
 			model->getProjectionRange(n,range[0][0],range[0][1],range[1][0],range[1][1]);
 
-			addProjection(name,type,pos[0],pos[1],pos[2]);
+			addProjection(model->getProjectionName(n),type,pos[0],pos[1],pos[2]);
 			setProjectionRotation(n+projbase,rot);
 			setProjectionScale(n+projbase,scale);
 			setProjectionRange(n+projbase,range[0][0],range[0][1],range[1][0],range[1][1]);
 		}
 
-		int tpcount = getProjectionCount();
-
 		count = model->getTriangleCount();
-		float s = 0.0;
-		float t = 0.0;
+		int tpcount = getProjectionCount();
 		for(n=0;n<count;n++)
 		{
 			float st[2][3];			

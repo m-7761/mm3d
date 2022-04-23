@@ -388,7 +388,8 @@ void ViewPanel::draw()
 
 	if(playing1)
 	{
-		model->setChangeBits(swap2);
+		swap2^=model->getChangeBits();
+		model->unsetChangeBits(swap2);
 		model->setCurrentAnimationFrameTime(swap,Model::AT_invalidateAnim);
 	}
 

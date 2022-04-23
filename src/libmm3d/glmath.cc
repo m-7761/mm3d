@@ -88,13 +88,13 @@ bool Matrix::equiv(const Matrix &rhs, double tolerance)const
 	Vector rup(0,2,0);
 	Vector rfront(0,0,2);
 
-	this->apply(lright);
-	this->apply(lup);
-	this->apply(lfront);
+	apply4(lright);
+	apply4(lup);
+	apply4(lfront);
 
-	rhs.apply(rright);
-	rhs.apply(rup);
-	rhs.apply(rfront);
+	rhs.apply4(rright);
+	rhs.apply4(rup);
+	rhs.apply4(rfront);
 
 	if((lright-rright).mag()>tolerance)
 		return false;
@@ -128,7 +128,7 @@ void Matrix::setTranslation(const double &x, const double &y, const double &z)
 }
 
 // takes array of three angles in radians
-void Matrix::setRotation(const double *radians)
+void Matrix::setRotation(const double radians[3])
 {
 	if(radians)
 	{
@@ -420,7 +420,7 @@ void Matrix::getScale(double xyz[3])const //2020
 	xyz[2] = mag3(&m_val[8]);
 }
 
-void Matrix::apply(float *pVec)const
+void Matrix::apply4(float *pVec)const
 {
 	if(pVec)
 	{
@@ -441,7 +441,7 @@ void Matrix::apply(float *pVec)const
 	}
 }
 
-void Matrix::apply(double *pVec)const
+void Matrix::apply4(double *pVec)const
 {
 	if(pVec)
 	{
@@ -462,9 +462,9 @@ void Matrix::apply(double *pVec)const
 	}
 }
 
-void Matrix::apply(Vector &pVec)const
+void Matrix::apply4(Vector &pVec)const
 {
-	apply(pVec.getVector());
+	apply4(pVec.getVector());
 }
 
 void Matrix::apply3(float *pVec)const
