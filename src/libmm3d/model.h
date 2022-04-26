@@ -159,7 +159,7 @@ public:
 	{
 		PartVertices	= 0x0001, // 
 		PartFaces		= 0x0002, // 
-		PartGroups		= 0x0004, // 
+		PartGroups		= 0x0004, //NOTE: mm3dfilter.cc IS WRITING THIS TO FILE 
 		PartMaterials	= 0x0008, // 
 		PartTextures	= 0x0010, // 
 		PartJoints		= 0x0020, // 
@@ -1215,7 +1215,7 @@ public:
 	enum UtilityTypeE
 	{
 		UT_NONE=0,
-		UT_UvAnimation,
+		UT_UvAnimation, //NOTE: Written to file.
 		UT_MAX
 	};
 

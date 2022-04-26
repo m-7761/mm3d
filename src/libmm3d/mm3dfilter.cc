@@ -2341,7 +2341,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				for(int j=i;j-->0;)				
 				if(m_src->read(i)) switch(assoc)
 				{
-				case Model::PartGroups:
+				case 4: //Model::PartGroups:
 
 					model->addGroupToUtility(util,i);
 					break;
@@ -2431,8 +2431,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 					}
 					switch(fd[1]?0:fd[0])
 					{
-					case (int)Model::InterpolateLerp:
-					case (int)Model::InterpolateStep: break;
+					case Model::InterpolateLerp:
+					case Model::InterpolateStep: break;
 					default: ok = false;
 					}
 					if(!ok) log_error("Uv Animation format descriptor unrecognized by this version\n");
@@ -3394,7 +3394,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					}
 					if(i!=0)
 					{
-						m_dst->write((uint32_t)Model::PartGroups); 
+						m_dst->write((uint32_t)4); //PartGroups
 						m_dst->write(i); 
 						i = -1; for(auto*gp:modelGroups)
 						{

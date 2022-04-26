@@ -579,7 +579,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		{
 			tp->m_marked = true;
 
-			if(tp->m_visible) continue;
+			if(!tp->m_visible) continue;
 			
 			if(tp->m_selected)
 			{

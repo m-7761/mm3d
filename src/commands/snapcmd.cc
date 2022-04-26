@@ -169,6 +169,7 @@ bool SnapCommand::activated(int arg, Model *model)
 	
 	//2022: Input feedback helps to be sure keys are processed.
 	const char *fmt = TRANSLATE("Command","Snapped %d vertices");
+	if(arg==1) fmt = TRANSLATE("Command","Snapped and welded %d vertices");
 	model_status(model,StatusNormal,STATUSTIME_SHORT,fmt,selection.size());
 	return true;
 }
