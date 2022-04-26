@@ -54,14 +54,14 @@ void TransformWin::submit(control *c)
 		
 		//break;
 	
-	case id_item:
+	case id_tab:
 
 		for(id=0,c=&translate.nav;id<4;c=c->next())
 		{
 			assert(c<=&matrix.nav);
 			c->set_hidden(id++!=tab.int_val());
 		}
-		return; //id = id_item; break;
+		return; //id = id_tab; break;
 
 	case id_apply:
 

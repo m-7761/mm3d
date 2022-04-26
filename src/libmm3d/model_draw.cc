@@ -95,22 +95,34 @@ void Model::_drawMaterial(Model::_draw &d, int g)
 
 		if(d.ops&DO_TEXTURE_MATRIX&&m_animationMode) 
 		{
-			for(int i:grp->m_utils) 
-			if(m_utils[i]->type==UT_UvAnimation)
+			if(d.texture_matrix!=g)
 			{
-				auto *uv = (UvAnimation*)m_utils[i];
-				uv->_make_cur();
-						
-				if(d.texture_matrix!=g)
+				bool tm = false;
+				for(int i:grp->m_utils) 
+				if(m_utils[i]->type==UT_UvAnimation)
 				{
-					if(d.texture_matrix==-1)
-					glMatrixMode(GL_TEXTURE);
-					glLoadMatrixd(uv->_cur_texture_matrix.getMatrix());
+					auto *uv = (UvAnimation*)m_utils[i];
+					uv->_make_cur();
+						
+					if(!tm)
+					{
+						tm = true;
 
-					d.texture_matrix = g;
+						d.texture_matrix = g;
+
+						glMatrixMode(GL_TEXTURE);
+						glLoadMatrixd(uv->_cur_texture_matrix.getMatrix());
+					}
+					else glMultMatrixd(uv->_cur_texture_matrix.getMatrix());
 				}
-				else glMultMatrixd(uv->_cur_texture_matrix.getMatrix());
-			}					
+				if(!tm&&d.texture_matrix!=-1)
+				{
+					d.texture_matrix = -1;
+
+					glLoadIdentity(); 
+					glMatrixMode(GL_MODELVIEW);
+				}
+			}
 		}
 
 		glEnable(GL_TEXTURE_2D);
