@@ -34,7 +34,7 @@ struct TransformWin : Win
 	TransformWin(class MainWin &model)
 		:
 	Win("Transform Model"),model(model),
-	tab(main),
+	tab(main,id_tab),
 	translate(tab),rotate(tab),scale(tab),matrix(tab),
 	scope(main,"Apply to:",id_subitem),
 	ok(main)
