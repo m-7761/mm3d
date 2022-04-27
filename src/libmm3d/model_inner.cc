@@ -391,6 +391,7 @@ void Model::Group::init()
 //	m_visible = true;
 	m_name.clear(); //ABUSED (init?)
 	m_triangleIndices.clear(); //ABUSED (init?)
+	m_utils.clear(); //ABUSED
 }
 
 int Model::Group::flush()

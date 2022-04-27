@@ -3390,7 +3390,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				{
 					int16_t i = 0; for(auto*gp:modelGroups)
 					{
-						for(unsigned j:gp->m_utils) if(j==u) i++;
+						for(auto*cmp:gp->m_utils) if(cmp==up) i++;
 					}
 					if(i!=0)
 					{
@@ -3398,9 +3398,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 						m_dst->write(i); 
 						i = -1; for(auto*gp:modelGroups)
 						{
-							i++; for(unsigned j:gp->m_utils)
+							i++; for(auto*cmp:gp->m_utils)
 							{
-								 if(j==u) m_dst->write(i); 
+								 if(cmp==up) m_dst->write(i); 
 							}
 						}
 					}

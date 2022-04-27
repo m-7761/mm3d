@@ -324,6 +324,12 @@ Model::~Model()
 		m_anims.pop_back();
 	}
 
+	while(!m_utils.empty())
+	{
+		m_utils.back()->release();
+		m_utils.pop_back();
+	}
+
 #ifdef MM3D_EDIT
 	for(unsigned t = 0; t<6; t++)
 	{

@@ -74,16 +74,16 @@ bool Model::deleteUtility(unsigned index)
 			{
 				for(auto*gp:m_groups) //removeGroupFromUtility?
 				{
-					int j = 0;
-					for(int i:gp->m_utils) if(i==index)
-					{
-						if(!undo) undo = new MU_AssocUtility(index);
+					auto &l = gp->m_utils;
 
-						gp->m_utils.erase(gp->m_utils.begin()+j);
+					for(auto&ea:l) if(up==ea)
+					{
+						if(!undo) undo = new MU_AssocUtility(up);
+
+						l.erase(l.begin()+(&ea-l.data()));
 
 						undo->removeAssoc(gp); break;
 					}
-					else j++;
 				}
 			}
 			else assert(0==up->assoc);
@@ -185,11 +185,11 @@ bool Model::addGroupToUtility(unsigned index, unsigned group, bool how)
 	auto up = m_utils[index]; if(~up->assoc&PartGroups) return false;
 	auto gp = m_groups[group];
 	
-	if(!gp->_assoc_util(index,how)) return false;	
+	if(!gp->_assoc_util(up,how)) return false;	
 	
 	if(m_undoEnabled)
 	{
-		auto undo = new MU_AssocUtility(index);
+		auto undo = new MU_AssocUtility(up);
 
 		if(how) undo->addAssoc(gp);
 		else undo->removeAssoc(gp);
@@ -199,21 +199,21 @@ bool Model::addGroupToUtility(unsigned index, unsigned group, bool how)
 
 	return true;
 }
-bool Model::Group::_assoc_util(unsigned index, bool how)
+bool Model::Group::_assoc_util(Utility *up, bool how)
 {
-	int_list &l = m_utils;
+	auto &l = m_utils;
 
-	int j = -1; for(int i:l)
+	int j = -1; for(auto&ea:l)
 	{
-		if(i==index) j = i;
+		if(ea==up) j = &ea-l.data();
 	}
 	if(how)
 	{
 		if(j!=-1) return false;	
 
-		l.push_back(index);
+		l.push_back(up);
 	}
-	else if(j==-1)
+	else if(j!=-1)
 	{
 		l.erase(l.begin()+j);
 	}
@@ -342,6 +342,7 @@ void Model::UvAnimation::_interp_keys(Key &k, double time)const
 			}
 		}
 		if(!ret) ret = (&jt->r)[i];
+		if(!ret) continue;
 
 		double Key::*mp; switch(i)
 		{
@@ -356,6 +357,7 @@ void Model::UvAnimation::_interp_keys(Key &k, double time)const
 		for(int j=i?2:1;j-->0;)
 		{
 			double x = i0?(&(a.*mp))[j]:i==1;
+			if(jtt!=itt)
 			x+=((&(b.*mp))[j]-x)*t;			
 			assert(ret||x==int(i==1)); //C4805 nonsense
 			(&(k.*mp))[j] = x;

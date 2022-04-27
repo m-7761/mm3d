@@ -568,6 +568,8 @@ public:
 		static int s_allocated;
 	};
 
+	class Utility;
+
 	// Group of triangles. All triangles in a group share a material (if one
 	// is assigned to the Group). Vertices assigned to the triangles may
 	// be shared between triangles in different groups. You can change how
@@ -608,9 +610,9 @@ public:
 		bool propEqual(const Group &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 		bool operator==(const Group &rhs)const{ return propEqual(rhs); }
 
-		int_list m_utils; //2022
+		std::vector<Utility*> m_utils; //2022
 
-		bool _assoc_util(unsigned index, bool how);
+		bool _assoc_util(Utility*, bool how);
 
 	protected:
 		Group(),~Group();

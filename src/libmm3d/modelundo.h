@@ -1327,8 +1327,8 @@ class MU_AssocUtility : public ModelUndo
 {
 public:
 	
-	MU_AssocUtility(unsigned utilIndex)
-	:m_util(utilIndex){}
+	MU_AssocUtility(Model::Utility *up)
+	:m_util(up){}
 
 	void undo(Model*);
 	void redo(Model*);
@@ -1347,7 +1347,7 @@ private:
 	};
 	std::vector<rec> m_list;
 
-	unsigned m_util;
+	Model::Utility *m_util;
 };
 
 /* 2022

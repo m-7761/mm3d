@@ -98,10 +98,10 @@ void Model::_drawMaterial(Model::_draw &d, int g)
 			if(d.texture_matrix!=g)
 			{
 				bool tm = false;
-				for(int i:grp->m_utils) 
-				if(m_utils[i]->type==UT_UvAnimation)
+				for(auto*up:grp->m_utils) 
+				if(up->type==UT_UvAnimation)
 				{
-					auto *uv = (UvAnimation*)m_utils[i];
+					auto *uv = (UvAnimation*)up;
 					uv->_make_cur();
 						
 					if(!tm)

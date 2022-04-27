@@ -754,7 +754,7 @@ struct UtilWin::UvAnimation : UtilWin::Plugin
 		{
 			auto i = new checkbox_item(g++,gp->m_name.c_str());
 
-			for(int j:gp->m_utils) if(u==j) i->check();
+			for(auto*cmp:gp->m_utils) if(cmp==up) i->check();
 
 			table.add_item(i);
 		}
