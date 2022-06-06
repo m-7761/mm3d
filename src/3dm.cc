@@ -68,6 +68,17 @@ extern int main(int argc, char *argv[])
 	#ifdef _WIN32
 	#ifdef MM3D_MSGBOX
 	_set_error_mode(_OUT_TO_MSGBOX); 
+	#endif	
+	#ifdef _DEBUG //compiler
+	//Turns on windows heap debugging
+	#if HEAP_DEBUG
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF|_CRTDBG_CHECK_CRT_DF/*|_CRTDBG_DELAY_FREE_MEM_DF*/);
+	#else
+	//NOTE: DLLs have their own flags.
+	//_CRTDBG_LEAK_CHECK_DF floods output on debugger termination
+	_crtDbgFlag = _CRTDBG_ALLOC_MEM_DF; //|_CRTDBG_LEAK_CHECK_DF;
+	//_crtDbgFlag|=_CRTDBG_CHECK_ALWAYS_DF; //careful
+	#endif
 	#endif
 	#endif
 

@@ -41,12 +41,16 @@ struct AnimExportWin : Win
 
 	AnimExportWin(Model *model, ViewPanel *vp)
 		:
-	Win("Export Animation"),
+	//Win("Export Animation"),
+	Win("Record Animation"),
 	model(model),vp(vp),
 	nav(main),source(nav),duration(nav.inl),
 	output(main),
 	f1_ok_cancel(main)
 	{
+		f1_ok_cancel.ok_cancel.ok.name("Save...");
+		f1_ok_cancel.ok_cancel.cancel.name("Close");
+
 		duration.nav.expand(bottom);
 
 		active_callback = &AnimExportWin::submit;

@@ -2,8 +2,6 @@
 #ifndef __WIN_H__
 #define __WIN_H__
 
-#include "texwidget.h"
-
 #undef interface
 #include <widgets95.h>
 using namespace Widgets95::glute;
@@ -118,6 +116,10 @@ enum
 	id_view_left,id_view_right,
 	id_view_top,id_view_bottom,
 	id_view_ortho,
+	id_view_invert,
+	id_view_invert_all,
+	id_view_project,
+	id_view_project_all,
 
 	/*Tool menu*/
 	id_tool_none,
@@ -136,6 +138,7 @@ enum
 	id_background_settings,
 	id_merge_models,
 	id_merge_animations,
+	id_clean_animations, //EXPERIMENTAL
 
 	/*Materials menu*/
 	id_group_settings,
@@ -169,7 +172,6 @@ enum
 	id_animate_paste,
 	id_animate_paste_v,
 	id_animate_copy,
-	id_animate_copy_all,
 	id_animate_delete,
 	//Additional
 	id_animate_window,
@@ -187,6 +189,8 @@ enum
 	/*Help menu*/
 	id_help,  //wxOSX needs to be Help.
 	id_about,  //wxOSX needs to be About.
+	id_config,
+	id_keycfg,
 	id_license,
 	id_unscale,
 
@@ -195,6 +199,10 @@ enum
 	id_viewselect,
 	id_fullscreen,
 };
+
+class ScrollWidget;
+class GraphicWidget;
+class TextureWidget;
 
 struct Win : Widgets95::ui
 {	
@@ -209,14 +217,17 @@ struct Win : Widgets95::ui
 		if(!modal()&&!subpos()) delete this;
 	}
 
-	struct Widget; //YUCK
+	template<class T> struct Widget;
 
-	virtual Widget *widget() //interface
+	typedef Widget<GraphicWidget> graphic; 
+	typedef Widget<TextureWidget> texture;
+
+	virtual ScrollWidget *widget() //interface
 	{
 		return nullptr;
 	}
 
-	Win(utf8,Widget*_=nullptr);
+	Win(utf8,ScrollWidget*_=nullptr);
 	Win(int,int subpos); //subwindow
 	void _common_init(bool);
 	
@@ -283,7 +294,7 @@ struct Win : Widgets95::ui
 
 	struct zoom_set
 	{
-		zoom_set(node *frame)
+		zoom_set(node *frame, double min, double max)
 			:
 		nav(frame),
 		value(nav,"",'='),
@@ -292,8 +303,9 @@ struct Win : Widgets95::ui
 			nav.ralign().space(1);	
 			in.picture(pics[pic_zoomin]);
 			out.picture(pics[pic_zoomout]);
-			value.edit(TextureWidget::zoom_min,1.0,TextureWidget::zoom_max);
-			value.spinner.set_speed(-0.00001);
+			value.edit(min,1.0,max);
+			//value.spinner.set_speed(-0.00001);
+			value.spinner.set_speed(-2.5/(max-min));
 		}
 
 		row nav;
@@ -454,5 +466,59 @@ double limit1, double limit2, cb valid)
 	return EditWin(value,title,label,limit1,limit2,valid,true)
 	.return_on_close();
 }
+
+template<class T>
+struct Win::Widget : T,T::Parent
+{
+	canvas &c;
+	virtual void updateWidget(){ c.redraw(); }	
+	Widget(canvas &c, bool border=true)
+	:T(this),c(c)
+	{
+		uid = c.ui()->glut_window_id();
+
+		assert(c.id()==id_scene);
+
+		if(border) //REMOVE ME?
+		{
+			assert(!T::PAD_SIZE);
+		//	int &p = T::PAD_SIZE;
+		//	c.space(p,0,p,p,p); p = 0;
+		//	c.space(-1,-1);
+			c.space(1,0,1);
+		//	p = 0;
+			c.style(~0xf00);
+		}
+	}
+
+	virtual void getXY(int &x, int &y)
+	{
+		x = c.x(x); y = c.y(y);
+
+		//2022: TexcoordWin is deactivating
+		//itself so Tab can be forwarded to
+		//the main window via its new menus.
+		if(!event.active_control_ui) return;
+
+		//HACK: Steal focus like viewports?
+		if(c!=event.get_active())
+		if((unsigned)(x-c.x())<(unsigned)c.width())
+		if((unsigned)(y-c.y())<(unsigned)c.height())
+		{
+			if(!event.curr_button_down) //Scrolling?
+			c.activate();
+		}
+	}
+
+	virtual bool mousePressSignal(int)
+	{
+		//2022: see getXY comment...
+		if(!event.active_control_ui) return true;
+
+		//Need to focus it so other controls 
+		//don't consume arrow keys.
+		if(c!=event.get_active()) c.activate(); return true;
+	}
+};
 
 #endif //__WIN_H__

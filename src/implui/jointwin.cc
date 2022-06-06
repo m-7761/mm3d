@@ -46,6 +46,12 @@ struct JointWin : Win
 	del(nav,"Delete",id_delete),
 	sel(main),f1_ok_cancel(main)
 	{
+		//TEMPORARY FIX
+		//This is to avoid nagging on close
+		//and also to restore the selection.
+		glutSetWindow(glut_window_id());
+		glutext::glutCloseFunc(auto_cancel);
+
 		joint.expand();
 		nav.expand_all().proportion();
 		sel.nav.expand_all();
@@ -56,6 +62,17 @@ struct JointWin : Win
 	}
 
 	MainWin &model; bool loo; //100
+
+	void confirm_close()
+	{
+		extern void win_close();
+		glutext::glutCloseFunc(win_close);
+	}
+	static void auto_cancel()
+	{
+		auto w = (JointWin*)event.find_ui_by_window_id();
+		w->submit(w->f1_ok_cancel.ok_cancel.cancel);
+	}
 
 	struct selection_group
 	{
@@ -92,11 +109,15 @@ void JointWin::submit(control *c)
 		::tr("Rename joint","window title"),
 		::tr("Enter new joint name:"),1,Model::MAX_NAME_LEN))
 		{
+			confirm_close(); //HACK
+
 			model->setBoneJointName((int)joint,joint.selection()->c_str());
 		}
 		break;
 
 	case id_delete: //"Delete"
+
+		confirm_close(); //HACK
 
 		model->deleteBoneJoint((int)joint); 
 
@@ -104,7 +125,7 @@ void JointWin::submit(control *c)
 
 	case id_init:
 	
-		//2021: Preven X confirmation prompt on empty
+		//2021: Prevent X confirmation prompt on empty
 		//selection.
 		joint.add_item(-1,"<None>").select_id(-1);
 
@@ -113,6 +134,7 @@ void JointWin::submit(control *c)
 			joint.add_item(i,model->getBoneJointName(i));
 		}
 
+		//TODO: A multi-select listbox might be better
 		for(auto&i:model.selection)
 		if(i.type==Model::PT_Joint)
 		{		
@@ -120,7 +142,7 @@ void JointWin::submit(control *c)
 
 			if(1!=model.nselection[Model::PT_Joint])
 			{
-				//Note: This causes the X button to
+				//Note: This caused the X button to
 				//request to ask for a confirmation.
 				goto id_item; 
 			}
@@ -149,6 +171,8 @@ void JointWin::submit(control *c)
 
 		switch(int bt=(button*)c-&sel.infl)
 		{
+		default: assert(0); return; //2022
+
 		case 0: //"Select Joint Vertices"
 		case 1: //"Select Unassigned Vertices"
 		{
@@ -198,6 +222,9 @@ void JointWin::submit(control *c)
 			}
 			break;
 		}}
+
+		confirm_close(); //HACK
+
 		model->updateObservers();
 		break;
 

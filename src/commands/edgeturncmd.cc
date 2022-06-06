@@ -42,6 +42,8 @@ struct EdgeTurnCommand : Command
 
 	//NOTE: Shift is to avoid proximity to Ctrl+D (duplicate).
 	//virtual const char *getKeymap(int){ return "Shift+Ctrl+F"; }
+	//NOTE: wxWidgets isn't accepting Backslash even though it does so
+	//Slash. I think I prefer / here anyway as it looks like an "edge".
 	virtual const char *getKeymap(int){ return "/"; }
 
 	virtual bool activated(int,Model*);

@@ -72,28 +72,18 @@ bool FlipCommand::activated(int arg, Model *model)
 		TRANSLATE("Command","Need at least 1 vertex, joint, point, or face selected"));
 		return false;
 	}
-
+	
+	for(auto&i:posList)
 	{
-		 pos_list::iterator it;
-		 for(it = posList.begin(); it!=posList.end(); it++)
-		 {
-			  double coords[3];
-			  model->getPositionCoords(*it,coords);
-			  coords[arg] = -coords[arg];
-			  model->movePosition(*it,coords[0],coords[1],coords[2]);
-		 }
+		double coords[3];
+		model->getPositionCoords(i,coords);
+		coords[arg] = -coords[arg];
+		model->movePosition(i,coords[0],coords[1],coords[2]);
 	}
 
-	{
-		 int_list face;
-		 int_list::iterator it;
-		 model->getSelectedTriangles(face);
-
-		 for(it = face.begin(); it!=face.end(); it++)
-		 {
-			  model->invertNormals(*it);
-		 }
-	}
+	int_list l;
+	model->getSelectedTriangles(l);
+	model->invertNormals(l);
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Flipped %c axis"),'X'+arg);
 

@@ -89,6 +89,8 @@ class Model
 
 public:
 
+	template<class U> struct Undo; //modelundo.h
+
 	enum
 	{
 		//2022: Going to assume this is obsolete since readFile 
@@ -122,16 +124,17 @@ public:
 		MoveGeometry		 = 0x00010000, // Moved vertex
 		MoveNormals			 = 0x00020000, // Surface normals changed
 		MoveTexture			 = 0x00040000, // Texture coordinates changed
-		MoveOther			 = 0x00080000, // Moved object
+		MoveOther			 = 0x00080000, // Moved object (no longer for keyframes)
 		AnimationMode        = 0x00100000, // Changed animation mode (or bind mode)
 		AnimationSet		 = 0x00200000, // Changed current animation
 		AnimationFrame       = 0x00400000, // Changed current animation frame
-		AnimationProperty    = 0x00800000, // Set animation times/frames/fps/wrap
-		ShowJoints           = 0x01000000, // Joints forced visible
-		ShowProjections      = 0x02000000, // Projections forced visible
+		AnimationProperty    = 0x00800000, // Set animation keys/times/frames/fps/wrap
+		AnimationSelection   = 0x01000000, // graph.cc selection/selected keys changed
+		ShowJoints           = 0x02000000, // Joints forced visible
+		ShowProjections      = 0x04000000, // Projections forced visible
 		ChangeAll			 = 0xFFFFFFFF, // All of the above
 
-		AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty,
+		AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty|AnimationSelection,
 	};
 	//EXPERIMENTAL
 	unsigned getChangeBits(){ return m_changeBits; }
@@ -304,13 +307,8 @@ public:
 	public:
 
 		PositionTypeE type; unsigned index;
-
-		//2020: I'm not sure if C++ constrains ++ via a 
-		//reference operator, so just to be safe...
-		unsigned operator++(int){ return index++; }
-		//2020
 		operator unsigned&(){ return index; } 
-		operator unsigned()const{ return index; }
+		operator const unsigned()const{ return index; }
 
 		//SO ANNOYING
 		//Dangerous? Does MU_SetObjectKeyframe use this?
@@ -396,6 +394,9 @@ public:
 
 		bool propEqual(const FrameAnimVertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 		bool operator==(const FrameAnimVertex &rhs)const{ return propEqual(rhs); }
+
+		//This is standard lerp as implemented by interpKeyframe. z can equal x or y.
+		static void lerp(const double x[3], const double y[3], double t, double z[3]);
 
 	protected:
 		FrameAnimVertex(),~FrameAnimVertex();
@@ -627,13 +628,15 @@ public:
 	class Material
 	{
 	public:
+
 		enum MaterialTypeE
 		{
 			MATTYPE_TEXTURE  =  0,  // Texture mapped material
-			MATTYPE_BLANK	 =  1,  // Blank texture,lighting only
-			MATTYPE_COLOR	 =  2,  // Unused
-			MATTYPE_GRADIENT =  3,  // Unused
-			MATTYPE_Max		=  4	 // For convenience
+			MATTYPE_BLANK	 =  1,  // Blank texture, lighting only
+			MATTYPE_Max		=  2	 // For convenience
+		//	MATTYPE_COLOR	 =  2,  // Unused
+		//	MATTYPE_GRADIENT =  3,  // Unused
+		//	MATTYPE_Max	 =  4	 // For convenience			
 		};
 
 		static int flush();
@@ -655,9 +658,6 @@ public:
 
 		// Lighting value 0 to 100.0
 		float m_shininess;
-
-		uint8_t m_color[4][4];  // Unused
-
 
 		// The clamp properties determine if the texture map wraps when crossing
 		// the 0.0 or 1.0 boundary (false)or if the pixels along the edge are
@@ -698,6 +698,7 @@ public:
 	enum KeyType2020E
 	{
 		KeyAny = -1,
+		KeyNONE = 0,
 		KeyTranslate = 1, //InterpolantCoords<<1
 		KeyRotate = 2, //InterpolantRotation<<1
 		KeyScale = 4, //InterpolantScale<<1
@@ -732,12 +733,14 @@ public:
 
 //		double m_time;	// Time for this keyframe in seconds
 
-		double m_parameter[3];  // Translation or rotation (radians),see m_isRotation
+		double m_parameter[3];  // Translation or rotation (radians), see m_isRotation
 
 		//bool m_isRotation;
-		KeyType2020E m_isRotation;	 // Indicates if m_parameter describes rotation (true)or translation (false)
+		KeyType2020E m_isRotation;	 // Indicates if m_parameter describes rotation (true) or translation (false)
 
 		Interpolate2020E m_interp2020;
+
+		mutable bool m_selected[4]; //graph.cc
 
 		//CAREFUL: This doesn't work with bitwise combinations of KeyType2020E.
 		bool operator<(const Keyframe &rhs)const
@@ -750,6 +753,12 @@ public:
 		}
 		bool propEqual(const Keyframe &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 
+		//This is standard lerp as implemented by interpKeyframe. z can equal x or y.
+		static void lerp(const double x[3], const double y[3], double t, double z[3]);
+		//This is the quaternion form of lerp. It may not actually be "slerp" but it's
+		//named this way to avoid overloading lerp. It has the same semantics as lerp.
+		static void slerp(const double x[4], const double y[4], double t, double z[4]); 
+
 //	protected:
 
 		Keyframe(),~Keyframe();
@@ -760,6 +769,20 @@ public:
 
 		static std::vector<Keyframe*> s_recycle;
 		static int s_allocated;
+	};
+	
+	// TODO: Probably should use a map for the KeyframeList
+	typedef sorted_ptr_list<Keyframe*> KeyframeList;		
+	//typedef std::vector<KeyframeList> ObjectKeyframeList;
+	typedef std::unordered_map<Position,KeyframeList,Position::hash> ObjectKeyframeList;
+
+	struct KeyframeGraph //graphs.cc
+	{
+		float size;
+
+		KeyframeList keys; 
+
+		KeyframeGraph():size(1){}
 	};
 				
 	struct Object2020 //RENAME ME
@@ -776,6 +799,10 @@ public:
 		double *m_absSource; //Absolute position
 		double *m_rotSource; //Relative rotation
 		double *m_xyzSource; //Nonunimform scale
+		double(*_sources()const)[3]
+		{
+			return (double(*)[3])&m_absSource;
+		}
 
 		Matrix getMatrix()const;
 		Matrix getMatrixUnanimated()const;
@@ -869,6 +896,8 @@ public:
 			return _dirty_mats[2];
 		}
 
+		mutable KeyframeGraph _reference; //graphs.cc
+
 		bool propEqual(const Joint &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 		bool operator==(const Joint &rhs)const{ return propEqual(rhs); }
 
@@ -918,6 +947,8 @@ public:
 
 		// List of bone joints that move the point in skeletal animations.
 		infl_list m_influences;
+
+		mutable KeyframeGraph _reference; //graphs.cc
 
 		void _resample(Model&,unsigned); //2020
 
@@ -973,27 +1004,18 @@ public:
 		static int s_allocated;
 	};
 
-	// TODO: Probably should use a map for the KeyframeList
-	typedef sorted_ptr_list<Keyframe*> KeyframeList;		
-	//typedef std::vector<KeyframeList> ObjectKeyframeList;
-	typedef std::unordered_map<Position,KeyframeList,Position::hash> ObjectKeyframeList;
-
-	class Animation //RENAME ME
+	class Animation //2020
 	{
 	public:
 
 		int _type; //AnimationModeE
 
 		std::string m_name;
-			
-		//TODO: Seems a map is called for?
+
 		ObjectKeyframeList m_keyframes;
 
 		double m_fps;  // Frames per second
 		bool m_wrap; // Whether or not the animation uses wraparound keyframe interpotion
-		//UNUSED
-		//unsigned m_frameCount;	 // Number of frames in the animation				
-		//bool	  m_validNormals;  // Whether or not the normals have been calculated for the current animation frame
 
 		//https://github.com/zturtleman/mm3d/issues/106
 		//Usually use _time_frame() to access this 
@@ -1018,7 +1040,8 @@ public:
 		{
 			//TODO: this workaround can be retired if legacy
 			//loaders did setAnimTimeFrame(frames)
-			return m_frame2020>=0?m_frame2020:_frame_count();
+			//return m_frame2020>=0?m_frame2020:_frame_count();			
+			return m_frame2020; //2022
 		}
 		double _frame_time(unsigned frame)const
 		{
@@ -1028,6 +1051,8 @@ public:
 		{
 			if(0==~m_frame0) m->_anim_valloc(this); return m_frame0;
 		}
+
+		mutable bool_list m_selected_frames; //graph.cc
 						
 		bool propEqual(const Animation &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 		bool operator==(const Animation &rhs)const{ return propEqual(rhs); }
@@ -1057,78 +1082,6 @@ public:
 	bool _skel_xform_abs(int inv,infl_list&,Vector&v);
 	bool _skel_xform_rot(int inv,infl_list&,Matrix&m);
 	bool _skel_xform_mat(int inv,infl_list&,Matrix&m);
-
-	/*REFERENCE
-	// Describes a skeletal animation.
-	class SkelAnim : public Animation
-	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static SkelAnim *get();
-		void release();
-		//void releaseData();
-		void sprint(std::string &dest);
-
-	protected:
-		SkelAnim(),~SkelAnim();
-		//void init();
-
-		static std::vector<SkelAnim*> s_recycle;
-		static int s_allocated;
-	};*/
-		
-	/*REFERENCE
-	// Contains the list of vertex positions and point positions for each vertex
-	// and point for one animation frame.
-	class FrameAnimData
-	{
-	public:
-		FrameAnimData():m_frameVertices(),m_framePoints()
-		{}
-		FrameAnimVertexList m_frameVertices;
-		FrameAnimPointList m_framePoints;
-
-		//https://github.com/zturtleman/mm3d/issues/106				  
-		double m_frame2020;
-
-		void releaseData();
-
-		bool propEqual(const FrameAnimData &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const FrameAnimData &rhs)const{ return propEqual(rhs); }
-	};
-	typedef std::vector<FrameAnimData*> FrameAnimDataList;*/
-
-	/*REFERENCE
-	// Describes a frame animation (also known as "Mesh Deformation Animation").
-	// This object contains a list of vertex positions for each vertex for every
-	// frame (and also every point for every frame).
-	class FrameAnim : public Animation
-	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static FrameAnim *get();
-		void release();
-		//void releaseData();
-		void sprint(std::string &dest);
-
-		// Each element in m_frameData is one frame. The frames hold lists of
-		// all vertex positions and point positions.
-		//FrameAnimDataList m_frameData;
-		unsigned m_frame0;
-
-	protected:
-		FrameAnim(),~FrameAnim();
-		//void init();
-
-		static std::vector<FrameAnim*> s_recycle;
-		static int s_allocated;
-	};*/
 
 	// Reference background images for canvas viewports.
 	class BackgroundImage : public Object2020
@@ -1420,15 +1373,9 @@ public:
 	};
 
 #ifdef MM3D_EDIT
-	// Register an observer if you have an object that must be notified when the
-	// model changes. The modelChanged function will be called with changeBits
-	// set to describe (in general terms)what changed. See ChangeBits.
-	class Observer
-	{
-		public:
-			//virtual ~Observer(){} //???
-			virtual void modelChanged(int changeBits)= 0;
-	};
+	
+	typedef ModelObserver Observer; //mm3dtypes.h
+
 	typedef std::vector<Observer*> ObserverList;
 
 #endif // MM3D_EDIT
@@ -1769,6 +1716,11 @@ public:
 	//NOTE: Units are frames. Caller is responsible for uniqueness/sorting.
 	double getAnimFrameTime(unsigned anim, unsigned frame)const;
 	bool setAnimFrameTime(unsigned anim, unsigned frame, double time);	
+	void setAnimFrameTime_undo(unsigned anim, unsigned frame, double time);	
+
+	//2022: Unlike setAnimFrameTime this moves/returns the frame index.
+	unsigned moveAnimFrame(unsigned anim, unsigned frame, double time);	
+	void moveAnimFrame_undo(unsigned anim, unsigned frame, unsigned i);
 
 	//2020: WHAT VERB IS NORMATIVE IN THIS CASE?
 	//Efficiently get frame/convenience function. Units are in frames.
@@ -1791,8 +1743,12 @@ public:
 	{
 		return moveVertex(vertex,abs[0],abs[1],abs[2]);
 	}
+	inline bool deleteFrameAnimVertex(unsigned anim, unsigned frame, unsigned vertex)
+	{
+		return setFrameAnimVertexCoords(anim,frame,vertex);
+	}
 	bool setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
-			double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+			const double xyz[3]=nullptr, Interpolate2020E interp=InterpolateKeep);	
 	//TODO: Remove ability to return InterpolateVoid.
 	//CAUTION: xyz HOLD JUNK IF RETURNED VALUE IS 0!!
 	Interpolate2020E getFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
@@ -1816,9 +1772,14 @@ public:
 	//PT_Point: Frame animation keyframes 
 	int setKeyframe(unsigned anim, unsigned frame, Position, KeyType2020E isRotation,
 			double x, double y, double z, Interpolate2020E interp=InterpolateKeep);
+	int setKeyframe(unsigned anim, const Keyframe *cp, const double xyz[3]=nullptr, Interpolate2020E interp=InterpolateKeep);
 	Interpolate2020E getKeyframe(unsigned anim, unsigned frame,
 			Position, KeyType2020E isRotation,
 			double &x, double &y, double &z)const;
+	//2022: This maintains m_parameter on InterpolateCopy keys with
+	//the goal of simplifying code that needs values for these keys.
+	void _reset_InterpolateCopy(unsigned anim, KeyType2020E how, unsigned index, KeyframeList &list);
+
 	//2020
 	//NOTE: Returns the highest value if type is left unspecified.
 	//For now these should be equal for a joint for a given frame.
@@ -1831,6 +1792,7 @@ public:
 
 	//MEMORY LEAK (removeKeyframe leaks if not using undo system.)
 	bool deleteKeyframe(unsigned anim, unsigned frame, Position joint, KeyType2020E isRotation=KeyAny);
+	bool deleteKeyframe(unsigned anim, const Keyframe *cp);
 
 	//TODO: It would be nice to have a way to sample the vertex/object vis-a-vis a skeleton.
 	int interpKeyframe(unsigned anim, unsigned frame, Position, Matrix &relativeFinal)const;
@@ -1915,8 +1877,9 @@ public:
 	//NEW: Defer animation calculations same as normals calculations.
 	void validateAnim()const,calculateAnim();
 
-	void invertNormals(unsigned triangleNum);
-	bool triangleFacesIn(unsigned triangleNum);
+	void invertNormal(unsigned triangleNum);
+	void invertNormals(const int_list&); //2022
+	bool triangleFacesIn(unsigned triangleNum); //INSANITY
 
 	// ------------------------------------------------------------------
 	// Geometry functions
@@ -1979,6 +1942,7 @@ public:
 	//2020: This API leaves dangling references to vertices! (UNSAFE)
 	void deleteVertex(unsigned vertex);
 	void deleteTriangle(unsigned triangle);
+	void deleteTriangles(const int_list &sorted, bool ascending_order);
 
 	//2021: Manipulates drawing order for correcting for depth-test issues
 	//in games.
@@ -2085,17 +2049,6 @@ public:
 
 	Material::MaterialTypeE getMaterialType(unsigned materialIndex)const;
 
-	//REMOVE ME
-	//1 byte at at time???
-	int getMaterialColor(unsigned materialIndex, unsigned c, unsigned v = 0)const
-	{
-		if(materialIndex<m_materials.size()&&c<4&&v<4)
-		{
-			return m_materials[materialIndex]->m_color[v][c];
-		}
-		else return 0;
-	}
-
 	int removeUnusedGroups();
 	int mergeIdenticalGroups();
 	int removeUnusedMaterials();
@@ -2149,6 +2102,7 @@ public:
 	//FIX ME: THESE ARE EXTREMELY INEFFECIENT
 	bool addTriangleToGroup(unsigned groupNum, unsigned triangleNum);
 	bool removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum);
+	bool ungroupTriangle(unsigned triangleNum);
 	void setSelectedAsGroup(unsigned groupNum);
 	void addSelectedToGroup(unsigned groupNum);
 	int getTriangleGroup(unsigned triangleNumber)const;
@@ -2368,10 +2322,8 @@ public:
 	bool getProjectionRange(unsigned projNumber,
 	double &xmin, double &ymin, double &xmax, double &ymax)const;
 
-	#ifdef NDEBUG
-//		#error Need int_list version of setTriangleProjection
-	#endif
 	void setTriangleProjection(unsigned triangleNum, int proj);
+	void setTrianglesProjection(const int_list&tris, int proj);
 	int getTriangleProjection(unsigned triangleNum)const;
 
 	void applyProjection(unsigned int proj);
@@ -2757,7 +2709,7 @@ protected:
 	//necessary to think about, so it should just always combine if
 	//combinable.
 	//void sendUndo(Undo *undo, bool listCombine = false);
-	void sendUndo(Undo *undo), appendUndo(Undo *undo);
+	void sendUndo(::Undo *undo), appendUndo(::Undo *undo); //REMOVE US
 
 	// ------------------------------------------------------------------
 	// Meta

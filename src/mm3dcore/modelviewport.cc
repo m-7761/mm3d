@@ -53,6 +53,7 @@ void ModelViewport::getXY(int &x, int &y)
 
 ModelViewport::ModelViewport(Parent *parent)
 	:
+ScrollWidget(zoom_min,zoom_max),
 parent(parent),
 m_operation(MO_None),
 m_view(Tool::ViewFront),
@@ -285,7 +286,12 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			gluPerspective(45,aspect,m_zoom*zn,m_zoom*zf); //GLU
 		}
 
-		m_width = s*2; m_height = t*2;
+		s*=2; t*=2;
+		if(m_width!=s||m_height!=t)
+		{
+			m_width = s; m_height = t;
+			m_unitWidth = getUnitWidth();
+		}
 				
 		glMatrixMode(GL_MODELVIEW); glLoadIdentity();
 	}
@@ -634,10 +640,10 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	 ||model->getDrawSelection()) //TESTING
 	{
 		parent->drawTool(this);
+
+		//Don't trust drawTool?
+		//glDisable(GL_DEPTH_TEST);
 	}
-	
-	//Don't trust drawTool.
-	glDisable(GL_DEPTH_TEST);
 
 	if(!m_rendering
 	 &&!model->getViewportUnits().no_overlay_option) //2022
@@ -788,7 +794,7 @@ void ModelViewport::drawGridLines(float a, bool offset3d)
 
 		glEnd();
 	}
-	else if(double uw=m_unitWidth=getUnitWidth())
+	else if(double uw=m_unitWidth) //getUnitWidth()
 	{
 		//if(uw<=0) return; //May be 0. 
 		assert(uw>0); 
@@ -1048,6 +1054,7 @@ void ModelViewport::drawBackground()
 double ModelViewport::getUnitWidth()
 {
 	Model *model = parent->getModel();
+	if(!model) return 1; //2022
 	Model::ViewportUnits &vu = model->getViewportUnits();
 
 	if(m_view>=Tool::ViewOrtho
@@ -1083,14 +1090,17 @@ double ModelViewport::getUnitWidth()
 		break;
 	}
 
-	double maxDimension = m_width>m_height?m_width:m_height;
-	while(maxDimension/unitWidth>scale_max)
+	if(m_width) //Prior to drawing?
 	{
-		unitWidth*=ratio;
-	}
-	while(maxDimension/unitWidth<scale_min)
-	{
-		unitWidth/=ratio;
+		double maxDimension = m_width>m_height?m_width:m_height;
+		while(maxDimension/unitWidth>scale_max)
+		{
+			unitWidth*=ratio;
+		}
+		while(maxDimension/unitWidth<scale_min)
+		{
+			unitWidth/=ratio;
+		}
 	}
 	return unitWidth;
 }
@@ -1149,11 +1159,14 @@ void ModelViewport::updateViewport(int how)
 
 		parent->zoomLevelChangedEvent(*this);
 	
-		//REMOVE ME (Invalidating cursor position?)
-		m_unitWidth = getUnitWidth();
-		char str[80];
-		snprintf(str,sizeof(str),"Units: %g",m_unitWidth);
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,str);
+		//getUnitWidth is invalid if uninitialized
+		//and this way "Press F1 for help" is seen.
+		if(m_viewportWidth&&m_viewportHeight)
+		{
+			m_unitWidth = getUnitWidth();
+
+			model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,"Unit: %g",m_unitWidth);
+		}
 	}
 
 	updateMatrix();
@@ -1176,7 +1189,25 @@ void ModelViewport::wheelEvent(int wh, int bs, int x, int y)
 }
 bool ModelViewport::_rmb_rotates_view = false; //2021
 bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
-{
+{	
+	Model *model = parent->getModel();
+
+	if(m_activeButton==bt) //DEBUGGING?
+	{
+		//NOTE: TextureWidget has m_buttons, which
+		//I don't know, maybe ModelViewport should
+		//too?
+		
+		//HACK: In case the button state is confused
+		//let the user unstick buttons by pressing
+		//the button. (Hopefully this only happens
+		//when using the debugger "break" function.)
+		m_activeButton = 0;
+
+		model_status(model,StatusError,STATUSTIME_LONG,
+		TRANSLATE("LowLevel","Warning: Unstuck confused mouse button state"));
+	}
+
 	//printf("press = %d\n",e->button());
 	//if(m_activeButton!=Qt::NoButton)
 	if(m_activeButton)
@@ -1194,8 +1225,6 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 	//bool rotate = (e->modifiers()&Qt::ControlModifier)!=0;
 	bool rotate = (bs&Tool::BS_Ctrl)!=0;
 	
-	Model *model = parent->getModel();
-
 	if(!model->getViewportUnits().no_overlay_option //2022
 	&&pressOverlayButton(x,y,rotate))	
 	{
@@ -1216,13 +1245,8 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 		//m_operation = MO_None;
 		if(m_operation!=MO_None) return true; //NEW
 
-		//if(e->button()==Qt::MidButton)
-		if(bt==Tool::BS_Middle)
-		{
-			m_operation = MO_Pan;
-			m_scrollStartPosition = {x,y};
-		}
-		else 
+		//if(e->button()!=Qt::MidButton)
+		if(bt!=Tool::BS_Middle)
 		{
 			bool persp = m_view<=Tool::ViewPerspective
 			&&!parent->getModel()->getDrawSelection();
@@ -1235,13 +1259,55 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 				if(_rmb_rotates_view) pan = !pan;
 
 				m_operation = pan?MO_Pan:MO_Rotate;
-				m_scrollStartPosition = {x,y};
 			}
 			else
 			{
 				m_operation = MO_Tool;
 				Tool *tool = parent->tool;
 				tool->mouseButtonDown(bt|bs,x-m_viewportX,y-m_viewportY);
+			}
+		}
+		else m_operation = MO_Pan;
+
+		if(m_operation!=MO_Tool)
+		{
+			m_scrollStartPosition = {x,y};
+
+			//2022: This had been done in getParentXYZValue but never
+			//appears in the status bar for reasons I'm uncertain of?
+			//It doesn't make much sense there. I think it used to be
+			//shown exclusively over the viewport but some version of
+			//Qt made that impractical. Putting it here seems best to
+			//be able to invoke it manally by clicking and to not act
+			//like spam!
+			if(m_operation==MO_Pan)
+			if(m_view>Tool::ViewPerspective)
+			{
+				double pos[3]; pos[2] = 0;
+				getRawParentXYValue(x-m_viewportX,y-m_viewportY,pos[0],pos[1]);
+				//m_viewInverse.apply(pos);
+				m_bestInverse.apply3x(pos);				
+				
+				double cmp = std::min(m_width,m_height);
+				char p[4] = ".6f";
+				if(cmp>=0.01) p[1]--; //5
+				if(cmp>=0.10) p[1]--; //4
+				if(cmp>=1.00) p[1]--; //3
+				if(cmp>=10.0) p[2]--; //5
+				for(int i=0;i<3;i++) 
+				if(fabs(pos[i])<=0.00005) pos[i] = 0;
+				char f[32];
+				sprintf(f,"Unit: %%g (%%%s,%%%s,%%%s)",
+				pos[0]?p:"g",pos[1]?p:"g",pos[2]?p:"g");
+				model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
+				f,m_unitWidth,pos[0],pos[1],pos[2]);
+			}
+			else
+			{
+				//This isn't very helpful since the units are fixed and easy
+				//to see visually. Zooming is a way to show this same string.
+				//model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
+				//"Unit: %g",m_unitWidth); //getUnitWidth());
 			}
 		}
 	}
@@ -1313,9 +1379,7 @@ void ModelViewport::mouseReleaseEvent(int bt, int bs, int x, int y)
 	{
 		m_overlayButton = ScrollButtonMAX;
 
-		//m_scrollTimer->stop();
-		extern void scrollwidget_stop_timer(); //REMOVE ME
-		scrollwidget_stop_timer();	 
+		cancelOverlayButtonTimer(); //HACK
 
 		model_status(model,StatusNormal,STATUSTIME_SHORT,
 		TRANSLATE("LowLevel","Use the middle mouse button to drag/pan the viewport"));
@@ -1346,7 +1410,7 @@ bool ModelViewport::keyPressEvent(int bt, int bs, int x, int y)
 	case '`':
 	{
 		Tool::ViewE newDir = Tool::ViewPerspective;
-		if(m_view<=newDir) newDir = Tool::ViewOrtho;
+		if(m_view<=newDir) newDir = Tool::ViewOrthoDetect;
 
 		//emit viewDirectionChanged(newDir);					
 		//emit(this,viewDirectionChanged,newDir);
@@ -1366,8 +1430,17 @@ bool ModelViewport::keyPressEvent(int bt, int bs, int x, int y)
 		case Tool::ViewLeft: newDir = Tool::ViewRight; break;
 		case Tool::ViewTop: newDir = Tool::ViewBottom; break;
 		case Tool::ViewBottom: newDir = Tool::ViewTop; break;
-		case Tool::ViewPerspective: newDir = Tool::ViewOrtho; break;
-		case Tool::ViewOrtho: newDir = Tool::ViewPerspective; break;
+		case Tool::ViewPerspective: //newDir = Tool::ViewOrtho; break;
+		case Tool::ViewOrtho: //newDir = Tool::ViewPerspective; break;
+
+			//2020: It's more useful to think of this as 
+			//inverting the view, especially when applying
+			//it to all views at once.
+			double x = m_scroll[0], y = m_scroll[1];
+			rotateViewport(0,PI,0); //2022
+			m_scroll[0] = x; m_scroll[1] = y;
+			updateMatrix();
+			return false;
 		}
 
 		//emit viewDirectionChanged(newDir);					
@@ -1441,36 +1514,8 @@ void ModelViewport::getViewState(ModelViewport::ViewStateT &viewState)
 	viewState.translation[2] = m_scroll[2];
 }
 
-void ScrollWidget::rotateUp()
-{
-	rotateViewport(-15*PIOVER180,0,0);
-}
-void ScrollWidget::rotateDown()
-{
-	rotateViewport(15*PIOVER180,0,0);
-}
-void ScrollWidget::rotateLeft()
-{
-	rotateViewport(0,-15*PIOVER180,0);
-}
-void ScrollWidget::rotateRight()
-{
-	rotateViewport(0,15*PIOVER180,0);
-}
-void ScrollWidget::rotateClockwise()
-{
-	rotateViewport(0,0,-15*PIOVER180);
-}
-void ScrollWidget::rotateCounterClockwise()
-{
-	rotateViewport(0,0,15*PIOVER180);
-}
 void ModelViewport::rotateViewport(double rotX, double rotY, double rotZ)
 {
-	if(fabs(rotX)<=0.00001
-	 &&fabs(rotY)<=0.00001
-	 &&fabs(rotZ)<=0.00001) return;
-	 	
 	if(m_view>Tool::ViewPerspective&&m_view<Tool::ViewOrtho)
 	{
 		//emit viewDirectionChanged(Tool::ViewOrtho);
@@ -1480,34 +1525,56 @@ void ModelViewport::rotateViewport(double rotX, double rotY, double rotZ)
 
 	double rot[3] = { m_rotX*PIOVER180,m_rotY*PIOVER180,m_rotZ*PIOVER180 };
 
-
-	//FIX ME: Ortho rotation is broken. Maverick
-	//is the same way
-
 	//FIX ME: I'm positive this isn't necessary!
 
-
-		Matrix mcur,mcurinv;
+		Matrix mcur; 
 		mcur.setRotation(rot);
-		mcurinv = mcur.getInverse();
 		mcur.inverseRotateVector(m_scroll);
 
-		Vector xvec(1,0,0,0);
-		Vector yvec(0,1,0,0);
-		Vector zvec(0,0,1,0);
+		/*if(0)
+		{
+			Matrix mcurinv = mcur.getInverse();
 
-		Matrix mx,my,mz; //???
+			Vector xvec(1,0,0,0);
+			Vector yvec(0,1,0,0);
+			Vector zvec(0,0,1,0);
 
-		zvec = zvec*mcurinv;
-		mz.setRotationOnAxis(zvec.getVector(),rotZ);
-		yvec = yvec*mcurinv;
-		my.setRotationOnAxis(yvec.getVector(),rotY);
-		xvec = xvec*mcurinv;
-		mx.setRotationOnAxis(xvec.getVector(),rotX);
+			Matrix mx,my,mz; //???
 
-		mcur = mx*mcur;
-		mcur = my*mcur;
-		mcur = mz*mcur;
+			zvec = zvec*mcurinv;
+			mz.setRotationOnAxis(zvec.getVector(),rotZ);
+			yvec = yvec*mcurinv;
+			my.setRotationOnAxis(yvec.getVector(),rotY);
+			xvec = xvec*mcurinv;
+			mx.setRotationOnAxis(xvec.getVector(),rotX);
+			mcur = mx*mcur;
+			mcur = my*mcur;
+			mcur = mz*mcur;
+		}
+		else if(1) //OPTIMIZING
+		{
+			Matrix m = mcur.getInverse();
+			Quaternion q,tmp;
+			q.setRotationOnAxis(m.getVector(2),rotZ);
+			tmp.setRotationOnAxis(m.getVector(1),rotY);
+			q = tmp*q;
+			tmp.setRotationOnAxis(m.getVector(0),rotX);
+			q = tmp*q;
+			m.setRotationQuaternion(q);
+			mcur = m*mcur;			
+		}
+		else*/ //This feels like it's equivalent.*/
+		{
+			Quaternion q,tmp;
+			q.setRotationOnAxis(mcur.getColumn(2).getVector(),rotZ);
+			tmp.setRotationOnAxis(mcur.getColumn(1).getVector(),rotY);
+			q = tmp*q;
+			tmp.setRotationOnAxis(mcur.getColumn(0).getVector(),rotX);
+			q = tmp*q;
+			Matrix m; m.setRotationQuaternion(q);
+			mcur = m*mcur;			
+		}
+
 		mcur.getRotation(rot);
 		m_rotX = rot[0]/PIOVER180;
 		m_rotY = rot[1]/PIOVER180;
@@ -1546,68 +1613,130 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	//log_debug("viewChangeEvent(%d)\n",dir);
 
 	if(dir==m_view) return;
-
-	if(m_view<=Tool::ViewPerspective)
-	{
-		Matrix m;
-		m.setRotationInDegrees(0,0,-m_rotZ);
-		m.apply3(m_scroll);
-		m.setRotationInDegrees(0,-m_rotY,0);
-		m.apply3(m_scroll);
-		m.setRotationInDegrees(-m_rotX,0,0);
-		m.apply3(m_scroll);
-	}
-	else m_viewInverse.apply3(m_scroll);
-
-	//log_debug("center point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
-
-	bool toFree = false;
-	bool isFree = dir<=Tool::ViewPerspective||dir>=Tool::ViewOrtho;
-
-	switch(m_view)
-	{
-	case Tool::ViewFront: case Tool::ViewBack:
-	case Tool::ViewRight: case Tool::ViewLeft: 
-	case Tool::ViewTop: case Tool::ViewBottom: 
-		
-		toFree = isFree;
-	}
-
-	if(toFree) //???
-	{
-		//log_debug("inverting rotation\n");
-		m_rotX = -m_rotX;
-		m_rotY = -m_rotY;
-		m_rotZ = -m_rotZ;
-	}
-	else if(!isFree)
-	{
-		m_rotX = m_rotY = m_rotZ = 0;
-
-		switch(dir)
-		{
-		case Tool::ViewBack: m_rotY = 180; break;
-		case Tool::ViewLeft: m_rotY = -90; break; //90
-		case Tool::ViewRight: m_rotY = 90; break; //-90
-		case Tool::ViewTop: m_rotX = -90; break;
-		case Tool::ViewBottom: m_rotX = 90; break;
-		}
-	}
-
-	Matrix m; if(isFree&&!toFree)
-	{
-		m.setRotationInDegrees(m_rotX,m_rotY,m_rotZ);
-	}
-	else m.setRotationInDegrees(-m_rotX,-m_rotY,-m_rotZ);
-
-	if(toFree) m = m.getInverse();
-
-	m.apply3(m_scroll);
-	//log_debug("after point = %f,%f,%f\n",m_scroll[0],m_scroll[1],m_scroll[2]);
-
-	m_view = dir;
 	
-	updateMatrix();
+	bool basically_vertical = false;
+
+	//2022: I feel like this isn't the best user experience.
+	//However, m_scroll[2] may be important for maintaining
+	//frameArea. If it's disabled it's possible to switch a
+	//view between back and front (for example) and see the
+	//model's other side without it shifting around beneath.
+	//m_scroll[1] is set when changing to/fro topdown views.
+	Vector scroll(m_scroll); if(1)
+	{
+		if(m_view<=Tool::ViewPerspective)
+		{
+			Matrix m;
+			m.setRotationInDegrees(0,0,-m_rotZ);
+			m.apply3(scroll);
+			m.setRotationInDegrees(0,-m_rotY,0);
+			m.apply3(scroll);
+			m.setRotationInDegrees(-m_rotX,0,0);
+			m.apply3(scroll);
+		}
+		else m_viewInverse.apply3(scroll);
+
+		//log_debug("center point = %f,%f,%f\n",scroll[0],scroll[1],scroll[2]);
+
+		bool toFree = false;
+		bool isFree = dir<=Tool::ViewPerspective||dir>=Tool::ViewOrtho;
+
+		switch(m_view)
+		{
+		case Tool::ViewFront: case Tool::ViewBack:
+		case Tool::ViewRight: case Tool::ViewLeft: 
+		case Tool::ViewTop: case Tool::ViewBottom: 
+		
+			toFree = isFree;
+		}
+
+		if(toFree) //???
+		{
+			//log_debug("inverting rotation\n");
+			m_rotX = -m_rotX;
+			m_rotY = -m_rotY;
+			m_rotZ = -m_rotZ;
+		}
+		else if(!isFree)
+		{
+			m_rotX = m_rotY = m_rotZ = 0;
+
+			switch(dir)
+			{
+			case Tool::ViewBack: m_rotY = 180; break;
+			case Tool::ViewLeft: m_rotY = -90; break; //90
+			case Tool::ViewRight: m_rotY = 90; break; //-90
+			case Tool::ViewTop: m_rotX = -90; break;
+			case Tool::ViewBottom: m_rotX = 90; break;
+			}
+		}
+
+		Matrix m; if(isFree&&!toFree)
+		{
+			m.setRotationInDegrees(m_rotX,m_rotY,m_rotZ);
+		}
+		else m.setRotationInDegrees(-m_rotX,-m_rotY,-m_rotZ);
+
+		if(toFree) m = m.getInverse();
+
+		m.apply3(scroll);
+		//log_debug("after point = %f,%f,%f\n",scroll[0],scroll[1],scroll[2]);
+
+		Vector v; v[2] = 1; m.apply3(v);
+
+		basically_vertical = fabs((float)v[1])>0.9f; //ARBITRARY
+
+		//2022: This enables toggling in and out of "3D"
+		//mode without losing track of the original "2D"
+		//mode.
+		if(dir==Tool::ViewOrthoDetect) //Tool::ViewOrtho
+		{
+			dir = Tool::ViewOrtho;
+
+			float x = fabs((float)v[0])-0.9999f;
+			float y = fabs((float)v[1])-0.9999f;
+			float z = fabs((float)v[2])-0.9999f;
+
+			if(x>=0)
+			{
+				dir = v[0]>0?Tool::ViewLeft:Tool::ViewRight;
+			}
+			else if(y>=0)
+			{
+				dir = v[1]>0?Tool::ViewBottom:Tool::ViewTop;
+			}
+			else if(z>=0)
+			{
+				dir = v[2]>0?Tool::ViewFront:Tool::ViewBack;
+			}
+		}
+	}	
+	//scroll.getVector3(m_scroll);
+	m_scroll[2] = scroll[2];
+	//Switch to a topdown view is an odd exception to
+	//the desire to keep 0,0,0 pinned down since that
+	//puts the birds eye view along the view's bottom.
+	//if(!toFree&&!isFree)
+	{
+		Vector v; v[2] = 1; m_viewMatrix.apply3(v);
+
+		bool a = basically_vertical;
+	//	bool a = dir==Tool::ViewTop||dir==Tool::ViewBottom;
+		bool b = fabs((float)v[1])>0.9f;
+	//	bool b = m_view==Tool::ViewTop||m_view==Tool::ViewBottom;
+
+		//TODO: May want to throw in some recenter logic?
+		if(a!=b) m_scroll[1] = scroll[1];
+	}
+	
+	m_view = dir;
+
+	if(m_viewportWidth) //2022 //HACK?
+	{
+		m_unitWidth = getUnitWidth();
+			
+		updateMatrix();
+	}
 
 	parent->viewChangeEvent(*this); //NEW
 }
@@ -1828,27 +1957,6 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		if(cmp[1]<maxDist) yval = val[1]-m_scroll[1];
 	}
 
-	if(m_view>Tool::ViewPerspective) //REMOVE ME? Spam?
-	{
-		Vector pos;
-		//getParentXYValue(bs,x,y,pos[0],pos[1],false); //???
-		pos[0] = xval;
-		pos[1] = yval;
-		pos[2] = zval;
-		//m_viewInverse.apply(pos);
-		m_bestInverse.apply4(pos);
-		for(int i=0;i<3;i++) 
-		if(fabs(pos[i])<=0.000005) pos[i] = 0;
-
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
-		"Units: %g  (%g,%g,%g)",m_unitWidth,pos[0],pos[1],pos[2]);
-	}
-	else
-	{
-		model_status(parent->getModel(),StatusNormal,STATUSTIME_NONE,
-		"Units: %g",m_unitWidth); //getUnitWidth());
-	}
-
 	return ret; //zval was set.
 }
 
@@ -2012,7 +2120,7 @@ void ModelViewport::Parent::initializeGL(Model *m)
 		//log_debug("max texture size is %dx%d\n",texSize,texSize);
 	}
 
-	checkGlErrors(m);
+	if(m) checkGlErrors(m);
 
 	if(1) //#define MM3D_ENABLEALPHA
 	{

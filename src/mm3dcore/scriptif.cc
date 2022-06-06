@@ -22,6 +22,8 @@
 
 #include "mm3dtypes.h" //PCH
 
+#ifdef HAVE_LUALIB //2022
+
 #include "scriptif.h"
 #include "model.h"
 #include "filtermgr.h"
@@ -273,12 +275,9 @@ void scriptif_selectedWeldVertices(Model *model)
 
 void scriptif_selectedInvertNormals(Model *model)
 {
-	int_list triangles;
-	model->getSelectedTriangles(triangles);
-	for(int_list::iterator it = triangles.begin(); it!=triangles.end(); it++)
-	{
-		model->invertNormals(*it);
-	}
+	int_list l;
+	model->getSelectedTriangles(l);
+	model->invertNormals(l);
 }
 
 int scriptif_selectedGroupFaces(Model *model, const char *name)
@@ -468,47 +467,43 @@ void scriptif_animCopyFrame(Model *model,Model::AnimationModeE mode,
 {
 	switch (mode)
 	{
-		case Model::ANIMMODE_FRAME:
+	case Model::ANIMMODE_FRAME:
+		{
+			unsigned count = model->getVertexCount();
+			for(unsigned v = 0; v<count; v++)
 			{
-				unsigned count = model->getVertexCount();
-				for(unsigned v = 0; v<count; v++)
-				{
-					double x = 0.0;
-					double y = 0.0;
-					double z = 0.0;
-
-					auto e = model->getFrameAnimVertexCoords(animIndex,src,v,x,y,z);
-					
-					model->setFrameAnimVertexCoords(animIndex,dest,v,x,y,z,e);
-				}
-				#ifdef NDEBUG
-//				#error And points?
-				#endif
+				double xyz[3] = {}; //NOTE: This erases if the source is empty.
+				auto e = model->getFrameAnimVertexCoords(animIndex,src,v,xyz[0],xyz[1],xyz[2]);					
+				model->setFrameAnimVertexCoords(animIndex,dest,v,xyz,e);
 			}
-			break;
-		case Model::ANIMMODE_JOINT:
+			#ifdef NDEBUG
+			#error And points?
+			#endif
+		}
+		break;
+	case Model::ANIMMODE_JOINT:
+		{
+			unsigned count = model->getBoneJointCount();
+			for(Model::Position j{Model::PT_Joint,0}; j<count; j++)
 			{
-				unsigned count = model->getBoneJointCount();
-				for(Model::Position j{Model::PT_Joint,0}; j<count; j++)
-				{
-					double x = 0.0;
-					double y = 0.0;
-					double z = 0.0;
+				double x = 0.0;
+				double y = 0.0;
+				double z = 0.0;
 
-					auto e = model->getKeyframe(animIndex,src,j,Model::KeyRotate,x,y,z);
+				auto e = model->getKeyframe(animIndex,src,j,Model::KeyRotate,x,y,z);
 					
-					model->setKeyframe(animIndex,dest,j,Model::KeyRotate,x,y,z,e);
+				model->setKeyframe(animIndex,dest,j,Model::KeyRotate,x,y,z,e);
 					
-					e = model->getKeyframe(animIndex,src,j,Model::KeyTranslate,x,y,z);
+				e = model->getKeyframe(animIndex,src,j,Model::KeyTranslate,x,y,z);
 					
-					model->setKeyframe(animIndex,dest,j,Model::KeyTranslate,x,y,z,e);
-				}
+				model->setKeyframe(animIndex,dest,j,Model::KeyTranslate,x,y,z,e);
 			}
-			break;
-		//case ANIMMODE_FRAMERELATIVE: //UNIMPLMENTED
-			//break;
-		default:
-			break;
+		}
+		break;
+	//case ANIMMODE_FRAMERELATIVE: //UNIMPLMENTED
+		//break;
+	default:
+		break;
 	}
 }
 
@@ -564,7 +559,8 @@ void scriptif_skelAnimDeleteKeyframe(Model *model,
 void scriptif_frameAnimSetVertex(Model *model, unsigned animIndex,
 		unsigned frame, unsigned v, double x, double y, double z, Model::Interpolate2020E e)
 {
-	model->setFrameAnimVertexCoords(animIndex,frame,v,x,y,z,e);
+	double xyz[3] = {x,y,z};
+	model->setFrameAnimVertexCoords(animIndex,frame,v,xyz,e);
 }
 
 //-----------------------------------------------------------------------------
@@ -669,3 +665,4 @@ void scriptif_logError(const char *str)
 	log_error("script: %s\n",str);
 }
 
+#endif //HAVE_LUALIB //2022

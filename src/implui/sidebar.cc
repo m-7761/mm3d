@@ -215,8 +215,7 @@ void SideBar::AnimPanel::refresh_list()
 		cmp = model->getAnimType(i); 
 		if(cmp!=sep&&sep)
 		{
-			//2021: -2 can be removed in future builds.
-			auto it = new li::item(-2);
+			auto it = new li::item;
 			if(cmp==z) r->insert_item(it,ins,li::behind);
 			else r->add_item(it);
 		}
@@ -238,10 +237,9 @@ void SideBar::AnimPanel::refresh_list()
 	}
 	animation.select_id(m?a:-1);
 
-	//Note: This is causing the animation
-	//to begin playing, which an observer
-	//update does not
-	model.sync_animation_system();
+	//WARNING: I believe this is only used to update
+	//the window menubar list.
+	model.sync_animation_window();
 }
 
 void SideBar::BoolPanel::submit(control *c)
@@ -787,8 +785,9 @@ void SideBar::PropPanel::interp_props::change(int changeBits, control *c)
 		if(am&2) sel|=Model::SelectionVertices|Model::SelectionPoints;
 
 		if(0==(changeBits&
-		(Model::MoveGeometry
-		|Model::MoveOther
+		(Model::AnimationProperty //2022: Now for keyframes.
+	//	|Model::MoveGeometry //Was for???
+	//	|Model::MoveOther //Was for keyframes.
 		|Model::AnimationMode
 		|Model::AnimationFrame|sel))) 
 		{
@@ -913,17 +912,9 @@ void SideBar::PropPanel::group_props::submit(int id)
 	else if(id==id_projection_settings)
 	{
 		int p = projection.menu;
-
-		for(int i:model.fselection)
-		{
-			model->setTriangleProjection(i,p);
-		}
-
+		model->setTrianglesProjection(model.fselection,p);
 		if(projection.window.enable(p>=0).enabled())
-		{
-			model->applyProjection(p);
-		}
-
+		model->applyProjection(p);
 		model->operationComplete(::tr("Set Projection","operation complete"));
 	}
 	else if(id==id_group_settings) 

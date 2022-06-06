@@ -108,7 +108,8 @@ struct ViewBar::ModelView
 	column(bar.portside_row),
 	port(port),
 	nav(bar.portside_row),
-	view(nav,"",id_item),zoom(nav)
+	view(nav,"",id_item),
+	zoom(nav,port.zoom_min,port.zoom_max)
 	{
 		nav.expand().space(2);
 		
@@ -202,6 +203,8 @@ struct ViewBar::StatusBar : StatusObject
 			}
 			else*/ set_hidden(!_); return _;
 		}
+
+		bool toggle(){ return indicate(!*this); }
 
 		operator bool(){ return !hidden(); }
 

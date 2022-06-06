@@ -303,17 +303,19 @@ void Matrix::setRotationOnAxis(const double *pVect, double radians)
 
 void Matrix::setRotationQuaternion(const Quaternion &quat)
 {
-	double xx		= quat.get(0)*quat.get(0);
-	double xy		= quat.get(0)*quat.get(1);
-	double xz		= quat.get(0)*quat.get(2);
-	double xw		= quat.get(0)*quat.get(3);
+	auto q_val = quat.getVector();
 
-	double yy		= quat.get(1)*quat.get(1);
-	double yz		= quat.get(1)*quat.get(2);
-	double yw		= quat.get(1)*quat.get(3);
+	double xx = q_val[0]*q_val[0];
+	double xy = q_val[0]*q_val[1];
+	double xz = q_val[0]*q_val[2];
+	double xw = q_val[0]*q_val[3];
 
-	double zz		= quat.get(2)*quat.get(2);
-	double zw		= quat.get(2)*quat.get(3);
+	double yy = q_val[1]*q_val[1];
+	double yz = q_val[1]*q_val[2];
+	double yw = q_val[1]*q_val[3];
+
+	double zz = q_val[2]*q_val[2];
+	double zw = q_val[2]*q_val[3];
 
 	m_val[0]  = 1-2 *(yy+zz);
 	m_val[4]  =	  2 *(xy-zw);
@@ -521,7 +523,7 @@ void Matrix::apply3x(float *pVec)const
 				= pVec[0] *m_val[(0<<2)+c]
 			  +pVec[1] *m_val[(1<<2)+c]
 			  +pVec[2] *m_val[(2<<2)+c]
-			  +1.0f		*m_val[(3<<2)+c];
+			  +/*+1.0f* */m_val[(3<<2)+c];
 		}
 
 		pVec[0] = (float)vec[0];
@@ -541,7 +543,7 @@ void Matrix::apply3x(double *pVec)const
 				= pVec[0] *m_val[(0<<2)+c]
 			  +pVec[1] *m_val[(1<<2)+c]
 			  +pVec[2] *m_val[(2<<2)+c]
-			  +1.0		 *m_val[(3<<2)+c];
+			  +/*1.0* */m_val[(3<<2)+c];
 		}
 
 		pVec[0] = vec[0];
@@ -953,11 +955,6 @@ Vector &Vector::operator-=(const Vector &rhs)
 bool Vector::operator==(const Vector &rhs)const
 {
 	return floatCompareVector(this->getVector(),rhs.getVector(),4);
-}
-
-void Quaternion::set(int c, double val)
-{
-	m_val[c] = val;
 }
 
 void Quaternion::show()const

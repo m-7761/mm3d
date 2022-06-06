@@ -40,22 +40,6 @@
 
 #ifdef MM3D_EDIT
 
-struct SplitEdgesT
-{
-	unsigned a;
-	unsigned b;
-	unsigned vNew;
-	bool operator<(const struct SplitEdgesT &rhs)const
-	{
-		return (this->a<rhs.a 
-			  ||(this->a==rhs.a&&this->b<rhs.b));
-	};
-	bool operator== (const struct SplitEdgesT &rhs)const
-	{
-		return (this->a==rhs.a&&this->b==rhs.b);
-	};
-};
-
 #endif // MM3D_EDIT
 
 /*REFERENCE
@@ -241,7 +225,11 @@ Model::Model()
 	//m_selectionMode(SelectVertices),
 	  m_selectionMode(SelectTriangles),
 	  m_selecting(false),
-	  m_changeBits(ChangeAll),
+	  //This is held onto until something calls 
+	  //updateObservers, usually the first edit.
+	  //This just causes double changes on open.
+	  //m_changeBits(ChangeAll),
+	m_changeBits(0),
 	  m_undoEnabled(false),
 	  m_undoEnacted(false)
 
@@ -538,9 +526,7 @@ int Model::addVertex(double x, double y, double z)
 		while(fp-->0) vp->m_frames[fp] = FrameAnimVertex::get();
 	}
 
-	if(m_undoEnabled) sendUndo(new MU_Add(num,vp));
-
-	return num;
+	Undo<MU_Add>(this,num,vp); return num;
 }
 int Model::addVertex(int copy, const double pos[3])
 {
@@ -601,9 +587,7 @@ int Model::addVertex(int copy, const double pos[3])
 		}
 	}
 
-	if(m_undoEnabled) sendUndo(new MU_Add(num,vp));
-
-	return num;
+	Undo<MU_Add>(this,num,vp); return num;
 }
 
 /*REFERENCE
@@ -640,8 +624,7 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 		//m_triangles.push_back(triangle);
 		insertTriangle(num,triangle);
 				
-		if(m_undoEnabled)
-		sendUndo(new MU_Add(num,triangle));
+		Undo<MU_Add>(this,num,triangle);
 
 		return num;
 	}
@@ -772,9 +755,7 @@ int Model::addProjection(const char *name, int type, double x, double y, double 
 
 	insertProjection(num,proj);
 
-	if(m_undoEnabled) sendUndo(new MU_Add(num,proj));
-
-	return num;
+	Undo<MU_Add>(this,num,proj); return num;
 }
 
 bool Model::setTriangleVertices(unsigned t, unsigned v1, unsigned v2, unsigned v3)
@@ -790,12 +771,8 @@ bool Model::setTriangleVertices(unsigned t, unsigned v1, unsigned v2, unsigned v
 	unsigned vsz = vl.size();
 	if(v1>=vsz||v2>=vsz||v3>=vsz) return false;	
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_SetTriangleVertices;
-		undo->setTriangleVertices(t,v1,v2,v3,tv[0],tv[1],tv[2]);
-		sendUndo(undo);
-	}
+	if(Undo<MU_SetTriangleVertices>undo=this)
+	undo->setTriangleVertices(t,v1,v2,v3,tv[0],tv[1],tv[2]);
 
 	//2020: Keep connectivity to help calculateNormals
 	unsigned v[3] = {v1,v2,v3};
@@ -831,8 +808,7 @@ void Model::deleteVertex(unsigned vertexNum)
 
 	m_changeBits |= AddGeometry; //2020
 
-	if(m_undoEnabled)
-	sendUndo(new MU_Delete(vertexNum,m_vertices[vertexNum]));
+	Undo<MU_Delete>(this,vertexNum,m_vertices[vertexNum]);
 
 	removeVertex(vertexNum);
 }
@@ -852,9 +828,58 @@ void Model::deleteTriangle(unsigned t)
 
 	//m_changeBits |= AddGeometry
 
-	if(m_undoEnabled) sendUndo(new MU_Delete(t,tp));
+	Undo<MU_Delete>(this,t,tp);
 
 	removeTriangle(t);
+}
+void Model::deleteTriangles(const int_list &l, bool asc)
+{
+	auto *tl = m_triangles.data();
+	int sz = (int)m_triangles.size();
+
+	for(auto&i:l) if(i<sz)
+	{
+		auto *tp = tl[i];	
+		if(tp->m_group>=0)
+		removeTriangleFromGroup(tp->m_group,i);
+	}
+	else assert(0);
+
+	//m_changeBits |= AddGeometry
+
+	Undo<MU_Delete> undo(this,PartFaces);
+
+	//TODO: It would be nice to do this in 
+	//contiguous blocks to limit memmove
+	//like patterns. It might help to sort
+	//the list, but it's const right now.
+
+	int cmp = sz; if(asc)
+	{
+		auto rit = l.rbegin();
+		auto ritt = l.rend();
+		for(;rit<ritt;rit++)
+		{
+			int i = *rit; if(i<cmp)
+			{
+				cmp = i;
+
+				if(undo) undo->add(i,tl[i]);
+
+				removeTriangle(i);
+			}
+			else assert(0);
+		}
+	}
+	else for(int i:l) if(i<cmp)
+	{
+		cmp = i;
+
+		if(undo) undo->add(i,tl[i]);
+
+		removeTriangle(i);
+	}
+	else assert(0);
 }
 
 void Model::deleteBoneJoint(unsigned joint)
@@ -882,8 +907,7 @@ void Model::deleteBoneJoint(unsigned joint)
 		setBoneJointParent(j,new_parent,false);
 	}	
 
-	if(m_undoEnabled)
-	sendUndo(new MU_Delete(joint,m_joints[joint]));
+	Undo<MU_Delete>(this,joint,m_joints[joint]);
 
 	removeBoneJoint(joint);
 
@@ -902,9 +926,8 @@ void Model::deletePoint(unsigned point)
 	m_changeBits |= AddOther; //2020
 
 	if(point<m_points.size())
-	{
-		if(m_undoEnabled) 
-		sendUndo(new MU_Delete(point,m_points[point]));
+	{		
+		Undo<MU_Delete>(this,point,m_points[point]);
 
 		removePoint(point);
 	}
@@ -916,8 +939,7 @@ void Model::deleteProjection(unsigned proj)
 	{
 		m_changeBits |= AddOther; //2020
 
-		if(m_undoEnabled)
-		sendUndo(new MU_Delete(proj,m_projections[proj]));
+		Undo<MU_Delete>(this,proj,m_projections[proj]);
 
 		removeProjection(proj);
 	}
@@ -953,23 +975,34 @@ void Model::deleteSelected()
 
 	//THIS CAN BE SIMPLIFIED
 	for(auto&vp:m_vertices) vp->m_marked = false;
-	
+
+	//2022: deleteTriangle is interleaved undo.
+	int_list tris; 
+
 	for(auto t=m_triangles.size();t-->0;) if(m_triangles[t]->m_selected)
 	{
 		for(int i:m_triangles[t]->m_vertexIndices)
 		{
 			m_vertices[i]->m_marked = true;
 		}
-		deleteTriangle(t);
+		//deleteTriangle(t);		
 	}
-	for(auto t=m_triangles.size();t-->0;) if(m_triangles[t]->m_visible)
+	for(auto t=m_triangles.size();t-->0;) 	
+	if(m_triangles[t]->m_selected) //2022
+	{
+		tris.push_back(t);
+	}
+	else if(m_triangles[t]->m_visible)
 	{
 		for(int i:m_triangles[t]->m_vertexIndices)
 		if(m_vertices[i]->m_selected&&!m_vertices[i]->m_marked)
 		{
-			deleteTriangle(t); break;
+			//deleteTriangle(t); break;
+			tris.push_back(t); break;
 		}
 	}
+	deleteTriangles(tris,false);
+
 	for(auto v=m_vertices.size();v-->0;)	
 	if(m_vertices[v]->m_selected&&!m_vertices[v]->m_marked)
 	{
@@ -1033,25 +1066,19 @@ bool Model::moveVertex(unsigned index, double x, double y, double z)
 	{
 		makeCurrentAnimationFrame();		
 
-		return setFrameAnimVertexCoords(m_currentAnim,m_currentFrame,index,x,y,z);
+		double xyz[3] = {x,y,z};
+		return setFrameAnimVertexCoords(m_currentAnim,m_currentFrame,index,xyz);
 	}
 	else invalidateAnim();
 
-	double old[3];
-	old[0] = v->m_coord[0]; v->m_coord[0] = x;
-	old[1] = v->m_coord[1]; v->m_coord[1] = y;
-	old[2] = v->m_coord[2]; v->m_coord[2] = z;
+	double *swap = v->m_coord; //FIX ME
+	if(Undo<MU_MoveUnanimated> undo=this)
+	undo->addPosition({PT_Vertex,index},x,y,z,swap[0],swap[1],swap[2]);
+	swap[0] = x; swap[1] = y; swap[2] = z;
 
 	m_changeBits |= MoveGeometry;
 
 	invalidateNormals(); //OVERKILL
-
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_MoveUnanimated;
-		undo->addPosition({PT_Vertex,index},x,y,z,old[0],old[1],old[2]);
-		sendUndo(undo);
-	}
 
 	return true;
 } 
@@ -1082,13 +1109,9 @@ bool Model::movePoint(unsigned index, double x, double y, double z)
 
 	m_changeBits|=MoveOther; //2020
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_MoveUnanimated;
-		undo->addPosition({PT_Point,index},x,y,z,p->m_abs[0],p->m_abs[1],p->m_abs[2]);
-		sendUndo(undo);
-	}
-
+	if(Undo<MU_MoveUnanimated>undo=this)
+	undo->addPosition({PT_Point,index},x,y,z,p->m_abs[0],p->m_abs[1],p->m_abs[2]);
+	
 	p->m_abs[0] = x; p->m_abs[1] = y; p->m_abs[2] = z; return true;
 }
 bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
@@ -1132,12 +1155,8 @@ bool Model::moveBoneJoint(unsigned j, double x, double y, double z)
 	double *cmp = p->m_abs;
 	if(x==cmp[0]&&y==cmp[1]&&z==cmp[2]) return true; //2020
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_MoveUnanimated;
-		undo->addPosition({PT_Joint,j},x,y,z,p->m_abs[0],p->m_abs[1],p->m_abs[2]);
-		sendUndo(undo/*,true*/);
-	}
+	if(Undo<MU_MoveUnanimated>undo=this)
+	undo->addPosition({PT_Joint,j},x,y,z,p->m_abs[0],p->m_abs[1],p->m_abs[2]);
 
 	return relocateBoneJoint(j,x,y,z,false);
 }
@@ -1275,8 +1294,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 
 	if(inFrameAnimMode())
 	{
-		const bool ue = m_undoEnabled;
-		MU_InterpolateSelected *undo = nullptr;
+		Undo<MU_InterpolateSelected> undo(this,e,cf,ca);
 
 		auto fa = m_anims[m_currentAnim];
 		unsigned fp = fa->m_frame0;
@@ -1297,9 +1315,7 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 				{
 					verts = true;
 
-					if(ue&&!undo)
-					undo = new MU_InterpolateSelected(e,ca,cf);
-					if(ue) undo->addVertex(v,cmp); 
+					if(undo) undo->addVertex(v,cmp); 
 				
 					//HACK: Maybe this value should already be stored.
 					if(cmp<=InterpolateCopy)					
@@ -1311,8 +1327,6 @@ void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate202
 		}
 
 		if(verts) m_changeBits|=MoveGeometry;
-
-		sendUndo(undo);
 	}
 
 	invalidateAnim();
@@ -1420,7 +1434,7 @@ void Model::translateSelected(const double vec[3])
 					interpKeyframe(ca,cf,v,coord);
 					for(int i=3;i-->0;) coord[i]+=vec[i];
 				}
-				setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
+				setFrameAnimVertexCoords(ca,cf,v,coord);
 			}
 
 			for(Position j{PT_Point,0};j<m_points.size();j++)
@@ -1584,12 +1598,9 @@ void Model::translateSelected(const double vec[3])
 			}
 		}
 		
-		if(sel&&m_undoEnabled)
+		if(sel)
 		{
-			auto undo = new MU_TranslateSelected;
-			//undo->setMatrix(m);
-			undo->setVector(vec);
-			sendUndo(undo/*,true*/);
+			Undo<MU_TranslateSelected>(this,vec);
 		}
 	}
 
@@ -1697,7 +1708,7 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 						multi++; continue;
 					}					
 				}
-				else setFrameAnimVertexCoords(ca,cf,v,coord[0],coord[1],coord[2]);
+				else setFrameAnimVertexCoords(ca,cf,v,coord.getVector());
 			}
 
 			for(Position p{PT_Point,0};p<m_points.size();p++)
@@ -1895,11 +1906,9 @@ void Model::rotateSelected(const Matrix &m, const double point[3])
 			}
 		}
 
-		if(sel&&m_undoEnabled)
+		if(sel)
 		{
-			auto undo = new MU_RotateSelected;
-			undo->setMatrixPoint(m,point);
-			sendUndo(undo/*,true*/);
+			Undo<MU_RotateSelected>(this,m,point);
 		}
 	}
 
@@ -1921,9 +1930,7 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 		if(undoable) 
 		{
 			//CAUTION: m IS MODIFIED BELOW
-			auto undo = new MU_ApplyMatrix;
-			undo->setMatrix(m,scope);
-			sendUndo(undo/*,true*/);
+			Undo<MU_ApplyMatrix>(this,m,scope);
 		}
 		else clearUndo(); //YIKES!!!
 	}
@@ -2038,9 +2045,14 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 	{
 		f(*m_points[p]);
 
-		for(auto*fa:m_anims)
-		for(auto*kf:fa->m_keyframes[p])
+		for(size_t anim=m_anims.size();anim-->0;)
 		{
+			auto *fa = m_anims[anim];
+			auto it = fa->m_keyframes.find(p);
+			if(it==fa->m_keyframes.end()) continue;
+			else
+			for(auto*&kf:it->second)
+			if(kf->m_interp2020!=InterpolateCopy) //2022
 			switch(kf->m_isRotation)
 			{
 			case KeyTranslate:
@@ -2069,6 +2081,15 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 				kf->m_parameter[i]*=scale[i]; 
 				break;
 			}
+			else //InterpolateCopy?
+			{
+				auto i = (unsigned)(&kf-it->second.data());
+				_reset_InterpolateCopy(anim,KeyNONE,i,it->second); 
+			}
+			if(m_anims[anim]->m_wrap) //DICEY
+			{
+				_reset_InterpolateCopy(anim,KeyAny,0,it->second); 
+			}
 		}
 	}
 
@@ -2090,13 +2111,33 @@ void Model::applyMatrix(Matrix m, OperationScopeE scope, bool undoable)
 	}	
 }
 
+struct SplitEdgesT
+{
+	unsigned a;
+	unsigned b;
+	unsigned vNew;
+	bool operator<(const struct SplitEdgesT &rhs)const
+	{
+		return (this->a<rhs.a 
+			  ||(this->a==rhs.a&&this->b<rhs.b));
+	};
+	bool operator== (const struct SplitEdgesT &rhs)const
+	{
+		return (this->a==rhs.a&&this->b==rhs.b);
+	};
+};
 bool Model::subdivideSelectedTriangles()
 {
 	//LOG_PROFILE(); //???
 
 	sorted_list<SplitEdgesT> seList;
 
-	MU_SubdivideTriangle *undo = nullptr;
+	Undo<MU_SubdivideSelected>(this);
+	Undo<MU_SubdivideTriangle> undo(this);
+	
+	m_undoEnabled = false; //!!!
+
+	m_changeBits|=SelectionVertices|SelectionFaces; //2020
 
 	unsigned vertexStart = m_vertices.size();
 	
@@ -2108,16 +2149,6 @@ bool Model::subdivideSelectedTriangles()
 
 		if(!tp->m_selected) continue;
 				
-		if(!undo&&m_undoEnabled)
-		{
-			m_undoEnabled = false; //!!!
-
-			undo = new MU_SubdivideTriangle;
-			sendUndo(new MU_SubdivideSelected);
-
-			m_changeBits|=SelectionVertices|SelectionFaces; //2020
-		}				
-
 		unsigned verts[3];
 		for(unsigned v=0;v<3;v++)
 		{
@@ -2139,7 +2170,7 @@ bool Model::subdivideSelectedTriangles()
 				addVertex(a,pa);
 				m_vertices.back()->m_selected = true;
 				e.vNew = vNew;
-				seList.insert_sorted(e);
+				seList.insert_sorted(e,index);
 				verts[v] = vNew;
 			}
 			else verts[v] = seList[index].vNew;
@@ -2187,11 +2218,9 @@ bool Model::subdivideSelectedTriangles()
 	
 	if(undo)
 	{
-		m_undoEnabled = true;
-
+		m_undoEnabled = true; //!!!
 		for(unsigned i=vertexStart;i<m_vertices.size();i++)
-		undo->addVertex(i);
-		sendUndo(undo);
+		undo->addVertex(i);		
 	}	
 
 	if(vertexStart==m_vertices.size()) return false;
@@ -2244,11 +2273,9 @@ void Model::prioritizeSelectedTriangles(bool first)
 	
 	remapTrianglesIndices(map);
 
-	if(m_undoEnabled)
+	if(Undo<MU_RemapTrianglesIndices>undo=this)
 	{
-		auto undo = new MU_RemapTrianglesIndices;
-		undo->map.swap(map);
-		sendUndo(undo);
+		undo->map.swap(map); //???
 	}
 }
 void Model::reverseOrderSelectedTriangle()
@@ -2270,11 +2297,9 @@ void Model::reverseOrderSelectedTriangle()
 	
 	remapTrianglesIndices(map);
 
-	if(m_undoEnabled)
+	if(Undo<MU_RemapTrianglesIndices>undo=this)
 	{
-		auto undo = new MU_RemapTrianglesIndices;
-		undo->map.swap(map);
-		sendUndo(undo);
+		undo->map.swap(map); //???
 	}
 }
 
@@ -2469,7 +2494,7 @@ bool Model::hideSelected(bool how)
 {
 	//LOG_PROFILE(); //???
 
-	auto undo = m_undoEnabled?new MU_Hide(true):0;
+	Undo<MU_Hide> undo(this,true);
 
 	// Need to track whether we are hiding a vertex and any triangles attached to it,
 	// or hiding a triangle,and only vertices if they are orphaned
@@ -2559,8 +2584,6 @@ bool Model::hideSelected(bool how)
 		}
 	}
 
-	if(undo) sendUndo(undo);
-	
 	//NOTE: This actually does selection undo logic, ensuring
 	//hidden elements aren't seen as selected.
 	if(how) unselectAll();
@@ -2572,7 +2595,7 @@ bool Model::unhideAll()
 {
 	//LOG_PROFILE(); //???
 
-	auto undo = m_undoEnabled?new MU_Hide(false):0;
+	Undo<MU_Hide> undo(this,false);
 
 	int i = -1; for(auto*p:m_vertices)
 	{
@@ -2611,7 +2634,7 @@ bool Model::unhideAll()
 		}
 	}
 
-	sendUndo(undo); return true;
+	return true;
 }
 
 void Model::invertHidden()
@@ -2651,7 +2674,7 @@ void Model::invertHidden()
 	}
 	//second pass (undo)
 	{
-		auto undo = m_undoEnabled?new MU_Hide(-1):0;
+		Undo<MU_Hide> undo(this,-1);
 
 		int i = -1; for(auto*p:m_vertices)
 		{
@@ -2677,8 +2700,6 @@ void Model::invertHidden()
 		
 			if(undo) undo->setHideDifference(SelectPoints,i);
 		}
-
-		sendUndo(undo);
 	}
 }
 
@@ -2969,7 +2990,7 @@ bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, do
 	return visible!=0;
 }
 
-void Model::invertNormals(unsigned triangleNum)
+void Model::invertNormal(unsigned triangleNum)
 {
 	//LOG_PROFILE(); //???
 
@@ -2990,13 +3011,42 @@ void Model::invertNormals(unsigned triangleNum)
 		{
 			m_undoEnabled = true;
 
-			MU_InvertNormal *undo = new MU_InvertNormal();
-			undo->addTriangle(triangleNum);
-			sendUndo(undo);
+			Undo<MU_InvertNormals> undo(this,this);			
+			if(undo) undo->addTriangle(triangleNum);
 		}
 
 		invalidateNormals(); //OVERKILL
 	}
+}
+void Model::invertNormals(const int_list &l)
+{
+	//LOG_PROFILE(); //???
+
+	if(l.empty()) return;
+
+	Undo<MU_InvertNormals> undo(this,this);
+	if(undo) undo->addTriangles(l);
+
+	invalidateNormals(); //OVERKILL
+
+	auto *tl = m_triangles.data();
+
+	bool swap = false; 
+	std::swap(swap,m_undoEnabled);
+
+	for(auto i:l) if(i<(int)m_triangles.size())
+	{
+		auto *tn = tl[i];
+
+		//NOTE: This will change the high 2 bits of Vertex::m_faces
+		//std::swap(tn->m_vertexIndices[0],tn->m_vertexIndices[2]);
+		setTriangleVertices(i,tn->m_vertexIndices[2],tn->m_vertexIndices[1],tn->m_vertexIndices[0]);
+		std::swap(tn->m_s[0],tn->m_s[2]);
+		std::swap(tn->m_t[0],tn->m_t[2]);
+	}
+	else assert(0);
+
+	if(swap) m_undoEnabled = true;
 }
 
 bool Model::triangleFacesIn(unsigned triangleNum) 
@@ -3101,7 +3151,7 @@ bool Model::triangleFacesIn(unsigned triangleNum)
 }
 
 //void Model::sendUndo(Undo *undo, bool listCombine)
-void Model::sendUndo(Undo *undo)
+void Model::sendUndo(::Undo *undo)
 {
 	if(!undo) return; //2020
 
@@ -3122,7 +3172,7 @@ void Model::sendUndo(Undo *undo)
 		undo->release();
 	}
 }
-void Model::appendUndo(Undo *undo)
+void Model::appendUndo(::Undo *undo)
 {
 	if(!undo) return; //2020
 
@@ -3254,11 +3304,8 @@ void Model::parentBoneJoint(unsigned index, int parent, Matrix &m)
 		}
 	}
 
-	if(m_undoEnabled) //WARNING! m MODIFIED BELOW!
-	{
-		auto undo = new MU_SetJointParent(index,parent,m,jt);
-		sendUndo(undo);
-	}
+	//WARNING! m MODIFIED BELOW!
+	Undo<MU_SetJointParent>(this,index,parent,m,jt);
 
 	//readFile calls this if it can't create the joints in
 	//parental order
@@ -3764,16 +3811,12 @@ void Model::calculateNormals()
 
 	// Apply accumulated normals to triangles
 
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	for(unsigned g=0;g<m_groups.size();g++)
 	{
 		Group *grp = m_groups[g];
 
-		double maxAngle = grp->m_angle;
-		if(maxAngle<0.50f)
-		{
-			maxAngle = 0.50f;
-		}
-		maxAngle *= PIOVER180;
+		double maxAngle = 
+		std::max(0.5*PIOVER180,grp->m_angle*PIOVER180);
 
 		for(int i:grp->m_triangleIndices)
 		{
@@ -3793,9 +3836,9 @@ void Model::calculateNormals()
 					auto ea_norm = tri2->m_flatSource;
 					double dotprod = dot3(tri->m_flatSource,ea_norm);
 
-					// Don't allow it to go over 1.0f
-					double angle = 0.0f;
-					if(dotprod<0.99999f)
+					// Don't allow it to go over 1
+					double angle = 0;
+					if(dotprod<0.99999)
 					{
 						angle = fabs(acos(dotprod));
 					}
@@ -3828,6 +3871,8 @@ void Model::calculateNormals()
 
 	for(Triangle*tri:m_triangles) if(!tri->m_marked)
 	{
+		double maxAngle = 45*PIOVER180; //???
+
 		for(int vert=3;vert-->0;)
 		{
 			unsigned v = tri->m_vertexIndices[vert];
@@ -3843,16 +3888,16 @@ void Model::calculateNormals()
 				auto ea_norm = tri2->m_flatSource;
 				double dotprod = dot3(tri->m_flatSource,ea_norm);
 
-				// Don't allow it to go over 1.0f
-				double angle = 0.0f;
-				if(dotprod<0.99999f)
+				// Don't allow it to go over 1
+				double angle = 0;
+				if(dotprod<0.99999)
 				{
 					angle = fabs(acos(dotprod));
 				}
 
 				double w = tri2->m_angleSource[ea.second];
 
-				if(angle<=45.0f *PIOVER180)
+				if(angle<=maxAngle)
 				{
 					A += ea_norm[0]*w;
 					B += ea_norm[1]*w;
@@ -4203,12 +4248,8 @@ bool Model::setPositionCoordsUnanimated(const Position &pos, const double abs[3]
 
 	m_changeBits|=MoveOther; //2020
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_SetObjectUnanimated(pos);
-		undo->setXYZ(this,obj->m_abs,abs); 
-		sendUndo(undo/*,true*/);
-	}
+	Undo<MU_SetObjectUnanimated>(this,pos,this,obj->m_abs,abs); 
+
 	memcpy(obj->m_abs,abs,sizeof(*abs)*3); return true;
 }
 bool Model::getPositionCoords(const Position &pos, double *coord)const
@@ -4249,12 +4290,8 @@ bool Model::setPositionRotationUnanimated(const Position &pos, const double rot[
 
 	m_changeBits|=MoveOther; //2020
 
-	if(m_undoEnabled)
-	{			
-		auto undo = new MU_SetObjectUnanimated(pos);
-		undo->setXYZ(this,obj->m_rot,rot); 
-		sendUndo(undo/*,true*/);
-	}
+	Undo<MU_SetObjectUnanimated>(this,pos,this,obj->m_rot,rot); 
+
 	memcpy(obj->m_rot,rot,sizeof(*rot)*3);
 
 	switch(pos.type)
@@ -4301,12 +4338,8 @@ bool Model::setPositionScaleUnanimated(const Position &pos, const double scale[3
 
 	m_changeBits|=MoveOther; //2020
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_SetObjectUnanimated(pos);
-		undo->setXYZ(this,obj->m_xyz,scale); 
-		sendUndo(undo/*,true*/);
-	}
+	Undo<MU_SetObjectUnanimated>(this,pos,this,obj->m_xyz,scale); 
+
 	memcpy(obj->m_xyz,scale,sizeof(*scale)*3); 
 	
 	switch(pos.type)
@@ -4337,8 +4370,7 @@ bool Model::setPositionName(const Position &pos, const char *name)
 		{
 			m_changeBits|=AddOther; //2020
 
-			if(m_undoEnabled)
-			sendUndo(new MU_SwapStableStr(AddOther,obj->m_name));
+			Undo<MU_SwapStableStr>(this,AddOther,obj->m_name);
 
 			obj->m_name = name;
 		}
@@ -4367,12 +4399,7 @@ bool Model::setBoneJointOffsetUnanimated(unsigned j, const double rel[3], const 
 
 		m_changeBits|=MoveOther; //2020
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetObjectUnanimated(pos);
-			undo->setXYZ(this,obj->m_rel,rel); 
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetObjectUnanimated>(this,pos,this,obj->m_rel,rel); 
 
 		memcpy(obj->m_rel,rel,sizeof(*rel)*3);
 

@@ -26,9 +26,8 @@
 
 #include "mm3dtypes.h" //PCH
 #include "win.h"
-
 #include "model.h"
-#include "texturecoord.h" //Widget
+#include "texwidget.h"
 
 struct ProjectionWin : Win
 {
@@ -36,16 +35,15 @@ struct ProjectionWin : Win
 
 	ProjectionWin(class MainWin &model)
 		:
-	Win("Texture Projection",&texture),
+	Win("Projections",&texture),
 	model(model),
 	nav1(main),
-	projection(nav1,"",id_item),	
-	//FIX ME: New? Delete?
+	projection(nav1,"",id_item),
 	name(nav1,"Rename",id_name), 	
 	nav2(main),
-	add(nav2,"Add Faces",id_append), //"Add Faces to Projection"
+	add(nav2,"Add Faces",id_append),
 	remove(nav2,"Remove Faces",id_remove),
-	zoom(nav2),
+	zoom(nav2,texture::zoom_min,texture::zoom_max),
 	scene(main,id_scene),	
 	nav3(main),
 	type(nav3,"",id_subitem), //"Type:"	
@@ -54,6 +52,11 @@ struct ProjectionWin : Win
 	ok(main),
 	texture(scene)
 	{
+		//2022: I guess this curtails scenarios
+		//where the OK button is expected to do
+		//something but only closes out instead.
+		ok.ok.name(::tr("Close")).id(id_close);
+
 		nav1.expand();
 		projection.expand();
 		name.ralign();
@@ -61,17 +64,14 @@ struct ProjectionWin : Win
 		nav3.expand();
 		apply.ralign();
 
-		//TESTING: These are TextureCoordWin's 
-		//dimensions ATM.
-		//scene.lock(352,284);
-		scene.lock(false,284);
-
 		active_callback = &ProjectionWin::submit;
 
 		init(),submit(id_init);
 	}
 
 	class MainWin &model;
+
+	int _reshape[2];
 	
 	row nav1;
 	dropdown projection; button name;
@@ -84,9 +84,9 @@ struct ProjectionWin : Win
 	button reset,apply;
 	f1_ok_panel ok;
 
-	struct : Widget
+	struct texture : Win::texture
 	{
-		using Widget::Widget; //C++11
+		using Win::texture::texture; //C++11
 
 		ProjectionWin &win()
 		{
@@ -94,29 +94,28 @@ struct ProjectionWin : Win
 		}		
 		virtual void zoomLevelChangedSignal()
 		{
-			double z = win().texture.getZoomLevel();
-			win().zoom.value.set_float_val(z);
+			win().zoom.value.set_float_val(getZoomLevel());
 		}
 		virtual void updateRangeSignal()
 		{
-			win().rangeChanged();
+			win().rangeChanged(false);
 		}
 		virtual void updateRangeDoneSignal()
 		{
-			win().updateDone();
+			win().rangeChanged(true);
 		}
 		virtual void updateSeamSignal(double x, double y)
 		{
-			win().seamChanged(x,y);
+			win().seamChanged(x,y,false);
 		}
-		virtual void updateSeamDoneSignal()
+		virtual void updateSeamDoneSignal(double x, double y)
 		{
-			win().updateDone();
+			win().seamChanged(x,y,true);
 		}
 
 	}texture;
 
-	virtual Widget *widget() //setInteractive?
+	virtual ScrollWidget *widget() //setInteractive?
 	{
 		return &texture; 
 	}
@@ -130,15 +129,11 @@ protected:
 
 	void openModel();
 
-	bool m_ignoreChange;
-
 	void refreshProjectionDisplay();
-	void addProjectionTriangles();		
-	
-	void operationComplete(const char*);
-	void rangeChanged();
-	void seamChanged(double xDiff, double yDiff);
-	void updateDone();
+	void addProjectionTriangles();
+
+	void rangeChanged(bool done);
+	void seamChanged(double xDiff, double yDiff, bool done);
 };
 
 #endif //__PROJECTIONWIN_H__

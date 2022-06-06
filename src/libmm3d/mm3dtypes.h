@@ -36,7 +36,7 @@ typedef float float32_t;
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <functional> //bind2nd/greater
+#include <functional> //greater?
 //2019
 #include <array>
 #include <memory> 
@@ -80,6 +80,8 @@ const double PIOVER180 = PI/180;
 
 typedef std::vector<int> int_list; //REMOVE ME?
 
+typedef std::vector<char> bool_list; //2022 //C++
+
 //typedef Model::pos_list pos_list;
 //typedef Model::infl_list infl_list;
 
@@ -97,6 +99,14 @@ class Texture;
 class Tool;
 class Undo;
 class Vector;
+
+// Register an observer if you have an object that must be notified when the
+// model changes. The modelChanged function will be called with changeBits
+// set to describe (in general terms) what changed. See ChangeBits.
+struct ModelObserver
+{
+	virtual void modelChanged(int changeBits) = 0;
+};
 
 #ifndef BYTEORDER //2019
 #ifdef __BYTE_ORDER__

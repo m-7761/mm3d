@@ -615,6 +615,8 @@ void Model::Keyframe::init()
 	//NOP???
 
 	m_interp2020 = InterpolateLerp; //NEW
+
+	memset(m_selected,false,sizeof(m_selected)); //graph.cc
 }
 
 int Model::Keyframe::flush()
@@ -1202,9 +1204,9 @@ Model::FrameAnimVertex::~FrameAnimVertex()
 
 void Model::FrameAnimVertex::init()
 {
-	for(unsigned t = 0; t<3; t++)
+	for(unsigned t=3;t-->0;)
 	{
-		m_coord[t]  = 0; //m_normal[t] = 0;
+		m_coord[t] = 0; //m_normal[t] = 0;
 	}
 	m_interp2020 = InterpolateNone; //NEW (2020)
 }

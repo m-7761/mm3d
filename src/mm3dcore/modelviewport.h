@@ -31,6 +31,9 @@ class ModelViewport : public ScrollWidget
 {				
 public:
 
+	static constexpr double zoom_min = 0.08;
+	static constexpr double zoom_max = 250000;
+
 	class Parent;
 
 	Parent *const parent;
@@ -87,7 +90,7 @@ public:
 		ViewAlpha
 	};
 
-	enum MouseOperationE
+	enum MouseE
 	{
 		MO_None,
 		MO_Tool,
@@ -153,7 +156,7 @@ protected:
 
 	double getUnitWidth();
 
-	MouseOperationE m_operation;
+	MouseE m_operation;
 
 	Tool::ViewE m_view;
 

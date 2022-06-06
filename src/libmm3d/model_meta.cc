@@ -41,28 +41,13 @@ static void model_meta_safe_strcpy(char *dest, const char *src, size_t len)
 	else dest[0] = '\0';
 }
 
-struct MetaDataKeyMatch
-	:
-public std::binary_function<Model::MetaData, const char *,bool>
-{
-	bool operator()(const Model::MetaData &md, const char *key)const
-	{
-		return(strcmp(md.key.c_str(),key)==0);
-	}
-};
-
 void Model::addMetaData(const char *key, const char *value)
 {
 	MetaData md;
 	md.key = key;
 	md.value = value;
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_AddMetaData;
-		undo->addMetaData(md.key,md.value);
-		sendUndo(undo);
-	}
+	Undo<MU_AddMetaData>(this,md.key,md.value);
 
 	m_metaData.push_back(md);
 }
@@ -70,31 +55,23 @@ void Model::addMetaData(const char *key, const char *value)
 void Model::updateMetaData(const char *key, const char *value)
 {
 	auto it = std::find_if
-	(m_metaData.begin(),m_metaData.end(),
-	std::bind2nd(MetaDataKeyMatch(),key));
+	(m_metaData.begin(),m_metaData.end(),[key](auto &md)
+	{
+		return md.key==key;
+	});
 	if(it==m_metaData.end())
 	{
 		MetaData md;
 		md.key = key;
 		md.value = value;
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_AddMetaData;
-			undo->addMetaData(md.key,md.value);
-			sendUndo(undo);
-		}
+		Undo<MU_AddMetaData>(this,md.key,md.value);
 
 		m_metaData.push_back(md);
 		return;
 	}
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_UpdateMetaData;
-		undo->updateMetaData(key,value,it->value);
-		sendUndo(undo);
-	}
+	Undo<MU_UpdateMetaData>(this,key,value,it->value);
 
 	it->value = value;
 }
@@ -102,8 +79,10 @@ void Model::updateMetaData(const char *key, const char *value)
 bool Model::getMetaData(const char *key, char *value, size_t valueLen)const
 {
 	auto it = std::find_if
-	(m_metaData.begin(),m_metaData.end(),
-	std::bind2nd(MetaDataKeyMatch(),key));
+	(m_metaData.begin(),m_metaData.end(),[key](auto &md)
+	{
+		return md.key==key;
+	});
 	if(it==m_metaData.end())
 	return false;
 	model_meta_safe_strcpy(value,it->value.c_str(),valueLen);
@@ -129,12 +108,7 @@ unsigned int Model::getMetaDataCount()const
 
 void Model::clearMetaData()
 {
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_ClearMetaData;
-		undo->clearMetaData(m_metaData);
-		sendUndo(undo);
-	}
+	Undo<MU_ClearMetaData>(this,m_metaData);
 		
 	m_metaData.clear();
 }
@@ -145,10 +119,7 @@ void Model::removeLastMetaData()
 
 	// This is just for undo purposes, so we don't need an undo
 
-	if(!m_metaData.empty())
-	{
-		m_metaData.pop_back();
-	}
+	if(!m_metaData.empty()) m_metaData.pop_back();
 }
 
 #endif // MM3D_EDIT

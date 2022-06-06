@@ -22,20 +22,42 @@
 
 
 #include "mm3dtypes.h" //PCH
-#include "win.h"
 
 #include "projectionwin.h"
 #include "viewwin.h"
 
-
-#include "model.h"
 #include "log.h"
 #include "msg.h"
 #include "modelstatus.h"
 
-void ProjectionWin::init()
+static void projection_reshape(Win::ui *ui, int x, int y)
 {
-	m_ignoreChange = false;
+	assert(!ui->hidden()); //DEBUGGING
+
+	auto *w = (ProjectionWin*)ui;
+	auto &r = w->_reshape;
+
+	if(!ui->seen())
+	{
+		r[0] = x;
+		r[1] = y; return;
+	}
+	else w->scene.lock(0,0);
+
+	if(x<r[0]) x+=r[0]-x; 
+	if(y<r[1]) y+=r[1]-y; 
+
+	w->_main_panel.lock(x,y);
+}
+
+void ProjectionWin::init()
+{	
+	//TESTING: These are TextureCoordWin's 
+	//dimensions ATM.
+	//scene.lock(352,284);	
+	scene.lock(false,284);
+	reset.ralign();
+	reshape_callback = projection_reshape;
 
 	type.add_item(0,"Cylinder");
 	type.add_item(1,"Sphere");
@@ -46,7 +68,7 @@ void ProjectionWin::init()
 	//setModel(model);
 	texture.setModel(model);
 	texture.setInteractive(true);
-	texture.setMouseOperation(Widget::MouseRange);
+	texture.setMouseOperation(texture::MouseRange);
 	texture.setDrawVertices(false);
 	//texture.setMouseTracking(true); //QWidget //???
 }
@@ -67,7 +89,7 @@ void ProjectionWin::submit(int id)
 	case id_subitem:
 	
 		model->setProjectionType(p,type);
-		operationComplete(::tr("Set Projection Type","operation complete"));
+		model->operationComplete(::tr("Set Projection Type","operation complete"));
 		goto refresh;	
 	
 	case '+': texture.zoomIn(); break;
@@ -81,36 +103,27 @@ void ProjectionWin::submit(int id)
 		::tr("Enter new point name:"),1,Model::MAX_NAME_LEN))		
 		{
 			model->setProjectionName(p,name.c_str());
-			projection.selection()->set_text(name);
-			operationComplete(::tr("Rename Projection","operation complete"));
+			model->operationComplete(::tr("Rename Projection","operation complete"));
 		}
 		break;
 	}
 	case id_apply: //???
 		
-		updateDone(); //applyProjectionEvent(); 
+		model->applyProjection((int)projection);
+		model->operationComplete(::tr("Apply Projection","operation complete"));
 		break;
 
 	case id_reset:
 	
 		model->setProjectionRange(p,0,0,1,1);
-
-		//updateDone();
-		operationComplete(::tr("Reset UV Coordinates","operation complete"));
-		addProjectionTriangles();
-		break;
+		model->operationComplete(::tr("Reset UV Coordinates","operation complete"));		break;
 
 	case id_remove: p = -1; 
 	case id_append:
 	
-		for(int i:model.fselection)
-		{
-			//FIX ME: This is one Undo per triangle!
-			model->setTriangleProjection(i,p);
-		}
-		if(p!=-1) model->applyProjection(p);		
-
-		operationComplete(::tr("Set Triangle Projection","operation complete"));
+		model->setTrianglesProjection(model.fselection,p);
+		if(p!=-1) model->applyProjection(p);
+		model->operationComplete(::tr("Set Triangle Projection","operation complete"));
 	
 		refresh: 
 		refreshProjectionDisplay();
@@ -121,20 +134,9 @@ void ProjectionWin::submit(int id)
 		texture.draw(scene.x(),scene.y(),scene.width(),scene.height());
 		break;
 
-	case id_ok: case id_close:
+	case id_close:
 
-		event.close_ui_by_create_id(); //Help?
-
-		//I guess this model saves users' work?
-		hide(); 
-		
-		//DUPLICATE (FIX)
-		//There seems to be a wxWidgets bug that is documented under hide() which
-		//can be defeated by voiding the current GLUT window. TODO: this needs to
-		//be removed once the bug is long fixed. Other windows are using this too.
-		glutSetWindow(0);
-		
-		return;
+		return hide();
 	}
 
 	basic_submit(id);
@@ -159,24 +161,37 @@ void ProjectionWin::setModel()
 	if(!hidden()) openModel();
 }
 void ProjectionWin::modelChanged(int changeBits)
-{
-	if(m_ignoreChange) return;
-	
-	// TODO need some way to re-select the projection we were looking at
-	if(!hidden())
-	if(model->getProjectionCount()!=projection.find_line_count())
+{	
+	int p = projection;
+	int n = model->getProjectionCount();
+
+	if(changeBits&Model::AddOther) //2022
 	{
-		// A projection was added or deleted, we need to select a new
-		// projection and re-initialize everything. 
-		openModel();
+		// TODO need some way to re-select the projection we were looking at
+		if(!hidden())
+		if(n!=projection.find_line_count())
+		{
+			// A projection was added or deleted, we need to select a new
+			// projection and re-initialize everything. 
+			openModel(); return;
+		}
+		else if(n) //selection()-> crashes on 0.
+		{
+			// a change to projection itself, or a non-projection change, just 
+			// re-initialize the projection display for the current projection			
+			projection.selection()->set_text(model->getProjectionName(p));		
+		}
 	}
-	else
+	if(changeBits&Model::MoveOther) //2022
 	{
-		// a change to projection itself,or a non-projection change,just 
-		// re-initialize the projection display for the current projection
-		int p = projection;
-		projection.selection()->set_text(model->getProjectionName(p));
-		type.select_id(model->getProjectionType(p));		
+		type.select_id(model->getProjectionType(p));
+	}
+	//NOTE: This is a kludge but all range operations call
+	//this anyway, so when projections are reassigned then
+	//setTriangleProjection sets MoveTexture so this isn't
+	//running on every single change!
+	if(changeBits&Model::MoveTexture) //2022
+	{
 		addProjectionTriangles();
 	}
 }
@@ -263,44 +278,51 @@ void ProjectionWin::addProjectionTriangles()
 	//DecalManager::getInstance()->modelUpdated(model); //???
 }
 
-void ProjectionWin::rangeChanged()
+void ProjectionWin::rangeChanged(bool done)
 {
-	double x,y,xx,yy;
-	texture.getRange(x,y,xx,yy);
-	model->setProjectionRange((int)projection,x,y,xx,yy);
+	int p = (int)projection; assert(p>=0);
 
-	addProjectionTriangles();
-}
-void ProjectionWin::seamChanged(double xDiff, double yDiff)
-{
-	if(xDiff==0) return; //Zero-divide?
-
-	double rot[3],up[3] = { 0,1,0 };
-	model->getProjectionRotation((int)projection,rot);
-	Matrix a,b;
-	a.setRotation(rot);
-	a.apply3(up);
-	b.setRotationOnAxis(up,xDiff); (void)yDiff; //???
-	(a*b).getRotation(rot);
-	model->setProjectionRotation((int)projection,rot);
-
-	addProjectionTriangles();
-}
-void ProjectionWin::updateDone()
-{
-	int p = projection; if(p==-1) return; //Dragging?
-
-	model->applyProjection(p); 
-	
-	addProjectionTriangles();
-
-	operationComplete(::tr("Apply Projection","operation complete"));
-}
-void ProjectionWin::operationComplete(const char *opname)
-{	
-	m_ignoreChange = true;
+	if(!done)
 	{
-		model->operationComplete(opname);
+		double x,y,xx,yy; texture.getRange(x,y,xx,yy);
+		model->setProjectionRange(p,x,y,xx,yy);
+
+		//HACK? This is also triggering modelChanged to
+		//call addProjectionTriangles(). 
+		//NOTE: Something like Tool::Parent::updateView
+		//on texture views only would be an improvement.		
+		model->updateObservers();
 	}
-	m_ignoreChange = false;
+
+	if(done)
+	model->operationComplete(::tr("Move Projection Range","operation complete"));
+}
+void ProjectionWin::seamChanged(double xDiff, double yDiff, bool done)
+{
+	//NOTE: I've changed xDiff on Done to the total
+	//for better or worse, but this still has to
+	//run in real time for now.
+	if(!done)
+	{
+		if(xDiff==0) return; (void)yDiff; //???
+
+		int p = (int)projection; assert(p>=0);
+
+		double rot[3],up[3] = { 0,1,0 };
+		model->getProjectionRotation(p,rot);
+		Matrix a,b;
+		a.setRotation(rot);
+		a.apply3(up);
+		b.setRotationOnAxis(up,xDiff); (void)yDiff; //???
+		(a*b).getRotation(rot);
+		model->setProjectionRotation(p,rot);
+
+		//HACK? This is also triggering modelChanged to
+		//call addProjectionTriangles(). 
+		//NOTE: Something like Tool::Parent::updateView
+		//on texture views only would be an improvement.		
+		model->updateObservers();
+	}
+	if(done)
+	model->operationComplete(::tr("Rotate Projection Seam","operation complete"));
 }

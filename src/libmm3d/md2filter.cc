@@ -324,7 +324,7 @@ static void md2filter_invertModelNormals(Model *model)
 	size_t tcount = model->getTriangleCount();
 	for(size_t t = 0; t<tcount; t++)
 	{
-		model->invertNormals(t);
+		model->invertNormal(t);
 	}
 }
 

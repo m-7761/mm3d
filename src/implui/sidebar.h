@@ -395,7 +395,7 @@ struct SideBar : Win
 	}
 	void modelChanged(int changeBits)
 	{
-		if(changeBits&(Model::AddAnimation))
+		if(changeBits&Model::AddAnimation)
 		anim_panel.refresh_list();
 		prop_panel.modelChanged(changeBits);
 	}

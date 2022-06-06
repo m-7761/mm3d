@@ -28,7 +28,18 @@ class Undo
 {
 	public:
 
-		virtual bool combine(Undo *u)= 0;
+		enum //2022
+		{
+			CC_Stop=-1, //all categories sequence point
+			CC_Continue=0,
+			CC_Success=1,
+			CC_Unimplemented=2,
+		};
+		//virtual bool combine(Undo *u) = 0;
+		virtual int combine(Undo *u=nullptr)
+		{
+			return CC_Unimplemented;
+		}
 
 		//FIX US
 		//I give up for now:

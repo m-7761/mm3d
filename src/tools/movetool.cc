@@ -32,7 +32,7 @@
 
 struct MoveTool : Tool
 {
-	MoveTool():Tool(TT_Other)
+	MoveTool():Tool(TT_MoveTool)
 	{
 		m_snap3d = false; //config defaults
 	}

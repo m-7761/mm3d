@@ -10,8 +10,9 @@
 
 #include "helpwin.h"
 #include "tool.h" //ButtonState
-#include "texturecoord.h" //widget
 #include "log.h" 
+
+#include "texwidget.h" //ScrollWidget
 
 class Widgets95::e &Win::event = Widgets95::e;
 
@@ -33,7 +34,7 @@ Win::f1_titlebar::f1_titlebar(node *p):titlebar(p,msg())
 	space<top>(4); //HACK: Line up with OK.
 }
 
-static void win_close()
+extern void win_close()
 {	
 	auto w = (Win*)Widgets95::e::find_ui_by_window_id();
 
@@ -55,24 +56,20 @@ static void win_close()
 	if(c) w->active_callback(c);
 	else w->basic_submit(id_close);
 }
-static void win_enter()
-{
-	auto w = (Win*)Widgets95::e::find_ui_by_window_id();
-	auto c = w->main->find([](Win::control *p)
-	{
-		//Note: Radio button IDs fall into this range.
-		/*Unfortunately id_apply is too ambiguous.
-		//TODO? Maybe ctrl+space.
-		return (p->id()==id_ok||p->id()==id_apply)
-		&&dynamic_cast<Win::button*>(p)&&p->enabled();*/
-		return id_ok==p->id()&&dynamic_cast<Win::button*>(p);
-	});
-	if(c) w->active_callback(c);
-	else w->basic_submit(id_ok);
-}
 
-extern void win_help(const char *typeid_name)
+extern void win_help(const char *typeid_name, Win::ui *w)
 {
+	if(w) //2022: Moving here so workarounds can use it.
+	{		
+		//Seems to work for modal too, at least on Win32.
+		//if(!w->modal())
+		{
+			//Make window sibling.
+			glutSetWindow(w->glut_create_id());
+			glutPopWindow();
+		}
+	}
+
 	#ifdef __GNUC__
 	int _; (void)_;
 	typeid_name = abi::__cxa_demangle(typeid_name,0,0,&_);
@@ -103,8 +100,10 @@ extern void win_help(const char *typeid_name)
 	std::free((void*)typeid_name);
 	#endif
 }
-bool Win::basic_special(ui *w, int k, int)
+bool Win::basic_special(ui *w, int k, int m)
 {
+	if(m) return true;
+
 	switch(k)
 	{
 	case GLUT_KEY_F1:
@@ -124,14 +123,7 @@ bool Win::basic_special(ui *w, int k, int)
 			return p->id()==id_f1&&dynamic_cast<f1_titlebar*>(p);
 		}))
 		{
-			//Seems to work for modal too, at least on Win32.
-			//if(!w->modal())
-			{
-				//Make window sibling.
-				glutSetWindow(w->glut_create_id());
-				glutPopWindow();
-			}
-			win_help(typeid(*w).name());
+			win_help(typeid(*w).name(),w);
 		}
 		break;
 
@@ -168,9 +160,16 @@ bool Win::basic_special(ui *w, int k, int)
 }
 bool Win::basic_keyboard(ui *w, int k, int m)
 {
+	if(m) switch(k)
+	{
+	case '\r':
+	case 27: //Esc
+	case 127: return true; //Delete
+	}
+
 	if(w->subpos()) switch(k)
 	{
-	case 's':
+	case 's': //Save?
 
 		if(m&GLUT_ACTIVE_CTRL)
 		k = id_file_save_prompt;
@@ -187,13 +186,46 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 	}
 	else switch(k)
 	{
-	case '\r': 
+	case 's': //Save?
 
-		win_enter(); return false;
+		if(m&GLUT_ACTIVE_CTRL&&!w->modal())
+		{
+			glutSetWindow(w->glut_create_id());
+			extern void viewwin_menubarfunc(int);
+			viewwin_menubarfunc(id_file_save_prompt);
+			return false;
+		}
+		break;
+
+	case '\r': 
+		
+		if(auto*c=w->main->find([](Win::control *p)
+		{
+			//Note: Radio button IDs fall into this range.
+			//id_close is just ok/cancel combined in one.
+			return (id_ok==p->id()||id_close==p->id())
+			&&dynamic_cast<Win::button*>(p);
+		}))
+		{
+			w->active_callback(c); return false;
+		}
+		break;
 
 	case 27: //Esc
 
-		win_close(); return false;
+		//jointwin.cc has a different close function
+		//win_close();
+		if(auto*c=w->main->find([](Win::control *p)
+		{
+			//Note: Radio button IDs fall into this range.
+			//id_close is just ok/cancel combined in one.
+			return (p->id()==id_cancel||p->id()==id_close)
+			&&dynamic_cast<Win::button*>(p);
+		}))
+		{
+			w->active_callback(c); return false;			
+		}
+		break;
 
 	case 'z': case 'y': z: //Hardcoded undo/redo? Shift+Ctrl+Z?
 		
@@ -218,7 +250,7 @@ static bool win_widget_keyboard(Widgets95::ui *ui, int kb, int cm)
 	int x = Widgets95::e.curr_x;
 	int y = Widgets95::e.curr_y;
 	if(((Win*)ui)->widget()->keyPressEventUI(+kb,cm,x,y))
-	return true;
+	return false;
 	if(kb>0) 
 	return Win::basic_keyboard(ui,kb,cm);
 	else 
@@ -235,6 +267,37 @@ static bool win_widget_mouse(Widgets95::ui *ui, int bt, int st, int x, int y)
 	return !((Win*)ui)->widget()->mousePressEventUI(bt,cm,x,y);
 	else return !((Win*)ui)->widget()->mouseReleaseEventUI(bt,cm,x,y);
 }
+void win_widget_entry(Widgets95::ui *ui, int state)
+{
+	if(ui==Win::event.active_control_ui)
+	{
+		if(!Win::event.curr_button_down) //Scrolling?
+		{
+			if(auto*c=ui->main->find((int)id_scene))
+			if(!c->_tab_navigate)
+			c->activate();
+		}
+	}
+
+	/*TESTING
+	//Problem with this is it excludes the non-client
+	//portion of the window. I'm not sure it's needed
+	//if hotkeys can be forwarded, otherwise it might
+	//be possibe to manually monitor the mouse motion.
+	if(!ui->modal()&&ui->glut_create_id()>0)
+	{
+		//(state?glutPopWindow:glutPushWindow)();
+		if(!state) 
+		{
+			//Windows idiotically deactivates the entire
+			//application when using glutPushWindow on a
+			//child window.
+			glutSetWindow(ui->glut_create_id());
+			glutPopWindow();
+		}
+		else glutPopWindow();
+	}*/
+}
 extern bool win_widget_motion(Widgets95::ui *ui, int x, int y)
 {
 	int cm = Widgets95::e.curr_modifiers; 
@@ -245,6 +308,13 @@ static bool win_widget_wheel(Widgets95::ui *ui, int wh, int x, int y, int cm)
 	return !((Win*)ui)->widget()->wheelEventUI(wh,cm,x,y);
 }
 
+/*REFERENCE
+* 
+* I'm trying to use the visiblity callback instead, but
+* there may have been a reason I went with reshape. GTK.
+* 
+* NOTE: A few of the windows now have reshape_callbacks.
+* 
 //Reminder: Theoretically this is a moving target since 
 //the size may change a few times before it's displayed.
 static void win_reshape(Widgets95::ui *ui, int w, int h)
@@ -256,28 +326,30 @@ static void win_reshape(Widgets95::ui *ui, int w, int h)
 		int x = glutGet(glutext::GLUT_X);
 		int y = glutGet(glutext::GLUT_Y);
 	
-		x-=glutGet(GLUT_WINDOW_WIDTH)/2;
-		y-=glutGet(GLUT_WINDOW_HEIGHT)/2;
+		x-=glutGet(GLUT_WINDOW_WIDTH)/2; //w?
+		y-=glutGet(GLUT_WINDOW_HEIGHT)/2; //h?
 
 		glutPositionWindow(x,y);
 	}
-	/*else //Center?
+	else //Center?
 	{
 		glutSetWindow(ui->glut_create_id());
 
 		int cx = glutGet(GLUT_WINDOW_X);
 		int cy = glutGet(GLUT_WINDOW_Y);
-		int cw = glutGet(GLUT_WINDOW_WIDTH);
-		int ch = glutGet(GLUT_WINDOW_HEIGHT);
+		int cw = glutGet(GLUT_WINDOW_WIDTH); //w?
+		int ch = glutGet(GLUT_WINDOW_HEIGHT); //h?
 
 		glutSetWindow(ui->glut_window_id());
 
 		glutPositionWindow(cx+(cw-w)/2,cy+(ch-h)/2);		
-	}*/
+	}
 }
 extern void win_reshape2(Widgets95::ui *ui, int w, int h)
 {	
-	if(!ui->seen())
+	//NOTE: !w was a hack for reopening hidden windows from
+	//viewwin.cc.
+	if(!ui->seen()||!w) 
 	{
 		//Note: this nudges the window to be fully onscreen.
 		int x = glutGet(glutext::GLUT_X);
@@ -298,17 +370,51 @@ extern void win_reshape2(Widgets95::ui *ui, int w, int h)
 
 		glutPositionWindow(x-4,y);
 	}
-}
-static void win_reveal(int i) //UNUSED
+}*/
+static void win_visibility(Widgets95::ui *ui, int v) //WIP
 {
-	//This is just in case ui::seen fails win_reshape.
-	if(auto*ui=Widgets95::e::find_ui_by_window_id(i))	
-	if(!ui->seen())
-	{
-		//log_debug("Plan-B win_reveal had to show window");
+	if(!v) return;
+	
+	glutSetWindow(ui->glut_window_id());
 
-		ui->show(); 
-	}
+	int x = glutGet(glutext::GLUT_X);
+	int y = glutGet(glutext::GLUT_Y);
+	
+	x-=glutGet(GLUT_WINDOW_WIDTH)/2;
+	y-=glutGet(GLUT_WINDOW_HEIGHT)/2;
+
+	glutPositionWindow(x,y);
+
+	//HACK: Just ensuring menu hotkeys work.
+	if(auto*c=ui->main_panel()->find((int)id_scene)) 
+	c->activate();
+}
+static void win_visibility2(Widgets95::ui *ui, int v) //WIP
+{
+	if(!v) return;
+	
+	//Note: this nudges the window to be fully onscreen.
+	int x = glutGet(glutext::GLUT_X);
+	int y = glutGet(glutext::GLUT_Y);
+
+	glutSetWindow(ui->glut_window_id());
+
+	int w = glutGet(GLUT_WINDOW_WIDTH);
+
+	//2022: The Utilities window can be quite lopsided 
+	//once it expands. So this is a hack to center it
+	//some. However, such narrow windows usually have
+	//a single vertical column, and the title will be
+	//on the left of the mouse, so this kind of makes
+	//since. I'm not sure this isn't a bad idea for all
+	//windows...
+	if(w<300||w>600) x-=w/2; else x-=100; //?
+
+	glutPositionWindow(x-4,y);
+
+	//HACK: Just ensuring menu hotkeys work.
+	if(auto*c=ui->main_panel()->find((int)id_scene)) 
+	c->activate();
 }
 
 void Win::_common_init(bool widget)
@@ -327,6 +433,7 @@ void Win::_common_init(bool widget)
 		mouse_callback = win_widget_mouse;
 		motion_callback = win_widget_motion;
 		wheel_callback = win_widget_wheel;
+		entry_callback = win_widget_entry;
 	}
 	else 
 	{
@@ -334,7 +441,7 @@ void Win::_common_init(bool widget)
 		keyboard_callback = &Win::basic_keyboard;
 	}
 }
-Win::Win(utf8 title, Widget *widget):ui(&_main_panel)
+Win::Win(utf8 title, ScrollWidget *widget):ui(&_main_panel)
 {	
 	ui::_init(title,0,-1,-1,0);
 
@@ -362,13 +469,15 @@ Win::Win(utf8 title, Widget *widget):ui(&_main_panel)
 
 	if(!viewwin_menu_origin) //Center?
 	{
-		reshape_callback = win_reshape;
+		//reshape_callback = win_reshape;
+		visibility_callback = win_visibility;
 	}
 	else //Mouse?
 	{
 		viewwin_menu_origin = false; 
 
-		reshape_callback = win_reshape2;
+		//reshape_callback = win_reshape2;
+		visibility_callback = win_visibility2;
 	}
 }
 Win::Win(int p, int sp):ui(&_main_panel)
@@ -399,6 +508,8 @@ void Win::basic_submit(int id)
 		//under the main windows.
 		event.close_ui_by_create_id(glut_window_id());
 
+		//NOTE: For the "non-modal" child windows that
+		//aren't Help this is an error/crash condition.
 		close(); break;
 	}
 }
@@ -574,10 +685,13 @@ void ScrollWidget::initTexturesUI(int n, unsigned int textures[], char **xpm[])
 }
 void ScrollWidget::setCursorUI(int dir)
 {
+	glutSetWindow(uid); //2022: graphs_div_timer?
+
 	switch(dir)
 	{
-	default: //-1
-	
+	default: assert(0);	
+	case -1: //UI_ArrowCursor
+
 		//setCursor(QCursor(Qt::ArrowCursor));
 		glutSetCursor(GLUT_CURSOR_LEFT_ARROW);
 		break;
@@ -634,6 +748,21 @@ void ScrollWidget::setCursorUI(int dir)
 
 		//setCursor(QCursor(Qt::SizeAllCursor));
 		glutSetCursor(glutext::GLUT_CURSOR_UP_DOWN_LEFT_RIGHT);
+		break;
+
+	case UI_IBeamCursor: //'I' //UNUSED?
+
+		glutSetCursor(GLUT_CURSOR_TEXT);
+		break;
+	
+	case UI_UpDownCursor: //'^'|'v': //GraphWidget?
+
+		glutSetCursor(GLUT_CURSOR_UP_DOWN);
+		break;
+
+	case UI_LeftRightCursor: //'<'|'>': //GraphWidget?
+
+		glutSetCursor(GLUT_CURSOR_LEFT_RIGHT);
 		break;
 	}
 }

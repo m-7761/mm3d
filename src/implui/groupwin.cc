@@ -22,10 +22,8 @@
 
 #include "mm3dtypes.h" //PCH
 #include "win.h"
-
 #include "model.h"
-
-#include "texturecoord.h" //Widget
+#include "texwidget.h"
 
 struct GroupWin : Win
 {
@@ -90,7 +88,7 @@ struct GroupWin : Win
 	button set_faces,add_faces;
 	f1_ok_cancel_panel f1_ok_cancel;
 
-	Widget texture;
+	Win::texture texture;
 
 	void group_selected();
 	void new_group_or_name(int);	

@@ -55,7 +55,7 @@ bool FaceOutCommand::activated(int arg, Model *model)
 	for(int ea:faces) 
 	if(model->triangleFacesIn(ea)) //FIX ME //INSANE //OVERKILL
 	{
-		model->invertNormals(ea);
+		model->invertNormal(ea);
 	}
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,

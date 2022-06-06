@@ -42,6 +42,8 @@ struct GroupCleanWin : Win
 	d(main,"Remove unused groups"),
 	ok_cancel(main)
 	{
+		ok_cancel.ok.activate();
+
 		for(auto*ea=&a;ea<=&d;ea++) ea->set();
 
 		active_callback = &GroupCleanWin::submit; 

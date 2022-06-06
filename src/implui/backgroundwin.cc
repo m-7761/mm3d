@@ -28,7 +28,7 @@
 #include "msg.h"
 
 #include "texmgr.h"
-#include "texturecoord.h" //Widget
+#include "texwidget.h"
 
 struct BackgroundWin : Win
 {
@@ -70,7 +70,7 @@ struct BackgroundWin : Win
 	button browse;
 	f1_ok_cancel_panel f1_ok_cancel;
 
-	Widget texture;
+	Win::texture texture;
 };
 void BackgroundWin::submit(int id)
 {
@@ -116,15 +116,15 @@ void BackgroundWin::submit(int id)
 		{
 			texture.setTexture(-1,nullptr);
 		}
-		else if(Texture*t=TextureManager::getInstance()->getTexture(source))
+		else if(auto*t=TextureManager::getInstance()->getTexture(source))
 		{	
 			texture.setTexture(-1,t);
 		}
 		else
 		{
-			Texture::ErrorE e = TextureManager::getInstance()->getLastError();
+			auto e = TextureManager::getInstance()->getLastError();
 			msg_error("%s\n%s",source.c_str(),
-			e==Texture::ERROR_NONE?::tr("Could not open file"):textureErrStr(e));			
+			!e?::tr("Could not open file"):textureErrStr(e));			
 		}
 		
 		source.set_text(source); //Finally, set the text properly.

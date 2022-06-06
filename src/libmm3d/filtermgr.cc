@@ -127,6 +127,10 @@ Model::ModelErrorE FilterManager::readFile(Model *model, const char *filename)
 				model->calculateSkel();
 				model->calculateNormals();
 
+				//2022: Don't leak junk information to 
+				//first updateObservers call.
+				model->unsetChangeBits(Model::ChangeAll);
+
 				m_factory.closeAll();
 
 				return rval;

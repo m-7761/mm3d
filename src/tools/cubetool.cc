@@ -45,7 +45,7 @@ struct CubeTool : Tool
 
 	virtual const char **getPixmap(int){ return cubetool_xpm; }
  
-	virtual const char *getKeymap(int){ return "Alt+F6"; }
+	virtual const char *getKeymap(int){ return "Shift+F6"; }
 
 	virtual void activated(int)
 	{
@@ -167,16 +167,18 @@ void CubeTool::mouseButtonDown()
 				for(int x = 0; x<m_segments; x++)
 				{
 					//log_debug("%d,%d,%d,%d\n",row1+x,row1+x+1,row2+x,row2+x+1);
-					int t1 = model->addTriangle(m_vertices[row2+x],m_vertices[row1+x+1],m_vertices[row1+x]);
-					int t2 = model->addTriangle(m_vertices[row2+x],m_vertices[row2+x+1],m_vertices[row1+x+1]);
+
+					int a = row2+x, b = m_vertices[row1+x];
+					if(side>=2) std::swap(a,b); //invertNormal?
+					int t1 = model->addTriangle(a,m_vertices[row1+x+1],b);
+					a = row2+x, b = m_vertices[row1+x+1];
+					if(side>=2) std::swap(a,b); //invertNormal?
+					int t2 = model->addTriangle(a,m_vertices[row2+x+1],b);
 					m_triangles.push_back(t1);
 					m_triangles.push_back(t2);
 
-					if(side>=2)
-					{
-						model->invertNormals(t1);
-						model->invertNormals(t2);
-					}
+					//if(side>=2) model->invertNormal(t1);
+					//if(side>=2) model->invertNormal(t2);
 				}
 			}
 		}
@@ -247,14 +249,16 @@ void CubeTool::updateVertexCoords
 				it->coords[2]*zdiff+z1);
 	}
 
-	if(invert!=m_invertedNormals)
+	if(m_invertedNormals!=invert)
 	{
-		unsigned count = m_triangles.size();
-		for(unsigned t = 0; t<count; t++)
-		{
-			model->invertNormals(m_triangles[t]);
-		}
-
 		m_invertedNormals = invert;
+		
+		//It's not necessary to undo this and it
+		//costs a lot to remove double entries.
+		bool ue = model->setUndoEnabled(false);
+		{
+			model->invertNormals(m_triangles);
+		}
+		model->setUndoEnabled(ue);
 	}
 }

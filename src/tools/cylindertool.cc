@@ -47,7 +47,7 @@ struct CylinderTool : Tool
 
 	virtual const char **getPixmap(int){ return cylindertool_xpm; }
 
-	virtual const char *getKeymap(int){ return "Alt+F8"; }
+	virtual const char *getKeymap(int){ return "Shift+F8"; }
 
 	virtual void activated(int)
 	{
@@ -214,9 +214,15 @@ void CylinderTool::mouseButtonMove()
 	{
 		m_inverted = !m_inverted;
 
-		int_list selectedList;
-		model->getSelectedTriangles(selectedList);
-		for(int ea:selectedList) model->invertNormals(ea);
+		//It's not necessary to undo this and it
+		//costs a lot to remove double entries.
+		bool ue = model->setUndoEnabled(false);
+		{
+			int_list selectedList;
+			model->getSelectedTriangles(selectedList);
+			model->invertNormals(selectedList);
+		}
+		model->setUndoEnabled(ue);
 	}
 
 	updateVertexCoords(pos[0],pos[1],0,rad[0],rad[1],rad[2]);

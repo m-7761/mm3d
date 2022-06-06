@@ -25,12 +25,12 @@
 #include "win.h"
 
 #include "model.h"
-#include "texturecoord.h" //Widget
+#include "log.h"
+#include "msg.h"
+
 #include "texture.h"
 #include "texmgr.h"
-#include "log.h"
-
-#include "msg.h"
+#include "texwidget.h"
 
 struct TextureWin : Win
 {
@@ -111,7 +111,7 @@ struct TextureWin : Win
 	dropdown accumulate;
 	f1_ok_cancel_panel f1_ok_cancel;
 
-	Widget texture;
+	Win::texture texture;
 
 	void material_selected();
 	void source_texture(int);
@@ -271,7 +271,7 @@ void TextureWin::source_texture(int id)
 		//log_debug("removed texture from material %d\n",m); //???
 		material_selected();
 	}
-	else if(Texture*tex=TextureManager::getInstance()->getTexture(source.c_str()))
+	else if(auto*tex=TextureManager::getInstance()->getTexture(source.c_str()))
 	{
 		model->setMaterialTexture(m,tex);
 		//log_debug("changed texture %d to %s\n",m,source.c_str());
@@ -279,8 +279,8 @@ void TextureWin::source_texture(int id)
 	}
 	else
 	{
-		Texture::ErrorE e = TextureManager::getInstance()->getLastError();
-		utf8 err = e==Texture::ERROR_NONE?::tr("Could not open file"):textureErrStr(e);
+		auto e = TextureManager::getInstance()->getLastError();
+		utf8 err = !e?::tr("Could not open file"):textureErrStr(e);
 		msg_error("%s\n%s",source.c_str(),err);
 
 		return; //2022

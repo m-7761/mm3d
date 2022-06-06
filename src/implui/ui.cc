@@ -70,7 +70,10 @@ static void ui_drop(char **f, int n)
 
 			extern MainWin*&viewwin(int=glutGetWindow());
 			MainWin *w = viewwin();
-			MainWin::open(m,!i&&w&&!w->model->getEdited()?w:nullptr);
+			//2022: Saving and moving onto a new file is standard
+			//workflow. The file can be reopened as a last resort.
+			//MainWin::open(m,!i&&w&&!w->model->getEdited()?w:nullptr);
+			MainWin::open(m,!i&&w&&w->model->getSaved()?w:nullptr);
 
 			//add path to most-recently-used menu?
 			extern void viewwin_mru_drop(char*);
@@ -329,17 +332,6 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 	extern int main(int argc, char *argv[]);
 
 	_set_error_mode(_OUT_TO_MSGBOX); 
-
-	#ifdef _DEBUG //compiler
-	//Turns on windows heap debugging
-	#if HEAP_DEBUG
-	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF|_CRTDBG_CHECK_CRT_DF/*|_CRTDBG_DELAY_FREE_MEM_DF*/);
-	#else
-	//_CRTDBG_LEAK_CHECK_DF floods output on debugger termination
-	_crtDbgFlag = _CRTDBG_ALLOC_MEM_DF; //|_CRTDBG_LEAK_CHECK_DF;
-	//_crtDbgFlag|=_CRTDBG_CHECK_ALWAYS_DF; //careful
-	#endif
-	#endif
 
 	//Convert UTF16_LE to UTF8 and do CONSOLE stuff before main().
 	int argc = 0;

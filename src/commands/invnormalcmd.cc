@@ -55,9 +55,9 @@ extern Command *invnormalcmd(){ return new InvertNormalCommand; }
 
 bool InvertNormalCommand::activated(int arg, Model *model)
 {
-	int_list faces;
-	model->getSelectedTriangles(faces);
-	for(auto i:faces) if(!arg)
+	int_list l;
+	model->getSelectedTriangles(l);
+	if(!arg) for(auto i:l) 
 	{
 		unsigned int v[3];
 		model->getTriangleVertices(i,v[0],v[1],v[2]);
@@ -74,7 +74,7 @@ bool InvertNormalCommand::activated(int arg, Model *model)
 		int g = model->getTriangleGroup(i);
 		if(g!=-1) model->addTriangleToGroup(g,ii);
 	}
-	else model->invertNormals(i);
+	else model->invertNormals(l);
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Command","Normals inverted"));
 

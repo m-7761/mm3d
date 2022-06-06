@@ -39,6 +39,11 @@ struct TransformWin : Win
 	scope(main,"Apply to:",id_subitem),
 	ok(main)
 	{
+		//2022: I guess this curtails scenarios
+		//where the OK button is expected to do
+		//something but only closes out instead.
+		ok.ok.name(::tr("Close")).id(id_cancel); //Esc?
+
 		active_callback = &TransformWin::submit;
 
 		submit(main); //id_init
@@ -52,7 +57,7 @@ struct TransformWin : Win
 			:
 		nav(frame),
 		x(nav,"X"),y(nav,"Y"),z(nav,"Z"),
-		translate(nav,"Translate",id_apply)
+		translate(nav,"Translate",id_ok)
 		{
 			for(textbox*c=&x;c<=&z;c++)
 			c->edit(0.0);
@@ -69,9 +74,9 @@ struct TransformWin : Win
 			:
 		nav(frame),
 		Euler(nav,"Euler angles",false), //"Euler Angles"
-		rotate1(nav,"Rotate",id_apply),
+		rotate1(nav,"Rotate",id_ok),
 		aa(nav.inl(bi::etched)), //"Quaternion"
-		rotate2(nav,"Rotate",id_apply),
+		rotate2(nav,"Rotate",id_ok),
 		x(Euler,"X"),y(Euler,"Y"),z(Euler,"Z"),
 		ax(aa),ay(aa),az(aa),angle(aa.inl,"Angle")
 		{
@@ -96,7 +101,7 @@ struct TransformWin : Win
 			:
 		nav(frame),
 		x(nav,"X"),y(nav,"Y"),z(nav,"Z"),
-		scale(nav,"Scale",id_apply)
+		scale(nav,"Scale",id_ok)
 		{
 			nav.calign();
 			for(textbox*c=&x;c<=&z;c++)
@@ -113,7 +118,7 @@ struct TransformWin : Win
 		matrix_tab(node *frame)
 			:
 		nav(frame),nav2(nav),
-		multiply(nav,"Apply Matrix",id_apply),
+		multiply(nav,"Apply Matrix",id_ok),
 		title(nav,"(bottom row is translation)")
 		{
 			title.calign();
@@ -151,7 +156,7 @@ struct TransformWin : Win
 	void translateEvent();
 	void rotateEvent(control*);
 	void rotateEulerEvent(){ rotateEvent(rotate.rotate1); }
-	void rotateQuaternionEvent(){ rotateEvent(rotate.rotate2); }
+	void rotateAxisAngleEvent(){ rotateEvent(rotate.rotate2); }
 	void scaleEvent();
 	void matrixEvent();
 	bool matrixIsUndoable(const class Matrix &m);

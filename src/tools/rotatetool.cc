@@ -34,7 +34,7 @@
 
 struct RotateTool : Tool
 {
-	RotateTool():Tool(TT_Other)
+	RotateTool():Tool(TT_RotateTool)
 	{
 		m_mode = 0; 
 
@@ -159,7 +159,8 @@ struct RotateTool : Tool
 					glDisable(GL_COLOR_LOGIC_OP);
 				}
 				glDepthRange(0,1);
-				glDepthFunc(GL_LEQUAL);
+				glDepthFunc(GL_LEQUAL); 
+				glDisable(GL_DEPTH_TEST);
 			}
 
 			double x,y,z,w, scale;

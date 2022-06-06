@@ -46,7 +46,7 @@ struct EllipseTool : Tool
 
 	virtual const char **getPixmap(int){ return ellipsetool_xpm; }
 
-	virtual const char *getKeymap(int){ return "Alt+F7"; }
+	virtual const char *getKeymap(int){ return "Shift+F7"; }
 
 	virtual void activated(int)
 	{

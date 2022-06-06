@@ -90,12 +90,7 @@ bool Model::setPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 
 		InfluenceT newInf = ea;
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_UpdatePositionInfluence;
-			undo->updatePositionInfluence(pos,newInf,oldInf);
-			sendUndo(undo/*,true*/); //IMPLEMENT ME
-		}
+		Undo<MU_UpdatePositionInfluence>(this,pos,newInf,oldInf);
 
 		calculateRemainderWeight(pos);
 
@@ -109,12 +104,7 @@ bool Model::setPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 		inf.m_weight = weight;
 		inf.m_type = type;
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetPositionInfluence;
-			undo->setPositionInfluence(true,pos,il->size(),inf);
-			sendUndo(undo/*,true*/); //IMPLEMENT ME
-		}		
+		Undo<MU_SetPositionInfluence>(this,true,pos,il->size(),inf);
 
 		insertInfluence(pos,il->size(),inf);
 
@@ -143,12 +133,7 @@ bool Model::removePositionInfluence(const Position &pos, unsigned joint)
 				index++; continue;
 			}
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetPositionInfluence;
-				undo->setPositionInfluence(false,pos,index,ea);
-				sendUndo(undo/*,true*/); //IMPLEMENT ME
-			}
+			Undo<MU_SetPositionInfluence>(this,false,pos,index,ea);
 
 			removeInfluence(pos,index);
 
@@ -189,7 +174,7 @@ bool Model::getPositionInfluences(const Position &pos, infl_list &l)const
 {
 	auto *il = getPositionInfluences(pos); if(!il) return false;
 
-	if(il) l = *il; else l.empty(); //2020
+	if(il) l = *il; else l.clear(); //2020
 	
 	return !l.empty();
 }
@@ -230,22 +215,17 @@ bool Model::setPositionInfluenceType(const Position &pos, unsigned int joint, In
 	if(joint>=m_joints.size()) return false;
 
 	auto *il = getPositionInfluences(pos); if(!il) return false;
+	
+	m_changeBits |= SetInfluence; //AddOther
 
 	for(auto&ea:*il) if(ea.m_boneId==(int)joint)
 	{
 		if(type==ea.m_type) return true; //2020
-
-		m_changeBits |= SetInfluence; //AddOther
-
+	
 		InfluenceT oldInf = ea; ea.m_type = type;
 		InfluenceT newInf = ea;
-
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_UpdatePositionInfluence;
-			undo->updatePositionInfluence(pos,newInf,oldInf);
-			sendUndo(undo);
-		}
+				
+		Undo<MU_UpdatePositionInfluence>(this,pos,newInf,oldInf);
 
 		calculateRemainderWeight(pos);
 
@@ -279,12 +259,7 @@ bool Model::setPositionInfluenceWeight(const Position &pos, unsigned int joint, 
 		InfluenceT oldInf = ea; ea.m_weight = weight;
 		InfluenceT newInf = ea;
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_UpdatePositionInfluence();
-			undo->updatePositionInfluence(pos,newInf,oldInf);
-			sendUndo(undo/*,true*/); //IMPLEMENT ME
-		}
+		Undo<MU_UpdatePositionInfluence>(this,pos,newInf,oldInf);
 
 		calculateRemainderWeight(pos);
 

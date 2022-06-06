@@ -1017,40 +1017,33 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			//log_debug("  material name: %s\n",name);
 
 			mat->m_name = name;
-			switch (flags &0x0f)
+			switch(flags&0x0f)
 			{
 			case 0:
 				//log_debug("  got external texture %d\n",texIndex);
 				mat->m_type = Model::Material::MATTYPE_TEXTURE;
-				if(texIndex<texNames.size())
-				{
-					mat->m_filename = texNames[texIndex];
-				}
+				if(texIndex<texNames.size())				
+				mat->m_filename = texNames[texIndex];
 				else
-				{
-					mat->m_filename = "";
-				}
+				mat->m_filename = "";
 				break;
+				/*2022
 			case 13: //UNUSED
 				mat->m_type = Model::Material::MATTYPE_COLOR;
 				mat->m_filename = "";
-				memset(mat->m_color,255,sizeof(mat->m_color));
+			//	memset(mat->m_color,255,sizeof(mat->m_color)); //2022
 				break;
 			case 14: //UNUSED
 				mat->m_type = Model::Material::MATTYPE_GRADIENT;
 				mat->m_filename = "";
-				memset(mat->m_color,255,sizeof(mat->m_color));
-				break;
-			case 15:
-				mat->m_type = Model::Material::MATTYPE_BLANK;
-				mat->m_filename = "";
-				memset(mat->m_color,255,sizeof(mat->m_color));
-				break;
+			//	memset(mat->m_color,255,sizeof(mat->m_color)); //2022
+				break;*/
 			default:
 				//log_debug("  got unknown material type\n",texIndex);
+			case 15: 
 				mat->m_type = Model::Material::MATTYPE_BLANK;
 				mat->m_filename = "";
-				memset(mat->m_color,255,sizeof(mat->m_color));
+			//	memset(mat->m_color,255,sizeof(mat->m_color)); //2022
 				break;
 			}
 
@@ -1783,7 +1776,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				for(uint32_t f=0;f<frameCount;f++)
 				{
 					m_src->read(frame2020);
-					model->setAnimFrameTime(anim,f,frame2020);
+					model->setAnimFrameTime_undo(anim,f,frame2020); //FIX ME
 				}
 				m_src->read(frame2020);
 				model->setAnimTimeFrame(anim,frame2020);
@@ -1917,7 +1910,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				for(uint32_t f=0;f<frameCount;f++)
 				{
 					m_src->read(frame2020);
-					model->setAnimFrameTime(anim,f,frame2020);
+					model->setAnimFrameTime_undo(anim,f,frame2020); //FIX ME
 				}
 				m_src->read(frame2020);
 				model->setAnimTimeFrame(anim,frame2020);
@@ -2172,7 +2165,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			for(uint32_t f=0;f<frameCount;f++)
 			{
 				m_src->read(frame2020);
-				model->setAnimFrameTime(anim,f,frame2020);
+				model->setAnimFrameTime_undo(anim,f,frame2020); //FIX ME
 			}
 			m_src->read(frame2020);
 			model->setAnimTimeFrame(anim,frame2020);
@@ -2775,14 +2768,15 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			uint16_t flags = 0x0000;
 			uint32_t texIndex = ~0;  // TODO deal with embedded textures
 
-			switch (mat->m_type)
+			switch(mat->m_type)
 			{
+			default: /*2022
 			case Model::Material::MATTYPE_COLOR: //UNUSED
 				flags = 0x000d;
 				break;
 			case Model::Material::MATTYPE_GRADIENT: //UNUSED
 				flags = 0x000e;
-				break;
+				break;*/
 			case Model::Material::MATTYPE_BLANK:
 				flags = 0x000f;
 				break;
@@ -3291,7 +3285,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					uint8_t format_descriptor[4] = 
 					{
 						//3 is the size of each vertex 4B multiple.
-						(char)cmp,0,0,cmp>Model::InterpolateCopy?3:0
+						(uint8_t)cmp,0,0,cmp>Model::InterpolateCopy?3:0
 					};
 					m_dst->writeBytes(format_descriptor,4);
 
@@ -3336,7 +3330,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					//is described by Byte 1 & 2 as a unit.
 					uint8_t format_descriptor[4] = 
 					{
-						(char)kf->m_interp2020,0,(char)kf->m_isRotation,4
+						(uint8_t)kf->m_interp2020,0,(uint8_t)kf->m_isRotation,4
 					};
 					m_dst->writeBytes(format_descriptor,4);
 					m_dst->write((uint16_t)ea.first.index);
@@ -3456,7 +3450,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				double *p = &ea.rz;
 				for(i=0;i<3;p+=i++?2:1) if(f[i])
 				{
-					char kt; switch(i)
+					uint8_t kt; switch(i)
 					{
 					case 0: kt = Model::KeyRotate; break;
 					case 1: kt = Model::KeyScale; break;
@@ -3465,7 +3459,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					//This is roughly analogous to MDT_Animations 
 					uint8_t format_descriptor[4] = 
 					{
-						(char)f[i],0,kt,(i==0?1:2)
+						f[i],0,kt,(i==0?1:2)
 					};
 					m_dst->writeBytes(format_descriptor,4);
 

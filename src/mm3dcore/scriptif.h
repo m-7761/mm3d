@@ -20,6 +20,7 @@
  * See the COPYING file for full license text.
  */
 
+#ifdef HAVE_LUALIB //2022
 
 #ifndef __SCRIPTIF_H
 #define __SCRIPTIF_H
@@ -201,3 +202,5 @@ extern void scriptif_logWarning(const char *str);
 extern void scriptif_logError(const char *str);
 
 #endif // __SCRIPTIF_H
+
+#endif //HAVE_LUALIB //2022

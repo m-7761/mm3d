@@ -85,7 +85,7 @@ public: //slots:
 			else assert(0);
 			break;
 		case Tool::ViewOrtho: v = Tool::ViewPerspective; break;
-		case Tool::ViewPerspective: v = Tool::ViewOrtho; break;
+		case Tool::ViewPerspective: v = Tool::ViewOrthoDetect; break;
 		}
 		mv->view.select_id(v); mv->submit(id_item); 
 	}

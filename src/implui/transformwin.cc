@@ -62,8 +62,33 @@ void TransformWin::submit(control *c)
 			c->set_hidden(id++!=tab.int_val());
 		}
 		return; //id = id_tab; break;
+		
+	case id_ok: //id_apply //Enter? 
 
-	case id_apply:
+		if(1==(int)tab) //Try to solve Rotate?
+		{
+			auto &r = rotate;
+			if(c!=r.rotate1&&c!=r.rotate2)
+			{
+				c = event.active_control;
+				if(c>=r.x&&c<=r.z)				
+				c = r.rotate1;				
+				if(c>=r.ax&&c<=r.angle)				
+				c = r.rotate2;				
+			}
+			if(c!=r.rotate1&&c!=r.rotate2)
+			{
+				bool r1 = (double)r.x||(double)r.y||(double)r.z;
+				bool r2 = (double)r.ax||(double)r.ay||(double)r.az||(double)r.angle;
+				if(r1&&!r2) c = r.rotate1;
+				if(r2&&!r1) c = r.rotate2;
+
+				if((r1&&r2)||(!r1||!r2))
+				{
+					event.beep(); return;
+				}
+			}
+		}
 
 		switch(tab)
 		{
@@ -72,22 +97,13 @@ void TransformWin::submit(control *c)
 		case 2: scaleEvent(); break;
 		case 3: matrixEvent(); break;
 		}
-		break;
 		
-	case id_ok: case id_close:
+		return; //break;
+		
+	//case id_ok: 
+	case id_cancel:
 
-		event.close_ui_by_create_id(); //Help?
-
-		//I guess this model saves users' work?
-		hide();
-		
-		//DUPLICATE (FIX)
-		//There seems to be a wxWidgets bug that is documented under hide() which
-		//can be defeated by voiding the current GLUT window. TODO: this needs to
-		//be removed once the bug is long fixed. Other windows are using this too.
-		glutSetWindow(0);
-		
-		return;
+		return hide();
 	}	
 	basic_submit(id);
 }

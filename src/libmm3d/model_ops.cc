@@ -1538,8 +1538,6 @@ struct model_ops_SimplifyVertT
 };
 bool Model::simplifySelectedMesh(float subpixel)
 {
-	bool preserve = subpixel!=0;
-
 	std::vector<model_ops_SimplifyEdgeT> edges;
 	std::vector<model_ops_SimplifyVertT> uvmap;
 
@@ -1574,10 +1572,19 @@ bool Model::simplifySelectedMesh(float subpixel)
 		#endif
 		#endif
 
-	bool welded, valid;
-	unsigned welds = ~0, any = 0;
-	unsigned vcount = m_vertices.size();
-	for(;welds;any+=welds) //2022
+	auto vcount = m_vertices.size();
+
+	//EXPLANATION
+	//When not preserving appearance it actually helps to do a first
+	//pass that preserves appearance in order to get a more coherent
+	//result (ie. the initial simplifications fall on regular edges.)
+	bool preserve = true;
+	int passes = subpixel>0?1:2;
+	if(passes==2) 
+	subpixel = subpixel<0?-subpixel:0.1666f;
+	bool welded;
+	unsigned any = 0; pass_2:
+	for(unsigned welds=!0;welds;any+=welds) //2022
 	for(unsigned v=welds=0;v<vcount;v+=!welded)
 	{
 		//log_debug("checking vertex %d\n",v);
@@ -1600,7 +1607,7 @@ bool Model::simplifySelectedMesh(float subpixel)
 
 
 		// valid weld candidate until we learn otherwise
-		valid = true;
+		bool valid = true;
 		
 		// build edge list
 		edges.clear();
@@ -1956,13 +1963,17 @@ bool Model::simplifySelectedMesh(float subpixel)
 		} 		
 		if(welded&&debug==2) break; //DEBUGGING?
 	}
-
+	if(passes==2&&preserve) //Not preserving appearance?
+	{
+		preserve = false; goto pass_2;
+	}
+	
 	//NOTE: This leaves some previously selected vertices visible, however
 	//it seems a useful indication of where discontinuties arise, so maybe
 	//it's alright to not correct it.
 	if(any) deleteFlattenedTriangles(); 
 	if(any) deleteOrphanedVertices(); 
-	
+
 	return any!=0;
 }
 

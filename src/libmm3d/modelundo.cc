@@ -29,13 +29,16 @@
 
 int ModelUndo::s_allocated = 0;
 
-bool MU_TranslateSelected::combine(Undo *u)
+bool MU_TranslateSelected::resume2(const double vec[3])
+{
+	for(int i=3;i-->0;) m_vec[i]+=vec[i]; return true;
+}
+int MU_TranslateSelected::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_TranslateSelected*>(u))
 	{
 		//m_matrix = m_matrix *undo->m_matrix;
-		for(int i=3;i-->0;) 
-		m_vec[i]+=undo->m_vec[i]; return true;
+		return resume2(undo->m_vec);
 	}
 	return false;
 }
@@ -65,19 +68,21 @@ void MU_TranslateSelected::redo(Model *model)
 	model->translateSelected(m_vec);
 }
 
-bool MU_RotateSelected::combine(Undo *u)
+bool MU_RotateSelected::resume2(const Matrix &rhs, const double point[3])
+{
+	for(int t=3;t-->0;)
+	if(m_point[t]!=point[t]) return false;
+	m_matrix = m_matrix*rhs; return true;
+}
+int MU_RotateSelected::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_RotateSelected*>(u))
 	{
-		for(int t=3;t-->0;)
-		if(m_point[t]!=undo->m_point[t])
-		return false;
-		m_matrix = m_matrix *undo->m_matrix;
-		return true;
+		return resume2(undo->m_matrix,undo->m_point);
 	}
 	return false;
 }
-void MU_RotateSelected::setMatrixPoint(const Matrix &rhs, const double point[3])
+MU_RotateSelected::MU_RotateSelected(const Matrix &rhs, const double point[3])
 {
 	m_matrix = rhs; for(int t=3;t-->0;) m_point[t] = point[t];
 }
@@ -93,17 +98,21 @@ void MU_RotateSelected::redo(Model *model)
 	model->rotateSelected(m_matrix,m_point);
 }
 
-bool MU_ApplyMatrix::combine(Undo *u)
+bool MU_ApplyMatrix::resume2(const Matrix &mat, Model::OperationScopeE scope)
+{
+	if(scope!=m_scope) return false;
+	
+	m_matrix = m_matrix*mat; return true;
+}
+int MU_ApplyMatrix::combine(Undo *u)
 {
 	if(auto undo=dynamic_cast<MU_ApplyMatrix*>(u))
-	if(undo->m_scope==m_scope)
 	{
-		m_matrix = m_matrix*undo->m_matrix; 
-		return true;
+		return resume2(undo->m_matrix,undo->m_scope);		
 	}
 	return false;
 }
-void MU_ApplyMatrix::setMatrix(const Matrix &m, Model::OperationScopeE scope)
+MU_ApplyMatrix::MU_ApplyMatrix(const Matrix &m, Model::OperationScopeE scope)
 {
 	m_matrix = m; m_scope = scope;
 }
@@ -131,12 +140,13 @@ void MU_SelectionMode::redo(Model *model)
 
 	model->setSelectionMode(m_mode);
 }
-bool MU_SelectionMode::combine(Undo *u)
+int MU_SelectionMode::combine(Undo *u)
 {
+	/*2022: Seems like a bad idea?
 	if(auto undo=dynamic_cast<MU_SelectionMode*>(u))
 	{
 		m_mode = undo->m_mode; return true;
-	}
+	}*/
 	return false;
 }
 unsigned MU_SelectionMode::size()
@@ -266,7 +276,7 @@ void MU_Select::redo(Model *model)
 	//2019: unselectTriangle did this per triangle
 	if(unselect&&!conv) model->_selectVerticesFromTriangles();
 }
-bool MU_Select::combine(Undo *u)
+int MU_Select::combine(Undo *u)
 {
 	//WHY WAS THIS DISABLED?
 	//Restoring this. The _selectVerticesFromTriangles
@@ -274,7 +284,7 @@ bool MU_Select::combine(Undo *u)
 	//https://github.com/zturtleman/mm3d/issues/93
 	///*
 	MU_Select *undo = dynamic_cast<MU_Select*>(u);
-	if(undo&&getSelectionMode()==undo->getSelectionMode())
+	if(undo&&m_mode==undo->m_mode)
 	{
 		//2019: m_diff here was "sorted_list" but I'm removing that
 		//since it will affect performance bad / can't think of any
@@ -300,9 +310,9 @@ void MU_Select::setSelectionDifference(int number, OS &s, OS::Marker &oldS)
 	//be a programmer error if so.
 	if(!a==!b) s._select_op = b; else setSelectionDifference(number,a,b);
 }
-void MU_Select::setSelectionDifference(int number, unsigned selected, unsigned oldSelected)
+bool MU_Select::setSelectionDifference(int number, unsigned selected, unsigned oldSelected)
 {
-	if(!selected==!oldSelected) return; //2022
+	if(!selected==!oldSelected) return true; //2022
 
 	//Disabling so "combine" can be restored.
 	//https://github.com/zturtleman/mm3d/issues/93
@@ -320,10 +330,47 @@ void MU_Select::setSelectionDifference(int number, unsigned selected, unsigned o
 	diff.selected = selected;
 	diff.oldSelected = oldSelected;
 
-	m_diff.insert_sorted(diff);
+	m_diff.insert_sorted(diff,index);
 	*/
 	m_diff.push_back({number,selected,oldSelected});
+
+	return true; //resume2
 }
+
+void MU_SelectAnimFrame::undo(Model *model)
+{
+	model->setChangeBits(Model::AnimationSelection);
+
+	auto *a = model->getAnimationList()[m_anim];
+	auto &st = a->m_selected_frames;
+	if(st.empty()) st.resize(a->_frame_count());
+	for(auto rit=m_list.rbegin(),ritt=m_list.rend();rit<ritt;rit++)
+	st[rit->frame] = (char)!rit->how;
+}
+void MU_SelectAnimFrame::redo(Model *model)
+{
+	model->setChangeBits(Model::AnimationSelection);
+
+	auto *a = model->getAnimationList()[m_anim];
+	auto &st = a->m_selected_frames;
+	if(st.empty()) st.resize(a->_frame_count());
+	for(auto&ea:m_list) st[ea.frame] = (char)ea.how;
+}
+int MU_SelectAnimFrame::combine(Undo *u)
+{
+	if(auto*undo=dynamic_cast<MU_SelectAnimFrame*>(u))
+	if(m_anim==undo->m_anim)
+	{
+		for(auto&ea:undo->m_list) m_list.push_back(ea);
+
+		return true;
+	}
+	return false;
+}
+unsigned MU_SelectAnimFrame::size()
+{
+	return sizeof(MU_SelectAnimFrame)+m_list.size()*sizeof(rec);
+}	
 
 void MU_SetSelectedUv::undo(Model *model)
 {
@@ -333,15 +380,19 @@ void MU_SetSelectedUv::redo(Model *model)
 {
 	model->setSelectedUv(m_newUv);
 }
-bool MU_SetSelectedUv::combine(Undo *u)
+int MU_SetSelectedUv::combine(Undo *u)
 {
+	if(auto*undo=dynamic_cast<MU_SetSelectedUv*>(u))
+	{
+		m_oldUv = undo->m_oldUv; return true;
+	}
 	return false;
 }
 unsigned MU_SetSelectedUv::size()
 {
 	return sizeof(MU_SetSelectedUv)+m_oldUv.size()*sizeof(int)+m_newUv.size()*sizeof(int)+sizeof(m_oldUv)+sizeof(m_newUv);
 }
-void MU_SetSelectedUv::setSelectedUv(const int_list &newUv, const int_list &oldUv)
+MU_SetSelectedUv::MU_SetSelectedUv(const int_list &newUv, const int_list &oldUv)
 {
 	m_newUv = newUv; m_oldUv = oldUv;
 }
@@ -367,7 +418,7 @@ void MU_Hide::hide(Model *model, int how)
 		break;
 	}
 }
-bool MU_Hide::combine(Undo *u)
+int MU_Hide::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_Hide*>(u))
 	if(m_hide==undo->m_hide)
@@ -383,19 +434,19 @@ unsigned MU_Hide::size()
 	return sizeof(MU_Hide)+m_diff.size()*sizeof(HideDifferenceT);
 }
 
-void MU_InvertNormal::undo(Model *model)
+void MU_InvertNormals::undo(Model *model)
 {
 	//log_debug("undo invert normal\n"); //???
 	
-	for(int i:m_triangles) model->invertNormals(i); //SAME
+	model->invertNormals(m_triangles); //SAME
 }
-void MU_InvertNormal::redo(Model *model)
+void MU_InvertNormals::redo(Model *model)
 {
-	for(int i:m_triangles) model->invertNormals(i); //SAME
+	model->invertNormals(m_triangles); //SAME
 }
-bool MU_InvertNormal::combine(Undo *u)
+int MU_InvertNormals::combine(Undo *u)
 {
-	if(auto*undo=dynamic_cast<MU_InvertNormal*>(u))
+	if(auto*undo=dynamic_cast<MU_InvertNormals*>(u))
 	{
 		for(int i:undo->m_triangles) addTriangle(i);
 
@@ -403,22 +454,29 @@ bool MU_InvertNormal::combine(Undo *u)
 	}
 	return false;
 }
-unsigned MU_InvertNormal::size()
+unsigned MU_InvertNormals::size()
 {
-	return sizeof(MU_InvertNormal)+m_triangles.size()*sizeof(int);
+	return sizeof(MU_InvertNormals)+m_triangles.size()*sizeof(int);
 }
-void MU_InvertNormal::addTriangle(int triangle)
+void MU_InvertNormals::addTriangle(int triangle)
 {
-	for(auto it = m_triangles.begin(); it!=m_triangles.end(); it++)
+	/*It seems very unlikely an operation would invert a triangle
+	//twice compared to the expense of performing this search. If
+	//it does happen then double (etc.) entries are still correct.
+	for(auto it=m_triangles.begin();it!=m_triangles.end();it++)
 	if(triangle==*it)
 	{
-		/*2020: WRONG RIGHT?
-		//m_triangles.remove(triangle);
-		m_triangles.erase(it);
-		*/
-		return;
-	}
+		m_triangles.erase(it); return;
+	}*/
+	assert((int)m_triangles.size()<m_sanity);
+
 	m_triangles.push_back(triangle);
+}
+void MU_InvertNormals::addTriangles(const int_list &triangles)
+{
+	m_triangles.insert(m_triangles.end(),triangles.begin(),triangles.end());
+
+	assert((int)m_triangles.size()<=m_sanity); //See above note.
 }
 
 void MU_MoveUnanimated::undo(Model *model)
@@ -433,7 +491,7 @@ void MU_MoveUnanimated::redo(Model *model)
 	for(auto&ea:m_objects)
 	model->movePositionUnanimated(ea,ea.x,ea.y,ea.z);
 }
-bool MU_MoveUnanimated::combine(Undo *u)
+int MU_MoveUnanimated::combine(Undo *u)
 {
 	if(MU_MoveUnanimated*undo=dynamic_cast<MU_MoveUnanimated*>(u))
 	{
@@ -462,14 +520,14 @@ void MU_MoveUnanimated::addPosition(const Model::Position &pos, double x, double
 		return;
 	}
 
-	// Not found,add object information
+	// Not found, add object information
 	mv.x		 = x;
 	mv.y		 = y;
 	mv.z		 = z;
 	mv.oldx	 = oldx;
 	mv.oldy	 = oldy;
 	mv.oldz	 = oldz;
-	m_objects.insert_sorted(mv);
+	m_objects.insert_sorted(mv,index);
 }
 
 void MU_SetObjectUnanimated::undo(Model *model)
@@ -494,7 +552,7 @@ void MU_SetObjectUnanimated::_call_setter(Model *model, double *xyz)
 	case Rel: model->setBoneJointOffsetUnanimated(pos,xyz); break;
 	}
 }
-bool MU_SetObjectUnanimated::combine(Undo *u)
+int MU_SetObjectUnanimated::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetObjectUnanimated*>(u))
 	if(undo->pos==pos&&undo->vec==vec)
@@ -507,18 +565,28 @@ unsigned MU_SetObjectUnanimated::size()
 {
 	return sizeof(MU_SetObjectUnanimated);
 }
-void MU_SetObjectUnanimated::setXYZ(Model *m, double object[3], const double xyz[3])
+int MU_SetObjectUnanimated::_get_vector(Model *m, const Model::Position &pos, double *object)
 {
 	auto o = m->getPositionObject(pos);
 	assert(o);
-	if(o->m_abs==object) vec = Abs;
-	else if(o->m_rot==object) vec = Rot;
-	else if(o->m_xyz==object) vec = Scale;	
+	if(o->m_abs==object) return Abs;
+	else if(o->m_rot==object) return Rot;
+	else if(o->m_xyz==object) return Scale;	
 	else if(pos.type==Model::PT_Joint
-	&&((Model::Joint*)o)->m_rel==object) vec = Rel;	
-	else assert(0);
+	&&((Model::Joint*)o)->m_rel==object) return Rel;	
+	else assert(0); return -1;
+}
+void MU_SetObjectUnanimated::setXYZ(Model *m, double object[3], const double xyz[3])
+{
+	vec = _get_vector(m,pos,object);
 
 	memcpy(v,xyz,sizeof(v)); memcpy(vold,object,sizeof(v));	
+}
+bool MU_SetObjectUnanimated::resume2(const Model::Position &pos2, Model *m, double object[3], const double xyz[3])
+{
+	if(pos!=pos2||vec!=_get_vector(m,pos2,object)) return false;
+
+	memcpy(v,xyz,sizeof(v)); return true;
 }
 
 void MU_SetTexture::undo(Model *model)
@@ -533,12 +601,12 @@ void MU_SetTexture::redo(Model *model)
 	for(auto&ea:m_list)		
 	model->setGroupTextureId(ea.groupNumber,ea.newTexture);	
 }
-bool MU_SetTexture::combine(Undo *u)
+int MU_SetTexture::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetTexture*>(u))
 	{
 		for(auto&ea:undo->m_list)		
-		setTexture(ea.groupNumber,ea.newTexture,ea.oldTexture);
+		resume2(ea.groupNumber,ea.newTexture,ea.oldTexture);
 		return true;
 	}
 	return false;
@@ -547,19 +615,20 @@ unsigned MU_SetTexture::size()
 {
 	return sizeof(MU_SetTexture)+m_list.size()*sizeof(SetTextureT);
 }
-void MU_SetTexture::setTexture(unsigned groupNumber, int newTexture, int oldTexture)
+bool MU_SetTexture::resume2(unsigned groupNumber, int newTexture, int oldTexture)
 {
 	for(auto&ea:m_list)	
 	if(ea.groupNumber==groupNumber)
 	{
-		ea.newTexture = newTexture; return;
+		ea.newTexture = newTexture; return true;
 	}
 
 	SetTextureT st;
 	st.groupNumber = groupNumber;
 	st.newTexture  = newTexture;
 	st.oldTexture  = oldTexture;
-	m_list.push_back(st);
+
+	m_list.push_back(st); return true;
 }
 
 void MU_SetTextureCoords::undo(Model *model)
@@ -572,7 +641,7 @@ void MU_SetTextureCoords::redo(Model *model)
 	for(auto&ea:m_list)	
 	model->setTextureCoords(ea.triangle,ea.vertexIndex,ea.s,ea.t);
 }
-bool MU_SetTextureCoords::combine(Undo *u)
+int MU_SetTextureCoords::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetTextureCoords*>(u))
 	{
@@ -604,28 +673,33 @@ void MU_SetTextureCoords::addTextureCoords(unsigned triangle, unsigned vertexInd
 	stc.t			  = t;
 	stc.oldS		  = oldS;
 	stc.oldT		  = oldT;
-
-	m_list.insert_sorted(stc);
+	m_list.insert_sorted(stc,index);
 }
 
 void MU_AddToGroup::undo(Model *model)
 {
 	//log_debug("undo add to group\n"); //???
 
-	for(auto&ea:m_list)	
-	model->removeTriangleFromGroup(ea.groupNum,ea.triangleNum);
+	for(auto&ea:m_list)
+	{
+		if(ea.groupOld<0) model->ungroupTriangle(ea.triangleNum);
+		else model->addTriangleToGroup(ea.groupOld,ea.triangleNum);
+	}
 }
 void MU_AddToGroup::redo(Model *model)
 {
 	for(auto&ea:m_list)	
-	model->addTriangleToGroup(ea.groupNum,ea.triangleNum);
+	{
+		if(ea.groupNum<0) model->ungroupTriangle(ea.triangleNum);
+		else model->addTriangleToGroup(ea.groupNum,ea.triangleNum);
+	}
 }
-bool MU_AddToGroup::combine(Undo *u)
+int MU_AddToGroup::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_AddToGroup*>(u))
 	{
 		for(auto&ea:undo->m_list)
-		addToGroup(ea.groupNum,ea.triangleNum);
+		resume2(ea.triangleNum,ea.groupNum,ea.groupOld);
 		return true;
 	}
 	return false;
@@ -634,54 +708,14 @@ unsigned MU_AddToGroup::size()
 {
 	return sizeof(MU_AddToGroup)+m_list.size()*sizeof(AddToGroupT);
 }
-void MU_AddToGroup::addToGroup(unsigned groupNum, unsigned triangleNum)
+bool MU_AddToGroup::resume2(unsigned tri, int grp, int old)
 {
-	for(auto&ea:m_list)	
-	if(ea.triangleNum==triangleNum)
+	for(auto&ea:m_list) if(ea.triangleNum==tri)
 	{
-		ea.groupNum = groupNum; return;
+		ea.groupNum = grp; return true;
 	}
 
-	AddToGroupT v; v.groupNum = groupNum; v.triangleNum = triangleNum;
-
-	m_list.push_back(v);
-}
-
-void MU_RemoveFromGroup::undo(Model *model)
-{
-	//log_debug("undo remove from group\n"); //???
-
-	for(auto&ea:m_list)	
-	model->addTriangleToGroup(ea.groupNum,ea.triangleNum);
-}
-void MU_RemoveFromGroup::redo(Model *model)
-{
-	for(auto&ea:m_list)	
-	model->removeTriangleFromGroup(ea.groupNum,ea.triangleNum);
-}
-bool MU_RemoveFromGroup::combine(Undo *u)
-{
-	if(auto*undo=dynamic_cast<MU_RemoveFromGroup*>(u))
-	{
-		for(auto&ea:undo->m_list)
-		removeFromGroup(ea.groupNum,ea.triangleNum);
-		return true;
-	}
-	return false;
-}
-unsigned MU_RemoveFromGroup::size()
-{
-	return sizeof(MU_RemoveFromGroup)+m_list.size()*sizeof(RemoveFromGroupT);
-}
-void MU_RemoveFromGroup::removeFromGroup(unsigned groupNum, unsigned triangleNum)
-{
-	/*???
-	for(auto&ea:m_list) if(ea.triangleNum==triangleNum)
-	{
-		ea.groupNum = groupNum; return;
-	}*/
-
-	m_list.push_back({groupNum,triangleNum});
+	m_list.push_back({tri,grp,old}); return true;
 }
 
 void MU_SetLightProperties::undo(Model *model)
@@ -706,7 +740,7 @@ void MU_SetLightProperties::redo(Model *model)
 		if(ea.isSet[3]) model->setTextureEmissive(ea.textureNum,ea.newLight[3]);
 	}
 }
-bool MU_SetLightProperties::combine(Undo *u)
+int MU_SetLightProperties::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetLightProperties*>(u))
 	{
@@ -773,7 +807,7 @@ void MU_SetShininess::redo(Model *model)
 	for(auto&ea:m_list)
 	model->setTextureShininess(ea.textureNum,ea.newValue);
 }
-bool MU_SetShininess::combine(Undo *u)
+int MU_SetShininess::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetShininess*>(u))
 	{
@@ -819,7 +853,7 @@ void MU_SetTriangleVertices::redo(Model *model)
 	model->setTriangleVertices(ea.triangleNum,
 	ea.newVertices[0],ea.newVertices[1],ea.newVertices[2]);
 }
-bool MU_SetTriangleVertices::combine(Undo *u)
+int MU_SetTriangleVertices::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetTriangleVertices*>(u))
 	{
@@ -871,9 +905,9 @@ void MU_SubdivideSelected::redo(Model *model)
 {
 	model->subdivideSelectedTriangles();
 }
-bool MU_SubdivideSelected::combine(Undo *u)
+int MU_SubdivideSelected::combine(Undo *u)
 {
-	return false;
+	return CC_Stop; //???
 }
 
 void MU_SubdivideTriangle::undo(Model *model)
@@ -889,7 +923,7 @@ void MU_SubdivideTriangle::undo(Model *model)
 		model->deleteVertex(*rit);
 	}
 }
-bool MU_SubdivideTriangle::combine(Undo *u)
+int MU_SubdivideTriangle::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SubdivideTriangle*>(u))
 	{
@@ -927,9 +961,9 @@ void MU_ChangeAnimState::redo(Model *model)
 {
 	model->setCurrentAnimation(m_new);
 }
-bool MU_ChangeAnimState::combine(Undo *u)
+int MU_ChangeAnimState::combine(Undo *u)
 {
-	return false;
+	return CC_Stop; //???
 }
 unsigned MU_ChangeAnimState::size()
 {
@@ -944,11 +978,13 @@ void MU_ChangeSkeletalMode::redo(Model *model)
 {
 	model->setSkeletalModeEnabled(m_how);
 }
-bool MU_ChangeSkeletalMode::combine(Undo *u)
+int MU_ChangeSkeletalMode::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_ChangeSkeletalMode*>(u))
 	{
-		m_how = undo->m_how; return true;
+		//I'm not sure this should exist for deep combine???
+		//m_how = undo->m_how; return true;
+		return CC_Stop;
 	}
 	return false;
 }
@@ -957,19 +993,22 @@ void MU_SetAnimFrameCount::undo(Model *model)
 {
 	model->setAnimFrameCount(m_animNum,m_oldCount,m_where,&m_vertices);
 
+	Model::Animation *ab = model->m_anims[m_animNum];
+
 	if(!m_timetable.empty())
-	{
-		Model::Animation *ab = model->m_anims[m_animNum];
-		std::copy(m_timetable.begin(),m_timetable.end(),ab->m_timetable2020.begin()+m_where);
-	}
+	std::copy(m_timetable.begin(),m_timetable.end(),ab->m_timetable2020.begin()+m_where);
+	if(!m_selection.empty())
+	std::copy(m_selection.begin(),m_selection.end(),ab->m_selected_frames.begin()+m_where);
+	if(!m_selection.empty())
+	model->setChangeBits(Model::AnimationSelection);
 }
 void MU_SetAnimFrameCount::redo(Model *model)
 {
 	model->setAnimFrameCount(m_animNum,m_newCount,m_where,&m_vertices);
 }
-bool MU_SetAnimFrameCount::combine(Undo *u)
+int MU_SetAnimFrameCount::combine(Undo *u)
 {
-	return false;
+	return CC_Stop; //???
 }
 void MU_SetAnimFrameCount::undoRelease()
 {	
@@ -1002,9 +1041,30 @@ unsigned MU_SetAnimFrameCount::size()
 
 	return sz+sizeof(MU_SetAnimFrameCount);
 }
-void MU_SetAnimFrameCount::setAnimFrameCount(unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where)
+MU_SetAnimFrameCount::MU_SetAnimFrameCount(unsigned animNum, unsigned newCount, unsigned oldCount, unsigned where)
 {
 	m_animNum = animNum; m_newCount = newCount; m_oldCount = oldCount; m_where = where;
+}
+
+void MU_MoveAnimFrame::undo(Model *model)
+{
+	model->moveAnimFrame_undo(m_anim,m_new,m_old);
+}
+void MU_MoveAnimFrame::redo(Model *model)
+{
+	model->moveAnimFrame_undo(m_anim,m_old,m_new);
+}
+int MU_MoveAnimFrame::combine(Undo *u)
+{
+	return CC_Stop; //???
+}
+unsigned MU_MoveAnimFrame::size()
+{
+	return sizeof(MU_MoveAnimFrame);
+}
+MU_MoveAnimFrame::MU_MoveAnimFrame(unsigned animNum, unsigned newFrame, unsigned oldFrame)
+{
+	m_anim = animNum; m_new = newFrame; m_old = oldFrame; 
 }
 
 void MU_SetAnimFPS::undo(Model *model)
@@ -1015,7 +1075,7 @@ void MU_SetAnimFPS::redo(Model *model)
 {
 	model->setAnimFPS(m_animNum,m_newFPS);
 }
-bool MU_SetAnimFPS::combine(Undo *u)
+int MU_SetAnimFPS::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetAnimFPS*>(u))
 	if(undo->m_animNum==m_animNum)
@@ -1028,7 +1088,7 @@ unsigned MU_SetAnimFPS::size()
 {
 	return sizeof(MU_SetAnimFPS);
 }
-void MU_SetAnimFPS::setFPS(unsigned animNum, double newFps, double oldFps)
+MU_SetAnimFPS::MU_SetAnimFPS(unsigned animNum, double newFps, double oldFps)
 {
 	m_animNum = animNum; m_newFPS = newFps; m_oldFPS = oldFps;
 }
@@ -1041,7 +1101,7 @@ void MU_SetAnimWrap::redo(Model *model)
 {
 	model->setAnimWrap(m_animNum,m_new);
 }
-bool MU_SetAnimWrap::combine(Undo *u)
+int MU_SetAnimWrap::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetAnimWrap*>(u))
 	if(undo->m_animNum==m_animNum)
@@ -1050,7 +1110,7 @@ bool MU_SetAnimWrap::combine(Undo *u)
 	}
 	return false;
 }
-void MU_SetAnimWrap::setAnimWrap(unsigned animNum, bool newWrap, bool oldWrap)
+MU_SetAnimWrap::MU_SetAnimWrap(unsigned animNum, bool newWrap, bool oldWrap)
 {
 	m_animNum = animNum; m_new = newWrap; m_old = oldWrap;
 }
@@ -1060,16 +1120,16 @@ void MU_SetAnimTime::undo(Model *model)
 	if(m_animFrame==INT_MAX)
 	model->setAnimTimeFrame(m_animNum,m_oldTime);
 	else
-	model->setAnimFrameTime(m_animNum,m_animFrame,m_oldTime);
+	model->setAnimFrameTime_undo(m_animNum,m_animFrame,m_oldTime);
 }
 void MU_SetAnimTime::redo(Model *model)
 {
 	if(m_animFrame==INT_MAX)
 	model->setAnimTimeFrame(m_animNum,m_newTime);
 	else
-	model->setAnimFrameTime(m_animNum,m_animFrame,m_newTime);
+	model->setAnimFrameTime_undo(m_animNum,m_animFrame,m_newTime);
 }
-bool MU_SetAnimTime::combine(Undo *u)
+int MU_SetAnimTime::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetAnimTime*>(u))
 	if(undo->m_animNum==m_animNum&&m_animFrame==undo->m_animFrame)
@@ -1078,24 +1138,28 @@ bool MU_SetAnimTime::combine(Undo *u)
 	}
 	return false;
 }
-void MU_SetAnimTime::setAnimFrameTime(unsigned animNum, unsigned frame, double newTime, double oldTime)
+MU_SetAnimTime::MU_SetAnimTime(unsigned animNum, double newTime, double oldTime)
+{
+	m_animNum = animNum; m_animFrame = INT_MAX; m_newTime = newTime; m_oldTime = oldTime;
+}
+MU_SetAnimTime::MU_SetAnimTime(unsigned animNum, unsigned frame, double newTime, double oldTime)
 {
 	m_animNum = animNum; m_animFrame = frame; m_newTime = newTime; m_oldTime = oldTime;
 }
 
 void MU_SetObjectKeyframe::undo(Model *model)
 {
-	for(auto&ea:m_keyframes) if(ea.isNew)
+	for(auto&ea:m_list) if(ea.isNew)
 	{
 		//log_debug("undoing new keyframe\n"); //???
 			
-		model->removeKeyframe(m_anim,m_frame,ea,m_isRotation,true);			
+		model->removeKeyframe(m_anim,ea.frame,ea,ea.isRotation,true);			
 	}
 	else
 	{
 		//log_debug("undoing existing keyframe\n"); //???
 			
-		model->setKeyframe(m_anim,m_frame,ea,m_isRotation,ea.oldx,ea.oldy,ea.oldz,ea.olde);			
+		model->setKeyframe(m_anim,ea.frame,ea,ea.isRotation,ea.old[0],ea.old[1],ea.old[2],ea.olde);			
 	}
 
 	if(m_anim==model->getCurrentAnimation()) 
@@ -1103,55 +1167,52 @@ void MU_SetObjectKeyframe::undo(Model *model)
 }
 void MU_SetObjectKeyframe::redo(Model *model)
 {
-	for(auto&ea:m_keyframes)
-	model->setKeyframe(m_anim,m_frame,ea,m_isRotation,ea.x,ea.y,ea.z,ea.e);
+	for(auto&ea:m_list)
+	model->setKeyframe(m_anim,ea.frame,ea,ea.isRotation,ea.xyz[0],ea.xyz[1],ea.xyz[2],ea.e);
 
 	if(m_anim==model->getCurrentAnimation()) 
 	model->setCurrentAnimationFrame(m_frame);
 }
-bool MU_SetObjectKeyframe::combine(Undo *u)
+int MU_SetObjectKeyframe::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetObjectKeyframe*>(u))
-	if(undo->m_anim==m_anim&&undo->m_frame==m_frame&&m_isRotation==undo->m_isRotation)
+	if(undo->m_anim==m_anim)
 	{
-		for(auto&ea:undo->m_keyframes)
-		addKeyframe(ea,ea.isNew,ea.x,ea.y,ea.z,ea.e,ea.oldx,ea.oldy,ea.oldz,ea.olde);
+		for(auto&ea:undo->m_list)
+		addKeyframe(ea,ea.frame,ea.isRotation,ea.isNew,ea.xyz,ea.e,ea.old,ea.olde);
 		return true;
 	}
-	return false;
+	return false; //???
 }
 unsigned MU_SetObjectKeyframe::size()
 {
-	return sizeof(MU_SetObjectKeyframe)+m_keyframes.size()*sizeof(SetKeyFrameT);
+	return sizeof(MU_SetObjectKeyframe)+m_list.size()*sizeof(SetKeyFrameT);
 }
-void MU_SetObjectKeyframe::addKeyframe(Model::Position j, bool isNew, 
-	double x, double y, double z, Model::Interpolate2020E e,
-	double oldx, double oldy, double oldz, Model::Interpolate2020E olde)
+void MU_SetObjectKeyframe::addKeyframe(Model::Position j,
+	unsigned frame, Model::KeyType2020E isRotation,
+	bool isNew, 
+	double xyz[3], Model::Interpolate2020E e,
+	double old[3], Model::Interpolate2020E olde)
 {
 	unsigned index = 0;
 	//SetKeyFrameT mv = j;
 	SetKeyFrameT mv; mv = j; //C++
 
 	// Modify a joint we already have
-	if(m_keyframes.find_sorted(mv,index))
+	if(m_list.find_sorted(mv,index))
 	{
-		m_keyframes[index].x = x;
-		m_keyframes[index].y = y;
-		m_keyframes[index].z = z;
-		return;
+		auto &f = m_list[index]; f.e = e; 
+		memcpy(f.xyz,xyz,sizeof(mv.xyz)); return;
 	}
 
 	// Not found,add new joint information
 	mv.isNew = isNew;
-	mv.x = x;
-	mv.y = y;
-	mv.z = z;
-	mv.e = e;
-	mv.oldx = oldx;
-	mv.oldy = oldy;
-	mv.oldz = oldz;
-	mv.olde = olde;
-	m_keyframes.insert_sorted(mv);
+	mv.frame = frame;
+	mv.isRotation = isRotation;
+	memcpy(mv.xyz,xyz,sizeof(mv.xyz));
+	memcpy(mv.old,old,sizeof(mv.old));
+	mv.e = e; mv.olde = olde;
+	m_list.insert_sorted(mv,index);
 }
 
 void MU_DeleteObjectKeyframe::undo(Model *model)
@@ -1168,7 +1229,7 @@ void MU_DeleteObjectKeyframe::redo(Model *model)
 	if(m_anim==model->getCurrentAnimation()) 
 	model->setCurrentAnimationFrame(m_frame);
 }
-bool MU_DeleteObjectKeyframe::combine(Undo *u)
+int MU_DeleteObjectKeyframe::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_DeleteObjectKeyframe*>(u))
 	if(m_anim==undo->m_anim&&m_frame==undo->m_frame)
@@ -1176,7 +1237,7 @@ bool MU_DeleteObjectKeyframe::combine(Undo *u)
 		for(auto*ea:undo->m_list) 
 		deleteKeyframe(ea); return true;
 	}
-	return false;
+	return false; //???
 }
 void MU_DeleteObjectKeyframe::undoRelease()
 {
@@ -1199,15 +1260,20 @@ void MU_SetProjectionType::redo(Model *model)
 {
 	model->setProjectionType(m_projection,m_newType);
 }
-bool MU_SetProjectionType::combine(Undo *u)
-{
+int MU_SetProjectionType::combine(Undo *u)
+{	
+	if(auto*undo=dynamic_cast<MU_SetProjectionType*>(u))
+	if(undo->m_projection==m_projection)	
+	{
+		m_newType = undo->m_newType; return true;
+	}
 	return false;
 }
 unsigned MU_SetProjectionType::size()
 {
 	return sizeof(MU_SetProjectionType);
 }
-void MU_SetProjectionType::setType(unsigned projection, int newType, int oldType)
+MU_SetProjectionType::MU_SetProjectionType(unsigned projection, int newType, int oldType)
 {
 	m_projection = projection; m_newType = newType; m_oldType = oldType;
 }
@@ -1216,7 +1282,7 @@ void MU_MoveFrameVertex::undo(Model *model)
 {
 	// Modify a vertex we already have
 	for(auto&ea:m_vertices)
-	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.oldx,ea.oldy,ea.oldz,ea.olde);	
+	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.old[0],ea.old[1],ea.old[2],ea.olde);	
 	model->setQuickFrameAnimVertexCoords_final(); //2022
 
 	if(m_anim==model->getCurrentAnimation()) 
@@ -1226,13 +1292,13 @@ void MU_MoveFrameVertex::redo(Model *model)
 {
 	// Modify a vertex we already have
 	for(auto&ea:m_vertices)
-	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.x,ea.y,ea.z,ea.e);
+	model->setQuickFrameAnimVertexCoords(m_anim,m_frame,ea.number,ea.xyz[0],ea.xyz[1],ea.xyz[2],ea.e);
 	model->setQuickFrameAnimVertexCoords_final(); //2022
 
 	if(m_anim==model->getCurrentAnimation()) 
 	model->setCurrentAnimationFrame(m_frame);
 }
-bool MU_MoveFrameVertex::combine(Undo *u)
+int MU_MoveFrameVertex::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_MoveFrameVertex*>(u))
 	if(undo->m_frame==m_frame&&undo->m_anim==m_anim)	
@@ -1245,18 +1311,14 @@ unsigned MU_MoveFrameVertex::size()
 {
 	return sizeof(MU_MoveFrameVertex)+m_vertices.size()*sizeof(MoveFrameVertexT);
 }
-void MU_MoveFrameVertex::addVertex(int v, double x, double y, double z, 
+void MU_MoveFrameVertex::addVertex(int v, const double xyz[3], 
 		Model::Interpolate2020E e, Model::FrameAnimVertex *old, bool sort)
 {
 	MoveFrameVertexT mv;
 	mv.number = v;
-	mv.x = x;
-	mv.y = y;
-	mv.z = z;
+	memcpy(mv.xyz,xyz,sizeof(mv.xyz));	
+	memcpy(mv.old,old->m_coord,sizeof(mv.old));
 	mv.e = e;
-	mv.oldx	 = old->m_coord[0];
-	mv.oldy	 = old->m_coord[1];
-	mv.oldz	 = old->m_coord[2];	
 	mv.olde = old->m_interp2020;
 
 	if(sort) addVertex(mv);
@@ -1268,69 +1330,90 @@ void MU_MoveFrameVertex::addVertex(MoveFrameVertexT &mv)
 	unsigned index;
 	if(m_vertices.find_sorted(mv,index))
 	{
-		m_vertices[index].x = mv.x;
-		m_vertices[index].y = mv.y;
-		m_vertices[index].z = mv.z;
+		memcpy(m_vertices[index].xyz,mv.xyz,sizeof(mv.xyz));
 		m_vertices[index].e = mv.e;
 	}
 	else // Not found, add new vertex information
 	{
-		m_vertices.insert_sorted(mv);
+		m_vertices.insert_sorted(mv,index);
 	}
 }
 
 void MU_SetPositionInfluence::undo(Model *model)
 {
-	if(m_isAdd)
+	for(auto rit=m_list.rbegin();rit!=m_list.rend();rit++)
 	{
-		model->removeInfluence(m_pos,m_index);
+		auto &i = *rit; if(i.m_isAdd)
+		{
+			model->removeInfluence(i.m_pos,i.m_index);
+		}
+		else model->insertInfluence(i.m_pos,i.m_index,i.m_influence);	
 	}
-	else model->insertInfluence(m_pos,m_index,m_influence);	
 }
 void MU_SetPositionInfluence::redo(Model *model)
 {
-	if(m_isAdd)
+	for(auto&i:m_list)
 	{
-		model->insertInfluence(m_pos,m_index,m_influence);
+		if(i.m_isAdd)
+		{
+			model->insertInfluence(i.m_pos,i.m_index,i.m_influence);
+		}
+		else model->removeInfluence(i.m_pos,i.m_index);
 	}
-	else model->removeInfluence(m_pos,m_index);
 }
-bool MU_SetPositionInfluence::combine(Undo *u)
+int MU_SetPositionInfluence::combine(Undo *u)
 {
-	return false;
+	if(auto*undo=dynamic_cast<MU_SetPositionInfluence*>(u))
+	{
+		for(auto&ea:undo->m_list)
+		resume2(ea.m_isAdd,ea.m_pos,ea.m_index,ea.m_influence);
+		return true;
+	}
+	return CC_Stop; //MU_UpdatePositionInfluence?
 }
 unsigned MU_SetPositionInfluence::size()
 {
-	return sizeof(MU_SetPositionInfluence);
+	return sizeof(MU_SetPositionInfluence)+sizeof(rec)*m_list.size();
 }
-void MU_SetPositionInfluence::setPositionInfluence(bool isAdd,
+bool MU_SetPositionInfluence::resume2(bool isAdd,
 		const Model::Position &pos,
 		unsigned index, const Model::InfluenceT &influence)
 {
-	m_isAdd = isAdd; m_index = index; m_pos = pos; m_influence = influence;
+	m_list.push_back({isAdd,pos,index,influence}); return true;
 }
 
 void MU_UpdatePositionInfluence::undo(Model *model)
 {
-	model->setPositionInfluence(m_pos,m_oldInf.m_boneId,m_oldInf.m_type,m_oldInf.m_weight);
+	for(auto rit=m_list.rbegin();rit!=m_list.rend();rit++)
+	{
+		auto &i = *rit;
+		model->setPositionInfluence(i.m_pos,i.m_oldInf.m_boneId,i.m_oldInf.m_type,i.m_oldInf.m_weight);
+	}
 }
 void MU_UpdatePositionInfluence::redo(Model *model)
 {
-	model->setPositionInfluence(m_pos,m_newInf.m_boneId,m_newInf.m_type,m_newInf.m_weight);
+	for(auto&i:m_list)
+	model->setPositionInfluence(i.m_pos,i.m_newInf.m_boneId,i.m_newInf.m_type,i.m_newInf.m_weight);
 }
-bool MU_UpdatePositionInfluence::combine(Undo *u)
+int MU_UpdatePositionInfluence::combine(Undo *u)
 {
-	return false; //IMPLEMENT ME
+	if(auto*undo=dynamic_cast<MU_UpdatePositionInfluence*>(u))
+	{
+		for(auto&ea:undo->m_list) m_list.push_back(ea);
+
+		return true;
+	}
+	return false;
 }
 unsigned MU_UpdatePositionInfluence::size()
 {
-	return sizeof(MU_UpdatePositionInfluence);
+	return sizeof(MU_UpdatePositionInfluence)+sizeof(rec)*m_list.size();
 }
-void MU_UpdatePositionInfluence::updatePositionInfluence(const Model::Position &pos,
+bool MU_UpdatePositionInfluence::resume2(const Model::Position &pos,
 		const Model::InfluenceT &newInf,
 		const Model::InfluenceT &oldInf)
 {
-	m_pos = pos; m_newInf = newInf; m_oldInf = oldInf;
+	m_list.push_back({pos,newInf,oldInf}); return true;
 }
 
 void MU_SetTriangleProjection::undo(Model *model)
@@ -1345,7 +1428,7 @@ void MU_SetTriangleProjection::redo(Model *model)
 	for(auto&ea:m_list)
 	model->setTriangleProjection(ea.triangle,ea.newProj);
 }
-bool MU_SetTriangleProjection::combine(Undo *u)
+int MU_SetTriangleProjection::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetTriangleProjection*>(u))
 	{
@@ -1381,9 +1464,9 @@ void MU_AddAnimation::redo(Model *model)
 {
 	model->insertAnimation(m_anim,m_animp);
 }
-bool MU_AddAnimation::combine(Undo *u)
+int MU_AddAnimation::combine(Undo *u)
 {
-	return false;
+	return CC_Stop;
 }
 void MU_AddAnimation::redoRelease()
 {
@@ -1446,9 +1529,9 @@ void MU_DeleteAnimation::redo(Model *model)
 
 	model->removeAnimation(m_anim);
 }
-bool MU_DeleteAnimation::combine(Undo *u)
+int MU_DeleteAnimation::combine(Undo *u)
 {
-	return false;
+	return CC_Stop;
 }
 void MU_DeleteAnimation::undoRelease()
 {
@@ -1513,9 +1596,9 @@ void MU_VoidFrameAnimation::redo(Model *model)
 	m_animp->m_frame0 = ~0;
 	model->removeFrameAnimData(m_animp->m_frame0,m_animp->_frame_count(),nullptr);
 }
-bool MU_VoidFrameAnimation::combine(Undo *u)
+int MU_VoidFrameAnimation::combine(Undo *u)
 {
-	return false;
+	return CC_Stop;
 }
 void MU_VoidFrameAnimation::undoRelease()
 {
@@ -1544,28 +1627,30 @@ void MU_SetJointParent::redo(Model *model)
 void MU_SetProjectionRange::undo(Model *model)
 {
 	model->setProjectionRange(m_proj,
-			m_oldRange[0],m_oldRange[1],m_oldRange[2],m_oldRange[3]);
+	m_oldRange[0],m_oldRange[1],m_oldRange[2],m_oldRange[3]);
 }
 void MU_SetProjectionRange::redo(Model *model)
 {
 	model->setProjectionRange(m_proj,
-			m_newRange[0],m_newRange[1],m_newRange[2],m_newRange[3]);
+	m_newRange[0],m_newRange[1],m_newRange[2],m_newRange[3]);
 }
-void MU_SetProjectionRange::setProjectionRange(unsigned proj,
-		double newXMin, double newYMin, double newXMax, double newYMax,
-		double oldXMin, double oldYMin, double oldXMax, double oldYMax)
+int MU_SetProjectionRange::combine(Undo *u)
 {
-	m_proj = proj;
-
+	if(auto*undo=dynamic_cast<MU_SetProjectionRange*>(u))
+	if(undo->m_proj==m_proj)
+	{
+		memcpy(m_newRange,undo->m_newRange,sizeof(m_newRange));
+		return true;
+	}
+	return false;
+}
+void MU_SetProjectionRange::setProjectionRange(
+double newXMin, double newYMin, double newXMax, double newYMax)
+{
 	m_newRange[0] = newXMin;
 	m_newRange[1] = newYMin;
 	m_newRange[2] = newXMax;
 	m_newRange[3] = newYMax;
-
-	m_oldRange[0] = oldXMin;
-	m_oldRange[1] = oldYMin;
-	m_oldRange[2] = oldXMax;
-	m_oldRange[3] = oldYMax;
 }
 
 void MU_SetGroupSmooth::undo(Model *model)
@@ -1576,12 +1661,12 @@ void MU_SetGroupSmooth::redo(Model *model)
 {
 	for(auto&ea:m_list) model->setGroupSmooth(ea.group,ea.newSmooth);
 }
-bool MU_SetGroupSmooth::combine(Undo *u)
+int MU_SetGroupSmooth::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetGroupSmooth*>(u))
 	{
 		for(auto&ea:undo->m_list)
-		setGroupSmooth(ea.group,ea.newSmooth,ea.oldSmooth);
+		resume2(ea.group,ea.newSmooth,ea.oldSmooth);
 		return true;
 	}
 	return false;
@@ -1590,19 +1675,20 @@ unsigned MU_SetGroupSmooth::size()
 {
 	return sizeof(MU_SetGroupSmooth)+m_list.size()*sizeof(SetSmoothT);
 }
-void MU_SetGroupSmooth::setGroupSmooth(unsigned group,
+bool MU_SetGroupSmooth::resume2(unsigned group,
 		const uint8_t &newSmooth, const uint8_t &oldSmooth)
 {
 	for(auto&ea:m_list) if(ea.group==group)
 	{
-		ea.newSmooth = newSmooth; return;
+		ea.newSmooth = newSmooth; return true;
 	}
 
 	SetSmoothT ss;
 	ss.group		= group;
 	ss.newSmooth  = newSmooth;
 	ss.oldSmooth  = oldSmooth;
-	m_list.push_back(ss);
+
+	m_list.push_back(ss); return true;
 }
 
 void MU_SetGroupAngle::undo(Model *model)
@@ -1613,12 +1699,12 @@ void MU_SetGroupAngle::redo(Model *model)
 {
 	for(auto&ea:m_list) model->setGroupAngle(ea.group,ea.newAngle);	
 }
-bool MU_SetGroupAngle::combine(Undo *u)
+int MU_SetGroupAngle::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SetGroupAngle*>(u))
 	{
 		for(auto&ea:undo->m_list)
-		setGroupAngle(ea.group,ea.newAngle,ea.oldAngle);
+		resume2(ea.group,ea.newAngle,ea.oldAngle);
 		return true;
 	}
 	return false;
@@ -1627,19 +1713,20 @@ unsigned MU_SetGroupAngle::size()
 {
 	return sizeof(MU_SetGroupAngle)+m_list.size()*sizeof(SetAngleT);
 }
-void MU_SetGroupAngle::setGroupAngle(unsigned group,
+bool MU_SetGroupAngle::resume2(unsigned group,
 		const uint8_t &newAngle, const uint8_t &oldAngle)
 {
 	for(auto&ea:m_list) if(ea.group==group)
 	{
-		ea.newAngle = newAngle; return;
+		ea.newAngle = newAngle; return true;
 	}
 
 	SetAngleT ss;
 	ss.group	  = group;
 	ss.newAngle  = newAngle;
 	ss.oldAngle  = oldAngle;
-	m_list.push_back(ss);
+
+	m_list.push_back(ss); return true;
 }
 
 void MU_MoveAnimation::undo(Model *model)
@@ -1650,9 +1737,9 @@ void MU_MoveAnimation::redo(Model *model)
 {
 	model->_moveAnimation(m_oldIndex,m_newIndex,+m_typeDiff);
 }
-bool MU_MoveAnimation::combine(Undo *u)
+int MU_MoveAnimation::combine(Undo *u)
 {
-	return false;
+	return CC_Stop;
 }
 unsigned MU_MoveAnimation::size()
 {
@@ -1679,8 +1766,10 @@ void MU_SetMaterialBool::redo(Model *model)
 	default: assert(0);
 	}
 }
-bool MU_SetMaterialBool::combine(Undo *u)
+int MU_SetMaterialBool::combine(Undo *u)
 {
+	if(auto*undo=dynamic_cast<MU_SetMaterialBool*>(u))
+	return resume2(undo->m_material,undo->m_how,undo->m_new);
 	return false;
 }
 unsigned MU_SetMaterialBool::size()
@@ -1711,15 +1800,21 @@ void MU_SetMaterialTexture::redo(Model *model)
 	}
 	else model->removeMaterialTexture(m_material);
 }
-bool MU_SetMaterialTexture::combine(Undo *u)
+int MU_SetMaterialTexture::combine(Undo *u)
 {
+	if(auto*undo=dynamic_cast<MU_SetMaterialTexture*>(u))
+	if(undo->m_material==m_material)
+	{
+		m_newTexture = undo->m_newTexture;
+		return true;
+	}
 	return false;
 }
 unsigned MU_SetMaterialTexture::size()
 {
 	return sizeof(MU_SetMaterialTexture);
 }
-void MU_SetMaterialTexture::setMaterialTexture(unsigned material,
+MU_SetMaterialTexture::MU_SetMaterialTexture(unsigned material,
 		Texture *newTexture,Texture *oldTexture)
 {
 	m_material = material; m_newTexture = newTexture; m_oldTexture = oldTexture;
@@ -1733,13 +1828,18 @@ void MU_AddMetaData::redo(Model *model)
 {
 	model->addMetaData(m_key.c_str(),m_value.c_str());
 }
-bool MU_AddMetaData::combine(Undo *u)
+int MU_AddMetaData::combine(Undo *u)
 {
 	return false;
 }
 unsigned MU_AddMetaData::size()
 {
 	return sizeof(MU_AddMetaData)+m_key.size()+m_value.size();
+}
+MU_AddMetaData::MU_AddMetaData(const std::string &key,
+		const std::string &value)
+{
+	m_key = key; m_value = value;
 }
 void MU_AddMetaData::addMetaData(const std::string &key,
 		const std::string &value)
@@ -1755,15 +1855,20 @@ void MU_UpdateMetaData::redo(Model *model)
 {
 	model->updateMetaData(m_key.c_str(),m_newValue.c_str());
 }
-bool MU_UpdateMetaData::combine(Undo *u)
+int MU_UpdateMetaData::combine(Undo *u)
 {
-	return false;
+	return false; //IMPLEMENT ME
 }
 unsigned MU_UpdateMetaData::size()
 {
 	return sizeof(MU_UpdateMetaData)+m_key.size()+m_newValue.size()+m_oldValue.size();
 }
 void MU_UpdateMetaData::updateMetaData(const std::string &key,
+		const std::string &newValue, const std::string &oldValue)
+{
+	m_key = key; m_newValue = newValue; m_oldValue = oldValue;
+}
+MU_UpdateMetaData::MU_UpdateMetaData(const std::string &key,
 		const std::string &newValue, const std::string &oldValue)
 {
 	m_key = key; m_newValue = newValue; m_oldValue = oldValue;
@@ -1778,7 +1883,7 @@ void MU_ClearMetaData::redo(Model *model)
 {
 	model->clearMetaData();
 }
-bool MU_ClearMetaData::combine(Undo *u)
+int MU_ClearMetaData::combine(Undo *u)
 {
 	return false;
 }
@@ -1793,7 +1898,7 @@ unsigned MU_ClearMetaData::size()
 	}
 	return s;
 }
-void MU_ClearMetaData::clearMetaData(const Model::MetaDataList &list)
+MU_ClearMetaData::MU_ClearMetaData(const Model::MetaDataList &list)
 {
 	m_list = list;
 }
@@ -1874,10 +1979,10 @@ void MU_SwapStableStr::redo(Model *m)
 {
 	undo(m);
 }
-bool MU_SwapStableStr::combine(Undo *u)
+int MU_SwapStableStr::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_SwapStableStr*>(u))
-	if(undo&&undo->m_addr==m_addr)
+	if(undo->m_addr==m_addr)
 	{
 		m_swap = undo->m_swap; return true;
 	}
@@ -1900,6 +2005,8 @@ void MU_SwapStableMem::undo(Model *m)
 {
 	m->setChangeBits(m_changeBits);	
 
+	//WARNING: THIS SHOULD ITERATE IN REVERSE BUT rec
+	//ISN'T BI-DIRECTIONAL.
 	_for_each([](rec &ea)
 	{
 		//ea.swap();
@@ -1920,7 +2027,7 @@ void MU_SwapStableMem::addMemory(void *addr, const void *p, const void *cp, size
 {
 	//m_changeBits|=m->m_changeBits;
 
-	_for_each([=,&p](rec &ea)
+	if(m_merge) _for_each([=,&p](rec &ea)
 	{
 		if(ea.addr==addr)
 		{
@@ -1954,9 +2061,11 @@ void MU_SwapStableMem::addMemory(void *addr, const void *p, const void *cp, size
 		memcpy(r->mem+sz,cp,sz);
 	}
 }
-bool MU_SwapStableMem::combine(Undo *u)
+int MU_SwapStableMem::combine(Undo *u)
 {
+	if(m_merge)
 	if(auto*undo=dynamic_cast<MU_SwapStableMem*>(u))
+	if(undo->m_merge)
 	{
 		addChange(undo->m_changeBits);
 
@@ -1982,9 +2091,9 @@ void MU_MoveUtility::redo(Model *model)
 {
 	model->moveUtility(m_oldIndex,m_newIndex);
 }
-bool MU_MoveUtility::combine(Undo *u)
+int MU_MoveUtility::combine(Undo *u)
 {
-	return false;
+	return CC_Stop; //??
 }
 unsigned MU_MoveUtility::size()
 {
@@ -2020,9 +2129,10 @@ void MU_AssocUtility::removeAssoc(Model::Group *g)
 {
 	m_list.push_back({-Model::PartGroups,g});
 }
-bool MU_AssocUtility::combine(Undo *u)
+int MU_AssocUtility::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_AssocUtility*>(u))
+	if(undo->m_util==m_util)
 	{
 		//NOTE: Not attempting to merge/annihilate.
 		for(auto&ea:undo->m_list) m_list.push_back(ea);
@@ -2059,7 +2169,7 @@ void MU_Add::redo(Model *model)
 	}
 	else for(auto&ea:m_list) (model->*g)(ea.index);
 }
-bool MU_Add::combine(Undo *u)
+int MU_Add::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_Add*>(u))
 	{
@@ -2069,8 +2179,12 @@ bool MU_Add::combine(Undo *u)
 
 			return true;
 		}
+		//Assuming there isn't an interrelationship here??
+		return false; 
 	}
-	return false;
+	//Assuming adding (anything) invalidates undo temporal
+	//coherency.
+	return CC_Stop;
 }
 void MU_Add::undoRelease()
 {
@@ -2220,9 +2334,10 @@ void MU_UvAnimKey::assignKey(const Key &k, const Key &cp)
 	m_ops.push_back({0,k});
 	m_ops.push_back({0,cp});
 }
-bool MU_UvAnimKey::combine(Undo *u)
+int MU_UvAnimKey::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_UvAnimKey*>(u))
+	if(undo->m_anim==m_anim)
 	{
 		auto it = undo->m_ops.begin();
 		auto itt = undo->m_ops.end();

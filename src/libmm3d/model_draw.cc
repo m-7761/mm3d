@@ -649,6 +649,11 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 			glDisable(GL_TEXTURE_2D);
 		}
 	}
+
+	if(0!=(drawOptions&DO_WIREFRAME))
+	{
+		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+	}
 }
 void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoint[3])
 {
@@ -712,6 +717,11 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 	{	
 		glLoadIdentity();
 		glMatrixMode(GL_MODELVIEW_MATRIX);
+	}
+
+	if(0!=(drawOptions&DO_WIREFRAME))
+	{
+		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
 	}
 }
 
@@ -838,6 +848,8 @@ void Model::drawVertices(float a)
 	//glEnable(GL_DEPTH_TEST);
 		
 	if(1!=a) glDisable(GL_BLEND);
+
+	glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); 
 }
 void Model::_drawPolygons(int pass/*,bool mark*/)
 {	

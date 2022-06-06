@@ -59,7 +59,9 @@ struct AnimSetWin : Win
 		split(joint,"Split",id_split),
 		join(joint,"Join",id_join),
 		merge(nav3,"Merge",id_merge),
-	convert(main,"Convert To Frame Animation",id_convert),
+	nav4(main),
+	convert(nav4,"Convert To Frame Animation",id_convert),
+	clean(nav4,"Clean Up",id_remove),
 	f1_ok_cancel(main)	
 	{	
 		(checkbox_item::cbcb&) //YUCK
@@ -72,11 +74,17 @@ struct AnimSetWin : Win
 		nav3.expand();		
 		joint.expand_all().proportion();
 		merge.ralign();
-		convert.expand();		
+		nav4.expand();
+		convert.expand();
+		clean.ralign();
 	
 		//The columns should support the window.
 		//But just to be safe.
 		table.expand();
+
+		//TODO: Maybe resize as the list changes
+		//up to some maximum.
+		table.drop()+=table.font().height; //2022
 
 		wrap.ctrl_tab_navigate();
 		//name_col.expand(); //Doesn't work yet.
@@ -85,6 +93,8 @@ struct AnimSetWin : Win
 		//it's better to have the short name as
 		//the middle column.
 		fps_col.span() = frames_col.span() = 0;
+
+		main->pack(); clean.span(del.span());
 
 		active_callback = &AnimSetWin::submit;
 
@@ -102,7 +112,9 @@ struct AnimSetWin : Win
 	row nav2; button add,name,del;
 	row nav3; button copy;
 	row joint; button split,join;
-	button merge, convert;
+	button merge;
+	row nav4;
+	button convert,clean;
 	f1_ok_cancel_panel f1_ok_cancel;
 
 	void refresh();
@@ -350,6 +362,215 @@ void AnimConvertWin::submit(int id)
 	}
 
 	basic_submit(id);
+}
+
+struct AnimCleanupWin : Win
+{
+	//NOTE: This used for InterpolateStep comparison.
+	static constexpr double eps = 0.00000001;
+
+	AnimCleanupWin(MainWin &m, AnimSetWin *o=nullptr)
+		:
+	Win("Clean Up"),model(m),owner(o),
+	a(main),
+	b(main,"Remove identical keys"),
+	c(main,"Remove unused frames"),
+	ok_cancel(main),
+	ops(main.inl,"Checklist"),
+	sel(ops,"Select"),
+	pos(ops,"Position"),
+	rot(ops,"Rotation"),
+	scl(ops,"Scale"),
+	reset(ops,"Reset Checked Boxes",id_reset)
+	{
+		ok_cancel.ok.activate();
+
+		int mode = owner?owner->mode:3;
+
+		auto &n = model.nselection;
+		if(mode&1&&n[Model::PT_Joint]
+		 ||mode&2&&n[Model::PT_Point]
+		 ||mode&2&&n[Model::PT_Vertex])
+		{
+			if(owner) sel.box.set();
+		}
+		else sel.box.disable();
+
+		//The right panel was just 1px shy
+		//of the OK button, just dumb luck.
+		//The extra space is more centered.
+		ok_cancel.nav.space<top>()+=1;
+
+		reset.expand();
+				
+		active_callback = &AnimCleanupWin::submit;
+
+		pos.tol.edit(eps,100.0); //0.0001 //1/10th millimeter
+		rot.tol.edit(eps,0.0001); //0.00001 //0.0001 is too high for dot4.
+		scl.tol.edit(eps,100.0); //0.0001 //???
+		auto ser = config.get("ui_anim_clean","0.0001,0.00001,0.0001,1,1,1,3,3,1,1");
+		{
+			float f[3]; int d[7];
+			sscanf(ser,"%f,%f,%f,%d,%d,%d,%d,%d,%d,%d",f+0,f+1,f+2,d+0,d+1,d+2,d+3,d+4,d+5,d+6);
+			pos.tol.set_float_val(f[0]); pos.box.set_int_val(d[0]);
+			rot.tol.set_float_val(f[1]); rot.box.set_int_val(d[1]);
+			scl.tol.set_float_val(f[2]); scl.box.set_int_val(d[2]);
+			a.k.select_id(d[3]); a.v.select_id(d[4]);
+			b.set_int_val(d[5]); c.set_int_val(d[6]);
+		}	
+	}
+
+	MainWin &model; AnimSetWin *owner;
+
+	struct convert
+	{
+		panel nav;
+		
+		dropdown k,v;
+		
+		convert(node *main)
+			:
+		nav(main,"Convert"),		
+		k(nav,"Match"),v(nav,"Motion")
+		{
+			//REMINDER: I didn't share
+			//this list because having
+			//<None><None> would imply
+			//no-action, and require a
+			//pop-up warning.
+			k.add_item(0,"<All>");
+			k.add_item(3,"Lerp");
+			k.add_item(2,"Step");
+			v.add_item(0,"<None>");
+			v.add_item(3,"Lerp");
+			v.add_item(2,"Step");			
+			
+			//This just communicates a
+			//way to disable this step
+			//so it doesn't have to be
+			//left in a blank state to
+			//avoid taking this action.
+		//	k.select_id(3);
+		//	v.select_id(3);
+		}
+	}a;
+	boolean b,c;
+	ok_cancel_panel ok_cancel;
+	panel ops;
+	struct sel //SINGLETON
+	{
+		row nav;
+		titlebar tol;
+		boolean box;
+		sel(node *main, utf8 name)
+		:nav(main),tol(nav,"Key tolerance"),box(nav,name)
+		{
+			nav.space<center>()-=1;
+			box.space<top>()-=3;
+		}
+
+		operator bool(){ return box; }
+
+	}sel;
+	struct op
+	{
+		row nav;
+		textbox tol;
+		boolean box;
+		op(node *main, utf8 name)
+		:nav(main),tol(nav),box(nav,name)
+		{
+			box.space<top>()+=3;
+			//box.set();
+		}
+
+		operator bool(){ return box; }
+
+	}pos,rot,scl;
+	button reset;
+
+	struct ok
+	{
+		Model *m;
+		bool sel;
+		int mask;		
+		unsigned anim;
+		const Model::Animation *ap;
+		size_t fc;
+		
+		//TODO: animwin.cc will need access to
+		//piecewise version of these functions.
+		//Maybe they should be Model functions.
+		void interpolate(int,int);
+		void remove_keys(double,double,double);
+		void remove_frames();
+	};
+	void submit(int id)
+	{
+		if(id==id_reset)
+		{
+			if(pos) pos.tol.set_float_val(0.0001);
+			if(rot) rot.tol.set_float_val(0.00001);
+			if(scl) scl.tol.set_float_val(0.0001);
+		}
+		else if(id==id_ok)
+		{
+			bool aa = (int)a.k!=(int)a.v||!a.k;
+			bool bb = b;
+			bool cc = c;
+			int mask = 0;
+			{
+				if(pos) mask|=Model::KeyTranslate;
+				if(rot) mask|=Model::KeyRotate;
+				if(scl) mask|=Model::KeyScale;
+			}
+			if(!mask)
+			{
+				//TODO: Warning??? return?
+				aa = bb = false;
+			}
+
+			if(aa||bb||cc)
+			{
+				ok o = {model,sel,mask};
+
+				if(owner) owner->table^[&](li::multisel ea)
+				{
+					o.anim = ea->id();
+					o.ap = o.m->getAnimationList()[o.anim];
+					o.fc = o.ap->_frame_count();
+					if(aa) o.interpolate(a.k,a.v);
+					if(bb) o.remove_keys(pos.tol,rot.tol,scl.tol);
+					if(cc) o.remove_frames();
+				};
+				else for(auto*ap:model->getAnimationList()) 
+				{
+					o.ap = ap;
+					o.fc = ap->_frame_count();
+					if(aa) o.interpolate(a.k,a.v);
+					if(bb) o.remove_keys(pos.tol,rot.tol,scl.tol);
+					if(cc) o.remove_frames();
+					o.anim++;
+				}
+
+				if(owner) o.m->updateObservers();
+				else model->operationComplete("Animation Cleanup");
+			}
+
+			char buf[64]; //15*3+2*7+1
+			sprintf(buf,"%.10f,%.10f,%.10f,%d,%d,%d,%d,%d,%d,%d",
+			(double)pos.tol,(double)rot.tol,(double)scl.tol,
+			(int)pos.box,(int)rot.box,(int)scl.box,
+			(int)a.k,(int)a.v,(int)b,(int)c);
+			config.set("ui_anim_clean",buf);
+		}
+		basic_submit(id);
+	}
+};
+
+extern void animsetwin_clean(MainWin &m)
+{
+	AnimCleanupWin(m).return_on_close();
 }
 
 void AnimSetWin::submit(int id)
@@ -652,6 +873,11 @@ void AnimSetWin::submit(int id)
 	
 		AnimConvertWin(*this).return_on_close(); 
 		break;
+
+	case id_remove:
+	
+		AnimCleanupWin(model,this).return_on_close(); 
+		break;
 	
 	case id_ok:
 			
@@ -703,3 +929,301 @@ void AnimSetWin::refresh()
 }
 
 extern void animsetwin(MainWin &m){ AnimSetWin(m).return_on_close(); }
+
+void AnimCleanupWin::ok::interpolate(int key, int val)
+{
+	for(auto&kv:ap->m_keyframes)
+	for(auto*kp:kv.second)
+	if(mask&kp->m_isRotation)
+	{
+		auto e = kp->m_interp2020;
+		if(e>=Model::InterpolateStep) if(e==key||!key)
+		{
+			m->setKeyframe(anim,kp,nullptr,(Model::Interpolate2020E)val);
+		}
+	}
+
+	auto f0 = ap->m_frame0;
+	if(~0!=f0&&mask&Model::KeyTranslate)
+	{
+		auto &vl = m->getVertexList();
+		for(int v=(int)vl.size();v-->0;)
+		{
+			auto *pp = &vl.data()[v]->m_frames.data()[f0];
+			for(auto f=fc;f-->0;)		
+			{
+				auto*c = pp[f]->m_coord;
+				auto e = pp[f]->m_interp2020;
+				if(e>=Model::InterpolateStep) if(e==key||!key)	
+				{					
+					m->setFrameAnimVertexCoords(anim,f,v,c,(Model::Interpolate2020E)val);
+				}
+			}
+		}
+	}
+}
+void AnimCleanupWin::ok::remove_keys(double pt, double rt, double st)
+{
+	rt = 1-rt; //0.9999 is default
+
+	auto tt = ap->m_timetable2020.data();
+
+	std::vector<char> l;
+	for(auto&kv:ap->m_keyframes)
+	if(!sel||m->isPositionSelected(kv.first))
+	{
+		size_t sz = kv.second.size();
+		int n = (int)sz;
+		l.assign(sz,true);
+
+		char *lp = l.data();
+		auto keys = kv.second.data();
+
+		Quaternion q,qq,cq;
+		int p[3] = {-1,-1,-1};
+		int pp[3] = {-1,-1,-1};
+		for(int i=0;i<n;i++)
+		{
+			auto *kp = keys[i];
+
+			int j = kp->m_isRotation;
+
+			if(0==(mask&j)) continue;
+
+			j>>=1;
+
+			if(pp[j]==-1)
+			{
+				pp[j] = i; 
+				
+				if(j==Model::InterpolantRotation)
+				qq.setEulerAngles(kp->m_parameter);
+
+				continue;
+			}
+			else if(p[j]==-1)
+			{
+				p[j] = i; 
+				
+				if(j==Model::InterpolantRotation)
+				q.setEulerAngles(kp->m_parameter);
+
+				continue;
+			}
+
+			bool identical = true;
+			{
+				auto &a = *keys[pp[j]];
+				auto &b = *keys[p[j]];
+				auto &c = *kp;
+
+				double cmp[4];			
+				double t = tt[a.m_frame];
+				t = (tt[b.m_frame]-t)/(tt[c.m_frame]-t);
+
+				//WARNING: I'm winging it with Step/Copy here :(
+				auto e = b.m_interp2020;
+
+				if(e==Model::InterpolateCopy)
+				{
+					identical = false; //Assume there's a reason?
+				}
+				else if(e==Model::InterpolateStep)
+				{
+					//This is just requiring all 3 to be identical?
+					for(int k=3;k-->0;)
+					if(fabs(a.m_parameter[k]-b.m_parameter[k])>eps
+					 ||fabs(b.m_parameter[k]-c.m_parameter[k])>eps)
+					{
+						identical = false; break;
+					}
+				}
+				else if(j==Model::InterpolantRotation)
+				{
+					cq.setEulerAngles(c.m_parameter);
+					a.slerp(qq.getVector(),cq.getVector(),t,cmp);
+
+					double *cmp2 = q.getVector();
+
+					/*if(0) //REFERENCE? //TESTING
+					{
+						//I'm not so sure the "axis" part of the
+						//quaternion can be measured in isolation
+						//of the angle part. In my tests the axis
+						//varied with the angle even though the
+						//Euler angle only moved on one component.
+						
+						//TODO: What's an appropriate 
+						//magnitude???
+						constexpr double eps1 = 0.0005; //axis
+						constexpr double eps2 = 0.005; //angle
+
+						//Maybe the quaternions should compare a 
+						//rotated vector?
+						for(int k=3;k-->0;)
+						if(fabs(cmp[k]-cmp2[k])>eps1)
+						{
+							identical = false; 
+						}
+						if(fabs(cmp[3]-cmp2[3])>eps2)
+						{
+							identical = false; 
+						}
+					}
+					else //BLACK MAGIC?*/ //TESTING
+					{
+						//NOTE: In my tests 0.9999 is a minimum and
+						//0.99999 seems too much (one decimal place
+						//difference) so there isn't much wiggle if
+						//this approach is chosen. My hunch is this
+						//is iffy and isn't highly configurable for
+						//end-users. What's desired I think is just
+						//what looks imperceptible to the human eye.
+						//But at what scale?
+						if(dot4(cmp2,cmp)<rt) //0.9999
+						{
+							identical = false;					
+						}
+					}
+
+					if(!identical) qq = q; q = cq;
+				}
+				else
+				{
+					a.lerp(a.m_parameter,c.m_parameter,t,cmp);
+
+					double tol = j?st:pt;
+					double *cmp2 = b.m_parameter;
+					for(int k=3;k-->0;)
+					if(fabs(cmp[k]-cmp2[k])>tol)
+					{
+						identical = false;
+					}
+				}
+			}
+
+			if(identical)
+			{
+				lp[p[j]] = false;
+			}
+			else pp[j] = p[j]; p[j] = i;
+		}
+
+		for(auto i=n;i-->0;) if(!lp[i])
+		{
+			if(!m->deleteKeyframe(anim,kv.second[i]))
+			assert(0);
+		}
+	}
+
+	int v = -1;
+	auto f0 = ap->m_frame0;
+	if(~0!=f0)
+	if(mask&Model::KeyTranslate)
+	for(auto*vp:m->getVertexList())
+	{
+		if(sel&&!vp->m_selected) continue;
+
+		int n = (int)fc;
+		l.assign(fc,true);
+		char *lp = l.data();
+		int p = -1, pp = -1;
+		auto *keys = &vp->m_frames.data()[f0];
+		for(auto i=0;i<n;i++)
+		{
+			auto *kp = keys[i];
+
+			if(!kp->m_interp2020) continue;
+
+			if(pp==-1)
+			{
+				pp = i; continue;
+			}
+			else if(p==-1)
+			{
+				p = i; continue;
+			}
+
+			bool identical = true;
+			{
+				auto &a = *keys[pp];
+				auto &b = *keys[p];
+				auto &c = *kp;
+			
+				//WARNING: I'm winging it with Step/Copy here :(
+				auto e = b.m_interp2020;
+
+				if(e==Model::InterpolateCopy)
+				{
+					identical = false; //Assume there's a reason?
+				}
+				else if(e==Model::InterpolateStep)
+				{
+					//This is just requiring all 3 to be identical?
+					for(int k=3;k-->0;)
+					if(fabs(a.m_coord[k]-b.m_coord[k])>eps
+					 ||fabs(b.m_coord[k]-c.m_coord[k])>eps)
+					{
+						identical = false; break;
+					}
+				}
+				else
+				{			
+					double cmp[4];			
+					double t = tt[pp];
+					t = (tt[p]-t)/(tt[i]-t);
+
+					a.lerp(a.m_coord,c.m_coord,t,cmp);
+
+					double *cmp2 = b.m_coord;
+
+					for(int k=3;k-->0;)
+					if(fabs(cmp[k]-cmp2[k])>pt) //eps
+					{
+						identical = false;
+					}
+				}
+			}
+
+			if(identical)
+			{
+				lp[p] = false;
+			}
+			else pp = p; p = i;			
+		}
+
+		v++; for(auto i=n;i-->0;) if(!lp[i])
+		{
+			m->deleteFrameAnimVertex(anim,i,v);
+		}
+	}
+}
+void AnimCleanupWin::ok::remove_frames()
+{
+	std::vector<char> l(fc,false);
+	char *lp = l.data();
+
+	for(auto&kv:ap->m_keyframes)
+	for(auto*kp:kv.second)
+	{
+		//assert(kp->m_interp2020);
+
+		lp[kp->m_frame] = true;
+	}
+
+	auto f0 = ap->m_frame0;
+	if(~0!=f0)
+	for(auto*vp:m->getVertexList())
+	{
+		auto *pp = &vp->m_frames.data()[f0];
+		for(auto f=fc;f-->0;)
+		{
+			if(pp[f]->m_interp2020) lp[f] = true;
+		}
+	}
+
+	for(auto f=fc;f-->0;) if(!lp[f])
+	{
+		m->deleteAnimFrame(anim,f);
+	}
+}

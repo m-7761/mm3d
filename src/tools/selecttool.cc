@@ -65,7 +65,7 @@ public:
 		switch(arg)
 		{
 		default: assert(0);		
-		case 0: return TRANSLATE_NOOP("Tool","Select Connected Mesh");
+		case 0: return TRANSLATE_NOOP("Tool","Select Connected");
 		case 1: return TRANSLATE_NOOP("Tool","Select Faces");
 		case 2: return TRANSLATE_NOOP("Tool","Select Vertices");		
 		case 3: return TRANSLATE_NOOP("Tool","Select Groups");

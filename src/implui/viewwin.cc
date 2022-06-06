@@ -122,8 +122,8 @@ extern void viewwin_status_func(int st=0)
 		ins = false;
 	}
 	void *l = ins?0:glutext::GLUT_MENU_ENABLE;
-	glutext::glutMenuEnable(0,l); //Copy
-	glutext::glutMenuEnable(1,l); //Copy Animation Data
+	glutext::glutMenuEnable(0,l); //Copy Animation Data
+	glutext::glutMenuEnable(1,l); //Copy
 	glutext::glutMenuEnable(2,l); //Paste
 	glutext::glutMenuEnable(viewwin_deletecmd,l); //Delete
 }
@@ -204,7 +204,9 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 		glutext::glutMenuEnable(id_animate_mode,
 		id?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK);
 	}
-	if(changeBits&Model::AnimationChange)
+
+	if(changeBits&(Model::AnimationChange
+	|Model::SelectionJoints|Model::SelectionPoints)) //REMOVE ME?
 	{
 		if(_animation_win) _animation_win->modelChanged(changeBits); //2021
 	}
@@ -212,6 +214,11 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 	//Don't want to do this faster than the viewports are displayed.
 	//Plus the animation coordinates should be validated to be safe.
 	_deferredModelChanged|=changeBits;
+
+	if(-1==_deferredModelChanged) //WTH???
+	{
+		changeBits = changeBits; //breakpoint
+	}
 
 	//Do on redraw so animation data isn't calculated unnecessarily.
 	views.modelUpdatedEvent();
@@ -487,23 +494,23 @@ void MainWin::_init_menu_toolbar() //2019
 		//wxWidets/src/common/accelcmn.cpp has a list of obscure
 		//(ugly) accelerator strings that I wish Widgets95 could
 		//workaround, but in the meantime there's no other means.
-	glutAddMenuEntry(E(file_new,"&New...","File|New","Ctrl+Alt+N"));
-	glutAddMenuEntry(E(file_open,"&Open...","File|Open","Ctrl+Alt+O"));		
-	glutAddSubMenu(::tr("&Recent Models","File|Recent Models"),viewwin_mruf_menu);
-	glutAddMenuEntry(E(file_close,"&Close","File|Close","Ctrl+Alt+C"));
+	glutAddMenuEntry(E(file_new,"New...","File|New","Alt+Up"));
+	glutAddMenuEntry(E(file_open,"Open...","File|Open","Alt+Down"));		
+	glutAddSubMenu(::tr("Recent Models","File|Recent Models"),viewwin_mruf_menu);
+	glutAddMenuEntry(E(file_close,"Close","File|Close","Alt+End"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(file_save,"&Save","File|Save","Ctrl+Alt+S"));
-	glutAddMenuEntry(E(file_save_as,"Save &As...","File|Save As","Shift+Ctrl+Alt+S"));
-	glutAddMenuEntry(E(file_export,"&Export...","File|Export","Ctrl+Alt+E"));
-	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected","Shift+Ctrl+Alt+E"));
+	glutAddMenuEntry(E(file_save,"Save (Ctrl+S)","File|Save","Ctrl+Alt+S"));
+	glutAddMenuEntry(E(file_save_as,"Save As...","File|Save As","Alt+F12"));
+	glutAddMenuEntry(E(file_export,"Export...","File|Export","Alt+F11"));
+	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected","Shift+F11"));
 	glutAddMenuEntry();		
 	#ifdef HAVE_LUALIB //UNUSED
-	glutAddMenuEntry(E(file_run_script,"Run &Script...","File|Run Script"));
-	glutAddSubMenu(::tr("&Recent Scripts","File|Recent Script"),viewwin_mrus_menu);
+	glutAddMenuEntry(E(file_run_script,"Run Script...","File|Run Script"));
+	glutAddSubMenu(::tr("Recent Scripts","File|Recent Script"),viewwin_mrus_menu);
 	#endif
 	glutAddMenuEntry(E(file_plugins,"Plugins...","File|Plugins"));
 	//Will wxWidgets detection ignore the ellipsis?
-	glutAddMenuEntry(E(file_prefs,"&Preferences...","")); //wxOSX requires this.	
+	glutAddMenuEntry(E(file_prefs,"Preferences...","")); //wxOSX requires this.	
 	glutext::glutMenuEnable(id_file_prefs,0); //UNIMPLEMENTED	
 	if(viewwin_face_menu) //EXPERIMENTAL
 	glutAddSubMenu(::tr("New Face Normal",""),viewwin_face_menu);
@@ -511,10 +518,12 @@ void MainWin::_init_menu_toolbar() //2019
 	viewwin_rmb = config.get("ui_prefs_rmb",false);
 	glutAddMenuEntry(X(!viewwin_rmb,file_prefs_rmb,"LMB Rotates View","",""));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(file_resume,"Resu&me","","Windows_Menu"));
+	//Unlike Scroll_lock removing the underscore doesn't work.
+	//Capitalization does however.
+	glutAddMenuEntry(E(file_resume,"Resume","","Windows_Menu")); //Windows_menu
 	glutAddMenuEntry();
 	//REMINDER: Alt+F4 closes a window according to the system menu.
-	glutAddMenuEntry(E(file_quit,"&Quit","File|Quit","Ctrl+Alt+Q"));
+	glutAddMenuEntry(E(file_quit,"Quit","File|Quit","Ctrl+F4"));
 	}	
 
 	if(!viewwin_view_menu) //static menu (NEW)
@@ -524,28 +533,33 @@ void MainWin::_init_menu_toolbar() //2019
 		//items.
 		viewwin_view_menu = glutCreateMenu(viewwin_menubarfunc);	
 
+		//views.status._interlock.indicate(true); //inverting sense
 		//glutAddMenuEntry(E(frame_all,"Frame All","View|Frame","Home"));
 		glutAddMenuEntry(X(true,frame_lock,"Interlock","","Shift+Ctrl+E"));
 		glutAddMenuEntry(E(frame_all,"Enhance","View|Frame","Shift+E"));
-		glutAddMenuEntry(E(frame_selection,"Enhance Selection","View|Frame","E"));
+		glutAddMenuEntry(E(frame_selection,"Enhance Selection","View|Frame","E"));		
 		glutAddMenuEntry();
-		glutAddMenuEntry(E(view_swap,"Change Sides","View|Viewports","Shift+Tab"));
-		glutAddMenuEntry(E(view_flip,"Bottom on Top","View|Viewports","Shift+Q"));
-		glutAddMenuEntry(E(view_init,"Restore to Normal","","Shift+Esc"));
-		glutAddMenuEntry();
-		glutAddMenuEntry(E(fullscreen,"&Full Screen","","F11"));
+		glutAddMenuEntry(E(fullscreen,"Full Screen Mode","","F11"));
 		glutAddMenuEntry(E(viewselect,"Open View Menu","","F4"));
 		glutAddMenuEntry();
-		glutAddMenuEntry(E(view_persp,"&Perspective","","PgUp")); 
-		glutAddMenuEntry(E(view_ortho,"&Orthographic","","Shift+PgUp"));			
-		glutAddMenuEntry(E(view_right,"&Right","","PgDn"));
-		glutAddMenuEntry(E(view_left,"&Left","","Shift+PgDn"));
-		glutAddMenuEntry(E(view_top,"&Top","","Home"));
-		glutAddMenuEntry(E(view_bottom,"&Bottom","","Shift+Home"));	
-		glutAddMenuEntry(E(view_front,"&Front","","End"));
-		glutAddMenuEntry(E(view_back,"Bac&k","","Shift+End"));
-
-		//views.status._interlock.indicate(true); //inverting sense
+		glutAddMenuEntry(E(view_persp,"Perspective","","PgUp")); 
+		glutAddMenuEntry(E(view_ortho,"Orthographic","","Shift+PgUp"));			
+		glutAddMenuEntry(E(view_right,"Right","","PgDn"));
+		glutAddMenuEntry(E(view_left,"Left","","Shift+PgDn"));
+		glutAddMenuEntry(E(view_top,"Top","","Home"));
+		glutAddMenuEntry(E(view_bottom,"Bottom","","Shift+Home"));	
+		glutAddMenuEntry(E(view_front,"Front","","End"));
+		glutAddMenuEntry(E(view_back,"Back","","Shift+End"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(view_invert,"Invert View","","\\"));
+		glutAddMenuEntry(E(view_invert_all,"Invert All Views","","Shift+\\"));
+		glutAddMenuEntry(E(view_project_all,"Project All Views","","Shift+`"));
+		//view_persp does this now	
+		//glutAddMenuEntry(E(view_project,"Project View","","`")); 
+		glutAddMenuEntry(E(view_init,"Restore to Normal","","`")); //Shift+Esc
+		glutAddMenuEntry();	
+		glutAddMenuEntry(E(view_swap,"Change Sides","View|Viewports","Ctrl+Tab"));
+		glutAddMenuEntry(E(view_flip,"Bottom on Top","View|Viewports","Ctrl+Q"));	
 	}
 		bool r,s,t,u,v;
 				
@@ -631,7 +645,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(O(s,view_1x2,"2 Views (Wide)","View|Viewports","Shift+3"));
 	glutAddMenuEntry(O(t,view_2x1,"2 Views (Tall)","View|Viewports","Shift+4"));
 	glutAddMenuEntry(O(u,view_2x2,"2x2 Views","View|Viewports","Q"));	
-	glutAddMenuEntry(O(v,view_3x2,"3x2 Views","View|Viewports","Shift+Ctrl+3"));		
+	glutAddMenuEntry(O(v,view_3x2,"3x2 Views","View|Viewports","Shift+Q"));		
 			
 	//REMOVE ME
 	//NOTE: The selected tool holds a state, but the 
@@ -757,12 +771,16 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(edit_utildata,"Edit Model Utilities...","","U"));
 	//glutAddMenuEntry(E(edit_metadata,"Edit Model Meta Data...","Model|Edit Model Meta Data","Shift+Ctrl+T"));
 	glutAddMenuEntry(E(edit_userdata,"Edit Model User Data...","","Ctrl+U"));
-	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Shift+Ctrl+Back"));
+	glutAddMenuEntry(E(background_settings,"Set Background Image...","Model|Set Background Image","Alt+Back"));
 	//SEEMS UNNECESSARY
 	//glutAddMenuEntry(::tr("Boolean Operation...","Model|Boolean Operation"),id_modl_boolop);
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge","Ctrl+Alt+M"));
-	glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations","Ctrl+Alt+A"));
+	glutAddMenuEntry(E(merge_models,"Merge...","Model|Merge","Ctrl+Insert"));
+	//glutAddMenuEntry(E(merge_animations,"Import Animations...","Model|Import Animations","Ctrl+Alt+A"));
+	glutAddMenuEntry(E(merge_animations,"Merge Animations...","","Alt+Insert"));
+	//NOTE: "Clarify" just happens to be the same width as "Merge" on Windows.
+	//The window is named "Clean UP" and is the same as the animsetwin.cc one.
+	glutAddMenuEntry(E(clean_animations,"Clarify Animations...","","Alt+Delete")); //2022
 
 		viewwin_geom_menu = glutCreateMenu(viewwin_geomenufunc);
 
@@ -821,10 +839,10 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(material_cleanup,"Clean Up...","Materials|Clean Up","Ctrl+Delete"));
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(uv_editor,"Edit Texture Coordinates...","Materials|Edit Texture Coordinates","M")); //Ctrl+E
-	glutAddMenuEntry(E(projection_settings,"Edit Projection...","Materials|Edit Projection","Ctrl+P"));	
+	glutAddMenuEntry(E(projection_settings,"Edit Projections...","Materials|Edit Projection","Ctrl+P"));	
 	glutAddMenuEntry();
 	glutAddMenuEntry(E(refresh_textures,"Reload Textures","Materials|Reload Textures","Ctrl+R"));
-	glutAddMenuEntry(E(uv_render,"Paint Texture...","Materials|Paint Texture","Shift+Ctrl+R"));
+	glutAddMenuEntry(E(uv_render,"Plot Texture Coordinates...","Materials|Paint Texture","Shift+Ctrl+P"));
 				
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
@@ -851,27 +869,32 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influencing","Joints|Remove Selected Joint from Influencing")); 
 	glutAddMenuEntry(E(joint_simplify,"Convert Multiple Influences to Single","Joints|Convert Multiple Influences to Single"));		
 	glutAddMenuEntry();	
-	glutAddMenuEntry(E(joint_draw_bone,"&Apply Alternative Appearance to Bone","","Ctrl+Alt+B")); 
+	glutAddMenuEntry(E(joint_draw_bone,"Apply Alternative Appearance to Bone","","Ctrl+Alt+B")); 
 	//IMPLEMENT ME
 	//REMINDER: animation mode works differently (should they be standardized?)
-	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone &Independent of Parent","","Shift+I")); 
+	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone Independent of Parent","","Shift+I")); 
 	}		
 
-	int _anim_menu2 = glutCreateMenu(viewwin_menubarfunc);
+	_anim_menu2 = glutCreateMenu(viewwin_menubarfunc);
 	{
+		r = config.get("ui_snap_keyframe",true);
+		views.status._keys_snap.indicate(!r); //inverting sense
 		//Fix me: Need to use wxTRANSLATE somehow to translate Scroll_lock?
 		//https://forums.wxwidgets.org/viewtopic.php?f=1&t=46722
-		glutAddMenuEntry(X(true,animate_snap,"Snap to Keyframe","","Scroll_lock")); //wxMSW (accelcmn.cpp)
-	
-		//views.status._keys_snap.indicate(true); //inverting sense
+		//wxMSW (accelcmn.cpp)
+		//2022: "Scroll_Lock" and "Scroll Lock" seem to work now.
+		//"Windows Menu" doesn't, so it must not be a generic fix.
+		//I guess keeping the underscore is best for consistency
+		//and representing a single logical key. ScrLk won't work.
+		glutAddMenuEntry(X(r,animate_snap,"Snap to Keyframe","","Scroll_Lock")); //Scroll_lock
 
 		glutAddMenuEntry();
 		//Ctrl+Scroll_lock is system interpreted as Break like Ctrl+Pause.
-		glutAddMenuEntry(O(false,animate_mode_2,"Frame Animation Mode","","Alt+Scroll_lock"));
-		glutAddMenuEntry(O(false,animate_mode_1,"Skeletal Animation Mode","","Shift+Scroll_lock"));
-		glutAddMenuEntry(O(true,animate_mode_3,"Unlocked (Complex Mode)","","Shift+Alt+Scroll_lock"));
+		glutAddMenuEntry(O(false,animate_mode_2,"Frame Animation Mode","","Alt+Scroll_Lock"));
+		glutAddMenuEntry(O(false,animate_mode_1,"Skeletal Animation Mode","","Shift+Scroll_Lock"));
+		glutAddMenuEntry(O(true,animate_mode_3,"Unlocked (Complex Mode)","","Shift+Alt+Scroll_Lock"));
 		glutAddMenuEntry();
-		glutAddMenuEntry(X(true,animate_bind,"Bind Influences to Skeleton","","Ctrl+Alt+Scroll_lock"));
+		glutAddMenuEntry(X(true,animate_bind,"Bind Influences to Skeleton","","Ctrl+Alt+Scroll_Lock"));
 	}
 		_anim_menu = glutCreateMenu(viewwin_menubarfunc);	
 
@@ -880,35 +903,20 @@ void MainWin::_init_menu_toolbar() //2019
 		r = config.get("ui_anim_insert",false);
 		const_cast<int&>(animate_insert) = r;
 		views.status._clipboard.indicate(r);
-	glutAddMenuEntry(X(r,animate_insert,"Clipboard Mode","","Insert"));		
-	//glutAddMenuEntry(E(animate_copy_all,"Copy Animation Frame","Animation|Copy Animation Frame"));
-	glutAddMenuEntry(E(animate_copy_all,"Copy Frame","","Shift+Ctrl+C"));
-	//glutAddMenuEntry(E(animate_paste,"Paste Animation Frame","Animation|Paste Animation Frame"));	
-	//I think maybe this belongs below?
-	//https://github.com/zturtleman/mm3d/issues/65#issuecomment-522878969
-	//glutAddMenuEntry(E(animate_clear,"Clear Animation Frame","Animation|Clear Animation Frame"));
-	//glutAddMenuEntry();
-	glutAddMenuEntry(E(animate_copy,"Copy Keyframes","","Ctrl+C"));
-	//glutAddMenuEntry(E(animate_paste_selection,"Paste Selected Keyframes","Animation|Paste Animation Frame"));
-	glutAddMenuEntry(E(animate_paste,"Paste","","Ctrl+V"));
-	glutAddMenuEntry(E(animate_paste_v,"Paste Intermediate Values","","Shift+Ctrl+V"));
-	//2021: I'm trying to use Shift+Ctrl+D for "Duplicate Animated". Alt is a little hard to input but
-	//maybe that's okay for Delete? (Although undo/redo makes it harmless.)
-	//glutAddMenuEntry(E(animate_delete,"Delete Frame","","Shift+Ctrl+D"));
-	//glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+Alt+D"));
+	glutAddMenuEntry(X(r,animate_insert,"Clipboard Mode","","Insert"));
+	glutAddMenuEntry(E(animate_copy,"Copy Frame","","Ctrl+C"));
+	glutAddMenuEntry(E(animate_paste,"Paste Key Frames","","Ctrl+V"));
+	glutAddMenuEntry(E(animate_paste_v,"Paste Inter Frames","","Shift+Ctrl+V"));
 	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+X")); //2022
-	//Look like no-op to me. See viewwin.h notes?
-	//https://github.com/zturtleman/mm3d/issues/65#issuecomment-522878969
 	glutAddMenuEntry();	
 	glutAddMenuEntry(X(false,animate_play,"Play Animation","","Pause"));
 	//REMINDER: wxWidgets doesn't support Ctrl+Pause. Windows generates a Cancel code in response.
-	glutAddMenuEntry(X(false,animate_loop,"Play Repeatedly","","Shift+Pause"));
-	glutAddMenuEntry(X(false,animate_mode,"Animator Mode","","Alt+Pause"));
+	glutAddMenuEntry(X(false,animate_loop,"Play Repeatedly","","Shift+Pause"));		
+	glutAddMenuEntry(E(animate_render,"Record Animation...","Animation|Save Animation Images","Alt+Pause"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(animate_settings,"Animation Sets...","Animation|Animation Sets","Shift+A"));	
-	glutAddMenuEntry(E(animate_render,"Save Animation Images...","Animation|Save Animation Images","Shift+Ctrl+Alt+A")); 
-	glutAddMenuEntry(E(animate_window,"Animator Window...","Animation|Animation Window","A"));
-
+	glutAddMenuEntry(X(false,animate_mode,"Animator Mode","","Shift+Tab"));
+	glutAddMenuEntry(E(animate_window,"Animator Window...","","A"));	
+	glutAddMenuEntry(E(animate_settings,"Animation Sets...","","Shift+A"));
 		extern void animwin_enable_menu(int,int);
 		animwin_enable_menu(0,0); //2019
 
@@ -921,23 +929,23 @@ void MainWin::_init_menu_toolbar() //2019
 
 		viewwin_help_menu = glutCreateMenu(viewwin_menubarfunc);	
 
-	glutAddMenuEntry(E(help,"&Contents","Help|Contents","F1"));	
-	glutAddMenuEntry(::tr("&License","Help|License"),id_license);		
-	glutAddMenuEntry(::tr("&About","Help|About"),id_about);	
+	glutAddMenuEntry(E(help,"Contents","Help|Contents","F1"));	
+	glutAddMenuEntry(::tr("License","Help|License"),id_license);		
+	glutAddMenuEntry(::tr("About","Help|About"),id_about);
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(unscale,"&Unscale","","Shift+Alt+1"));
+	glutAddMenuEntry(E(unscale,"Unscale","","Shift+Alt+1"));
 	}
 		
 	_menubar = glutCreateMenu(viewwin_menubarfunc);
-	glutAddSubMenu(::tr("&File","menu bar"),viewwin_file_menu);
-	glutAddSubMenu(::tr("&View","menu bar"),_view_menu);
-	glutAddSubMenu(::tr("&Tools","menu bar"),viewwin_tool_menu);
-	glutAddSubMenu(::tr("&Model","menu bar"),viewwin_modl_menu);
-	glutAddSubMenu(::tr("&Geometry","menu bar"),viewwin_geom_menu);
-	glutAddSubMenu(::tr("Mate&rials","menu bar"),viewwin_mats_menu);
-	glutAddSubMenu(::tr("&Influences","menu bar"),viewwin_infl_menu);
-	glutAddSubMenu(::tr("&Animation","menu bar"),_anim_menu);	
-	glutAddSubMenu(::tr("&Help","menu bar"),viewwin_help_menu);
+	glutAddSubMenu(::tr("File","menu bar"),viewwin_file_menu);
+	glutAddSubMenu(::tr("View","menu bar"),_view_menu);
+	glutAddSubMenu(::tr("Tools","menu bar"),viewwin_tool_menu);
+	glutAddSubMenu(::tr("Model","menu bar"),viewwin_modl_menu);
+	glutAddSubMenu(::tr("Geometry","menu bar"),viewwin_geom_menu);
+	glutAddSubMenu(::tr("Materials","menu bar"),viewwin_mats_menu);
+	glutAddSubMenu(::tr("Influences","menu bar"),viewwin_infl_menu);
+	glutAddSubMenu(::tr("Animation","menu bar"),_anim_menu);	
+	glutAddSubMenu(::tr("Help","menu bar"),viewwin_help_menu);
 	glutAddSubMenu("",viewwin_toolbar);
 	glutAttachMenu(glutext::GLUT_NON_BUTTON);
 
@@ -1002,6 +1010,9 @@ bool MainWin::reshape(int x, int y)
 
 	if(!sidebar.seen()) //Center?
 	{
+		//NOTE: ViewPanel::draw has some additional
+		//initialization logic that didn't fit here.
+
 		glutPositionWindow((mx-x)/2,(my-y)/2);
 	}
 	else if(!glutGet(glutext::GLUT_WINDOW_MANAGED))
@@ -1060,6 +1071,7 @@ _animation_win(),
 _transform_win(),
 _projection_win(),
 _texturecoord_win(),
+_sync_tool(0),_sync_sel2(-1),
 _prev_tool(3),_curr_tool(1),
 _prev_shift(),_curr_shift(),_none_shift(),
 _prev_ortho(3),_prev_persp(0),
@@ -1241,9 +1253,8 @@ Model *MainWin::_swap_models(Model *swap)
 	model->loadTextures();
 
 	sidebar.setModel();
-	//sidebar updates animation.
-	//if(_animation_win)
-	//_animation_win->setModel();
+	if(_animation_win)
+	_animation_win->setModel();
 	if(_projection_win)
 	_projection_win->setModel();
 	if(_texturecoord_win)
@@ -1483,12 +1494,6 @@ void MainWin::frame(int scope)
 	}
 }
 
-template<class W>
-static W *viewwin_position_window(W *w)
-{
-	extern void win_reshape2(Widgets95::ui*,int,int);
-	win_reshape2(w,0,0); return w;
-}
 void MainWin::open_texture_window()
 {
 	if(_texturecoord_win) //NEW: Toggle?
@@ -1498,7 +1503,7 @@ void MainWin::open_texture_window()
 			//TODO? Probably can just hide?
 			//return _texturecoord_win->hide();
 			glutSetWindow(_texturecoord_win->glut_window_id());
-			return _texturecoord_win->submit(_texturecoord_win->ok);
+			return _texturecoord_win->submit(_texturecoord_win->close);
 		}
 	}
 
@@ -1510,10 +1515,8 @@ void MainWin::open_texture_window()
 		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Select faces to edit"));
 	}
 	if(!_texturecoord_win)
-	{
-		_texturecoord_win = new TextureCoordWin(*this);
-	}
-	viewwin_position_window(_texturecoord_win)->open();
+	_texturecoord_win = new TextureCoordWin(*this);
+	_texturecoord_win->open();
 }
 void MainWin::open_projection_window()
 {
@@ -1529,10 +1532,8 @@ void MainWin::open_projection_window()
 	}
 
 	if(!_projection_win)
-	{
-		_projection_win = new ProjectionWin(*this);
-	}
-	viewwin_position_window(_projection_win)->open();
+	_projection_win = new ProjectionWin(*this);
+	_projection_win->open();
 }
 void MainWin::open_transform_window()
 {
@@ -1547,13 +1548,32 @@ void MainWin::open_transform_window()
 		}
 	}
 
-	if(!_transform_win)
-	{
-		_transform_win = new TransformWin(*this);
-	}
-	viewwin_position_window(_transform_win)->open();
+	if(!_transform_win)	
+	_transform_win = new TransformWin(*this);	
+	_transform_win->open();
 }
 void MainWin::open_animation_system()
+{
+	if(!_animation_win)
+	{
+		extern bool viewwin_menu_origin; //YUCK
+		viewwin_menu_origin = true;
+
+		_animation_win = new AnimWin(*this,_anim_menu);
+				
+		int tt = _sync_tool;
+		if(tt==-1) tt = Tool::TT_SelectTool;
+		_animation_win->_sync_tools(_sync_tool,_sync_sel2);
+	}
+	_animation_win->open(false);
+}
+void MainWin::sync_animation_window()
+{
+	if(_animation_win)	
+	if(!_animation_win->hidden())
+	_animation_win->_sync_anim_menu();
+}
+void MainWin::open_animation_window()
 {
 	if(_animation_win) //NEW: Toggle?
 	{
@@ -1566,25 +1586,14 @@ void MainWin::open_animation_system()
 		}
 	}
 
-	if(!_animation_win)
-	{
-		extern bool viewwin_menu_origin; //YUCK
-		viewwin_menu_origin = true;
-
-		_animation_win = new AnimWin(*this,_anim_menu);
-		_animation_win->hide();
-	}
-	_animation_win->open(false);
-}
-void MainWin::sync_animation_system()
-{
-	if(_animation_win) _animation_win->open(true); //Undo.
-}
-void MainWin::open_animation_window()
-{
 	open_animation_system();
+	
+	int tt = _sync_tool;
+	if(tt==-1) tt = Tool::TT_SelectTool;
+	_animation_win->_sync_tools(_sync_tool,_sync_sel2);
 
-	viewwin_position_window(_animation_win)->show();
+	_animation_win->show();
+	_animation_win->_sync_anim_menu();	
 }
 
 extern void viewwin_undo(int id, bool undo)
@@ -1781,6 +1790,14 @@ void MainWin::perform_menu_action(int id)
 	case id_viewselect:
 		extern void viewpanel_special_func(int,int,int);
 		return viewpanel_special_func(GLUT_KEY_F4,0,0);
+	case id_view_invert:
+		return viewpanel_special_func(-'\\',0,0);
+	case id_view_invert_all:
+		return viewpanel_special_func(-'|',0,0);
+	case id_view_project:
+		return viewpanel_special_func(-'`',0,0);
+	case id_view_project_all:
+		return viewpanel_special_func(-'~',0,0);
 	case id_fullscreen:
 		return viewpanel_special_func(GLUT_KEY_F11,0,0);
 		//Really viewwin_toolboxfunc catches these.
@@ -1871,7 +1888,7 @@ void MainWin::perform_menu_action(int id)
 		config.set("ui_prefs_rmb",viewwin_rmb=!viewwin_rmb);
 		return;
 
-	case id_normal_order:
+	case id_normal_order: //EXPERIMENTAL
 	case id_normal_click:	
 
 		id-=id_normal_order;
@@ -1915,7 +1932,7 @@ void MainWin::perform_menu_action(int id)
 
 	case id_rops_hide_joints:
 
-		id = !m->getDrawProjections();
+		id = !m->getDrawJoints();
 
 		//if(m->getSelectedBoneJointCount())
 		//if('Y'==msg_info_prompt(::tr("Cannot hide with selected joints.  Unselect joints now?"),"yN"))		
@@ -1979,6 +1996,10 @@ void MainWin::perform_menu_action(int id)
 		{
 			_projection_win->main_panel()->redraw();
 		}
+		if(_animation_win&&!_animation_win->hidden())
+		{
+			_animation_win->main_panel()->redraw();
+		}
 		config.set("ui_no_overlay_option",id!=0);
 		break;
 
@@ -2041,53 +2062,10 @@ void MainWin::perform_menu_action(int id)
 		}
 		return;
 	}
-	case id_animate_snap:
-	
-		//inverting sense
-		w->views.status._keys_snap.indicate(0==glutGet(glutext::GLUT_MENU_CHECKED));
-		return;
-
-	case id_animate_bind:
-
-		id = glutGet(glutext::GLUT_MENU_CHECKED);
-		const_cast<int&>(w->animation_bind) = id;
-		w->views.status._anim_bind.indicate(id==0);
-		if(m->setSkeletalModeEnabled(id!=0))
-		m->operationComplete(::tr("Set skeletal mode","operation complete"));
-		return;
-
-	case id_animate_mode_1: case id_animate_mode_2: case id_animate_mode_3:	
-	
-		id = id-id_animate_mode_1+1; 
-		if(id!=w->animation_mode) 
-		const_cast<int&>(w->animation_mode) = id;
-		else return;
-		if(w->views.status._anim_mode.indicate(3!=id))
-		w->views.status._anim_mode.set_name(1==id?"Sam":"Fam");
-		if(auto cmp=m->getAnimationMode())
-		{
-			m->setAnimationMode((Model::AnimationModeE)id);
-			if(cmp!=m->getAnimationMode())
-			m->operationComplete(::tr("Start animation mode","operation complete"));
-		}
-		return;
-	
-	case id_animate_insert:
-
-		const_cast<int&>(animate_insert) = glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("ui_anim_insert",animate_insert);
-		//I'm assuming this isn't a global state, but it's really hard to follow!!
-		w->views.status._clipboard.indicate(animate_insert!=0);
-		extern void animwin_enable_menu(int,int);
-		animwin_enable_menu(m->inAnimationMode()?_anim_menu:-_anim_menu,animate_insert);		
-		//animwin_enable_menu calls this immediately (guess best not to do twice?)
-		//viewwin_status_func();		
-		return;
-
 	//case id_view_props: //REMOVING
 	//	
 	//	w->sidebar.prop_panel.nav.open(); return;
-
+	//
 	case id_ortho_wireframe:
 	case id_ortho_flat:
 	case id_ortho_smooth:
@@ -2190,7 +2168,14 @@ void MainWin::perform_menu_action(int id)
 	case id_merge_models:
 	case id_merge_animations:
 
-		MainWin::merge(m,id==id_merge_animations); return;
+		MainWin::merge(m,id==id_merge_animations); 
+		return;
+
+	case id_clean_animations:
+
+		extern void animsetwin_clean(MainWin&);
+		animsetwin_clean(*w);
+		return;
 
 	/*Materials menu*/
 	case id_group_settings:
@@ -2289,8 +2274,7 @@ void MainWin::perform_menu_action(int id)
 		
 		open_animation_window(); return;
 
-	case id_animate_copy: 
-	case id_animate_copy_all:
+	case id_animate_copy:
 	case id_animate_paste:
 	case id_animate_paste_v:
 	case id_animate_delete: delete2:	
@@ -2298,11 +2282,74 @@ void MainWin::perform_menu_action(int id)
 	case id_animate_mode:
 	case id_animate_play:
 	case id_animate_stop:
-	case id_animate_loop:
+	//case id_animate_loop:
+	//case id_animate_snap:
+	//case id_animate_bind:
+	//case id_animate_mode_1:
+	//case id_animate_mode_2:
+	//case id_animate_mode_3:
+	//case id_animate_insert:
 		
 		if(!_animation_win)
 		open_animation_system();
 		_animation_win->submit(id);
+		return;
+	
+	case id_animate_loop:
+
+		id = sidebar.anim_panel.loop.picture();
+		id = id==pics[pic_stop]?pic_loop:pic_stop;
+		sidebar.anim_panel.loop.picture(pics[id]).redraw();
+		if(auto*aw=w->_animation_win)
+		aw->loop.picture(pics[id]).redraw();
+		glutSetMenu(w->_anim_menu);
+		glutext::glutMenuEnable(id_animate_loop,
+		id==pic_loop?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK);
+		return;
+
+	case id_animate_snap:
+	
+		id = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
+		config.set("ui_snap_keyframe",id);
+		//inverting sense		
+		w->views.status._keys_snap.indicate(!id);		
+		return;
+
+	case id_animate_bind:
+
+		id = glutGet(glutext::GLUT_MENU_CHECKED);
+		const_cast<int&>(w->animation_bind) = id;
+		w->views.status._anim_bind.indicate(id==0);
+		if(m->setSkeletalModeEnabled(id!=0))
+		m->operationComplete(::tr("Set skeletal mode","operation complete"));
+		return;
+
+	case id_animate_mode_1: case id_animate_mode_2: case id_animate_mode_3:	
+	
+		id = id-id_animate_mode_1+1; 
+		if(id!=w->animation_mode) 
+		const_cast<int&>(w->animation_mode) = id;
+		else return;
+		if(w->views.status._anim_mode.indicate(3!=id))
+		w->views.status._anim_mode.set_name(1==id?"Sam":"Fam");
+		if(auto cmp=m->getAnimationMode())
+		{
+			m->setAnimationMode((Model::AnimationModeE)id);
+			if(cmp!=m->getAnimationMode())
+			m->operationComplete(::tr("Start animation mode","operation complete"));
+		}
+		return;
+	
+	case id_animate_insert:
+
+		const_cast<int&>(w->animate_insert) = glutGet(glutext::GLUT_MENU_CHECKED);
+		config.set("ui_anim_insert",w->animate_insert);
+		//I'm assuming this isn't a global state, but it's really hard to follow!!
+		w->views.status._clipboard.indicate(w->animate_insert!=0);
+		extern void animwin_enable_menu(int,int);
+		animwin_enable_menu(m->inAnimationMode()?w->_anim_menu:-w->_anim_menu,w->animate_insert);		
+		//animwin_enable_menu calls this immediately (guess best not to do twice?)
+		//viewwin_status_func();		
 		return;
 	
 	/*Help menu*/
@@ -2349,6 +2396,36 @@ void MainWin::_view(int i, void (ViewPanel::*mf)())
 	}	
 }
 
+void MainWin::_sync_tools(int tt, int arg)
+{
+	if(_sync_tool==tt)
+	if(tt!=Tool::TT_SelectTool||_sync_sel2!=-1)
+	return;
+
+	glutSetMenu(viewwin_toolbar);
+	glutSetWindow(glut_window_id);
+
+	if(tt==Tool::TT_NullTool)
+	return viewwin_toolboxfunc(id_tool_none);
+
+	int id = 0;
+	Tool *tool = toolbox.getFirstTool();
+	for(;tool;tool=toolbox.getNextTool())
+	{
+		if(tt==tool->m_tooltype)
+		{
+			int sel2 = _sync_sel2;
+			{
+				if(tt==Tool::TT_SelectTool)
+				id+=sel2!=-1?sel2:arg;
+				viewwin_toolboxfunc(id);
+			}
+			_sync_sel2 = sel2; return;
+		}
+
+		id+=tool->getToolCount();
+	}
+}
 void viewwin_toolboxfunc(int id) //extern
 {	
 	int iid = id;
@@ -2426,6 +2503,35 @@ void viewwin_toolboxfunc(int id) //extern
 	
 	//tool->activated(id);
 	w->views.setCurrentTool(tool,id); //NEW
+
+	//2022: Make the texture and animation
+	//windows match the tools to hopefully
+	//reduce cognitive demand.
+	w->_sync_tool = -1;
+	w->_sync_sel2 = -1;
+	switch(int tt=tool->m_tooltype)
+	{
+	case Tool::TT_SelectTool:
+
+		//if(id!=2) break; //V? Vertices?
+		if(id>=4) break; //Joints, etc?
+
+		w->_sync_sel2 = id;
+
+	case Tool::TT_MoveTool:
+	case Tool::TT_RotateTool:
+	case Tool::TT_ScaleTool:
+	case Tool::TT_NullTool:
+
+		w->_sync_tool = tt; 
+
+		//NOTE: This will call glutSetMenu.
+		if(auto*aw=w->_animation_win)
+		if(!aw->hidden()) aw->_sync_tools(tt,id);		
+		if(auto*tw=w->_texturecoord_win)
+		if(!tw->hidden()) tw->_sync_tools(tt,id);
+	}
+	glutSetWindow(w->glut_window_id); //_sync_tools
 	
 	if(!def&&iid!=w->_curr_tool)
 	{
@@ -2551,7 +2657,10 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 
 	case id_subitem:
 
+		if(c->ui()->subpos())
 		w = &((SideBar*)c->ui())->anim_panel.model; 
+		else
+		w = &((AnimWin*)c->ui())->model; 
 		break;
 	}
 

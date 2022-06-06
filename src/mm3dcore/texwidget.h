@@ -31,8 +31,7 @@ class ScrollWidget //REFACTOR
 {
 public:
 
-	//0.0001,250000.0
-	static const double zoom_min,zoom_max;
+	int uid; //Some user data for setCursorUI, etc?
 
 	//NOTE: mouseMoveEventUI uses this to implement
 	//grab/drag/capture semantics.
@@ -49,6 +48,7 @@ public:
 	double m_scroll[3];
 
 	double m_zoom;
+	double m_zoom_min,m_zoom_max; //2022
 
 	double m_farOrtho,m_nearOrtho; //???
 	
@@ -63,7 +63,8 @@ public:
 	};
 	ScrollButtonE m_overlayButton;
 	
-	ScrollWidget(),~ScrollWidget();
+	ScrollWidget(double zmin, double zmax);
+	~ScrollWidget();
 
 	void getGeometry(int &x, int &y, int &w, int &h)
 	{
@@ -95,6 +96,8 @@ public:
 	void drawOverlay(GLuint[2]);
 	void pressOverlayButton(bool rotate);
 	bool pressOverlayButton(int x, int y, bool rotate);
+
+	static void cancelOverlayButtonTimer(); //HACK
 	
 	//The UI implementation must implement these.
 	bool mousePressEventUI(int bt, int bs, int x, int y);
@@ -103,10 +106,20 @@ public:
 	bool wheelEventUI(int wh, int bs, int x=-1, int y=-1);
 	bool keyPressEventUI(int bt, int bs, int x, int y);
 	//It might make sense to upgrade this for Qt.
-	static void setTimerUI(int ms, void(*)(int), int);
+	void setTimerUI(int ms, void(*)(int), int);
 	static int getElapsedTimeUI();	
 	static void initTexturesUI(int, unsigned int[], char**[]);
-	static void setCursorUI(int=-1);
+	enum
+	{
+		//2022: Here are some other cursor 
+		//values that don't fit the degrees
+		//scheme: 0,45,90,135,180,225,270,360
+		UI_ArrowCursor=-1,
+		UI_IBeamCursor=1,
+		UI_UpDownCursor,
+		UI_LeftRightCursor,
+	};
+	void setCursorUI(int=-1);
 
 protected:
 
@@ -122,16 +135,18 @@ protected:
 class TextureWidget : public ScrollWidget
 {
 public:
-
-	int PAD_SIZE; //6
 	
-	class Parent //Qt supplemental
+	static constexpr double zoom_min = 0.01;
+	static constexpr double zoom_max = 250000;
+	
+	int PAD_SIZE = 0; //6
+	
+	class Parent //Qt supplemental //REMOVE ME?
 	{
 	public:
 		
 		//2022: Bridging Tool::Parent::_bs_lock?
-		int _tool_bs_lock;
-		Parent():_tool_bs_lock(){}
+		int _tool_bs_lock = 0;
 
 		virtual void updateWidget() = 0;
 
@@ -139,18 +154,20 @@ public:
 
 		virtual void zoomLevelChangedSignal(){}
 
+		//NEW: I am using this to deactivate elements
+		//that take arrow keys.
+		virtual bool mousePressSignal(int){ return true; }
+
+		//NOTE: The coordinates editor uses this.
 		virtual void updateCoordinatesSignal(){}
 		virtual void updateSelectionDoneSignal(){}
 		virtual void updateCoordinatesDoneSignal(){}
 
+		//NOTE: The projections editor uses this.
 		virtual void updateRangeSignal(){}
 		virtual void updateRangeDoneSignal(){}
 		virtual void updateSeamSignal(double xDiff, double yDiff){}
-		virtual void updateSeamDoneSignal(){}
-
-		//NEW: I am using this to deactivate elements
-		//that take arrow keys.
-		virtual bool mousePressSignal(int){ return true; }
+		virtual void updateSeamDoneSignal(double xDiff, double yDiff){}
 
 	}*const parent;
 		
@@ -180,8 +197,9 @@ public:
 		DM_MAX
 	};
 
-	enum MouseOperationE
+	enum MouseE
 	{
+		MouseNone, //pan
 		MouseMove,
 		MouseSelect,
 		MouseScale,
@@ -221,7 +239,7 @@ public:
 	void setDrawMode(DrawModeE dm){ m_drawMode = dm; }
 	void setDrawVertices(bool dv){ m_drawVertices = dv; }
 	void setDrawUvBorder(bool db){ m_drawBorder = db; }
-	void setMouseOperation(MouseOperationE op){ m_operation = op; }
+	void setMouseOperation(MouseE op){ m_operation = op; }
 
 	void setScaleKeepAspect(bool o){ m_scaleKeepAspect = o; }
 	void setScaleFromCenter(bool o){ m_scaleFromCenter = o; }
@@ -234,7 +252,7 @@ public:
 	void setLinesColor(int newColor){ m_linesColor = newColor; }
 	void setSelectionColor(int newColor){ m_selectionColor = newColor; }
 
-	void addVertex(double s, double t);
+	void addVertex(double s, double t, bool select=true);
 	void addTriangle(int v1, int v2, int v3);
 
 	void clearCoordinates();
@@ -255,16 +273,19 @@ protected:
 	void startScale(double x, double y);
 	void rotateSelectedVertices(double angle);
 	void scaleSelectedVertices(double x, double y);
+	
+	void startSeam(){ m_xSeamAccum = m_ySeamAccum = 0; } //EXPERIMENTAL
+	void accumSeam(double x, double y){ m_xSeamAccum+=x; m_ySeamAccum+=y; }
 
 	void drawTriangles();
 
 	void selectDone(int snap_select=0);
 
-	double getWindowXCoord(int x){ return x/m_width*m_zoom+m_xMin; }
-	double getWindowYCoord(int y){ return y/m_height*m_zoom+m_yMin; }
+	double getWindowSCoord(int x){ return x/m_width*m_zoom+m_xMin; }
+	double getWindowTCoord(int y){ return y/m_height*m_zoom+m_yMin; }
 	
-	double getWindowXDelta(int x, int xx){ return (x-xx)/m_width*m_zoom; }
-	double getWindowYDelta(int y, int yy){ return (y-yy)/m_height*m_zoom; }
+	double getWindowSDelta(int x, int xx){ return (x-xx)/m_width*m_zoom; }
+	double getWindowTDelta(int y, int yy){ return (y-yy)/m_height*m_zoom; }
 
 	//These have to do with MouseRange so I'm renaming them accordingly.
 	//void getDragDirections
@@ -307,7 +328,7 @@ protected:
 	bool m_drawBorder;
 	bool m_solidBackground;
 
-	MouseOperationE m_operation;
+	MouseE m_operation;
 
 	bool m_scaleKeepAspect;
 	bool m_scaleFromCenter;
@@ -351,6 +372,9 @@ protected:
 	double m_yRangeMin;
 	double m_xRangeMax;
 	double m_yRangeMax;
+
+	double m_xSeamAccum;
+	double m_ySeamAccum;
 
 	// For projection move/resize
 	bool m_dragAll;

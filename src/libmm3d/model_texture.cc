@@ -187,7 +187,7 @@ int Model::addTexture(Texture *tex)
 		//DrawingContextList m_drawingContexts;
 		m_materials.push_back(material);
 
-		if(m_undoEnabled) sendUndo(new MU_Add(num,material));		
+		Undo<MU_Add>(this,num,material);
 
 		invalidateTextures(); //OVERKILL
 
@@ -233,7 +233,7 @@ int Model::addColorMaterial(const char *name)
 	//DrawingContextList m_drawingContexts;
 	m_materials.push_back(material);
 
-	if(m_undoEnabled) sendUndo(new MU_Add(num,material));	
+	Undo<MU_Add>(this,num,material);	
 
 	return num;
 }
@@ -250,8 +250,7 @@ void Model::deleteTexture(unsigned textureNum)
 		setGroupTextureId(g,m_groups[g]->m_materialIndex-1);		
 	}
 
-	if(m_undoEnabled)
-	sendUndo(new MU_Delete(textureNum,m_materials[textureNum]));
+	Undo<MU_Delete>(this,textureNum,m_materials[textureNum]);
 
 	removeTexture(textureNum);
 }
@@ -266,13 +265,7 @@ bool Model::setGroupTextureId(unsigned groupNumber, int textureId)
 
 		invalidateBspTree();
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetTexture;
-			undo->setTexture(groupNumber,textureId,
-			m_groups[groupNumber]->m_materialIndex);
-			sendUndo(undo);
-		}
+		Undo<MU_SetTexture>(this,groupNumber,textureId,m_groups[groupNumber]->m_materialIndex);
 
 		m_groups[groupNumber]->m_materialIndex = textureId;
 		return true;
@@ -292,12 +285,10 @@ bool Model::setTextureCoords(unsigned triangleNumber, unsigned vertexIndex, floa
 
 		invalidateBspTree();
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetTextureCoords;
-			undo->addTextureCoords(triangleNumber,vertexIndex,s,t,tp->m_s[vertexIndex],tp->m_t[vertexIndex]);
-			sendUndo(undo);
-		}
+		Undo<MU_SetTextureCoords> undo(this);
+		if(undo)
+		undo->addTextureCoords(triangleNumber,
+		vertexIndex,s,t,tp->m_s[vertexIndex],tp->m_t[vertexIndex]);
 
 		tp->m_s[vertexIndex] = s; tp->m_t[vertexIndex] = t; return true;
 	}
@@ -313,13 +304,9 @@ bool Model::setTextureCoords(unsigned triangleNumber, float(*st)[3])
 
 		invalidateBspTree();
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetTextureCoords;
-			for(int i=3;i-->0;)
-			undo->addTextureCoords(triangleNumber,i,st[0][i],st[1][i],tp->m_s[i],tp->m_t[i]);
-			sendUndo(undo);
-		}
+		Undo<MU_SetTextureCoords> undo(this);
+		if(undo) for(int i=3;i-->0;)
+		undo->addTextureCoords(triangleNumber,i,st[0][i],st[1][i],tp->m_s[i],tp->m_t[i]);
 
 		memcpy(tp->m_s,st,6*sizeof(float)); return true;
 	}
@@ -330,14 +317,9 @@ bool Model::setTextureAmbient(unsigned textureId, const float *ambient)
 {
 	if(ambient&&textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetLightProperties;
-			undo->setLightProperties(textureId,
-			MU_SetLightProperties::LightAmbient,
-			ambient,m_materials[textureId]->m_ambient);
-			sendUndo(undo);
-		}
+		if(Undo<MU_SetLightProperties>undo=this)
+		undo->setLightProperties(textureId,undo->LightAmbient,
+		ambient,m_materials[textureId]->m_ambient);
 
 		for(int t=0;t<4;t++)
 		m_materials[textureId]->m_ambient[t] = ambient[t];		
@@ -350,14 +332,9 @@ bool Model::setTextureDiffuse(unsigned textureId, const float *diffuse)
 {
 	if(diffuse&&textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetLightProperties;
-			undo->setLightProperties(textureId,
-			MU_SetLightProperties::LightDiffuse,
-			diffuse,m_materials[textureId]->m_diffuse);
-			sendUndo(undo);
-		}
+		if(Undo<MU_SetLightProperties>undo=this)
+		undo->setLightProperties(textureId,undo->LightDiffuse,
+		diffuse,m_materials[textureId]->m_diffuse);
 
 		for(int t=0;t<4;t++)
 		m_materials[textureId]->m_diffuse[t] = diffuse[t];		
@@ -370,14 +347,9 @@ bool Model::setTextureSpecular(unsigned textureId, const float *specular)
 {
 	if(specular&&textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetLightProperties;
-			undo->setLightProperties(textureId,
-			MU_SetLightProperties::LightSpecular,
-			specular,m_materials[textureId]->m_specular);
-			sendUndo(undo/*,true*/);
-		}
+		if(Undo<MU_SetLightProperties>undo=this)
+		undo->setLightProperties(textureId,undo->LightSpecular,
+		specular,m_materials[textureId]->m_specular);
 
 		for(int t=0;t<4;t++)
 		m_materials[textureId]->m_specular[t] = specular[t];		
@@ -390,14 +362,9 @@ bool Model::setTextureEmissive(unsigned textureId, const float *emissive)
 {
 	if(emissive&&textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetLightProperties;
-			undo->setLightProperties(textureId,
-			MU_SetLightProperties::LightEmissive,
-			emissive,m_materials[textureId]->m_emissive);
-			sendUndo(undo);
-		}
+		if(Undo<MU_SetLightProperties>undo=this)
+		undo->setLightProperties(textureId,undo->LightEmissive,
+		emissive,m_materials[textureId]->m_emissive);
 
 		for(int t=0;t<4;t++)
 		m_materials[textureId]->m_emissive[t] = emissive[t];
@@ -410,13 +377,9 @@ bool Model::setTextureShininess(unsigned textureId, float shininess)
 {
 	if(textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetShininess;
-			undo->setShininess(textureId,shininess,m_materials[textureId]->m_shininess);
-			sendUndo(undo/*,true*/);
-		}
-
+		if(Undo<MU_SetShininess>undo=this)
+		undo->setShininess(textureId,shininess,m_materials[textureId]->m_shininess);
+		
 		m_materials[textureId]->m_shininess = shininess;
 		return true;
 	}
@@ -433,8 +396,7 @@ bool Model::setTextureName(unsigned textureId, const char *name)
 		{
 			m_changeBits|=AddOther; //2020
 
-			if(m_undoEnabled)
-			sendUndo(new MU_SwapStableStr(AddOther,mp->m_name));
+			Undo<MU_SwapStableStr>(this,AddOther,mp->m_name);
 
 			mp->m_name = name;
 		}
@@ -453,12 +415,7 @@ void Model::setMaterialTexture(unsigned textureId, Texture *tex)
 	{
 		m_changeBits|=AddOther|SetTexture; //2022;
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetMaterialTexture;
-			undo->setMaterialTexture(textureId,tex,m_materials[textureId]->m_textureData);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetMaterialTexture>(this,textureId,tex,m_materials[textureId]->m_textureData);
 
 		m_materials[textureId]->m_textureData = tex;
 		m_materials[textureId]->m_filename = tex->m_filename;
@@ -475,12 +432,7 @@ void Model::removeMaterialTexture(unsigned textureId)
 	{
 		m_changeBits|=AddOther|SetTexture; //2022
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetMaterialTexture;
-			undo->setMaterialTexture(textureId,nullptr,m_materials[textureId]->m_textureData);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetMaterialTexture>(this,textureId,nullptr,m_materials[textureId]->m_textureData);
 
 		m_materials[textureId]->m_textureData = nullptr;
 		m_materials[textureId]->m_filename = "";
@@ -494,12 +446,9 @@ bool Model::setTextureSClamp(unsigned textureId, bool clamp)
 {
 	if(textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetMaterialBool
-			(textureId,'S',clamp,m_materials[textureId]->m_sClamp);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetMaterialBool>(this,
+		textureId,'S',clamp,m_materials[textureId]->m_sClamp);
+
 		m_materials[textureId]->m_sClamp = clamp;
 
 		return true;
@@ -510,12 +459,9 @@ bool Model::setTextureTClamp(unsigned textureId, bool clamp)
 {
 	if(textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetMaterialBool
-			(textureId,'T',clamp,m_materials[textureId]->m_tClamp);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetMaterialBool>(this,
+		textureId,'T',clamp,m_materials[textureId]->m_tClamp);
+		
 		m_materials[textureId]->m_tClamp = clamp;
 
 		return true;
@@ -526,13 +472,10 @@ bool Model::setTextureBlendMode(unsigned textureId, bool accumulate)
 {
 	if(textureId<m_materials.size())
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetMaterialBool
-			(textureId,'A',accumulate,m_materials[textureId]->m_accumulate);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetMaterialBool>(this,textureId,'A',accumulate,m_materials[textureId]->m_accumulate);
+		
 		m_materials[textureId]->m_accumulate = accumulate;
+
 		return true;
 	}
 	return false;
@@ -675,14 +618,6 @@ const char *Model::getTextureFilename(unsigned textureId)const
 	return m_materials[textureId]->m_filename.c_str();
 	return nullptr;
 }
-
-/*REMOVE ME (Moved to header for time being.)
-int Model::getMaterialColor(unsigned materialIndex, unsigned c, unsigned v)const
-{
-	if(materialIndex<m_materials.size()&&c<4&&v<4)
-	return m_materials[materialIndex]->m_color[v][c];
-	return 0;
-}*/
 
 Model::Material::MaterialTypeE Model::getMaterialType(unsigned materialIndex)const
 {

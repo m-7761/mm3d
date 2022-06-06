@@ -32,10 +32,13 @@
 #include "texture.h"
 #include "model.h"
 #include "log.h"
-//#include "mm3dport.h"
+#include "modelstatus.h"
 
 #include "pixmap/arrow.xpm"
 #include "pixmap/crosshairrow.xpm"
+
+//#define VP_ZOOMSCALE 0.75
+static const double scrollwidget_zoom = 0.75;
 
 static struct
 {
@@ -58,29 +61,35 @@ static struct
 };
 
 static std::pair<int,ScrollWidget*> 
-textwidget_scroll,textwidget_3dcube;
-extern void scrollwidget_stop_timer() //REMOVE ME
+scrollwidget_scroll,texwidget_3dcube;
+void ScrollWidget::cancelOverlayButtonTimer() //HACK
 {
-	textwidget_scroll.first = 0;
+	scrollwidget_scroll.first = 0;
 }
-
-ScrollWidget::ScrollWidget()
+static void scrollwidget_scroll_timer(int id)
+{
+	if(id==scrollwidget_scroll.first)
+	scrollwidget_scroll.second->pressOverlayButton(id<0);
+}
+ScrollWidget::~ScrollWidget()
+{
+	scrollwidget_scroll.first = 0; //Timer business.
+	texwidget_3dcube.first = 0;
+}
+ScrollWidget::ScrollWidget(double zmin, double zmax)
 	:
+	uid(),
 m_activeButton(),
 m_viewportX(),m_viewportY(),
 m_viewportWidth(),m_viewportHeight(),
 m_zoom(1),
+m_zoom_min(zmin),m_zoom_max(zmax),
 m_scroll(),
 m_nearOrtho(-1),m_farOrtho(1),
 m_interactive(),
 m_uvSnap(),
 m_overlayButton(ScrollButtonMAX)
 {}
-ScrollWidget::~ScrollWidget()
-{
-	textwidget_scroll.first = 0; //Timer business.
-	textwidget_3dcube.first = 0;
-}
 
 void ScrollWidget::scrollUp()
 {
@@ -98,29 +107,45 @@ void ScrollWidget::scrollRight()
 {
 	m_scroll[0]+=m_zoom*0.10; updateViewport('p');
 }
-
-//#define VP_ZOOMSCALE 0.75
-static const double texwidgit_zoom = 0.75;
-
-//0.0001,250000.0
-//2021: The modelviewport.cc projection math 
-//turns inside-out below 0.08. It's probably
-//related to the near-clipping plane. Ortho
-//views can go much lower but 0.08 is enough.
-//const double ScrollWidget::zoom_min = 0.0001;
-//const double ScrollWidget::zoom_min = 0.08000;
-//2022: Seems okay? Texture widget kind of needs
-//to get closer than 0.08. It might be nice to
-//be able to speficy this range for each widget.
-const double ScrollWidget::zoom_min = 0.01000;
-const double ScrollWidget::zoom_max = 250000;
+void ScrollWidget::rotateUp()
+{
+	rotateViewport(-15*PIOVER180,0,0);
+}
+void ScrollWidget::rotateDown()
+{
+	rotateViewport(15*PIOVER180,0,0);
+}
+void ScrollWidget::rotateLeft()
+{
+	rotateViewport(0,-15*PIOVER180,0);
+}
+void ScrollWidget::rotateRight()
+{
+	rotateViewport(0,15*PIOVER180,0);
+}
+void ScrollWidget::rotateClockwise()
+{
+	rotateViewport(0,0,-15*PIOVER180);
+}
+void ScrollWidget::rotateCounterClockwise()
+{
+	rotateViewport(0,0,15*PIOVER180);
+}
+void ScrollWidget::zoomIn()
+{
+	setZoomLevel(m_zoom*scrollwidget_zoom);
+}
+void ScrollWidget::zoomOut()
+{
+	setZoomLevel(m_zoom/scrollwidget_zoom);
+}
 void ScrollWidget::setZoomLevel(double z)
 {		
 	//Does this include navigation? If so it
 	//needs to block scrollUp, etc.
 	//if(!m_interactive) return;
 
-	z = std::min(std::max(z,zoom_min),zoom_max);
+	z = std::min(std::max(z,m_zoom_min),m_zoom_max);
 
 	if(m_zoom!=z) 
 	{
@@ -136,8 +161,8 @@ void ScrollWidget::setZoomLevel(double z)
 void ScrollWidget::zoom(bool in, double x, double y)
 {
 	double z = m_zoom;	
-	if(in) z*=texwidgit_zoom; else z/=texwidgit_zoom;		
-	z = std::min(std::max(z,zoom_min),zoom_max);
+	if(in) z*=scrollwidget_zoom; else z/=scrollwidget_zoom;		
+	z = std::min(std::max(z,m_zoom_min),m_zoom_max);
 	if(m_zoom!=z) 
 	{
 		double zDiff = z/m_zoom;
@@ -147,17 +172,6 @@ void ScrollWidget::zoom(bool in, double x, double y)
 		
 		m_zoom = z; updateViewport('z');
 	}
-}
-void ScrollWidget::zoomIn()
-{
-	//Looks like a bug?
-	//Using ModelViewport::zoomIn()
-	//if(m_zoom/texwidgit_zoom>0.0001)
-	setZoomLevel(m_zoom*texwidgit_zoom);
-}
-void ScrollWidget::zoomOut()
-{
-	setZoomLevel(m_zoom/texwidgit_zoom);
 }
 
 void ScrollWidget::drawOverlay(GLuint m_scrollTextures[2])
@@ -225,9 +239,66 @@ void ScrollWidget::initOverlay(GLuint m_scrollTextures[2])
 	initTexturesUI(2,m_scrollTextures,(char***)xpm);
 }
 
+bool ScrollWidget::pressOverlayButton(int x, int y, bool rotate)
+{	
+	x-=m_viewportX; y-=m_viewportY; 
+
+	int w = m_viewportWidth;
+	int h = m_viewportHeight; 
+	m_overlayButton = ScrollButtonMAX;
+	for(int b=0;b<ScrollButtonMAX;b++)
+	{
+		int sx = scrollwidget[b].x;
+		int sy = scrollwidget[b].y;
+		if(x>=w+sx&&x<=w+sx+scrollwidget->SCROLL_SIZE
+		 &&y>=h+sy&&y<=h+sy+scrollwidget->SCROLL_SIZE)
+		{
+			m_overlayButton = (ScrollButtonE)b;
+			pressOverlayButton(rotate);
+			break;
+		}
+	}
+	return m_overlayButton!=ScrollButtonMAX;
+}
+void ScrollWidget::pressOverlayButton(bool rotate)
+{
+	switch(m_overlayButton)
+	{
+	case ScrollButtonPan: 
+
+		default: return; //ScrollButtonMAX 
+
+	case ScrollButtonLeft:
+		if(rotate)
+		rotateLeft(); else scrollLeft();
+		break;
+	case ScrollButtonRight:
+		if(rotate) 
+		rotateRight(); else scrollRight();
+		break;
+	case ScrollButtonUp:
+		if(rotate) 
+		rotateUp(); else scrollUp();
+		break;
+	case ScrollButtonDown:
+		if(rotate)
+		rotateDown(); else scrollDown();
+		break;
+	}
+	
+	//MAGIC: Communicate these to the timer.
+	int id = 1+abs(scrollwidget_scroll.first); //C99
+	if(rotate) id = -id;
+	scrollwidget_scroll.first = id;
+	scrollwidget_scroll.second = this;
+	//TODO: UI layer should implement this.
+	setTimerUI(300,scrollwidget_scroll_timer,id);
+}
+
 TextureWidget::TextureWidget(Parent *parent)
 	: 
-PAD_SIZE(6),
+ScrollWidget(zoom_min,zoom_max),
+//PAD_SIZE(6),
 parent(parent),
 m_scrollTextures(),
 m_sClamp(),
@@ -240,7 +311,7 @@ m_drawMode(DM_Edit),
 m_drawVertices(true),
 m_drawBorder(),
 m_solidBackground(),
-m_operation(MouseSelect),
+m_operation(MouseNone), //MouseSelect
 m_scaleKeepAspect(),
 m_scaleFromCenter(),
 m_selecting(),
@@ -255,7 +326,8 @@ m_xRotPoint(0.5),
 m_yRotPoint(0.5),
 m_linesColor(0xffffff),
 m_selectionColor(0xff0000),
-m_overrideWidth(),m_overrideHeight()
+m_overrideWidth(),m_overrideHeight(),
+m_width(),m_height() //2022
 {
 	m_scroll[0] = m_scroll[1] = 0.5;
 
@@ -337,22 +409,23 @@ void TextureWidget::drawTriangles()
 
 static void texwidget_3dcube_timer(int i)
 {
-	if(i!=textwidget_3dcube.first) return;
+	if(i!=texwidget_3dcube.first) return;
 	
-	//TODO: UI layer should implement this.
-	ScrollWidget::setTimerUI(30,texwidget_3dcube_timer,i);
+	ScrollWidget *s = texwidget_3dcube.second;
 
-	//textwidget_3dcube.second->updateGL();
-	void *s = textwidget_3dcube.second;
+	//TODO: UI layer should implement this.
+	s->setTimerUI(30,texwidget_3dcube_timer,i);
+
+	//texwidget_3dcube.second->updateGL();
 	((TextureWidget*)s)->parent->updateWidget();
 }
 void TextureWidget::set3d(bool o)
 {
-	int i = ++textwidget_3dcube.first;
+	int i = ++texwidget_3dcube.first;
 	
 	m_3d = o; if(o)
 	{
-		textwidget_3dcube.second = this;
+		texwidget_3dcube.second = this;
 		texwidget_3dcube_timer(i); 
 	}
 	else parent->updateWidget(); //updateGL();
@@ -370,11 +443,6 @@ void TextureWidget::setTexture(int materialId, Texture *texture)
 
 	m_sClamp = m_model->getTextureSClamp(materialId);
 	m_tClamp = m_model->getTextureTClamp(materialId);
-
-	/*This is annoying.
-	m_zoom = 1;
-	m_scroll[0] = m_scroll[1] = 0.5;
-	*/
 
 	updateViewport();
 
@@ -483,9 +551,9 @@ void TextureWidget::vFlattenCoordinates()
 	parent->updateWidget(); //updateGL();
 }
 
-void TextureWidget::addVertex(double s, double t)
+void TextureWidget::addVertex(double s, double t, bool select)
 {
-	TextureVertexT v = {s,t,true};
+	TextureVertexT v = {s,t,select};
 	m_vertices.push_back(v);
 	//return (unsigned)m_vertices.size()-1;
 }
@@ -502,67 +570,6 @@ void TextureWidget::addTriangle(int v1, int v2, int v3)
 	//	return (unsigned)m_triangles.size()-1;
 	}
 	//else assert(0); return -1; //???
-}
-
-static void textwidget_scroll_timer(int id)
-{
-	if(id==textwidget_scroll.first)
-	textwidget_scroll.second->pressOverlayButton(id<0);
-}
-void ScrollWidget::pressOverlayButton(bool rotate)
-{
-	switch(m_overlayButton)
-	{
-	case ScrollButtonPan: 
-
-		default: return; //ScrollButtonMAX 
-
-	case ScrollButtonLeft:
-		if(rotate)
-		rotateLeft(); else scrollLeft();
-		break;
-	case ScrollButtonRight:
-		if(rotate) 
-		rotateRight(); else scrollRight();
-		break;
-	case ScrollButtonUp:
-		if(rotate) 
-		rotateUp(); else scrollUp();
-		break;
-	case ScrollButtonDown:
-		if(rotate)
-		rotateDown(); else scrollDown();
-		break;
-	}
-	
-	//MAGIC: Communicate these to the timer.
-	int id = 1+abs(textwidget_scroll.first); //C99
-	if(rotate) id = -id;
-	textwidget_scroll.first = id;
-	textwidget_scroll.second = this;
-	//TODO: UI layer should implement this.
-	setTimerUI(300,textwidget_scroll_timer,id);
-}
-bool ScrollWidget::pressOverlayButton(int x, int y, bool rotate)
-{	
-	x-=m_viewportX; y-=m_viewportY; 
-
-	int w = m_viewportWidth;
-	int h = m_viewportHeight; 
-	m_overlayButton = ScrollButtonMAX;
-	for(int b=0;b<ScrollButtonMAX;b++)
-	{
-		int sx = scrollwidget[b].x;
-		int sy = scrollwidget[b].y;
-		if(x>=w+sx&&x<=w+sx+scrollwidget->SCROLL_SIZE
-		 &&y>=h+sy&&y<=h+sy+scrollwidget->SCROLL_SIZE)
-		{
-			m_overlayButton = (ScrollButtonE)b;
-			pressOverlayButton(rotate);
-			break;
-		}
-	}
-	return m_overlayButton!=ScrollButtonMAX;
 }
 
 void TextureWidget::snap(double &s, double &t, bool selected)
@@ -684,6 +691,20 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 	m_constrainX = x; //m_lastXPos = x;
 	m_constrainY = y; //m_lastYPos = y; 	
 
+	if(m_buttons&bt) //DEBUGGING?
+	{
+		//HACK: In case the button state is confused
+		//let the user unstick buttons by pressing
+		//the button. (Hopefully this only happens
+		//when using the debugger "break" function.)
+		m_buttons&=~bt;
+
+		if(bt==m_activeButton) m_activeButton = 0;
+		
+		model_status(m_model,StatusError,STATUSTIME_LONG,
+		TRANSLATE("LowLevel","Warning: Unstuck confused mouse button state"));
+	}
+
 	if(!m_buttons) //NEW
 	{
 		assert(!m_activeButton);
@@ -701,11 +722,13 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 
 	if(bt!=m_activeButton) return true; //NEW
 
-	double s = getWindowXCoord(x);
-	double t = getWindowYCoord(y);
+	double s = getWindowSCoord(x);
+	double t = getWindowTCoord(y);
 
 	//if(e->button()&Qt::MidButton)
-	if(bt==Tool::BS_Middle||bt&&bs&Tool::BS_Ctrl) //2022
+	if(bt==Tool::BS_Middle
+	||bt&&bs&Tool::BS_Ctrl //2022
+	||bt&&m_operation==MouseNone) //2022
 	{
 		return true; // We're panning
 	}
@@ -787,6 +810,9 @@ bool TextureWidget::mousePressEvent(int bt, int bs, int x, int y)
 	case MouseRange:
 	
 		setCursorUI(getRangeDirection(s,t,true));
+
+		if(m_dragAll) startSeam(); //2022
+
 		break;
 	}	
 
@@ -796,11 +822,13 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 {
 	if(!m_interactive) return;
 
-	x-=m_x; y-=m_y; assert(x||y);
+	x-=m_x; y-=m_y;
 
 	int bt = m_activeButton; //NEW
 
-	if(bt==Tool::BS_Middle||bt&&bs&Tool::BS_Ctrl)
+	if(bt==Tool::BS_Middle
+	||bt&&bs&Tool::BS_Ctrl //2022
+	||bt&&m_operation==MouseNone) //2022
 	{
 		goto pan;
 	}
@@ -811,16 +839,16 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 		case ScrollButtonPan: pan:
 		
 			//For some reason (things are moving) using
-			//m_s and m_t won't work)
-			double ds = getWindowXDelta(x,m_constrainX);
-			double dt = getWindowYDelta(y,m_constrainY);
+			//m_s and m_t won't work.
+			double ds = getWindowSDelta(x,m_constrainX);
+			double dt = getWindowTDelta(y,m_constrainY);
 
 			m_constrainX = x; m_constrainY = y;
 
 			m_scroll[0]-=ds; m_xMin-=ds; m_xMax-=ds;
 			m_scroll[1]-=dt; m_yMin-=dt; m_yMax-=dt;
 
-			updateViewport(); break;
+			updateViewport('p'); break;
 		}
 
 		return;
@@ -838,8 +866,8 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 	if(m_operation!=MouseSelect) m_selecting = false;
 	
 	double s,t,ds,dt;
-	s = getWindowXCoord(x); 
-	t = getWindowYCoord(y);
+	s = getWindowSCoord(x); 
+	t = getWindowTCoord(y);
 	if(m_uvSnap) switch(m_operation)
 	{
 	case MouseMove:
@@ -862,8 +890,8 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 		if(m_constrain&1) x = m_constrainX; else m_constrainX = x;
 		if(m_constrain&2) y = m_constrainY; else m_constrainY = y;
 
-		if(m_constrain&1) s = getWindowXCoord(x); 
-		if(m_constrain&2) t = getWindowYCoord(y);
+		if(m_constrain&1) s = getWindowSCoord(x); 
+		if(m_constrain&2) t = getWindowTCoord(y);
 	}	
 	ds = s-m_s; m_s = s; 
 	dt = t-m_t; m_t = t;
@@ -943,11 +971,17 @@ void TextureWidget::mouseMoveEvent(int bs, int x, int y)
 			}
 		}
 		else if(m_dragAll) //???
-		{		
+		{
+			double dx = ds*-2*PI, dy = dt*-2*PI;
+
+			accumSeam(dx,dy); //2022
+
 			//emit updateSeamSignal(ds*-2*PI,dt*-2*PI);
 			//emit(this,updateSeamSignal,ds*-2*PI,dt*-2*PI);
-			parent->updateSeamSignal(ds*-2*PI,dt*-2*PI);
+			parent->updateSeamSignal(dx,dy);
 		}
+
+		parent->updateWidget();
 		break;
 	}
 }
@@ -965,13 +999,15 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 	{
 		m_overlayButton = ScrollButtonMAX;
 
-		textwidget_scroll.first = 0; //Cancel timer.
+		cancelOverlayButtonTimer(); //HACK
 
 		return;
 	}		
 	
 	//if(e->button()&Qt::MidButton)
-	if(bt==Tool::BS_Middle||bt&&bs&Tool::BS_Ctrl) //2022
+	if(bt==Tool::BS_Middle
+	||bt&&bs&Tool::BS_Ctrl //2022
+	||bt&&m_operation==MouseNone) //2022
 	{
 		return; // We're panning
 	}
@@ -981,8 +1017,8 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 	//2022: Emulate Tool::Parent::snapSelect?
 	if(m_selecting&&m_operation!=MouseSelect)
 	{
-		m_xSel1 = m_xSel2 = getWindowXCoord(x);
-		m_ySel1 = m_ySel2 = getWindowYCoord(y);		
+		m_xSel1 = m_xSel2 = getWindowSCoord(x);
+		m_ySel1 = m_ySel2 = getWindowTCoord(y);		
 		selectDone(1|bs|parent->_tool_bs_lock);
 	return parent->updateSelectionDoneSignal();
 	}	
@@ -1003,7 +1039,7 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 								
 		//emit updateCoordinatesSignal();
 		//emit(this,updateCoordinatesSignal);
-		parent->updateCoordinatesSignal();
+	//	parent->updateCoordinatesSignal(); //???
 						
 				case MouseRotate://2019
 				case MouseScale: //2019
@@ -1052,7 +1088,7 @@ void TextureWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 		{
 			//emit updateSeamDoneSignal();
 			//emit(this,updateSeamDoneSignal);
-			parent->updateSeamDoneSignal();
+			parent->updateSeamDoneSignal(m_xSeamAccum,m_ySeamAccum);
 		}
 		break;
 	}
@@ -1066,7 +1102,7 @@ void TextureWidget::wheelEvent(int wh, int bs, int x, int y)
 		//if an app had multiple texture views
 		if(!over(x,y)) return wh>0?zoomIn():zoomOut();
 
-		zoom(wh>0,getWindowXCoord(x-m_x),getWindowYCoord(y-m_y));
+		zoom(wh>0,getWindowSCoord(x-m_x),getWindowTCoord(y-m_y));
 	}
 }
 
@@ -1132,7 +1168,7 @@ bool TextureWidget::keyPressEvent(int bt, int bs, int, int)
 	case '0':
 		
 		m_scroll[0] = m_scroll[1] = 0.5;
-		updateViewport(); break;
+		updateViewport('p'); break;
 
 	//case Qt::Key_Up:
 	case Tool::BS_Up: scrollUp(); break;
@@ -1224,40 +1260,39 @@ void TextureWidget::selectDone(int snap_select)
 
 void TextureWidget::setRangeCursor(int x, int y)
 {
-	if(m_interactive)
+	if(!m_interactive) return; //???
+	
+	int w = m_viewportWidth;
+	int h = m_viewportHeight;
+
+	int sx = 0;
+	int sy = 0;
+	int size = scrollwidget->SCROLL_SIZE;
+
+	int bx = x;
+	int by = /*h-*/y;
+
+	ScrollButtonE button = ScrollButtonMAX;
+	for(int b=0;b<ScrollButtonMAX;b++)
 	{
-		int w = m_viewportWidth;
-		int h = m_viewportHeight;
+		sx = scrollwidget[b].x;
+		sy = scrollwidget[b].y;
 
-		int sx = 0;
-		int sy = 0;
-		int size = scrollwidget->SCROLL_SIZE;
-
-		int bx = x;
-		int by = /*h-*/y;
-
-		ScrollButtonE button = ScrollButtonMAX;
-		for(int b=0;b<ScrollButtonMAX;b++)
+		if(bx>=w+sx&&bx<=w+sx+size
+		 &&by>=h+sy&&by<=h+sy+size)
 		{
-			sx = scrollwidget[b].x;
-			sy = scrollwidget[b].y;
-
-			if(bx>=w+sx&&bx<=w+sx+size
-			 &&by>=h+sy&&by<=h+sy+size)
-			{
-				button = (ScrollButtonE)b; 
-				break;
-			}
+			button = (ScrollButtonE)b; 
+			break;
 		}
+	}
 
-		if(button==ScrollButtonMAX)		
-		if(m_operation==MouseRange)
-		{	
-			double windowX = getWindowXCoord(x);
-			double windowY = getWindowYCoord(y);						
-			setCursorUI(getRangeDirection(windowX,windowY));
-			return;
-		}
+	if(button==ScrollButtonMAX)		
+	if(m_operation==MouseRange)
+	{	
+		double windowX = getWindowSCoord(x);
+		double windowY = getWindowTCoord(y);						
+		setCursorUI(getRangeDirection(windowX,windowY));
+		return;
 	}
 
 	setCursorUI();
@@ -1383,10 +1418,10 @@ int TextureWidget::getRangeDirection(double windowX, double windowY, bool press)
 void TextureWidget::getCoordinates(int tri, float *s, float *t)
 {
 	//if(t&&s&&(size_t)tri<m_triangles.size()) //???
-	for(int ea:m_triangles[tri].vertex)
+	for(int i:m_triangles[tri].vertex)
 	{
-		*s++ = (float)m_vertices[ea].s; 
-		*t++ = (float)m_vertices[ea].t;
+		*s++ = (float)m_vertices[i].s; 
+		*t++ = (float)m_vertices[i].t;
 	}
 }
 
@@ -1566,16 +1601,18 @@ void TextureWidget::scaleSelectedVertices(double x, double y)
 }
 
 void TextureWidget::draw(int x, int y, int w, int h)
-{
-	int ww = w, hh = h;
-
-	//updateSize()
+{	 
+	if(PAD_SIZE) //updateSize()
 	{
 		//enum{ PAD_SIZE=6 };
 
 		x+=PAD_SIZE; w-=PAD_SIZE*2;
 		y+=PAD_SIZE; h-=PAD_SIZE*2;
+	}
+	int ww = w, hh = h;
 
+	//updateSize()
+	{
 		m_x = x; m_y = y;
 
 		if(!m_3d&&m_texture)
@@ -1602,7 +1639,7 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		m_viewportX = x; m_viewportWidth = w;
 		m_viewportY = y; m_viewportHeight = h;
 
-		if(x<0||y<0||w<=0||h<=0) return;
+		if(w<=0||h<=0) return;
 	}
 
 		//NEW: OpenGL can't backup its states.
@@ -1643,12 +1680,24 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		// 
 		//I think compensating for GL_LIGHT_MODEL_AMBIENT?
 		//GLfloat ambient[] = { 0.8f,0.8f,0.8f,1 };
-		GLfloat llll[] = { 1,1,1,1 };
+		/*2022
+		// 1,1,1,1 just doesn't work, I'm not sure this is
+		// right to replicate the default lighting for the
+		// 3D scene sinc thate will be uneven. Probably it
+		// should synchronize with texwin.cc's RGBA groups.
+		GLfloat llll[] = { 1,1,1,1 };*/
+		GLfloat llll[] = { 0.5,0.5,0.5,0.5 };
 		GLfloat position[] = { 0,0,3,0 };
+		float oooo[4] = {};
+		glLightModelfv(GL_LIGHT_MODEL_AMBIENT,oooo);
 		
+		//glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL,GL_SEPARATE_SPECULAR_COLOR); //2020
+		glLightModeli(0x81F8,0x81FA); //2020
+
 		//glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER,GL_FALSE); //???
 		glLightfv(GL_LIGHT0,GL_AMBIENT,llll);
 		glLightfv(GL_LIGHT0,GL_DIFFUSE,llll);
+		glLightfv(GL_LIGHT0,GL_SPECULAR,llll); //2022: I guess?
 		glLightfv(GL_LIGHT0,GL_POSITION,position);
 
 		glEnable(GL_LIGHT0);
@@ -1753,7 +1802,9 @@ void TextureWidget::draw(int x, int y, int w, int h)
 	}
 	else if(m_materialId>=0)
 	{
-		glColor3f(1,1,1);
+		//I can't do anything to make it not white :(
+		//glColor3f(1,1,1); //???
+		glColor3f(0,0,0);
 
 		float fval[4];
 		m_model->getTextureAmbient(m_materialId,fval);
@@ -1779,23 +1830,9 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		glMaterialfv(GL_FRONT,GL_EMISSION,fval);
 		glMaterialf(GL_FRONT,GL_SHININESS,0);
 
-		if(!m_texture)
-		{
-			glColor3f(0,0,0); glDisable(GL_LIGHTING);
-		}
-		else glColor3f(1,1,1);
-	}
-
-	if(m_materialId>=0&&m_model
-	&&m_model->getMaterialType(m_materialId)==Model::Material::MATTYPE_COLOR)
-	{
-		//REMOVE ME
-		GLubyte r = m_model->getMaterialColor(m_materialId,0); //???
-		GLubyte g = m_model->getMaterialColor(m_materialId,1); //???
-		GLubyte b = m_model->getMaterialColor(m_materialId,2); //???
-		glDisable(GL_TEXTURE_2D);
-		//glDisable(GL_LIGHTING);
-		glColor3ub(r,g,b);
+		if(!m_texture) glDisable(GL_LIGHTING);
+		if(!m_texture) glColor3f(0,0,0); 
+		else glColor3f(1,1,1); //???
 	}
 
 	if(m_3d&&m_materialId>=0)
@@ -1898,13 +1935,6 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		glRectd(-cx,-cy,1+cx,1+cy);
 	}
 
-	useLinesColor();
-
-	if(m_operation==MouseRange)
-	{
-		glColor3f(0.7f,0.7f,0.7f);
-	}
-
 	if(!m_triangles.empty()) switch(m_drawMode)
 	{
 	case DM_Edit:
@@ -1919,6 +1949,10 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		//break;
 
 	case DM_Edges:
+
+		if(m_operation==MouseRange)
+		glColor3f(0.7f,0.7f,0.7f);
+		else useLinesColor();
 
 		glBegin(GL_TRIANGLES);
 		drawTriangles();
@@ -1949,32 +1983,30 @@ void TextureWidget::draw(int x, int y, int w, int h)
 		glEnd();
 		break;
 	}
-
-	// TODO may want to make "draw points" a separate property
-	if(m_operation==MouseRange) useLinesColor();
-
-	/*Note, PaintTextureWin seems to enable MouseRange just so
-	//that these vertices are not drawn by default. It's a bit
-	//of a HACK obviously.
-	*/
-	// TODO may want to make "draw points" a separate property
-	if(m_operation!=MouseRange||m_drawVertices)
+	if(m_drawVertices) 
 	{
 		glPointSize(3);
 		glBegin(GL_POINTS);
 
-		for(auto&ea:m_triangles)
-		for(int ea2:ea.vertex)
-		{
-			auto &v = m_vertices[ea2];
-			if(v.selected&&m_drawMode==DM_Edit)
-			{
-				useSelectionColor();
-			}
-			else useLinesColor();
+		int c = -1;
 
-			//glVertex3f((v.s-m_xMin)/m_zoom,(v.t-m_yMin)/m_zoom,-0.5);
-			glVertex3d(v.s,v.t,-0.5);
+		//2022: Provide visual feedback?
+		if(m_operation==MouseNone&&m_drawMode==DM_Edit)
+		{
+			for(auto&ea:m_vertices) if(ea.selected)
+			{
+				if(!++c) useSelectionColor();
+			
+				glVertex3d(ea.s,ea.t,-0.5);
+			}
+		}
+		else for(auto&ea:m_vertices)
+		{
+			int cc = ea.selected&&m_drawMode==DM_Edit;
+			if(c!=cc)
+			(c=cc)?useSelectionColor():useLinesColor();
+
+			glVertex3d(ea.s,ea.t,-0.5);
 		}
 
 		glEnd();

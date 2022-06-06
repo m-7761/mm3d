@@ -110,8 +110,8 @@ public:
 
 	void open_texture_window();	
 	void open_animation_system();
-	void sync_animation_system();
 	void open_animation_window();
+	void sync_animation_window();
 	void open_transform_window();
 	void open_projection_window();
 	void perform_menu_action(int);
@@ -125,12 +125,15 @@ private:
 	bool _window_title_asterisk;
 	void _rewrite_window_title();
 
+	friend struct AnimWin;
 	friend struct TextureCoordWin;
 	friend void viewwin_close_func();
 	struct AnimWin *_animation_win;
 	struct TransformWin *_transform_win;
 	struct ProjectionWin *_projection_win;
 	struct TextureCoordWin *_texturecoord_win;
+
+	void _sync_tools(int,int);
 	
 	//These menus have state.
 	//NOTE: It's pointless to separate them as long
@@ -139,6 +142,7 @@ private:
 	int _view_menu,_rops_menu,_anim_menu,_anim_menu2,_menubar;
 
 	friend void viewwin_toolboxfunc(int);
+	int _sync_tool,_sync_sel2;
 	int _prev_tool,_curr_tool;
 	int _prev_shift,_curr_shift,_none_shift;
 	int _prev_ortho,_prev_persp;

@@ -224,8 +224,37 @@ extern void viewpanel_special_func(int kb, int x, int y)
 		glutFullScreen(); //UNFINISHED
 		break;
 	}
+	
+	//2022: These are geared toward ModelViewport::keyPressEvent.
+	bool broadcast = cm&GLUT_ACTIVE_SHIFT;
+	//HACK: Some of these have menu items that don't require shift.
+	if(kb==-'|') broadcast = true; 
+	if(kb==-'~') broadcast = true; 
+	//WARNING: A lot of this may be peculiar to certain US keyboards.
+	if(broadcast) switch(-kb)
+	{
+	default: broadcast = false;
 
-	vp.ports[vp.m_focus].keyPressEventUI(-kb,cm,x,y);	
+	case '+': break;
+	case '_': kb = -'-'; break;
+	case ')': kb = -'0'; break;
+
+	case -GLUT_KEY_UP:
+	case -GLUT_KEY_DOWN:
+	case -GLUT_KEY_LEFT:
+	case -GLUT_KEY_RIGHT: break;
+
+	case '~': kb = -'`'; break;
+	case '|': kb = -'\\'; break;
+	}
+
+	if(broadcast)
+	{
+		cm&=~GLUT_ACTIVE_SHIFT;
+		for(int i=vp.viewsN;i-->0;) 
+		vp.ports[i].keyPressEventUI(-kb,cm,x,y);
+	}
+	else vp.ports[vp.m_focus].keyPressEventUI(-kb,cm,x,y);	
 }
 static void viewpanel_keyboard_func(unsigned char kb, int x, int y)
 {
@@ -323,11 +352,19 @@ void ViewPanel::draw()
 {
 	//Sync with drawing.
 	if(model._deferredModelChanged)
+	model._drawingModelChanged();
+	glutSetWindow(model.glut_window_id);
+
+	//2022: model is nullptr in ViewPanel::ViewPanel
+	if(0==ports[0].m_viewportWidth)
 	{
-		//I think this might be calling glutSetWindow :(
-		int gw = glutGetWindow();
-		model._drawingModelChanged();
-		glutSetWindow(gw);
+		assert(m_model);
+		Parent::initializeGL(m_model);
+
+		//HACK: This is just about the only place I
+		//could find to insert initialization logic.
+		//The purpose here is to be able to use Tab.
+		Win::event.deactivate();
 	}
 
 	//REMINDER: I spent like a day fussing with this
@@ -422,6 +459,7 @@ void ViewPanel::draw()
 
 ViewPanel::ViewPanel(MainWin &model)
 :
+m_model(), //REMOVE ME //???
 model(model),shape(),
 bar1(model),bar2(model),
 params(bar1),timeline(bar1.exterior_row),playing1(),
@@ -446,7 +484,8 @@ status(bar2)
 	glutext::glutMouseWheelFunc(viewpanel_wheel_func);
 
 	//Parent::Parent doesn't do this in case timing is an issue.
-	Parent::initializeGL(model);
+	//model is nullptr here.
+	//Parent::initializeGL(model);
 
 	_makeViews(0);
 }

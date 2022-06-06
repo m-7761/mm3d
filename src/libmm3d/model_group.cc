@@ -71,7 +71,7 @@ int Model::addGroup(int cp, const char *name)
 	}
 	m_groups.push_back(group);
 
-	if(m_undoEnabled) sendUndo(new MU_Add(num,group));
+	Undo<MU_Add>(this,num,group);
 
 	return num;
 }
@@ -80,8 +80,7 @@ void Model::deleteGroup(unsigned groupNum)
 {
 	//LOG_PROFILE(); //???
 
-	if(m_undoEnabled)
-	sendUndo(new MU_Delete(groupNum,m_groups[groupNum]));	
+	Undo<MU_Delete>(this,groupNum,m_groups[groupNum]);	
 
 	removeGroup(groupNum);
 }
@@ -92,12 +91,8 @@ bool Model::setGroupSmooth(unsigned groupNum, uint8_t smooth)
 	
 	if(smooth!=m_groups[groupNum]->m_smooth) //2020
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetGroupSmooth;
-			undo->setGroupSmooth(groupNum,smooth,m_groups[groupNum]->m_smooth);		
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_SetGroupSmooth>(this,
+		groupNum,smooth,m_groups[groupNum]->m_smooth);
 
 		m_groups[groupNum]->m_smooth = smooth;
 		
@@ -112,12 +107,8 @@ bool Model::setGroupAngle(unsigned groupNum, uint8_t angle)
 	
 	if(angle!=m_groups[groupNum]->m_angle) //2020
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetGroupAngle;
-			undo->setGroupAngle(groupNum,angle,m_groups[groupNum]->m_angle);
-			sendUndo(undo);
-		}
+		Undo<MU_SetGroupAngle>(this,
+		groupNum,angle,m_groups[groupNum]->m_angle);
 
 		m_groups[groupNum]->m_angle = angle;
 		
@@ -136,8 +127,7 @@ bool Model::setGroupName(unsigned groupNum, const char *name)
 		{
 			m_changeBits|=AddOther; //2020
 
-			if(m_undoEnabled)
-			sendUndo(new MU_SwapStableStr(AddOther,gp->m_name));
+			Undo<MU_SwapStableStr>(this,AddOther,gp->m_name);
 
 			gp->m_name = name;
 		}
@@ -197,7 +187,8 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{
 		auto *tp = m_triangles[triangleNum]; //2022
-		if(tp->m_group==-1) tp->m_group = groupNum;
+		int og = tp->m_group;
+		if(og==-1) tp->m_group = groupNum;
 		else return false;
 		
 		auto &c = m_groups[groupNum]->m_triangleIndices;
@@ -210,12 +201,7 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 		}
 		else c.push_back(triangleNum);
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_AddToGroup;
-			undo->addToGroup(groupNum,triangleNum);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_AddToGroup>(this,triangleNum,groupNum,og);
 
 		m_changeBits |= SetGroup; //SetTexture?
 
@@ -231,16 +217,27 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 	return false;
 }
 
+bool Model::ungroupTriangle(unsigned triangleNum)
+{
+	if(triangleNum>=m_triangles.size()) 
+	return false;
+	auto *tp = m_triangles[triangleNum];
+	if(tp->m_group>=0)
+	return removeTriangleFromGroup(tp->m_group,triangleNum);
+	return true;
+}
 bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 {
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{	
 		auto *tp = m_triangles[triangleNum]; //2022
-		if(tp->m_group==groupNum) tp->m_group = -1;
-		else return false;
+		int og = tp->m_group;
+		if(og!=groupNum) return false;
 
 		auto &c = m_groups[groupNum]->m_triangleIndices;
 		if(c.empty()){ assert(0); return false; }
+
+		tp->m_group = -1;
 				
 		auto it = c.end()-1;
 		if(*it!=triangleNum)
@@ -252,12 +249,7 @@ bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 		{
 			c.erase(it);
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_RemoveFromGroup;
-				undo->removeFromGroup(groupNum,triangleNum);
-				sendUndo(undo/*,true*/);
-			}
+			Undo<MU_AddToGroup>(this,triangleNum,-1,og);
 		}
 
 		m_changeBits |= SetGroup; //SetTexture?

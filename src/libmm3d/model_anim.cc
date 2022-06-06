@@ -34,12 +34,6 @@
 
 Model::Animation *Model::_anim(unsigned index, AnimationModeE m)const
 {
-	/*switch(m)
-	{
-	case ANIMMODE_JOINT: if(index<m_skelAnims.size()) return m_skelAnims[index]; break;
-	case ANIMMODE_FRAME: if(index<m_frameAnims.size()) return m_frameAnims[index]; break;
-	}*/
-
 	if(index>=m_anims.size()) return nullptr;
 
 	auto p = m_anims[index]; return m&&0==(m&p->_type)?nullptr:p;
@@ -153,7 +147,7 @@ int Model::addAnimation(AnimationModeE m, const char *name)
 	p->m_frame0 = m_vertices.front()->m_frames.size();
 	*/
 
-	if(m_undoEnabled) sendUndo(new MU_AddAnimation(num,p));
+	Undo<MU_AddAnimation>(this,num,p);
 	
 	insertAnimation(num,p); return num;
 }
@@ -173,14 +167,10 @@ void Model::deleteAnimation(unsigned index)
 
 	auto ab = _anim(index); if(!ab) return;
 	
-	MU_DeleteAnimation *undo = nullptr;
+	Undo<MU_DeleteAnimation> undo(this,index,ab);
 
 	//DUPLICATES convertAnimToType deletion of vertex data.
-	if(m_undoEnabled)
-	{
-		undo = new MU_DeleteAnimation(index,ab);
-	}
-	else ab->release(); //2022
+	if(!undo) ab->release(); //2022
 
 	auto fp = ab->m_frame0; if(~fp) //ANIMMODE_FRAME
 	{		
@@ -189,7 +179,7 @@ void Model::deleteAnimation(unsigned index)
 		removeFrameAnimData(fp,ab->_frame_count(),dt,!dt); //release?
 	}
 	
-	removeAnimation(index); if(undo) sendUndo(undo);
+	removeAnimation(index);
 }
 
 bool Model::setAnimName(unsigned anim, const char *name)
@@ -200,8 +190,7 @@ bool Model::setAnimName(unsigned anim, const char *name)
 		{
 			m_changeBits|=AddAnimation; //2020
 
-			if(m_undoEnabled)
-			sendUndo(new MU_SwapStableStr(AddAnimation,ab->m_name));
+			Undo<MU_SwapStableStr>(this,AddAnimation,ab->m_name);
 
 			ab->m_name = name; 
 		}
@@ -243,10 +232,10 @@ bool Model::setAnimFrameCount(unsigned anim, unsigned count, unsigned where, Fra
 
 	m_changeBits|=AnimationProperty;
 
-	auto undo = m_undoEnabled?new MU_SetAnimFrameCount:nullptr;
+	Undo<MU_SetAnimFrameCount> undo(this,anim,count,old_count,where);
 
-	if(undo) undo->setAnimFrameCount(anim,count,old_count,where);	
 	if(undo) undo->removeTimeTable(ab->m_timetable2020);
+	if(undo) undo->removeSelection(ab->m_selected_frames);
 
 	if(~ab->m_frame0) //ANIMMODE_FRAME
 	{
@@ -286,8 +275,6 @@ bool Model::setAnimFrameCount(unsigned anim, unsigned count, unsigned where, Fra
 		}
 	}
 	
-	if(undo) sendUndo(undo);
-			
 	auto it = ab->m_timetable2020.begin()+where;
 
 	if(compat_mode) //Compatibility mode.
@@ -295,12 +282,35 @@ bool Model::setAnimFrameCount(unsigned anim, unsigned count, unsigned where, Fra
 		ab->m_timetable2020.resize(count);
 		for(auto i=old_count;i<count;i++)
 		ab->m_timetable2020[i] = i;
+
+		//2022: This is to initialize this for the legacy
+		//import "filters" to do away with _time_frame().
+		//Currently setAnimFrameTime_undo is required by
+		//mm3dfilter.cc in order to bypass time checks.
+		if(ab->m_frame2020<0) ab->m_frame2020 = count;
 	}
 	else if(diff>0)
 	{				
-		ab->m_timetable2020.insert(it,diff,-1); //!!!
+		ab->m_timetable2020.insert(it,(size_t)diff,-1); //!!!
 	}
 	else ab->m_timetable2020.erase(it,it-diff);
+
+	if(!ab->m_selected_frames.empty())
+	{
+		m_changeBits|=AnimationSelection;
+
+		auto jt = ab->m_selected_frames.begin()+where;
+
+		if(compat_mode)
+		{
+			ab->m_selected_frames.resize(count);
+		}
+		else if(diff>0)
+		{				
+			ab->m_selected_frames.insert(jt,(size_t)diff,0);
+		}
+		else ab->m_selected_frames.erase(jt,jt-diff);
+	}
 
 	if(m_currentAnim==anim&&m_currentFrame>=count)
 	{
@@ -335,14 +345,11 @@ bool Model::setAnimFPS(unsigned anim, double fps)
 		{
 			m_changeBits|=AnimationProperty;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetAnimFPS;
-				undo->setFPS(anim,fps,ab->m_fps);
-				sendUndo(undo);
-			}
+			Undo<MU_SetAnimFPS>(this,anim,fps,ab->m_fps);
 
 			ab->m_fps = fps; 
+
+			invalidateAnim(anim,m_currentFrame);
 		}
 		return true;
 	}
@@ -357,14 +364,11 @@ bool Model::setAnimWrap(unsigned anim, bool wrap)
 		{
 			m_changeBits|=AnimationProperty;
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_SetAnimWrap;
-				undo->setAnimWrap(anim,wrap,ab->m_wrap);
-				sendUndo(undo/*,true*/);
-			}
+			Undo<MU_SetAnimWrap>(this,anim,wrap,ab->m_wrap);
 
 			ab->m_wrap = wrap;
+
+			invalidateAnim(anim,m_currentFrame);
 		}
 		return true;
 	}
@@ -386,12 +390,7 @@ bool Model::setAnimTimeFrame(unsigned anim, double time)
 
 	m_changeBits|=AnimationProperty;
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_SetAnimTime;
-		undo->setAnimTimeFrame(anim,time,ab->_time_frame());
-		sendUndo(undo/*,true*/);
-	}
+	Undo<MU_SetAnimTime>(this,anim,time,ab->_time_frame());
 
 	ab->m_frame2020 = time;
 
@@ -401,7 +400,7 @@ bool Model::setAnimTimeFrame(unsigned anim, double time)
 		{
 			//REMINDER: If this were to be an error case I'm skeptical
 			//that "redo" operations could backfire.
-			setCurrentAnimationTime(time);
+			setCurrentAnimationFrameTime(time);
 		}
 		else invalidateAnim(anim,(unsigned)frames-1);	
 	}
@@ -411,30 +410,149 @@ bool Model::setAnimTimeFrame(unsigned anim, double time)
 
 bool Model::setAnimFrameTime(unsigned anim, unsigned frame, double time)
 {
-	Animation *ab = _anim(anim);
+	if(time<0){ assert(0); return false; } //2022
 
-	if(!ab||frame>=ab->m_timetable2020.size()) return false;
+	auto ab = _anim(anim); if(!ab) return false;
 
-	auto &t = ab->m_timetable2020[frame]; if(t!=time) 
+	auto &tt = ab->m_timetable2020;
+
+	if(time==tt[frame]) return true;
+
+	//if(ab->m_frame2020!=-1)
+	if(frame>=ab->m_frame2020){ assert(0); return false; }  //2022
+
+	if(frame>0) //2022
 	{
-		m_changeBits|=AnimationProperty;
+		assert(time>=tt[frame-1]); //return false;
+	}
+	if(frame+1<tt.size())
+	{
+		assert(time<=tt[frame+1]); //return false;		
+	}
 
-		if(m_undoEnabled)
+	Undo<MU_SetAnimTime>(this,anim,frame,time,time);
+
+	setAnimFrameTime_undo(anim,frame,time); return true;
+}
+void Model::setAnimFrameTime_undo(unsigned anim, unsigned frame, double time)
+{
+	m_changeBits|=AnimationProperty;
+
+	auto ab = m_anims[anim];
+
+	ab->m_timetable2020[frame] = time;			
+	
+	invalidateAnim(anim,frame);
+}
+unsigned Model::moveAnimFrame(unsigned anim, unsigned frame, double time)
+{
+	if(time<0){ assert(0); return frame; } //2022
+
+	auto ab = _anim(anim); if(!ab) return frame;
+
+	auto &tt = ab->m_timetable2020;
+
+	if(time==tt[frame]) return frame;
+
+	//if(ab->m_frame2020!=-1)
+	if(frame>=ab->m_frame2020){ assert(0); return frame; } //2022
+
+	unsigned i = frame;
+
+	while(i&&time<tt[i-1]) i--;
+
+	while(i+1<tt.size()&&time>tt[i+1]) i++;
+
+	if(i!=frame)
+	{
+		Undo<MU_MoveAnimFrame>(this,anim,i,frame);
+
+		moveAnimFrame_undo(anim,frame,i);
+	}
+	
+	Undo<MU_SetAnimTime>(this,anim,i,time,tt[frame]); //HACK?
+
+	invalidateAnim(anim,frame);
+	setAnimFrameTime_undo(anim,i,time); return i;
+}
+void Model::moveAnimFrame_undo(unsigned anim, unsigned frame, unsigned i)
+{
+	auto ab = m_anims[anim];
+
+	auto min = std::min(frame,i);
+	auto max = std::max(frame,i);
+	auto mov = max-min;
+	bool dir = i<frame;
+
+	auto tt = ab->m_timetable2020.data();
+	auto swap = tt[frame];
+	auto d = tt+min, s = d;
+	(dir?d:s)+=1;
+	memmove(d,s,mov*sizeof(swap));
+	tt[i] = swap;
+
+	if(!ab->m_selected_frames.empty())
+	{
+		//m_changeBits|=AnimationSelection; //?
+
+		auto st = ab->m_selected_frames.data();
+		auto swap = st[frame];
+		auto d = st+min, s = d;
+		(dir?d:s)+=1;
+		memmove(d,s,mov*sizeof(swap));
+		st[i] = swap;
+	}
+
+	if(~0u!=ab->m_frame0)	
+	{
+		auto frame0 = ab->m_frame0;		
+		auto min0 = frame0+min;
+		auto i0 = frame0+i;
+		frame0+=frame;
+		for(auto*vp:m_vertices)
 		{
-			auto undo = new MU_SetAnimTime;
-			undo->setAnimFrameTime(anim,frame,time,t);
-			sendUndo(undo/*,true*/);
+			auto fd = vp->m_frames.data();
+			auto swap = fd[frame0];
+			auto d = fd+min0, s = d;
+			(dir?d:s)+=1;
+			memmove(d,s,mov*sizeof(swap));
+			fd[i0] = swap;
+		}
+	}
+
+	for(auto&ea:ab->m_keyframes)
+	{
+		bool sort = false;
+
+		for(auto*kp:ea.second)
+		{
+			auto f = kp->m_frame;
+
+			if(f<min||f>max) continue;
+
+			sort = true;
+
+			int cmp = (int)f-(int)frame;
+
+			if(cmp>0)
+			{
+				kp->m_frame--; assert(!dir);
+			}
+			else if(cmp<0)
+			{
+				kp->m_frame++; assert(dir);
+			}
+			else kp->m_frame = i;
 		}
 
-		t = time;			
-	
-		invalidateAnim(anim,frame);
+		//NOTE: This is a sorted_ptr_list<Keyframe*> container.
+		//if(sort) std::sort(ea.second.begin(),ea.second.end());
+		if(sort) ea.second.sort();
 	}
-	return true;
 }
 
 bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned vertex,
-		double x, double y, double z, Interpolate2020E interp2020)
+		const double xyz[3], Interpolate2020E interp2020)
 {
 	auto fa = _anim(anim,ANIMMODE_FRAME); if(!fa) return false;
 
@@ -472,17 +590,16 @@ bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned ver
 	}
 	else interp2020 = fav->m_interp2020;
 
-	if(m_undoEnabled)
+	Undo<MU_MoveFrameVertex> undo(this,anim,frame);		
+	if(undo) undo->addVertex(vertex,xyz?xyz:fav->m_coord,interp2020,fav);
+
+	if(xyz)
 	{
-		auto undo = new MU_MoveFrameVertex(anim,frame);
-		undo->addVertex(vertex,x,y,z,interp2020,fav);
-		sendUndo(undo/*,true*/);
+		fav->m_coord[0] = xyz[0];
+		fav->m_coord[1] = xyz[1];
+		fav->m_coord[2] = xyz[2];		
 	}
 
-	fav->m_coord[0] = x;
-	fav->m_coord[1] = y;
-	fav->m_coord[2] = z;
-		
 	assert(InterpolateKeep!=interp2020);
 	fav->m_interp2020 = interp2020;
 
@@ -675,11 +792,9 @@ bool Model::joinAnimations(unsigned anim1, unsigned anim2)
 		auto fp = ab->m_frame0;
 		auto fd = aa->m_frame0+fc1;
 
-		bool ue = m_undoEnabled;
-		MU_MoveFrameVertex *undo;
 		for(int f=0;f<fc2;f++,fp++,fd++)
 		{
-			if(ue) undo = new MU_MoveFrameVertex(anim1,fc1+f);
+			Undo<MU_MoveFrameVertex> undo(this,anim1,fc1+f);
 
 			int v = -1; for(auto*ea:m_vertices)
 			{
@@ -696,13 +811,10 @@ bool Model::joinAnimations(unsigned anim1, unsigned anim2)
 					if(d->m_interp2020||!p->m_interp2020) continue;
 				}
 
-				if(ue) undo->addVertex
-				(v,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				if(undo) undo->addVertex(v,p->m_coord,p->m_interp2020,d,false);			
 
 				*d = *p;
 			}
-
-			if(ue) sendUndo(undo);
 		}
 	}	
 
@@ -840,9 +952,6 @@ bool Model::mergeAnimations(unsigned anim1, unsigned anim2)
 		int fp,fp0 = ab->m_frame0;
 		int fd,fd0 = aa->m_frame0;
 		
-		bool ue = m_undoEnabled;
-		MU_MoveFrameVertex *undo;
-
 		//NOTE: Forward order is important to
 		//not overwrite the source frame data.
 		for(auto f=(unsigned)ts.size();f-->0;)
@@ -861,7 +970,7 @@ bool Model::mergeAnimations(unsigned anim1, unsigned anim2)
 			
 			fd = fd0+f; if(fp==fd) continue;
 
-			if(ue) undo = new MU_MoveFrameVertex(anim1,f);
+			Undo<MU_MoveFrameVertex> undo(this,anim1,f);
 
 			int v = -1; for(auto*ea:m_vertices)
 			{
@@ -886,12 +995,10 @@ bool Model::mergeAnimations(unsigned anim1, unsigned anim2)
 
 				if(p==d) continue;
 
-				if(ue) undo->addVertex(v,p->m_coord[0],p->m_coord[1],p->m_coord[2],p->m_interp2020,d,false);			
+				if(undo) undo->addVertex(v,p->m_coord,p->m_interp2020,d,false);			
 
 				*d = *p;
 			}
-
-			if(ue) sendUndo(undo);
 		}
 	}		
 
@@ -932,10 +1039,7 @@ bool Model::moveAnimation(unsigned oldIndex, unsigned newIndex)
 		m_changeBits|=AnimationSet;
 	}
 
-	if(m_undoEnabled)
-	{
-		sendUndo(new MU_MoveAnimation(oldIndex,newIndex));
-	}
+	Undo<MU_MoveAnimation>(this,oldIndex,newIndex);
 
 	return true;
 }
@@ -1033,8 +1137,8 @@ int Model::convertAnimToFrame(unsigned anim, const char *newName, unsigned frame
 				getVertexCoords(v,coord);
 				int prev, curr;
 				double *pcoord = cmp[v].compare(coord,prev,curr);
-				if(prev&1) setFrameAnimVertexCoords(num,f-1,v,pcoord[0],pcoord[1],pcoord[2],how2);
-				if(curr&1) setFrameAnimVertexCoords(num,f,v,coord[0],coord[1],coord[2],how);
+				if(prev&1) setFrameAnimVertexCoords(num,f-1,v,pcoord,how2);
+				if(curr&1) setFrameAnimVertexCoords(num,f,v,coord,how);
 				memcpy(pcoord,coord,sizeof(coord));
 			}
 
@@ -1089,15 +1193,13 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 		{
 			//DUPLICATES deleteAnimation except just the vertex data parts.
 
-			auto undo = m_undoEnabled?new MU_VoidFrameAnimation(ab,ab->m_frame0):nullptr;
+			Undo<MU_VoidFrameAnimation> undo(this,ab,ab->m_frame0);
 			
 			auto fp = ab->m_frame0; 
 			auto dt = undo?undo->removeVertexData():nullptr;
 			removeFrameAnimData(fp,ab->_frame_count(),dt,!dt); //release?
 
 			ab->m_frame0 = ~0; //2022: Adding dedicated MU_VoidFrameAnimation undo for this.
-
-			if(undo) sendUndo(undo);
 		}
 	}
 
@@ -1107,8 +1209,7 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 
 	_moveAnimation(anim,to,td);
 
-	if(m_undoEnabled) sendUndo(new MU_MoveAnimation(anim,to,td));
-
+	Undo<MU_MoveAnimation>(this,anim,to,td);
 	
 	m_changeBits|=AddAnimation;
 	
@@ -1133,6 +1234,11 @@ bool Model::deleteAnimFrame(unsigned anim, unsigned frame)
 	return setAnimFrameCount(anim,(unsigned)count-1,frame,nullptr); return false;
 }
 
+int Model::setKeyframe(unsigned anim, const Keyframe *cp, const double xyz[3], Interpolate2020E e)
+{
+	if(!xyz) xyz = cp->m_parameter;
+	return setKeyframe(anim,cp->m_frame,cp->m_objectIndex,cp->m_isRotation,xyz[0],xyz[1],xyz[2],e);
+}
 int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E isRotation,
 		double x, double y, double z, Interpolate2020E interp2020)
 {	
@@ -1147,7 +1253,8 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 	if(isRotation<=0||isRotation>KeyScale) return -1;
 
-	m_changeBits|=MoveOther; //2020
+	//m_changeBits|=MoveOther; //2020
+	m_changeBits|=AnimationProperty; //2022
 
 	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",(isRotation ? "rotation" : "translation"),pos.index,x,y,z,frame);
 
@@ -1171,6 +1278,10 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 		memcpy(old,kf->m_parameter,sizeof(old));
 
+		for(int j=4;j-->0;)
+		if(kf->m_selected[j])
+		m_changeBits|=AnimationSelection;
+
 		if(x==old[0]&&y==old[1]&&z==old[2])
 		{
 			if(InterpolateKeep==interp2020
@@ -1190,10 +1301,11 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 	{
 		isNew = true;
 
-		list.insert_sorted(kf);
+		//list.insert_sorted(kf);
+		list.insert_sorted(kf,index);
 
 		// Do lookup to return proper index
-		list.find_sorted(kf,index);
+		//list.find_sorted(kf,index);
 
 		if(InterpolateKopy==interp2020)
 		{ 
@@ -1235,21 +1347,96 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 	//if(InterpolateKeep!=interp2020)
 	kf->m_interp2020 = interp2020;
 
-	if(m_undoEnabled)
-	{
-		auto undo = new MU_SetObjectKeyframe(anim,frame,isRotation);
+	//Why is this???
+	//undo->setAnimationData(anim,frame,isRotation);
+	Undo<MU_SetObjectKeyframe> undo(this,anim,frame);
+	if(undo)
+	undo->addKeyframe(isNew,kf,old,olde);
 
-		//Why is this???
-		//undo->setAnimationData(anim,frame,isRotation);
-		undo->addKeyframe(pos,isNew,x,y,z,interp2020,old[0],old[1],old[2],olde);
-		sendUndo(undo);
-	}
-
+	_reset_InterpolateCopy(anim,KeyNONE,index,list); //2022
+	
 	invalidateAnim(anim,frame); //OVERKILL
 
 	return index;
 }
+void Model::_reset_InterpolateCopy(unsigned anim, KeyType2020E how, unsigned index, KeyframeList &list)
+{	
+	bool wrap = m_anims[anim]->m_wrap;
 
+	if(how) if(how==KeyAny) 
+	{
+		//I thought merge/join/splitAnimation might
+		//need this, but they are using setKeyframe.
+		//I only found applyMatrix sets m_parameter.
+
+		KeyType2020E cmp;
+		int mask = KeyTranslate|KeyRotate|KeyScale;
+		if(index==0||index==~0||wrap)				
+		for(size_t i=0;i<list.size();i++,mask&=~cmp) 
+		if(mask&(cmp=list[i]->m_isRotation))
+		_reset_InterpolateCopy(anim,KeyNONE,(unsigned)i,list);
+		mask = KeyTranslate|KeyRotate|KeyScale;	
+		if(index>=list.size()||wrap)
+		for(size_t i=list.size();i-->0;mask&=~cmp) 
+		if(mask&(cmp=list[i]->m_isRotation))
+		_reset_InterpolateCopy(anim,KeyNONE,(unsigned)i,list);
+
+		return; //!!
+	}
+	else //Removing?
+	{
+		bool found = false;
+		for(;index<list.size();index++) 
+		if(how==list[index]->m_isRotation)
+		{
+			found = true; break;
+		}
+		if(!found&&wrap)
+		for(index=0;index<list.size();index++)
+		if(how==list[index]->m_isRotation)
+		{
+			found = true; break;
+		}
+		if(!found) return;
+	}
+	
+	auto *kf = list[index];
+	auto isRotation = kf->m_isRotation;
+	if(kf->m_interp2020==InterpolateCopy)
+	{
+		double *x[3] = {};
+		x[isRotation>>1] = kf->m_parameter;
+		interpKeyframe(anim,kf->m_frame,kf->m_objectIndex,x[0],x[1],x[2]);
+	}
+	bool last = true;
+	for(unsigned i=index+1;i<list.size();i++)
+	{
+		auto *kf2 = list[i];
+
+		if(isRotation!=kf2->m_isRotation) continue;
+
+		last = false;
+
+		if(InterpolateCopy!=kf2->m_interp2020) break;
+
+		memcpy(kf2->m_parameter,kf->m_parameter,sizeof(kf->m_parameter));
+	}
+	if(last&&wrap) for(unsigned i=0;i<index;i++)
+	{
+		auto *kf2 = list[i];
+
+		if(isRotation!=kf2->m_isRotation) continue;
+
+		if(InterpolateCopy!=kf2->m_interp2020) break;
+
+		memcpy(kf2->m_parameter,kf->m_parameter,sizeof(kf->m_parameter));
+	}
+}
+
+bool Model::deleteKeyframe(unsigned anim, const Keyframe *cp)
+{
+	return deleteKeyframe(anim,cp->m_frame,cp->m_objectIndex,cp->m_isRotation);
+}
 bool Model::deleteKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E isRotation)
 {
 	Animation *ab = _anim(anim,frame,pos); if(!ab) return false;
@@ -1257,27 +1444,22 @@ bool Model::deleteKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 	auto it = ab->m_keyframes.find(pos);
 	if(it==ab->m_keyframes.end()) return false; //2021
 
+	Undo<MU_DeleteObjectKeyframe> undo(this,anim,m_currentFrame);
+
 	//REMINDER: vector deletions should tend to go in reverse.
-	if(m_undoEnabled)
+	if(undo)
 	{
-		MU_DeleteObjectKeyframe *undo = nullptr;
 		auto &list = it->second;
 		for(size_t i=list.size();i-->0;) 
 		{
 			auto *kf = list[i];			
 			if(kf->m_frame==frame&&kf->m_isRotation&isRotation)
 			{
-				if(!undo) 
-				undo = new MU_DeleteObjectKeyframe(anim,m_currentFrame);		
 				undo->deleteKeyframe(kf);
 			}
-			else if(kf->m_frame<frame) break;
 		}
-		if(undo) sendUndo(undo); else return false;
 	}
-	//MEMORY LEAK!
-	//It seems like "false" should be true without an "undo" system?		
-	return removeKeyframe(anim,frame,pos,isRotation,false);
+	return removeKeyframe(anim,frame,pos,isRotation,!m_undoEnabled);
 }
 
 bool Model::insertKeyframe(unsigned anim, Keyframe *keyframe)
@@ -1287,9 +1469,18 @@ bool Model::insertKeyframe(unsigned anim, Keyframe *keyframe)
 
 	//log_debug("inserted keyframe for anim %d frame %d joint %d\n",anim,keyframe->m_frame,keyframe->m_objectIndex); //???
 
-	m_changeBits |= MoveOther; //2020
+	//m_changeBits |= MoveOther; //2020
+	m_changeBits|=AnimationProperty; //2022
 
-	ab->m_keyframes[pos].insert_sorted(keyframe);
+	for(int j=4;j-->0;)
+	if(keyframe->m_selected[j])
+	m_changeBits|=AnimationSelection;
+
+	auto &list = ab->m_keyframes[pos];
+
+	size_t index = list.insert_sorted(keyframe);
+
+	_reset_InterpolateCopy(anim,KeyNONE,(unsigned)index,list); //2022
 
 	invalidateAnim(anim,keyframe->m_frame); //OVERKILL
 
@@ -1307,9 +1498,12 @@ bool Model::removeKeyframe(unsigned anim, Keyframe *kf)
 	auto &list = ab->m_keyframes[kf->m_objectIndex];
 	for(size_t i=list.size();i-->0;) if(list[i]==kf)
 	{
-		m_changeBits |= MoveOther; //2020
+		//m_changeBits |= MoveOther; //2020
+		m_changeBits|=AnimationProperty; //2022
 
 		list.erase(list.begin()+i);
+
+		_reset_InterpolateCopy(anim,kf->m_isRotation,(unsigned)i,list); 
 
 		invalidateAnim(anim,kf->m_frame); //OVERKILL
 
@@ -1335,11 +1529,18 @@ bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 			auto r = kf->m_isRotation;
 			if(r<=0||r&isRotation)
 			{	
-				m_changeBits |= MoveOther; //2020
+				//m_changeBits |= MoveOther; //2020
+				m_changeBits|=AnimationProperty; //2022
+
+				for(int j=4;j-->0;)
+				if(kf->m_selected[j])
+				m_changeBits|=AnimationSelection;
 
 				assert(r>0&&r<=KeyScale);
 
 				list.erase(list.begin()+i);
+
+				_reset_InterpolateCopy(anim,kf->m_isRotation,(unsigned)i,list); 
 
 				if(release) //MU_SetObjectKeyframe::undo? Undo disabled?
 				{
@@ -1513,10 +1714,8 @@ bool Model::setSkeletalModeEnabled(bool how) //2022
 {
 	if(m_skeletalMode2!=how)
 	{
-		if(m_undoEnabled)
-		{
-			sendUndo(new MU_ChangeSkeletalMode(how));
-		}
+		Undo<MU_ChangeSkeletalMode>(this,how);
+
 		m_skeletalMode2 = how;
 
 		if(m_skeletalMode!=how&&m_animationMode&1)
@@ -1544,20 +1743,39 @@ bool Model::setCurrentAnimation(const RestorePoint &rp)
 }
 bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 {
+	//NOTE: anim is allowed to be nonezro with ANIMMODE_NONE
+	//since it can be switched to. But -1 is only valid with
+	//ANIMMODE_NONE.
+
+	if(anim==(unsigned)-1&&!m) anim = 0; //2022
+
+	bool ret = !(!m&&anim); //2022
+
 	//2021: calculateAnim is asserting/aborting on having the
 	//animation mode nonzero with no animations.
 	if(m&&m_anims.empty())
 	{
+		ret = false;
+
 		m = ANIMMODE_NONE; //I can't remember if this is best? 
 	}
 
 	//NOTE: It's important to not generate redundant undo
 	//objects since they may be used to determine if users
 	//should be prompted about losing work.
-	if(anim>=m_anims.size()) anim = 0;
+	if(anim>=m_anims.size())
+	{
+		if(m||anim) //2022
+		{
+			ret = false; m = ANIMMODE_NONE;
+		}
+
+		anim = 0;
+	}
+	if(m&&ret)
 	if(auto*p=anim<m_anims.size()?m_anims[anim]:nullptr)
 	{
-		if(m&&p->_type!=3)
+		if(p->_type!=3)
 		{
 			//Note: This strategy lets the caller blindly pass
 			//in a mode mask that only applies to mode 3 types.
@@ -1567,7 +1785,7 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 	}
 	if(anim==m_currentAnim&&m==m_animationMode) 
 	{
-		return true; //2021
+		return ret; //2021
 	}
 
 	//AnimationModeE oldMode = m_animationMode;
@@ -1589,9 +1807,30 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 
 		m_changeBits |= AnimationSet;
 	}
+	else if(!old.mode&&anim==0&&m) //2022
+	{
+		//old.anim is 0 by default :(
+		m_changeBits |= AnimationSet; //NOTE: Not overriding time.
+	}
 	if(m!=old.mode)
 	{
 		m_changeBits |= AnimationMode;
+				
+		//2022: Note a change to <None> pseudo animation and also
+		//change away from an animation.
+		/*Actually the inAnimationMode system relies on this not
+		//being sent so the previous animation can be restored.
+		if(!m) m_changeBits |= AnimationSet;*/
+	}
+
+	//2022: I don't trust these to be maintained.
+	Animation *a = nullptr;
+	if(anim<m_anims.size())
+	a = m_anims[anim];
+	if(!a||a->_time_frame()<m_currentTime
+	||a->m_timetable2020.size()<=m_currentFrame)
+	{
+		m_currentTime = 0; m_currentFrame = 0;
 	}
 	
 	if(old.mode||m) invalidateBspTree();
@@ -1608,8 +1847,8 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 	}	
 	m_animationMode = m;
 	m_skeletalMode = m&1&&m_skeletalMode2;
-	if(m_undoEnabled)
-	sendUndo(new MU_ChangeAnimState(this,old));
+	
+	Undo<MU_ChangeAnimState>(this,this,old);
 
 		for(auto*ea:m_vertices) ea->_source(m);
 		for(auto*ea:m_triangles) ea->_source(m);
@@ -1634,7 +1873,8 @@ bool Model::setCurrentAnimation(unsigned anim, AnimationModeE m)
 	}
 	else invalidateAnim();
 
-	return m!=ANIMMODE_NONE;
+	//return m!=ANIMMODE_NONE;
+	return ret;
 }
 void Model::Vertex::_source(AnimationModeE m)
 {
@@ -2363,6 +2603,39 @@ Model::Interpolate2020E Model::getKeyframe(unsigned anim, unsigned frame,
 	return found;
 }
 
+void Model::Keyframe::lerp(const double x[3], const double y[3], double t, double z[3])
+{
+	for(int i=3;i-->0;) z[i] = t*(y[i]-x[i])+x[i]; //DUPLICATE 
+}
+void Model::FrameAnimVertex::lerp(const double x[3], const double y[3], double t, double z[3])
+{
+	for(int i=3;i-->0;) z[i] = t*(y[i]-x[i])+x[i]; //DUPLICATE
+}
+void Model::Keyframe::slerp(const double qx[4], const double qy[4], double t, double qz[4])
+{
+	auto &x = *(const Quaternion*)qx;
+	auto &y = *(const Quaternion*)qy;
+
+	#ifdef NDEBUG
+//				#error Should use slerp algorithm! (maybe?)
+	//https://github.com/zturtleman/mm3d/issues/125
+	#endif				
+
+	// Negate if necessary to get shortest rotation path for
+	// interpolation
+	auto &z = *(Quaternion*)qz; if(x.dot4(y)<-0.00001) 
+	{
+		//NOTE: It's odd to negate all four since that's the
+		//same rotation but represented by different figures.
+		//I couldn't find examples so I checked it to see it
+		//works for the below math.
+		//for(int i=0;i<4;i++) y[i] = -y[i];
+		for(int i=0;i<4;i++) qz[i] = -qy[i];
+
+		z = x*(1-t)+z*t; //Here z is -y.
+	}
+	else z = x*(1-t)+y*t; z.normalize();
+}
 int Model::interpKeyframe(unsigned anim, unsigned frame,
 	unsigned pos, double trans[3])const
 {
@@ -2543,37 +2816,46 @@ int Model::interpKeyframe(unsigned anim, unsigned frame, double time,
 
 			if(i!=InterpolantRotation)
 			{
-				double *x = i?scale:trans;			
-				if(t)
+				double *x = i?scale:trans;				
+				if(t) //dp?
 				{
-					Vector va(pp);
-					//if(t) //interpolate?
-					va+=(Vector(dp)-va)*t;
-					va.getVector3(x);
+					/*REFERENCE
+					{
+						Vector va(pp);
+						//if(t) //interpolate?
+						va+=(Vector(dp)-va)*t;
+						va.getVector3(x);
+					}*/
+					Keyframe::lerp(pp,dp,t,x);
 				}
-				else memcpy(x,pp,sizeof(*x)*3);
+				else memcpy(x,pp,sizeof(*x)*3);				
 			}
-			else if(t) //InterpolantRotation
+			else if(t) //dp? //InterpolantRotation
 			{
 				Quaternion va; va.setEulerAngles(pp);
 				Quaternion vb; vb.setEulerAngles(dp);
+								
+				/*REFERENCE
+				{				
+					#ifdef NDEBUG
+	//				#error Should use slerp algorithm!
+					//https://github.com/zturtleman/mm3d/issues/125
+					#endif				
 
-				#ifdef NDEBUG
-//				#error Should use slerp algorithm!
-				//https://github.com/zturtleman/mm3d/issues/125
-				#endif				
-
-				// Negate if necessary to get shortest rotation path for
-				// interpolation
-				if(va.dot4(vb)<-0.00001) 
-				{
-					//NOTE: It's odd to negate all four since that's the
-					//same rotation but represented by different figures.
-					//I couldn't find examples so I checked it to see it
-					//works for the below math.
-					for(int i=0;i<4;i++) vb[i] = -vb[i];
-				}								
-				va = va*(1-t)+vb*t; va.normalize();
+					// Negate if necessary to get shortest rotation path for
+					// interpolation
+					if(va.dot4(vb)<-0.00001) 
+					{
+						//NOTE: It's odd to negate all four since that's the
+						//same rotation but represented by different figures.
+						//I couldn't find examples so I checked it to see it
+						//works for the below math.
+						for(int i=0;i<4;i++) vb[i] = -vb[i];
+					}								
+					va = va*(1-t)+vb*t; va.normalize();
+				}*/
+				double *x = va.getVector();
+				Keyframe::slerp(x,vb.getVector(),t,x);
 
 				va.getEulerAngles(rot);
 			}

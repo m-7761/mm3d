@@ -48,7 +48,7 @@ struct TorusTool : Tool
 
 	virtual const char **getPixmap(int){ return torustool_xpm; }
 
-	virtual const char *getKeymap(int){ return "Alt+F9"; }
+	virtual const char *getKeymap(int){ return "Shift+F9"; }
 
 	virtual void activated(int)
 	{
@@ -179,9 +179,15 @@ void TorusTool::mouseButtonMove()
 	{
 		m_inverted = !m_inverted;
 
-		for(int i=model->getTriangleCount();i-->0;)		
-		if(model->isTriangleSelected(i))
-		model->invertNormals(i);
+		//It's not necessary to undo this and it
+		//costs a lot to remove double entries.
+		bool ue = model->setUndoEnabled(false);
+		{
+			for(int i=model->getTriangleCount();i-->0;)		
+			if(model->isTriangleSelected(i))
+			model->invertNormal(i);
+		}
+		model->setUndoEnabled(ue);
 	}
 
 	parent->updateAllViews();

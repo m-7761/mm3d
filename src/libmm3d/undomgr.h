@@ -26,6 +26,8 @@
 
 #include "mm3dtypes.h"
 
+#include "undo.h" //template?
+
 class UndoList : public std::vector<Undo*>
 {
 public:
@@ -57,7 +59,7 @@ public:
 
 	//See Model::sendUndo note.
 	//void addUndo(Undo *u,bool listCombine = false);
-	void addUndo(Undo *u);
+	void addUndo(Undo *u, bool combine=true);
 	void operationComplete(const char *opname);
 
 	// Items should be applied in reverse order (back to front)
@@ -77,6 +79,21 @@ public:
 
 	//Exposing in order to implement Model::appendUndo.
 	AtomicList &getUndoStack(){ return m_atomic; }
+
+	//2022: This is helpful for sorted_list based undo
+	//object performance.
+	template<class U> U *resume()
+	{
+		if(auto*l=m_currentList)
+		for(auto rit=l->rbegin();rit<l->rend();rit++)
+		{
+			if(auto*u=dynamic_cast<U*>(*rit))
+			return u;			
+			if(Undo::CC_Stop==(*rit)->combine())
+			return nullptr;
+		}
+		return nullptr;
+	}
 
 	// Only returns undo list if there is one being built
 	// Items should be applied in reverse order (back to front)
@@ -99,7 +116,7 @@ protected:
 		MAX_UNDO_LIST_SIZE = 20000000  // 20mb
 	};
 
-	//bool combineWithList(Undo *u);
+	bool combineWithList(Undo *u);
 	void pushUndoToList(Undo *u);
 	void clearRedo();
 	void checkSize();

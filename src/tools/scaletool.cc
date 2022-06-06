@@ -45,7 +45,7 @@ enum ScalePointE
 
 struct ScaleTool : Tool
 {
-	ScaleTool():Tool(TT_Other)
+	ScaleTool():Tool(TT_ScaleTool)
 	{
 		m_proportion = m_point = 0; //config details		
 		m_translate = true;		

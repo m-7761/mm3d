@@ -64,6 +64,12 @@ public:
 		TT_Other, //TT_Manipulator,
 		TT_Creator,
 		TT_SelectTool,
+
+		//HACK: These are for synchronizing tools 
+		//with the texture and animation systems.
+		TT_MoveTool,
+		TT_ScaleTool,
+		TT_RotateTool,
 	};
 
 	const ToolType m_tooltype;	
@@ -210,6 +216,10 @@ public:
 		ViewBottom,
 		ViewOrtho,
 		//NEW: Higher are user orthographic.
+
+		//This is limited to going from ViewOrtho
+		//to one of the 6 axial views.
+		ViewOrthoDetect=100, 
 	};
 
 protected:
@@ -234,9 +244,9 @@ class Tool::Parent
 {
 public:
 	
-	Tool *const tool; int tool_index;
-
-	Parent():tool(),_bs_lock(){}
+	Tool *const tool = nullptr; 
+	
+	int tool_index;
 
 	void resetCurrentTool()
 	{
@@ -244,14 +254,14 @@ public:
 	}
 	void setCurrentTool(Tool *p, int index)
 	{
-		tool_index = index; if(tool)
+		if(tool)
 		{
 			tool->deactivated(); //REMOVE ME
 			removeParams();
 			const_cast<Parent*&>(tool->parent) = nullptr;
 			const_cast<Tool*&>(tool) = nullptr;
 		}
-		if(p)
+		tool_index = index; if(p)
 		{
 			const_cast<Parent*&>(p->parent) = this;
 			const_cast<Tool*&>(tool) = p;
@@ -418,7 +428,7 @@ public:
 	Model::Position snap_object;
 	unsigned snap_vertex;
 
-	int _bs,_bx,_by,_bs_lock;
+	int _bs,_bx,_by,_bs_lock = 0;
 
 	int &getButtonX(){ return _bx; }
 	int &getButtonY(){ return _by; }

@@ -1,4 +1,4 @@
-/*  MM3D Misfit/Maverick Model 3D
+ /*  MM3D Misfit/Maverick Model 3D
  *
  * Copyright (c)2004-2007 Kevin Worcester
  *
@@ -27,10 +27,9 @@
 #include "viewwin.h"
 
 #include "model.h"
-
 #include "log.h"
 #include "msg.h"
- 
+
 struct NewAnim : Win
 {		
 	void submit(int id)
@@ -73,7 +72,6 @@ struct AnimWin::Impl
 	Impl(AnimWin &win)
 		:
 	win(win),
-	shelf1(win.shelf1),shelf2(win.shelf2),
 	sidebar(win.model.sidebar.anim_panel),
 	new_animation(sidebar.new_animation),
 	//sep_animation(sidebar.sep_animation),
@@ -86,18 +84,30 @@ struct AnimWin::Impl
 		//it's opaque.
 		int swap = sidebar.animation;
 		sidebar.animation.clear();
-		sidebar.animation.reference(shelf1.animation);				
+		sidebar.animation.reference(win.animation);				
 		sidebar.refresh_list();
 		sidebar.animation.select_id(swap);
-		shelf1.animation.select_id(-1);
+		win.animation.select_id(-1);
+		
+		_init_menu_toolbar(); //2022		
+	}
+	~Impl()
+	{
+		for(int*m=&_menubar;m<=&_anim_menu;m++)
+		glutDestroyMenu(*m);
 	}
 
 	AnimWin &win;
-	shelf1_group &shelf1;
-	shelf2_group &shelf2;
 	SideBar::AnimPanel &sidebar;
 	const int &new_animation; 
 	//const int &sep_animation;
+
+	int _menubar;
+	int _tool_menu;
+	int _anim_menu;
+	void _init_menu_toolbar();
+
+	void draw_tool_text();
 
 	Model *model;
 	Model::AnimationModeE mode;
@@ -119,7 +129,6 @@ struct AnimWin::Impl
 
 	void play(int=0);
 	void stop(){ play(id_animate_stop); }
-	bool loop();
 	bool step();
 
 	void anim_selected(int, bool local=false);
@@ -128,7 +137,7 @@ struct AnimWin::Impl
 	void frames_edited(double);	
 	void set_frame(double);
  
-	bool copy(bool selected);
+	bool copy();
 	void paste(bool values);
 
 
@@ -171,14 +180,16 @@ struct AnimWin::Impl
 	};
 
 	struct KeyframeCopy
-	{
-		unsigned object; 
-		
+	{			
 		KeyframeData data[3];
+
+		unsigned object;
+		const void *object2; //2022
 	};
 	struct VertexFrameCopy : KeyframeData
 	{
 		unsigned vertex;
+		const void *vertex2; //2022
 	};
 	/*struct FramePointCopy
 	{
@@ -189,16 +200,217 @@ struct AnimWin::Impl
 	std::vector<KeyframeCopy> copy3; //FramePointCopy
 };
 
-/*UNIMPLEMENTED
-static int animwin_tick_interval(int val)
+enum
 {
-	//Worth it? There's a big difference in 5000 and 1000??
+	//REMINDER: These names go in keycfg.ini!
 
-	if(val>=25000) return 5000; if(val>=10000) return 1000;
-	if(val>=2500) return 500;   if(val>=1000) return 100;
-	if(val>=250) return 50;     if(val>=100) return 10;
-	if(val>=25) return 5;       return 1;
-}*/
+	id_aw_view_init=id_view_init,
+	id_aw_view_snap=id_view_persp, //init+1
+
+	//Tool
+	id_aw_tool_move=GraphicWidget::MouseMove,
+	id_aw_tool_scale=GraphicWidget::MouseScale,
+	id_aw_tool_select=GraphicWidget::MouseSelect,
+	//these should start at 0, however that
+	//clashes with the
+	//above enum values
+	id_aw_model=1000, //ARBITRARY
+	id_aw_anims=2000, //how many?
+
+	id_aw_hide_delete=3000,
+	id_aw_hide_cancel,
+};
+static bool animwin_auto_scroll;
+extern void win_help(const char*, Win::ui *w);
+void AnimWin::_menubarfunc(int id)
+{
+	AnimWin *aw;
+	MainWin* &viewwin(int=glutGetWindow());
+	if(auto*w=viewwin())
+	aw = w->_animation_win;
+	else{ assert(0); return; } assert(aw);
+
+	if((unsigned)(id-id_aw_anims)<100)
+	{
+		aw->impl->anim_selected(id-id_aw_anims-1);
+	}
+	else switch(id) //Tool?
+	{
+	case id_help:
+
+		aw->submit(id_help);
+		break;
+
+	case id_animate_window:
+
+		aw->submit(id_ok);
+		break;
+	
+	case id_edit_undo:
+	case id_edit_redo:
+
+		aw->model.perform_menu_action(id);
+		break;
+
+	case id_tool_toggle: //DICEY
+	case id_tool_none: //Esc???
+	
+		id+=id_aw_model; //break; //Ready for subtraction below.
+
+	case id_aw_model+4: //tool_select_bone_joints?
+	case id_aw_model+5: //tool_select_points?
+
+		glutSetWindow(aw->model.glut_window_id);				
+		extern void viewwin_toolboxfunc(int);
+		viewwin_toolboxfunc(id-id_aw_model);
+		break;
+
+	case id_aw_tool_select: 
+
+		aw->model._sync_sel2 = -1; //HACK		
+		aw->select.set_int_val(0);
+		aw->graphic.setMouseSelection(graphic::Select);
+		aw->shrinkSelect();
+		//break;
+
+	case id_aw_tool_move:	
+	case id_aw_tool_scale: //case id_aw_tool_select: 
+
+		aw->_show_tool(id);
+		aw->graphic.setMouseOperation((graphic::MouseE)id);	
+		
+		switch(id)
+		{
+		case id_aw_tool_select: id = Tool::TT_SelectTool; break;
+		case id_aw_tool_move: id = Tool::TT_MoveTool; break;
+		case id_aw_tool_scale: id = Tool::TT_ScaleTool; break;
+		}
+		
+		aw->scene.redraw();
+		aw->model._sync_tools(id,0); //Note: 0 is tool_connected.
+		return; //break;
+
+	case id_aw_view_init:
+
+		aw->graphic.keyPressEvent(Tool::BS_Left|Tool::BS_Special,0,0,0); //Home
+		break;
+
+	case id_aw_view_snap:
+
+		animwin_auto_scroll = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
+		config.set("aw_view_snap",animwin_auto_scroll);
+		break;
+
+	case id_aw_hide_delete:
+	case id_aw_hide_cancel:
+
+		aw->_toggle_button(id-id_aw_hide_delete);
+		break;
+	}
+}
+void AnimWin::_toggle_button(int id)
+{
+	//It's helpful to show the buttons and nav needs
+	//to be adjusted to trigger reshape, although it 
+	//may not matter if a different tool is selected.
+	if(graphic.m_operation)
+	{
+		_show_tool(0);
+		graphic.m_operation = graphic::MouseNone;
+		glutSetMenu(impl->_tool_menu);
+		glutext::glutMenuEnable(id_tool_none,glutext::GLUT_MENU_CHECK);
+	}
+
+	auto &bt = (id?close:del);
+	bt.set_hidden(!bt.hidden());
+	int bts = del.hidden();
+	bts|=close.hidden()<<1;			
+	config.set("aw_buttons_mask",bts);
+	if(id==1)
+	close.id(bts&2?id_ok:id_close);
+
+	if(seen()) //DICEY
+	{
+		int dx = anim_nav._w;
+		anim_nav.pack();
+		dx = anim_nav._w-dx;				
+		_reshape[2]+=dx;
+		nav.lock(nav._w+dx,0);				
+	}
+}
+void AnimWin::Impl::_init_menu_toolbar()
+{	
+	std::string o; //radio	
+	#define E(id,...) viewwin_menu_entry(o,#id,__VA_ARGS__),id_##id
+	#define O(on,id,...) viewwin_menu_radio(o,on,#id,__VA_ARGS__),id_##id
+	#define X(on,id,...) viewwin_menu_check(o,on,#id,__VA_ARGS__),id_##id
+	extern utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t="", utf8 def="", bool clr=true);
+	extern utf8 viewwin_menu_radio(std::string &o, bool O, utf8 key, utf8 n, utf8 t="", utf8 def="");
+	extern utf8 viewwin_menu_check(std::string &o, bool X, utf8 key, utf8 n, utf8 t="", utf8 def="");
+	
+	static int frame_menu=0; if(!frame_menu)
+	{
+		frame_menu = glutCreateMenu(_menubarfunc);
+		//NEED SOMETHING HERE
+	}
+	static int view_menu=0; if(!view_menu)
+	{
+		view_menu = glutCreateMenu(_menubarfunc);
+		glutAddMenuEntry(E(aw_view_init,"Reset","","Home"));
+		glutAddMenuEntry();
+		bool x = config.get("aw_view_snap",true);
+		animwin_auto_scroll = x;
+		glutAddMenuEntry(X(x,aw_view_snap,"Auto-Scroll","","F12")); 
+	}	
+		_tool_menu = glutCreateMenu(_menubarfunc);
+		glutAddMenuEntry(viewwin_menu_radio(o,false,"tool_select_connected","Select","Tool","C"),id_aw_tool_select);
+		glutAddMenuEntry(viewwin_menu_radio(o,false,"tool_move","Move","Tool","T"),id_aw_tool_move);
+		glutAddMenuEntry(viewwin_menu_radio(o,false,"tool_scale","Scale","Tool","S"),id_aw_tool_scale);
+		glutAddMenuEntry(O(true,tool_none,"None","","Esc"));	
+	
+	static int model_menu=0; if(!model_menu)
+	{
+		model_menu = glutCreateMenu(_menubarfunc);
+		glutAddMenuEntry(viewwin_menu_entry(o,"edit_undo","Undo","Undo shortcut","Ctrl+Z"),id_edit_undo);
+		glutAddMenuEntry(viewwin_menu_entry(o,"edit_redo","Redo","Redo shortcut","Ctrl+Y"),id_edit_redo);
+		glutAddMenuEntry();
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_bone_joints","Select Bone Joints","Tool","B"),id_aw_model+4);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_points","Select Points","Tool","O"),id_aw_model+5);
+		glutAddMenuEntry();
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_toggle","Toggle Tool","","Tab"),id_tool_toggle);
+	}
+	
+		_anim_menu = glutCreateMenu(_menubarfunc);
+
+	static int f1_menu=0; if(!f1_menu)
+	{
+		int buttons = glutCreateMenu(_menubarfunc);		
+		glutAddMenuEntry(E(aw_hide_delete,"Toggle Delete","","Shift+Delete"));
+		glutAddMenuEntry(E(aw_hide_cancel,"Toggle Esc","","Shift+Esc"));
+		f1_menu = glutCreateMenu(_menubarfunc);
+		glutAddMenuEntry(E(help,"Contents","Help|Contents","F1"));
+		glutAddMenuEntry();
+		glutAddSubMenu("Buttons",buttons);
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(animate_window,"Close","","A"));
+	}
+	int bts = config.get("aw_buttons_mask",0);
+	if(bts&1) win.del.set_hidden();
+	if(bts&2) win.close.set_hidden().id(id_ok);
+
+	_menubar = glutCreateMenu(AnimWin::_menubarfunc);
+	glutAddSubMenu(::tr("Frame","menu bar"),frame_menu);
+	glutAddSubMenu(::tr("View","menu bar"),view_menu);
+	glutAddSubMenu(::tr("Tools","menu bar"),_tool_menu);
+	glutAddSubMenu(::tr("Model","menu bar"),model_menu);
+	glutAddSubMenu(::tr("Animation","menu bar"),_anim_menu);
+	glutAddSubMenu(::tr("Help","menu bar"),f1_menu);
+	glutAttachMenu(glutext::GLUT_NON_BUTTON);
+
+	#undef E //viewwin_menu_entry
+	#undef O //viewwin_menu_radio
+	#undef X //viewwin_menu_check
+}
 
 extern void animwin_enable_menu(int menu, int ins)
 {
@@ -212,10 +424,8 @@ extern void animwin_enable_menu(int menu, int ins)
 		
 	if(menu) glutSetMenu(menu);
 
-	//glutext::glutMenuEnable(id_animate_play,on);
 	if(!ins) on = 0;
-	glutext::glutMenuEnable(id_animate_copy,on); 
-	glutext::glutMenuEnable(id_animate_copy_all,on); 
+	glutext::glutMenuEnable(id_animate_copy,on);
 	glutext::glutMenuEnable(id_animate_paste,0); // Disabled until copy occurs
 	glutext::glutMenuEnable(id_animate_paste_v,0); // Disabled until copy occurs
 	glutext::glutMenuEnable(id_animate_delete,on); 
@@ -232,7 +442,7 @@ void AnimWin::open(bool undo)
 	//background to support the sidebar and toolbar.
 	//It's like this because animwin.cc has so much
 	//code.
-	//show(); 
+	//show();
 }
 void AnimWin::Impl::open2(bool undo)
 {	
@@ -248,6 +458,8 @@ void AnimWin::Impl::open2(bool undo)
 		swapping = true; //NEW
 
 		model = win.model;
+
+		win.graphic.setModel(model); //2022
 
 		soft_anim = ~0;
 	}
@@ -266,7 +478,7 @@ void AnimWin::Impl::open2(bool undo)
 	}
 	else
 	{
-		int id = sidebar.animation;		 
+		int id = sidebar.animation;
 		if(id==new_animation)
 		{
 			//RECURSIVE
@@ -297,7 +509,7 @@ void AnimWin::Impl::open2(bool undo)
 	//if(mode) animwin_enable_menu(win.menu);
 	animwin_enable_menu(mode?win.menu:-win.menu,win.model.animate_insert);
 
-	shelf1.animation.select_id(anim_item());
+	win.animation.select_id(anim_item());
 	sidebar.animation.select_id(anim_item());
 	
 	if(!undo&&mode)
@@ -345,19 +557,19 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 {
 	//log_debug("anim name selected: %d\n",item); //???
 
-	int was = shelf1.animation;
+	int was = win.animation;
 
 	if(item==was)
 	{
 		if(!local)
 		{
 			double cmp = sidebar.frame;
-			if(cmp!=shelf2.timeline.float_val()) 
+			if(cmp!=win.timeline.float_val()) 
 			set_frame(cmp);
 			return;
 		}		
 	}
-	else shelf1.animation.select_id(item);
+	else win.animation.select_id(item);
 	
 	if(item!=sidebar.animation.int_val())
 	{
@@ -405,7 +617,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 		}
 		else
 		{
-			shelf1.animation.select_id(anim_item());
+			win.animation.select_id(anim_item());
 			sidebar.animation.select_id(anim_item());
 		}
 	}
@@ -438,30 +650,79 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 
 		//Reminder: set_frame checks if playing.
 		refresh_item(); 
-	}	
+	}
 }
 
 void AnimWin::modelChanged(int changeBits)
 {
 	if(changeBits&(Model::AnimationMode|Model::AnimationSet))
 	impl->refresh_undo();
-	if(changeBits&Model::AnimationProperty)
-	impl->frames_edited(model->getAnimTimeFrame(impl->anim));
+	if(changeBits&Model::AnimationProperty&&impl->mode)
+	{
+		impl->frames_edited(model->getAnimTimeFrame(impl->anim));
+
+		//2022: I'm not sure this shouldn't just call on
+		//refresh_undo() as well?
+		fps.set_float_val(model->getAnimFPS(impl->anim));
+		wrap.set(model->getAnimWrap(impl->anim));
+	}
+
+	//if(!status.hidden())
+	{
+		int y = 0;
+		if(impl->mode&1) y+=model.nselection[Model::PT_Joint];
+		if(impl->mode&2) y+=model.nselection[Model::PT_Point];
+		if(y<=2) y*=125;
+		else y = 250+50*std::min(4,y-2);
+		//y+=impl->mode?35:25; //I swear 35 seems too little?
+		y+=impl->mode?37:25; //I swear 40 seems like too much?
+		int yy = status.drop();
+		int extra = yy-status.int_val(); //Add manual resizing?
+		if(y+extra>720)
+		y = 720-extra;
+		status.int_val() = y;
+		y+=extra;		
+		if(y!=status.drop()) status.lock(0,y);
+
+		//Assuming change?
+		//NOTE: I've changed key frames edits to AnimationProperty. 
+		status.redraw(); 
+	}
+		
+	//2022: Seeing if the dropdown menu can be removed now 
+	//that there's a big honking menubar :(
+	if(changeBits&(Model::AnimationSet
+	|Model::AnimationMode|Model::AddAnimation))
+	{
+		utf8 nm = nullptr;
+		if(impl->mode) nm = 
+		model->getAnimName(impl->anim);
+		glutSetWindow(glut_window_id());
+		glutSetWindowTitle(nm?nm:"<None>");
+	}
+
+	if(changeBits&Model::AnimationSelection)
+	{
+		updateXY();
+	}
 }
+
 void AnimWin::Impl::frames_edited(double n)
 {
-	bool op = model->setAnimTimeFrame(anim,n);
-	if(!op) n = model->getAnimTimeFrame(anim);
+	double nn = model->getAnimTimeFrame(anim);
+	if(nn!=n&&model->setAnimTimeFrame(anim,n))
+	model->operationComplete(::tr("Change Frame Count","operation complete"));
+	else n = nn;
 
-	shelf1.frames.set_float_val(n);
-	shelf2.timeline.set_range(0,n);
+	win.frames.set_float_val(n);	
+	win.timeline.set_range(0,n);
 	win.model.views.timeline.set_range(0,n);
 	sidebar.frame.limit(0,n);
+	win.frame.limit(0,n);
+	win.x.limit(0,n);
 	
 	//HACK: Truncate?
 	if(sidebar.frame.float_val()>n) set_frame(n);
-
-	if(op) model->operationComplete(::tr("Change Frame Count","operation complete"));
 }
 
 void AnimWin::Impl::set_frame(double i)
@@ -491,26 +752,36 @@ void AnimWin::Impl::set_frame(double i)
 	//DecalManager::getInstance()->modelUpdated(model); //???
 	model->updateObservers();
 
-	if(ok)
+	/*if(ok) //REFRENCE
 	{
 		if((int)i==i)
-		shelf2.timeline.name().format("%s\t%d",::tr("Frame: "),(int)i);
-		else shelf2.timeline.name().format("\t%g",i);
+		win.timeline.name().format("%s\t%d",::tr("Frame: "),(int)i);
+		else win.timeline.name().format("\t%g",i);
 	}
-	else shelf2.timeline.name(::tr("Frame: \tn/a"));
+	else win.timeline.name(::tr("Frame: \tn/a"));*/
+	if(ok) win.frame.set_float_val(i);
 
 	sidebar.frame.set_float_val(i);
 	win.model.views.timeline.set_float_val(i);
-	
-	//shelf2.timeline.name().push_back('\t');
+
+	//win.timeline.name().push_back('\t');
 
 	//frame = i;
 	frame = model->getAnimFrame(anim,i);
 	soft_frame = i;
-	shelf2.timeline.set_float_val(i); //NEW!
+	win.timeline.set_float_val(i); //NEW!
+
+	if(animwin_auto_scroll&&!autoplay)
+	if(!win.hidden()&&!win.timeline.empty()) //Synchronize?
+	{
+		//-1 is since the canvas is inside a 1px border.
+		int x = win.scene.x()-1+win.timeline.midpoint();
+
+		win.graphic.scrollAnimationFrameToPixel(x);	
+	}
 }
 
-bool AnimWin::Impl::copy(bool selected)
+bool AnimWin::Impl::copy()
 {
 	copy1.clear(); copy2.clear(); copy3.clear();
 
@@ -518,13 +789,18 @@ bool AnimWin::Impl::copy(bool selected)
 
 	if(mode&Model::ANIMMODE_JOINT)
 	{	
+		//2022: This matches copycmd.cc semantics and 
+		//the old system (Ctrl+Shift+C) is confused by
+		//making paste to filter according to selection.
+		size_t sel = win.model.nselection[Model::PT_Joint];
+
+		auto &jl = model->getJointList();
+		copy1.reserve(sel?sel:jl.size());
+
+		Model::Position jt{Model::PT_Joint,jl.size()};
+
 		KeyframeCopy cp;
-
-		size_t numJoints = model->getBoneJointCount();
-		copy1.reserve(numJoints);
-
-		for(Model::Position jt{Model::PT_Joint,0};jt<numJoints;jt++)
-		if(!selected||model->isBoneJointSelected(jt))			
+		while(jt-->0) if(!sel||jl[jt]->m_selected)
 		{
 			//https://github.com/zturtleman/mm3d/issues/127
 			//if(cp.e=model->getKeyframe(anim,frame,jt,rot,cp.x,cp.y,cp.z)) //???
@@ -537,7 +813,8 @@ bool AnimWin::Impl::copy(bool selected)
 				}
 				model->interpKeyframe(anim,frame,t,jt,&cd[0].x,&cd[1].x,&cd[2].x);
 
-				cp.object = jt; copy1.push_back(cp);
+				cp.object = jt;
+				cp.object2 = jl[jt]; copy1.push_back(cp);
 			}
 		}
 
@@ -551,13 +828,14 @@ bool AnimWin::Impl::copy(bool selected)
 	}
 	if(mode&Model::ANIMMODE_FRAME)
 	{
+		size_t sel = win.model.nselection[Model::PT_Vertex];		
+
+		auto &vl = model->getVertexList();
+		size_t v = vl.size();
+		copy2.reserve(sel?sel:v);
+
 		VertexFrameCopy cp;
-
-		size_t numVertices = model->getVertexCount();
-		copy2.reserve(numVertices);
-
-		for(size_t v=0;v<numVertices;v++)		
-		if(!selected||model->isVertexSelected(v))
+		while(v-->0) if(!sel||vl[v]->m_selected)
 		{
 			//https://github.com/zturtleman/mm3d/issues/127
 			//if(model->getFrameAnimVertexCoords(anim,frame,v,cp.x,cp.y,cp.z))
@@ -566,18 +844,21 @@ bool AnimWin::Impl::copy(bool selected)
 				cp.e = model->hasFrameAnimVertexCoords(anim,frame,v);
 				model->getVertexCoords(v,&cp.x);
 
-				cp.vertex = v; copy2.push_back(cp);
+				cp.vertex = v;
+				cp.vertex2 = vl[v]; copy2.push_back(cp);
 			}		
 		}
 
+		sel = win.model.nselection[Model::PT_Point];
+
+		auto &pl = model->getJointList();
+		copy3.reserve(sel?sel:pl.size());
+
+		Model::Position pt{Model::PT_Point,pl.size()};
+
 		//FramePointCopy cpt;
 		KeyframeCopy cpt; 
-
-		size_t numPoints = model->getPointCount();
-		copy3.reserve(numPoints);
-
-		for(Model::Position pt{Model::PT_Point,0};pt<numPoints;pt++)
-		if(!selected||model->isPointSelected(pt))
+		while(pt-->0) if(!sel||pl[pt]->m_selected)
 		{
 			/*
 			if(model->getFrameAnimPointCoords(anim,frame,pt,cpt.x,cpt.y,cpt.z)
@@ -596,7 +877,8 @@ bool AnimWin::Impl::copy(bool selected)
 				}			
 				model->interpKeyframe(anim,frame,t,pt,&cd[0].x,&cd[1].x,&cd[2].x);
 
-				cpt.object = pt; copy3.push_back(cpt);
+				cpt.object = pt;
+				cpt.object2 = pl[pt]; copy3.push_back(cpt);
 			}
 		}
 
@@ -618,28 +900,26 @@ bool AnimWin::Impl::copy(bool selected)
 }
 void AnimWin::Impl::paste(bool values)
 {
-	if(!mode) return;
-
-	int made = false;
-
+	int made = 0, attempts = 0;
 	if(mode==Model::ANIMMODE_JOINT
 	||mode&Model::ANIMMODE_JOINT&&!copy1.empty())
 	{
-		if(copy1.empty())
-		{
-			//msg_error(::tr("No skeletal animation data to paste"));
-			model_status(model,StatusError,STATUSTIME_LONG,"No skeletal animation data to paste");		
-			return;
-		}
+		if(copy1.empty()) //msg_error(::tr("No skeletal animation data to paste"));
+		return model_status(model,StatusError,STATUSTIME_LONG,"No skeletal animation data to paste");		
 
-		if(!made++) frame = model->makeCurrentAnimationFrame();
+		size_t sel = win.model.nselection[Model::PT_Joint];
 
 		auto &jl = model->getJointList();
 		for(KeyframeCopy*p=copy1.data(),*d=p+copy1.size();p<d;p++)
 		{
 			Model::Position jt{Model::PT_Joint,p->object};
+			
+			if(sel&&!jl[jt]->m_selected) continue;
 
-			if(jl[jt]->m_selected) for(int i=0;i<3;i++)			
+			attempts++; if(jl[jt]!=p->object2) continue;			
+			if(!made++) frame = model->makeCurrentAnimationFrame();
+
+			for(int i=0;i<3;i++)			
 			{
 				auto &cd = p->data[i];
 				auto kt = Model::KeyType2020E(1<<i);
@@ -649,31 +929,39 @@ void AnimWin::Impl::paste(bool values)
 		}
 	}
 	if(mode==Model::ANIMMODE_FRAME
-	 ||mode&Model::ANIMMODE_FRAME&&!(copy2.empty()&&copy3.empty()))
+	||mode&Model::ANIMMODE_FRAME&&!(copy2.empty()&&copy3.empty()))
 	{
-		if(copy2.empty()&&copy3.empty())
-		{
-			//msg_error(::tr("No frame animation data to paste"));
-			model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to paste");		
-			return;
-		}
+		if(copy2.empty()&&copy3.empty()) //msg_error(::tr("No frame animation data to paste"));
+		return model_status(model,StatusError,STATUSTIME_LONG,"No frame animation data to paste");		
 
-		if(!made++) frame = model->makeCurrentAnimationFrame();
+		size_t sel = win.model.nselection[Model::PT_Vertex];
 
 		auto &vl = model->getVertexList();
 		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
 		{
-			if(vl[p->vertex]->m_selected)
-			model->setFrameAnimVertexCoords(anim,frame,p->vertex,p->x,p->y,p->z,
+			auto *vp = vl[p->vertex];			
+			if(sel&&!vp->m_selected) continue; //2022
+
+			attempts++; if(vp!=p->vertex2) continue;			
+			if(!made++) frame = model->makeCurrentAnimationFrame();
+
+			model->setFrameAnimVertexCoords(anim,frame,p->vertex,&p->x,
 			values&&p->e<Model::InterpolateStep?Model::InterpolateLerp:p->e);
 		}
+
+		sel = win.model.nselection[Model::PT_Point];
 
 		auto &pl = model->getPointList();
 		for(KeyframeCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
 		{
 			Model::Position pt{Model::PT_Point,p->object};
+			
+			if(sel&&!pl[pt]->m_selected) continue;
 
-			if(pl[pt]->m_selected) for(int i=0;i<3;i++)			
+			attempts++; if(pl[pt]!=p->object2) continue;
+			if(!made++) frame = model->makeCurrentAnimationFrame();
+
+			for(int i=0;i<3;i++)			
 			{
 				auto &cd = p->data[i];
 				auto kt = Model::KeyType2020E(1<<i);
@@ -682,11 +970,13 @@ void AnimWin::Impl::paste(bool values)
 			}
 		}	
 	}
-	if(copy1.empty()&&copy2.empty()&&copy3.empty())
-	{
-		model_status(model,StatusError,STATUSTIME_LONG,"No skeletal/frame animation data to paste");		
-		return;
-	}
+	int errors = attempts-made;
+	if(attempts==0) //TODO: Report selection+clipboard disjunction?
+	return model_status(model,StatusError,STATUSTIME_LONG,"Selection and clipboard don't overlap");
+	if(errors!=0) model_status(model,StatusError,STATUSTIME_LONG,
+	"%d/%d couldn't paste because of model edits after the clipboard was filled",errors,attempts);
+	if(errors==attempts)
+	return model->undoCurrent(); //makeCurrentAnimationFrame?
 
 	model->setCurrentAnimationFrame(frame,Model::AT_invalidateAnim);
 
@@ -747,7 +1037,7 @@ void AnimWin::Impl::play(int id)
 		
 		win.model.views.playing1 = 0;
 
-		model->setCurrentAnimationFrameTime(shelf2.timeline,Model::AT_invalidateAnim);
+		model->setCurrentAnimationFrameTime(win.timeline,Model::AT_invalidateAnim);
 		model->updateObservers();
 	}
 
@@ -756,24 +1046,12 @@ void AnimWin::Impl::play(int id)
 	if(pic!=sidebar.play.picture())
 	{
 		sidebar.play.picture(pic).redraw();
-		shelf2.play.picture(pic).redraw();
+		win.play.picture(pic).redraw();
 	}
 
 	glutSetMenu(win.menu);
 	void *x = playing?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK;
 	glutext::glutMenuEnable(id_animate_play,x);
-}
-bool AnimWin::Impl::loop()
-{
-	int pic = sidebar.loop.picture();
-	pic = pic==pics[pic_stop]?pic_loop:pic_stop;
-	sidebar.loop.picture(pics[pic]).redraw();
-	shelf2.loop.picture(pics[pic]).redraw();
-	glutSetMenu(win.menu);
-	//REMINDER: Inverting these to work like play/pause just isn't as intuitive.
-	void *x = pic==pic_loop?glutext::GLUT_MENU_CHECK:glutext::GLUT_MENU_UNCHECK;
-	glutext::glutMenuEnable(id_animate_loop,x);
-	return pic==pic_loop;
 }
 bool AnimWin::Impl::step()
 {
@@ -805,30 +1083,41 @@ void AnimWin::Impl::refresh_item(bool undo)
 	//log_debug("refresh anim window page\n"); //???
 
 	bool wrap = false;
+	bool op = win.graphic.m_operation!=0;
 	double fps = 0;
 	double frames = 0;
 	if(!new_animation
-	||-1==shelf1.animation.int_val()) //NEW
+	||-1==win.animation.int_val()) //NEW
 	{	
-		shelf1.nav.disable();
-		shelf1.animation.enable();
-		shelf1.fps.limit();
+		op = false;
+
+		//NOTE: Don't disable the play/loop buttons.
+		win.frame.disable();
+		win.anim_nav.disable();
+		win.zoom.nav.disable();
+		win.fps.limit();
+		win.close.enable();
 	}
 	else
 	{
-		shelf1.nav.enable();
-		shelf1.fps.limit(Model::setAnimFPS_minimum,120); //1
+		win.nav.enable();
+		win.fps.limit(Model::setAnimFPS_minimum,120); //1
 
 		fps = model->getAnimFPS(anim);
 		wrap = model->getAnimWrap(anim);
 		frames = model->getAnimTimeFrame(anim);
 	}
-	shelf1.fps.set_float_val(fps);
-	shelf1.wrap.set(wrap);
-	shelf1.frames.set_float_val(frames);	
-	shelf2.timeline.set_range(0,frames);
+	win.anim_nav.set_hidden(op);
+	win.tool_nav.set_hidden(!op);
+	win.updateXY();
+	win.fps.set_float_val(fps);
+	win.wrap.set(wrap);
+	win.frames.set_float_val(frames);	
+	win.timeline.set_range(0,frames);
 	sidebar.frame.limit(0,frames);
+	win.frame.limit(0,frames);
 	win.model.views.timeline.set_range(0,frames);
+	win.x.limit(0,frames);
 
 	//set_frame(frame)
 	double f; if(!undo&&mode&&anim!=soft_anim)
@@ -850,9 +1139,10 @@ void AnimWin::Impl::refresh_item(bool undo)
 			//up is on the left side, so it's better to be
 			//at the beginning to be closer to the slider.
 			//(which is true in both cases.)
+			/*This makes less sense with the newer layout.
 			if(&win==event.active_control_ui)
 			f = 0;
-			else
+			else*/
 			f = model->getAnimTimeFrame(anim);
 		}
 		else f = model->getCurrentAnimationFrameTime();
@@ -881,7 +1171,7 @@ void AnimWin::Impl::refresh_undo()
 	frame = model->getCurrentAnimationFrame();
 	soft_frame = model->getCurrentAnimationFrameTime();
 
-	shelf1.animation.select_id(anim_item());
+	win.animation.select_id(anim_item());
 	sidebar.animation.select_id(anim_item());
 
 	//FIX ME
@@ -904,13 +1194,15 @@ void AnimWin::Impl::close()
 	//NEW: Keeping open.
 	//NOTE: If modelChanged is implemented this is uncalled for.
 	mode = Model::ANIMMODE_NONE;
-	anim = 0;
-	frame = 0;
-	soft_frame = 0;
-	shelf1.animation.select_id(-1);
+	//2022: These need to be remembered for toggling animations
+	//on and off.
+	//anim = 0;
+	//frame = 0;
+	//soft_frame = 0; //This too?
+	win.animation.select_id(-1);
 	sidebar.animation.select_id(-1);
 	refresh_item();
-		
+
 	//emit animWindowClosed();
 	//emit(this,animWindowClosed);
 	{	
@@ -926,6 +1218,254 @@ void AnimWin::Impl::close()
 	}
 }
 
+static void animwin_reshape(Win::ui *ui, int x, int y)
+{
+	assert(!ui->hidden()); //DEBUGGING
+
+	auto *w = (AnimWin*)ui;
+	auto &r = w->_reshape;
+
+	if(!ui->seen())
+	{
+		r[0] = x-w->nav.span(); 
+		r[1] = y-w->status.drop();
+		r[2] = x;
+		r[3] = r[1]+25; //y
+		return;
+	}
+
+	if(x<r[2]) x+=r[2]-x; 
+	if(y<r[3]) y+=r[3]-y; 
+
+	w->nav.lock(x-r[0],0);
+	w->status.lock(0,y-r[1]);
+}
+
+void AnimWin::Impl::draw_tool_text()
+{
+	utf8 str; switch(win.graphic.m_operation)
+	{
+	default: return;
+	case graphic::MouseMove: str = "Move"; break;
+	case graphic::MouseSelect: str = "Select"; break;
+	case graphic::MouseScale: str = "Scale"; break;
+	}
+	glColor3ub(32,32,32); //bold?
+	int x = win.scene.width()-win.scene.str_span(str)-8;
+	int y = win.scene.height()-win.scene.font().height-1;
+	win.scene.draw_str(x,y,str);
+	win.scene.draw_str(x-1,y,str); //bold?
+}
+void AnimWin::_show_tool(int id)
+{
+	int cur = graphic.m_operation;
+	switch(cur)
+	{
+	case graphic::MouseMove: move_snap.set_hidden(true); break;
+	case graphic::MouseScale: scale.set_hidden(true); break;
+	case graphic::MouseSelect: select.set_hidden(true); break;
+	
+	}	
+	switch(id)
+	{
+	case graphic::MouseMove: move_snap.set_hidden(false); break;
+	case graphic::MouseScale: scale.set_hidden(false); break;
+	case graphic::MouseSelect: select.set_hidden(false); break;
+	}
+
+	//I don't know what to do with move/scale
+	//for the time being.
+	if(id&&-1!=key.int_val()) 
+	{
+		key.set_hidden(id!=graphic::MouseSelect);
+		y.set_hidden(id!=graphic::MouseSelect);
+	}
+
+	anim_nav.set_hidden(id!=0);
+	tool_nav.set_hidden(id==0);	
+}
+void AnimWin::_sync_tools(int tt, int arg)
+{
+	int t = (int)graphic.m_operation;
+	switch(t)
+	{
+	case graphic::MouseNone: t = Tool::TT_NullTool; break;
+	case graphic::MouseMove: t = Tool::TT_MoveTool; break;
+	case graphic::MouseSelect: t = Tool::TT_SelectTool; break;
+	case graphic::MouseScale: t = Tool::TT_ScaleTool; break;
+	default: return;
+	}
+	if(t==tt) //return;
+	{
+		if(tt==Tool::TT_SelectTool&&arg!=(int)select)
+		goto select;
+		return;
+	}
+
+	switch(tt)
+	{
+	default: return;
+	case Tool::TT_NullTool:  t = graphic::MouseNone; break; 
+	case Tool::TT_SelectTool: t = graphic::MouseSelect; break;
+	case Tool::TT_MoveTool: t = graphic::MouseMove; break;
+	case Tool::TT_ScaleTool: t = graphic::MouseScale; break;
+	}
+
+	_show_tool(t);
+	graphic.setMouseOperation((graphic::MouseE)t);
+
+	if(!tt) t = id_tool_none;
+	glutSetMenu(impl->_tool_menu);
+	glutext::glutMenuEnable(t,glutext::GLUT_MENU_CHECK);
+
+	if(tt==Tool::TT_SelectTool) select:
+	{
+		arg = arg>=1&&arg<=2?arg:0;
+
+		select.set_int_val(arg);
+		graphic.setMouseSelection((graphic::SelectE)arg);
+		shrinkSelect();
+	}
+	else scene.redraw();
+}
+void AnimWin::_sync_anim_menu()
+{
+	assert(!hidden());
+
+	std::string s;
+	glutSetMenu(impl->_anim_menu); 
+	int seps = 0;
+	int iN = glutGet(GLUT_MENU_NUM_ITEMS);	
+	int i,n = impl->new_animation;
+	li::item *it = animation.first_item();
+	for(i=0;i<=n;i++,it=it->next())
+	{
+		auto *str = it->c_str();
+		if(!*str)
+		{
+			seps++; it = it->next();
+
+			if(i+seps>=iN) glutAddMenuEntry();
+			else glutChangeToMenuEntry(i+1,"",-1);
+		}
+		if(i<=10)
+		{
+			s = str; s.append("\t0").back()+=i; str = s.c_str();
+		}
+		int id = id_aw_anims+it->id()+1;
+		if(i+seps>=iN) glutAddMenuEntry(str,id);
+		else glutChangeToMenuEntry(1+seps+i,str,id);
+	}
+	while(i+seps<iN) glutRemoveMenuItem(iN--);
+}
+void AnimWin::init()
+{	
+	anim_nav.calign();
+	tool_nav.calign();
+	reshape_callback = animwin_reshape;
+
+	tool_nav.set_hidden(true);
+	//tool_nav.style(~0xa0000); //shadow top/bottom?
+	tool_nav.style(~0x50000); //left/right?
+	
+	//This is used to let Tab hotkeys go to menus.
+	//It depends on Win::Widget activating itself.
+	scene.ctrl_tab_navigate();
+
+	main->space(3,1,3,2,3); //2022		
+	nav.cspace_all<center>();
+	nav.space<bottom>(-1);
+	frame_nav.space(0,1,0);
+	anim_nav.space(3,4,3);
+	tool_nav.space(3,4,3);
+	select.cspace<top>();
+	//HACK: -1 happens to lineup the label and the items.
+	select.row_pack().place(mi::right).space(0,0,-5,-1,0);
+	//1 is compensating for cspace and -4 is closing the
+	//gap to the X box to meet the Select tool's spacing.
+	scale_sfc.space<bottom>(1).space<right>()-=4;
+	move_snap.space<bottom>(1).space<right>()-=4;
+	
+	fps.edit<double>(0,0).compact();		
+	frames.edit<double>(0,INT_MAX).compact();		
+	play.picture(pics[pic_play]);
+	loop.picture(pics[pic_stop]);
+	timeline.spin(0.0);
+	//IMPLEMENT ME? (QSlider API)
+	//Tickmarks can't currently be drawn on a regular slider.
+	//timeline.style(bar::sunken|bar::tickmark|behind);
+	timeline.style(bar::shadow);
+	extern int viewwin_tick(Win::si*,int,double&,int);
+	timeline.set_tick_callback(viewwin_tick);
+	frame.spinner.set_tick_callback(viewwin_tick);
+	frames.spinner.set_speed();
+	fps.spinner.set_speed();
+	
+	#ifdef NDEBUG
+//		#error should probably remove animation
+	#endif
+	//This has to be fixed one way or other.
+	/*Trying to remove this by using the menu bar instead since
+	//it's not clearly labeled if the window titlebar no longer
+	//says Animation.
+	animation.lock(m->sidebar.anim_panel.animation.span(),0);*/
+	animation.set_hidden();
+
+	//YUCK: Negative margins increase height.
+	//(I don't know why negative is required.)
+	//timeline.drop(play.drop()).expand();
+	timeline.space<bottom>(-4).expand().drop()+=4; //25
+	frame.edit(0.0,0.0,0.0).compact();
+	frame.drop()++;
+	del.span(30); close.span(30);
+		 
+	//HACK: This is to make the canvas flush
+	//with the panel border.
+	scene.space(-4,0,-4,-2,-4);
+	status.expand();
+
+	graphic.setModel(model);
+	graphic.label_height = scene.font().height-3; //FUDGE
+
+	//HACK: initially show F1 help message?
+	status.int_val() = 25; status.lock(0,25);
+
+	x.edit(0.0,0.0,0.0).compact();
+	x.space<bottom>(4); //cspace
+	x.space<left>()+=3;
+	x.spinner.set_speed();		
+	x.set_hidden(); 
+	y.edit(0.0).compact();
+	y.space<bottom>(4); //cspace
+	//Don't need this without "Y" the label.
+	//y.space<left>()+=3;
+	//NOTE: If compact() is used this will have to overcome
+	//a 7 pixel margin that update_area erases.
+	y.span() = 79; //1 more digit?
+	y.update_area(); //TESTING
+	y.set_hidden(); 
+
+	select.set_hidden();
+	move_snap.set_hidden();
+	scale.set_hidden();		
+	key.int_val() = -1;
+	key.set_hidden();
+	key.row_pack().space(2,-5,-3);
+	int bt = rx.style_tab|rx.style_thin|rx.style_hide;
+	for(auto*p=&rx;p<=&tz;p++) p->style(bt).span(10);	
+
+	//This is so the "shadow" bars around tool_nav run the
+	//full height of the crossbar.
+	int nh = nav.pack().drop();
+	tool_nav.lock(0,nh); key.lock(0,nh).space(-1,-1);
+
+	assert(!impl);
+	impl = new Impl(*this);
+
+	nav.lock(true,true);
+
+	return open(false);
+}
 AnimWin::~AnimWin()
 {
 	//log_debug("Destroying AnimWin()\n"); //???
@@ -934,49 +1474,109 @@ AnimWin::~AnimWin()
 }
 void AnimWin::submit(int id)
 {
+	MainWin *w = &model;
+	Model *m = model.operator->();
+
 	switch(id)
 	{
-	case id_init:
-		
-		//log_debug("AnimWidget constructor\n"); //???
-		
-		shelf1.fps.edit<double>(0,0);
-		shelf1.frames.edit<double>(0,INT_MAX).compact();
-		shelf2.play.span(60).picture(pics[pic_play]);
-		shelf2.loop.span(60).picture(pics[pic_stop]);		
-		shelf2.timeline.spin(0.0); //NEW (2020)
-		//IMPLEMENT ME? (QSlider API)
-		//Tickmarks can't currently be drawn on a regular slider.
-		//shelf2.timeline.style(bar::sunken|bar::tickmark|behind);
-		shelf2.timeline.style(bar::shadow);
-		extern int viewwin_tick(Win::si*,int,double&,int);
-		shelf2.timeline.set_tick_callback(viewwin_tick);
-		
-		//Line up Delete button with scrollbar.
-		shelf2.nav.pack();
-		shelf1.animation.lock(shelf2.timeline.active_area<0>()-12,false);
+	case id_help: //id_f1
 
-		//Make space equal to that above media buttons.
-		//shelf2.timeline.space<top>(3).drop()+=2;
-		//shelf2.timeline.drop(shelf2.play.drop());
-		shelf2.timeline.space<top>(3).drop()+=7;
-		shelf1.fps.space<top>(4);
-		shelf1.wrap.space<top>(5);
-		shelf1.frames.space<top>(4);
-
-		assert(!impl);
-		impl = new Impl(*this);
-		open(false);
-		
+		//aw->f1.execute_callback();
+		win_help(typeid(AnimWin).name(),this);
 		break;
 
+	case id_scene:
+	
+		if(!impl->mode) 
+		{
+			scene.draw_active_name(0,3,f1_titlebar::msg());
+			//mousePressSignal won't be called when clicking F1 if
+			//not initialized (this isn't necessary but I want to
+			//document this and avoid glTranslated for right now.)
+			if(graphic.m_viewportWidth) break;
+		}
+		//INVESTIGATE ME
+		//GL_LINE_SMOOTH has some very slight ghosting going on on my
+		//system... it's probably to do with the Widgets 95 projection
+		//setup... which has a lot of fudging for different use cases.
+		//
+		//FYI this is identical to Xming_x_server_y in set_ortho_projection
+		//It's now disabled unless Xming is the server, which I'm not trying
+		//to include here.
+		//glTranslated(0,0.1,0);
+		graphic.draw(scene.x(),scene.y(),scene.width(),scene.height());
+		impl->draw_tool_text();
+		//glTranslated(0,-0.1,0);
+
+		break;
+
+	case 'X': 
+	
+		graphic.moveSelectedFrames(x.float_val()-centerpoint[0]); 
+		updateCoordsDone();
+		break;
+
+	case 'Y':
+	{
+		int k = key;
+		double c = y; switch(k)
+		{
+		case 3: case 4: case 5: c*=PIOVER180; break;
+		}		
+		//graphic doesn't know about the key filter.
+		//graphic.moveSelectedVertex(c-centerpoint[1]); 
+		{
+			c-=centerpoint[1];
+			auto *a = m->getAnimationList()[impl->anim];
+
+			int dim = k%3;
+			int e = 1<<k/3;
+			for(auto&ea:a->m_keyframes)
+			for(auto*kp:ea.second)
+			if(kp->m_selected[dim])
+			if(e==kp->m_isRotation)
+			{
+				double p[3];
+				memcpy(p,kp->m_parameter,sizeof(p));
+				p[dim]+=c;
+				m->setKeyframe(impl->anim,kp,p);
+			}
+		}		
+		updateCoordsDone();
+		break;
+	}
+	case id_key:
+
+		updateXY(false);
+		break;
+
+	case id_select:
+
+		graphic.setMouseSelection((graphic::SelectE)select.int_val());
+		model._sync_tools(Tool::TT_SelectTool,select);
+		shrinkSelect();
+		break;
+
+	case id_stf:
+
+		graphic.setMoveToFrame(move_snap);
+		break;
+
+	case id_sfc:
+
+		graphic.setScaleFromCenter(scale_sfc);
+		break;
+
+	case '+': graphic.zoomIn(); break;
+	case '-': graphic.zoomOut(); break;
+	case '=': graphic.setZoomLevel(zoom.value); break;
+	
 	case id_animate_copy:
-	case id_animate_copy_all: 
 
 		glutSetMenu(menu);
 		{
 			void *l = 0; 
-			if(impl->copy(id==id_animate_copy))		
+			if(impl->copy())		
 			l = glutext::GLUT_MENU_ENABLE;
 			glutext::glutMenuEnable(id_animate_paste,l);
 			glutext::glutMenuEnable(id_animate_paste_v,l);
@@ -991,101 +1591,211 @@ void AnimWin::submit(int id)
 
 	case id_animate_delete: //clearFrame
 		
-		if(model->getCurrentAnimationFrameTime()
-		==model->getAnimFrameTime(impl->anim,impl->frame))
-		model->deleteAnimFrame(impl->anim,impl->frame);
+		if(m->getCurrentAnimationFrameTime()
+		==m->getAnimFrameTime(impl->anim,impl->frame))
+		m->deleteAnimFrame(impl->anim,impl->frame);
 		else 
-		return model_status(model,StatusError,STATUSTIME_LONG,"The current time isn't an animation frame.");
-		model->operationComplete(::tr("Clear frame","Remove animation data from frame,operation complete"));
+		return model_status(m,StatusError,STATUSTIME_LONG,"The current time isn't an animation frame.");
+		m->operationComplete(::tr("Clear frame","Remove animation data from frame,operation complete"));
 		break;	
 
-	case id_edit_undo: assert(!id_edit_undo); break; //REMOVE ME
-	case id_edit_redo: assert(!id_edit_redo); break; //REMOVE ME
-			
 	case id_item:
 
-		impl->anim_selected(shelf1.animation,true);
+		impl->anim_selected(animation,true);
+		break;
+
+	case id_subitem:
+
+		impl->set_frame(frame);
 		break;
 
 	case id_delete:
 
-		impl->anim_deleted(shelf1.del);
+		if(!del.hidden())
+		impl->anim_deleted(animation);
 		break;		
 		
 	case id_anim_fps:
 
 		//log_debug("changing FPS\n"); //???
-		if(model->setAnimFPS(impl->anim,shelf1.fps))
-		model->operationComplete(::tr("Set FPS","Frames per second,operation complete"));
+		if(m->setAnimFPS(impl->anim,fps))
+		m->operationComplete(::tr("Set FPS","Frames per second,operation complete"));
 		break;
 
 	case id_check: //id_anim_loop
 
 		//log_debug("toggling loop\n"); //???
-		model->setAnimWrap(impl->anim,shelf1.wrap);
-		model->operationComplete(::tr("Set Wrap","Change whether animation wraps operation complete"));
-		//WHAT'S THIS DOING HERE??? (DISABLING)
-		//model->setCurrentAnimationFrame((int)shelf2.timeline,Model::AT_invalidateNormals);		
+		m->setAnimWrap(impl->anim,wrap);
+		m->operationComplete(::tr("Set Wrap","Change whether animation wraps operation complete"));
 		break;
 	
 	case id_animate_mode:
 
-		model.sidebar.anim_panel.nav.set(!impl->mode);
-		model->setCurrentAnimation
-		(impl->anim,Model::AnimationModeE(impl->mode?0:model.animation_mode));
+		if(!impl->mode&&impl->anim==(unsigned)-1)
+		{
+			auto am = Model::AnimationModeE(w->animation_mode);
+			impl->anim = am==Model::ANIMMODE?0:m->getAnimationIndex(am);
+		}
+		if(m->setCurrentAnimation
+		(impl->anim,Model::AnimationModeE(impl->mode?0:w->animation_mode)))
+		{
+			m->operationComplete(::tr("Animator Mode"));
+
+			if(impl->mode&&hidden())
+			w->sidebar.anim_panel.nav.set();
+		}
+		else event.beep();
 		impl->open2(true);
 		break;
 
 	case id_animate_play: 
-		if(!impl->mode)
+		if(!impl->mode) //NEW: Play first animation?
 		{
-			if(!model->getAnimationCount())
+			if(!m->getAnimationCount())
 			return event.beep();
-			model.sidebar.anim_panel.nav.set();
-			impl->soft_anim = ~0; 
+			w->sidebar.anim_panel.nav.set();
+			impl->soft_anim = ~0;			
+			//HACK: This just happens to defeat the
+			//logic that only does one round of play
+			//on select so the loop button is honored.
+			impl->playing = true;
 			return impl->anim_selected(0);
 		}
 		//break;
 	case id_animate_stop: //This is now pseudo.
 
 		impl->play(id);
-		break;		
-
-	case id_animate_loop:
-	
-		if(impl->loop())
-		if(!model.sidebar.anim_panel.loop)
-		{
-			//2021: Make Shift+Pause behavior 
-			//analogous to Pause but keep the
-			//graphical button as pure toggle.
-			submit(id_animate_play);			
-		}
 		break;
 
 	case id_anim_frames:
 
-		impl->frames_edited(shelf1.frames);
+		impl->frames_edited(frames);
 		break;
 
 	case id_bar:
 
-		impl->set_frame(shelf2.timeline);
+		impl->set_frame(timeline);
 		break;
 
-	case id_ok: case id_close:
+		//HACK: This prevents pressing Esc so
+		//the None tool can use it by default.
+		//Note: id_close is preventing Return.
+	case id_ok:
+	case id_close:
 
-		event.close_ui_by_create_id(); //Help?
-
-		//I guess this model saves users' work?
-		hide(); 
-		
-		//DUPLICATE (FIX)
-		//There seems to be a wxWidgets bug that is documented under hide() which
-		//can be defeated by voiding the current GLUT window. TODO: this needs to
-		//be removed once the bug is long fixed. Other windows are using this too.
-		glutSetWindow(0);
-
-		return;
+		return hide(); 
 	}
+}
+
+void AnimWin::updateSelectionDone()
+{
+	model->operationComplete(::tr("Animator Selection"));
+}
+void AnimWin::updateCoordsDone(bool done)
+{
+	if(done) model->operationComplete(::tr("Animator Position"));
+}
+void AnimWin::updateXY(bool update_keys)
+{
+	if(!impl->mode) return; //HAPPENS
+
+	auto *a = model->getAnimationList()[impl->anim];
+	auto &tt = a->m_timetable2020;
+	auto &st = a->m_selected_frames;	
+	double min[2] = {+DBL_MAX,+DBL_MAX};
+	double max[2] = {-DBL_MAX,-DBL_MAX};		
+	if(!st.empty())			
+	for(auto i=tt.size();i-->0;) if(st[i])
+	{
+		min[0] = std::min(tt[i],min[0]);
+		max[0] = std::max(tt[i],max[0]);
+	}
+	//for(int i=0;i<2;i++)
+	//centerpoint[i] = (min[i]+max[i])*0.5;
+
+	bool hid = min[0]==DBL_MAX;
+	if(!hid)
+	x.set_float_val(centerpoint[0]=(min[0]+max[0])*0.5);
+	x.set_hidden(hid);	
+
+	//if(hid) //THIS IS A MESS
+	{
+		int k = key;
+
+		constexpr bool cmp[4] = {};
+
+		if(update_keys)
+		{
+			int mask = 0x1ff;
+			for(auto&ea:a->m_keyframes)
+			for(auto*kp:ea.second)
+			if(memcmp(kp->m_selected,cmp,sizeof(cmp)))
+			{
+				int e = kp->m_isRotation>>1;
+				for(int i=3;i-->0;)
+				if(kp->m_selected[i]) mask&=~(1<<(e*3+i));
+			}
+			rx.set_hidden(mask&(1<<3));
+			ry.set_hidden(mask&(1<<4));
+			rz.set_hidden(mask&(1<<5));
+			sx.set_hidden(mask&(1<<6));
+			sy.set_hidden(mask&(1<<7));
+			sz.set_hidden(mask&(1<<8));
+			tx.set_hidden(mask&(1<<0));
+			ty.set_hidden(mask&(1<<1));
+			tz.set_hidden(mask&(1<<2));
+
+			if(mask==0x1ff) //key.clear();
+			{
+				key.select_id(-1); k = -1;
+			}
+
+			if(k==-1||0!=(mask&(1<<k))) 
+			for(int i=0;mask;mask>>=1,i++) //!!
+			{
+				if(0==(mask&1))
+				{
+					key.select_id(i); k = i;
+					break;
+				}
+			}
+		}
+		if(k!=-1) //!key.empty()
+		{		
+			int dim = k%3;
+			int e = 1<<k/3;
+			for(auto&ea:a->m_keyframes)
+			for(auto*kp:ea.second)
+			if(memcmp(kp->m_selected,cmp,sizeof(cmp)))		
+			if(e==kp->m_isRotation)
+			if(kp->m_selected[dim])
+			{
+				min[1] = std::min(kp->m_parameter[dim],min[1]);
+				max[1] = std::max(kp->m_parameter[dim],max[1]);
+			}
+		
+			double c = (min[1]+max[1])*0.5;
+
+			centerpoint[1] = c;
+
+			if(e==Model::KeyRotate) c/=PIOVER180;
+
+			y.set_float_val(c);
+		}
+
+		//NOTE: _show_tool reproduces this logic.
+		hid = k==-1||graphic.m_operation!=graphic::MouseSelect;
+		key.set_hidden(hid); y.set_hidden(hid);
+	}
+
+	shrinkSelect();
+}
+void AnimWin::shrinkSelect()
+{	
+	bool hide = !x.hidden()||-1!=key.int_val();
+
+	int s = select;
+	select_frame.set_hidden(hide?s!=1:false);
+	select_vertex.set_hidden(hide?s!=2:false);
+	select_complex.set_hidden(hide?s!=0:false);
 }

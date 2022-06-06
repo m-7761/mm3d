@@ -24,11 +24,12 @@
 #include "win.h"
 
 #include "model.h"
-#include "texturecoord.h" //Widget
-#include "texture.h"
 #include "log.h"
 #include "misc.h"
 #include "msg.h"
+
+#include "texture.h"
+#include "texwidget.h"
 
 #include "filedatadest.h"
 
@@ -38,14 +39,17 @@ struct PaintTextureWin : Win
 
 	PaintTextureWin(Model *model)
 		:
-	Win("Paint Texture"),
+	//Win("Paint Texture"),
+	Win("Plot Texture Coordinates"),
 	model(model),
 	shelf1(main),
-	polygons(shelf1,"Polygons:"),
+	plot(shelf1,"Plot:\t"),
+	faces(shelf1,"Faces"),
+	edges(shelf1,"Edges"),
 	vertices(shelf1,"Vertices"),
 	shelf2(main),
-	width(shelf2,"Save Size:",'X'),width_v(width,'X'),
-	height(shelf2,"x",'Y'),height_v(height,'Y'),
+	width(shelf2,"Size\t",'X'),width_v(width,'X'), //"Save Size:"
+	height(shelf2,"x\t",'Y'),height_v(height,'Y'),
 	save(shelf2,"Save...",id_browse), //"Save Texture..."
 	ok(main),
 
@@ -54,15 +58,7 @@ struct PaintTextureWin : Win
 
 	scene(main,id_scene),texture(scene)
 	{
-		scene.space(1,1,4,1);
-
-		//HACK?
-		//DON'T USE canvas'S SPECIAL ALIGNMENT MODE
-		//SINCE IT EXPANDS. COULD USE lock TOO, BUT
-		//CANVASES assert ON lock UNTIL IMPLEMENTED.
-		scene.calign(); 
-
-		shelf2.expand(); save.ralign();		
+		ok.ok.name("Close").id(id_close);
 
 		active_callback = &PaintTextureWin::submit;
 
@@ -72,7 +68,8 @@ struct PaintTextureWin : Win
 	Model *model;
 
 	row shelf1;
-	dropdown polygons,vertices;
+	titlebar plot;
+	boolean faces,edges,vertices;
 	row shelf2;
 	textbox width,height;
 	dropdown width_v,height_v;
@@ -80,7 +77,7 @@ struct PaintTextureWin : Win
 	f1_ok_panel ok;
 	canvas scene;
 
-	Widget texture;
+	Win::texture texture;
 };
 void PaintTextureWin::submit(int id)
 {
@@ -91,13 +88,21 @@ void PaintTextureWin::submit(int id)
 		texture.setModel(model);
 		texture.setSolidBackground(true);
 
-		polygons.select_id(3).add_item(1,"Edges") //DM_Edges
-		.add_item(2,"Filled").add_item(3,"Filled and Edges");
+		scene.space(1,1,4,1);
 
-		vertices.add_item(0,"Hidden").add_item(1,"Visible");
+		//HACK?
+		//DON'T USE canvas'S SPECIAL ALIGNMENT MODE
+		//SINCE IT EXPANDS. COULD USE lock TOO, BUT
+		//CANVASES assert ON lock UNTIL IMPLEMENTED.
+		scene.calign(); 
+
+		//shelf1.proportion();
+		shelf1.space(9); faces.space<right>()+=10;
+
+		shelf2.expand(); save.ralign();	
+
+		faces.set(); edges.set();
 		
-		width.edit(64,512,8192).update_area();
-		height.edit(64,512,8192).compact(width.active_area<0>(-2));
 		for(int x=1024;x>=64;x/=2)
 		{
 			auto i = new li::item(x);
@@ -105,18 +110,21 @@ void PaintTextureWin::submit(int id)
 		}
 		height_v.reference(width_v);
 
-		int_list l;
-		int_list::iterator it,itt;
-		model->getSelectedTriangles(l);
-		itt = l.end();
+		width.edit(64,512,8192).compact(62);
+		height.edit(64,512,8192).compact(2+width.active_area<2>(-2));
+		width.space<right>()+=1;
+		height.space<left>()+=2;
+
+		int_list l;		
+		model->getSelectedTriangles(l);		
 
 		int material = -1;
 
 		//FIX ME (LOOKS BOGUS)
 		//https://github.com/zturtleman/mm3d/issues/54
-		for(it=l.begin();it<itt;it++)
+		for(int i:l)
 		{
-			int g = model->getTriangleGroup(/*l.front()*/*it); //???
+			int g = model->getTriangleGroup(i);
 			int m = model->getGroupTextureId(g);
 			if(m>=0)
 			{
@@ -133,14 +141,18 @@ void PaintTextureWin::submit(int id)
 
 		//addTriangles();
 		{
+			//HACK: Currently unselecting both modes
+			//uses DM_Edit which draws vertices red.
+			texture.setSelectionColor(0x80ffffff);
+
 			texture.clearCoordinates();
-			
-			int v = 0; float s,t;
-			for(it=l.begin();it<itt;it++,v+=3)
+
+			float s,t; 
+			int v = -3; for(int i:l)
 			{
-				for(int i=0;i<3;i++)
+				v+=3; for(int j=0;j<3;j++)
 				{
-					model->getTextureCoords(*it,i,s,t);
+					model->getTextureCoords(i,j,s,t);
 					texture.addVertex(s,t);					
 				}
 				texture.addTriangle(v,v+1,v+2);
@@ -151,7 +163,7 @@ void PaintTextureWin::submit(int id)
 		{
 			texture.setTexture(-1);
 		}
-		else if(Texture*tex=model->getTextureData(material))		
+		else if(auto*tex=model->getTextureData(material))		
 		{
 			//int x = 64; while(x<tex->m_width) x*=2;
 			//int y = 64; while(y<tex->m_height) y*=2;
@@ -171,19 +183,13 @@ void PaintTextureWin::submit(int id)
 	}
 	default:
 	
-		texture.setDrawMode((Widget::DrawModeE)polygons.int_val());
-		
-		//FIX ME
-		//TextureWidget::draw artificially couples 
-		//MouseRange to m_drawVertices.
-		texture.setMouseOperation(Widget::MouseRange);
-		texture.setDrawVertices(vertices&1);
-
+		texture.setDrawMode((TextureWidget::DrawModeE)((int)edges+2*(int)faces));
+		texture.setDrawVertices(vertices);
 		texture.sizeOverride(width,height);
 		texture.updateWidget();
 		//break;
 
-	case id_ok: return basic_submit(id);
+	case id_close: return basic_submit(id);
 
 	case id_scene:
 

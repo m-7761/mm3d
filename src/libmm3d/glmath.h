@@ -109,6 +109,7 @@ class Matrix
 
 		const double *getVector(int r)const{ return m_val+r*4; };
 		double *getVector(int r){ return m_val+r*4; };
+		Vector getColumn(int c)const;
 
 	protected:
 
@@ -191,6 +192,11 @@ class Vector
 		double m_val[4];
 };
 
+inline Vector Matrix::getColumn(int c)const
+{
+	return Vector(m_val[c],m_val[4+c],m_val[8+c],m_val[12+c]);
+}
+
 class Quaternion : public Vector
 {
 	public:
@@ -209,8 +215,6 @@ class Quaternion : public Vector
 		void setRotationOnAxis(double x, double y, double z, double radians);
 		void setRotationOnAxis(const double *axis, double radians);
 		void getRotationOnAxis(double *axis, double &radians)const;		
-		void set(int c, double val);
-		double get(int c)const { return m_val[c]; };
 
 		Quaternion &normalize();
 
@@ -318,6 +322,10 @@ extern double distance(const Vector &v1, const Vector &v2);
 
 extern double distance(const double v1[3], const double v2[3]);
 
+template<typename T> T dot4(const T *lhs, const T *rhs)
+{
+	return lhs[0]*rhs[0]+lhs[1]*rhs[1]+lhs[2]*rhs[2]+lhs[3]*rhs[3];
+}
 template<typename T> T dot3(const T *lhs, const T *rhs)
 {
 	return lhs[0]*rhs[0]+lhs[1]*rhs[1]+lhs[2]*rhs[2];

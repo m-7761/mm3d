@@ -108,44 +108,24 @@ void UndoManager::clearRedo()
 	m_atomicRedo.clear();
 }
 //void UndoManager::addUndo(Undo *u, bool listCombine)
-void UndoManager::addUndo(Undo *u)
+void UndoManager::addUndo(Undo *u, bool combine)
 {
 	//MAYBE THIS SHOULD BE DONE ON OPERATION-COMPLETE?
 	clearRedo();
 	
-	/*TODO: reinterpret listCombine as don't call combineWithList
-	https://github.com/zturtleman/mm3d/issues/138
-	if(!listCombine)
-	{
-		//FIX ME!
-		//Why is this one way? See combineWithList for more concerns!
-
-		m_listCombine = false;
-	}*/
-
 	if(m_currentUndo)
 	{
-		// Try to combine these undo items
-		/*https://github.com/zturtleman/mm3d/issues/138
-		if(combineWithList(u))*/
-		//if(listCombine&&combineWithList(u))
-		if(m_currentUndo->combine(u))
+		if(combine&&combineWithList(u))
 		{
 			// Combined, release new one
-			u->release();
-		}
-		else
-		{
-			// Push the current undo onto the current list and make this undo current
-			pushUndoToList(m_currentUndo);
-			m_currentUndo = u;
+			u->release(); return;
 		}
 	}
-	else
-	{
-		// No undo yet, this is our first
-		m_currentUndo = u;
-	}
+	
+	//2022: For some reason the original code waited
+	//until there is two undos to form the list, but
+	//that makes things ver complicated.
+	pushUndoToList(u); m_currentUndo = u;
 }
 
 void UndoManager::operationComplete(const char *opname)
@@ -168,7 +148,8 @@ void UndoManager::operationComplete(const char *opname)
 
 		//log_debug("operation complete: %s\n",opname);
 
-		pushUndoToList(m_currentUndo);
+		//This old code waited to form the list for some reason???
+		//pushUndoToList(m_currentUndo);
 		m_currentList->setOpName(opname);
 		m_atomic.push_back(m_currentList);
 
@@ -282,34 +263,47 @@ UndoList *UndoManager::undoCurrent()
 	return nullptr;
 }
 
-#if 0 //REFERENCE
 bool UndoManager::combineWithList(Undo *u)
 {
+	/*2022: In some cases it's too dangerous not to combine
+	//so I have to reinstate this, however the only thing
+	//keeping undo operations in order is operationComplete
+	//calls.
 	if(m_currentUndo->combine(u))
 	{
 		return true;
-	}
+	}*/
 	//else if(m_listCombine)
 	{
-		/*FIX ME!
+		//FIX ME!
 		//It seems like this can get out of sequence? Why not just 
 		//combine to back of the list?
 		//https://github.com/zturtleman/mm3d/issues/138
-		if(m_currentList) 
+		if(m_currentList)
+		if(u->combine()!=Undo::CC_Unimplemented) 
 		{
-			UndoList::iterator it;
-			for(it = m_currentList->begin(); it!=m_currentList->end(); it++)
+			//NOTE: This hadn't used reverse iterators, but even if
+			//there's no reason for doing so it should be faster to
+			//find the matching undo. Note, for those that don't do
+			//combine this is just a waste loop.
+			auto rit = m_currentList->rbegin();
+			auto rtt = m_currentList->rend();
+			for(;rit<rtt;rit++)
 			{
-				if((*it)->combine(u))
+				//2022: This is a new system...
+				//if((*rit)->combine(u)) 
+				//return true;
+				switch((*rit)->combine(u))
 				{
-					return true;
+				case Undo::CC_Success: return true;
+				case Undo::CC_Stop: return false;
+				case Undo::CC_Continue: continue;
 				}
 			}
-		}*/
+		}
 	}
 	return false;
 }
-#endif
 
 void UndoManager::pushUndoToList(Undo *u)
 {

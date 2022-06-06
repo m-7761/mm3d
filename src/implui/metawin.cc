@@ -154,7 +154,7 @@ struct UtilWin : Win
 			auto w = (UtilWin*)p->main.ui();
 			(unplug?w->p:p) = nullptr;
 			if(unplug) p->main.set_parent();
-			w->close(); 
+			w->ui::close(); 
 			close_all(m); return p;
 		}
 		return nullptr;
@@ -165,7 +165,8 @@ struct UtilWin : Win
 	Win(UtilEditWin::type_str(p->type)),
 		p(p),
 	nav(main),
-	name(nav,"",id_name),ok(nav)
+	name(nav,"",id_name),
+	close(nav,"Close",id_close)
 	{
 		p->model->addObserver(p);
 
@@ -194,7 +195,7 @@ struct UtilWin : Win
 	Plugin *p;
 
 	row nav;
-	dropdown name; ok_button ok;
+	dropdown name; button close;
 };
 void UtilWin::submit(control *c)
 {
@@ -208,8 +209,7 @@ void UtilWin::submit(control *c)
 
 		return p->reset();
 	
-	case id_ok:
-	case id_close: return close();
+	case id_close: return ui::close();
 	
 	default: 
 		
@@ -292,10 +292,12 @@ struct MetaWin : Win
 
 	struct Utils
 	{
+		enum{ id_detach=1000 };
+
 		Utils(MetaWin &mw):p(),
 		c(mw.main),
 		nav(mw.main),
-		detach(nav,"Detach",id_close)
+		detach(nav,"Detach",id_detach)
 		{
 			nav.expand(bottom);
 			nav.cspace<center>();
@@ -506,7 +508,7 @@ void MetaWin::util_submit(control *c)
 	{
 		assert(utils&&utils->p);
 
-		if(id==id_close) //Detach?
+		if(id==Utils::id_detach) 
 		{
 			//This is reimplementing glutCloseFunc.
 			if(viewwin_confirm_close(glut_window_id()))
@@ -893,7 +895,7 @@ bool UtilWin::UvAnimation::submit(control *c)
 			}
 			format_item(it->text(),lv);
 			table.redraw();
-			val1.set_int_val(up->frames);
+			val1.set_float_val(up->frames);
 		}
 		else return false; break;
 	}

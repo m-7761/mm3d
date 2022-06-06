@@ -113,8 +113,10 @@ bool ExtrudeImpl::extrude(Model *model, double x, double y, double z, bool make_
 				
 		if(make_back_faces)
 		{
-			int newTri = model->addTriangle(v[0],v[1],v[2]);
-			model->invertNormals(newTri);
+			//???
+			//int newTri = model->addTriangle(v[0],v[1],v[2]);
+			//model->invertNormal(newTri);
+			int newTri = model->addTriangle(v[2],v[1],v[0]);
 
 			int g = model->getTriangleGroup(tri);
 			if(g>=0) model->addTriangleToGroup(g,newTri); //2022

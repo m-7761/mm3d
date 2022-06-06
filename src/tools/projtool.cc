@@ -153,6 +153,8 @@ void ProjTool::mouseButtonMove()
 	pos[2]-=m_orig[2];
 	pos[3] = 1;
 
+	auto *po = model->getPositionObject({Model::PT_Projection,m_proj});
+
 	/*2020: This wasn't editor friendly.
 	//https://github.com/zturtleman/mm3d/issues/114
 	//WORKS BECAUSE "seam" IS ORTHOGONAL
@@ -169,10 +171,17 @@ void ProjTool::mouseButtonMove()
 	//making the (front/identity) projection upside down.
 	Matrix m; m.setRotation({0,0,-PI/2+angle});	
 	//HACK: Don't call applyProjection twice?
-	(m*parent->getParentBestInverseMatrix()).getRotation
-	(model->getPositionObject({Model::PT_Projection,m_proj})->m_rot);
-	//REMINDER: Does applyProjection indirectly.
-	model->setProjectionScale(m_proj,mag3(pos));
-	
+	(m*parent->getParentBestInverseMatrix()).getRotation(po->m_rot);
+	//REMINDER: Does applyProjection indirectly.	
+	//model->setProjectionScale(m_proj,mag3(pos));
+	{
+		//2022: Better for undo to avoid calling setProjectionScale.
+		//There's a serious bottleneck when undos are interleaved 
+		//that needs attention.
+		float scl = mag3(pos);
+		po->m_xyz[0] = scl; po->m_xyz[1] = scl; po->m_xyz[2] = scl;
+		model->applyProjection(m_proj);
+	}
+
 	parent->updateAllViews();
 }

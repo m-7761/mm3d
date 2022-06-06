@@ -1,23 +1,8 @@
-/*  MM3D Misfit/Maverick Model 3D
+/* MM3D (Multimedia 3D)
  *
- * Copyright (c)2004-2007 Kevin Worcester
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place-Suite 330, Boston, MA 02111-1307,
- * USA.
- *
- * See the COPYING file for full license text.
+ * This code is an original contribution not wishing to 
+ * be subjected to any form of copyright based thoughts.
+ * 
  */
 
 #include "mm3dtypes.h" //PCH
@@ -46,7 +31,7 @@ int Model::addUtility(Model::UtilityTypeE type, const char *name)
 
 	auto index = m_utils.size();
 
-	if(m_undoEnabled) sendUndo(new MU_Add(index,up));
+	Undo<MU_Add>(this,index,up);
 
 	_insertUtil(index,up); return (int)index;
 }
@@ -66,9 +51,9 @@ bool Model::deleteUtility(unsigned index)
 
 	if(m_undoEnabled)
 	{
-		sendUndo(new MU_Delete(index,up));
+		Undo<MU_Delete>(this,index,up);
 
-		MU_AssocUtility *undo = nullptr; 
+		Undo<MU_AssocUtility> undo; 
 		{		
 			if(up->assoc&PartGroups)
 			{
@@ -78,17 +63,18 @@ bool Model::deleteUtility(unsigned index)
 
 					for(auto&ea:l) if(up==ea)
 					{
-						if(!undo) undo = new MU_AssocUtility(up);
+						if(!undo)
+						undo = Undo<MU_AssocUtility>(this,up);
+						undo->removeAssoc(gp);
 
 						l.erase(l.begin()+(&ea-l.data()));
 
-						undo->removeAssoc(gp); break;
+						break;
 					}
 				}
 			}
 			else assert(0==up->assoc);
 		}
-		sendUndo(undo);
 	}
 	else up->release();
 
@@ -116,8 +102,7 @@ bool Model::setUtilityName(unsigned index, const char *name)
 		//m_changeBits |= AddAnimation; //See moveUtility comment.
 		m_changeBits |= AddUtility;
 
-		if(m_undoEnabled)
-		sendUndo(new MU_SwapStableStr(AddUtility,up->name));
+		Undo<MU_SwapStableStr>(this,AddUtility,up->name);
 
 		up->name = name;
 	}
@@ -142,11 +127,9 @@ bool Model::convertUtilityToType(Model::UtilityTypeE type, unsigned index)
 
 	if(up->assoc==uup->assoc)
 	{
-		if(m_undoEnabled)
-		{
-			sendUndo(new MU_Delete(index,uup));
-		}
-		else uup->release();
+		Undo<MU_Delete> undo(this,index,uup);
+
+		if(!undo) uup->release();
 
 		_removeUtil(index);
 	}
@@ -173,8 +156,7 @@ bool Model::moveUtility(unsigned oldIndex, unsigned newIndex)
 	m_utils.erase(m_utils.begin()+oldIndex);
 	m_utils.insert(m_utils.begin()+newIndex,up);
 	
-	if(m_undoEnabled)
-	sendUndo(new MU_MoveUtility(oldIndex,newIndex));
+	Undo<MU_MoveUtility>(this,oldIndex,newIndex);
 
 	return true;
 }
@@ -189,12 +171,9 @@ bool Model::addGroupToUtility(unsigned index, unsigned group, bool how)
 	
 	if(m_undoEnabled)
 	{
-		auto undo = new MU_AssocUtility(up);
-
+		Undo<MU_AssocUtility> undo(this,up);
 		if(how) undo->addAssoc(gp);
 		else undo->removeAssoc(gp);
-
-		sendUndo(undo);
 	}
 
 	return true;
@@ -240,12 +219,8 @@ void Model::Utility::release()
 }
 void Model::Utility::_set(const void *p, const void *cp, size_t sz)const
 {
-	if(model->m_undoEnabled)
-	{
-		auto undo = new MU_SwapStableMem;
-		undo->setMemory(model->getChangeBits(),p,cp,sz);
-		model->sendUndo(undo);
-	}
+	if(Undo<MU_SwapStableMem>undo=model)
+	undo->setMemory(model->getChangeBits(),p,cp,sz);
 	memcpy(const_cast<void*>(p),cp,sz);
 }
 
@@ -403,9 +378,7 @@ int Model::UvAnimation::set_key(const Key &v)const
 
 	_dirty(); 
 
-	MU_UvAnimKey *undo = nullptr;
-	if(model->getUndoEnabled())	
-	undo = new MU_UvAnimKey(this);
+	Undo<MU_UvAnimKey> undo(model,this);
 
 	auto it = std::lower_bound(keys.begin(),keys.end(),v);
 	if(it!=keys.end()&&it->frame==v.frame)
@@ -421,8 +394,6 @@ int Model::UvAnimation::set_key(const Key &v)const
 		it = _set_cast(keys).insert(it,v);
 	}
 
-	if(undo) model->sendUndo(undo);
-
 	if(v.frame>frames) set_frames(v.frame);
 
 	return it-keys.begin();
@@ -433,12 +404,9 @@ bool Model::UvAnimation::delete_key(unsigned i)const
 
 	_dirty();
 
-	if(model->getUndoEnabled())	
-	{
-		auto undo = new MU_UvAnimKey(this);
-		undo->deleteKey(keys[i]);
-		model->sendUndo(undo);
-	}
+	Undo<MU_UvAnimKey> undo(model,this);
+		
+	if(undo) undo->deleteKey(keys[i]);
 
 	_set_cast(keys).erase(keys.begin()+i);
 

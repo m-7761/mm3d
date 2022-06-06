@@ -30,18 +30,14 @@ template<typename T>
 class sorted_list : public std::vector<T>
 {
 public:
-
-	//sorted_list(){} //???
-	//virtual ~sorted_list(){} //???
-
-	void insert_sorted(const T &val);
+	
+	size_t insert_sorted(const T &val);
+	void insert_sorted(const T &val, unsigned index);
 	bool find_sorted(const T &val, unsigned &index)const;
-
-	typedef int (*CompareFunction)(const T &, const T &);
 };
 
 template<typename T> 
-void sorted_list<T>::insert_sorted(const T &val)
+size_t sorted_list<T>::insert_sorted(const T &val)
 {
 	if(!empty()&&val<back())
 	{
@@ -50,58 +46,89 @@ void sorted_list<T>::insert_sorted(const T &val)
 			if(val<*it) break;
 		}*/
 		auto it = std::lower_bound(begin(),end(),val);
-		insert(it,val);
+		return insert(it,val)-begin();
 	}
-	else push_back(val);
+	else push_back(val); return size()-1;
+}
+template<typename T> 
+void sorted_list<T>::insert_sorted(const T &val, unsigned index)
+{
+	#ifdef _DEBUG
+	if(!empty())
+	{
+		auto *d = data();
+		auto &bf = d[index-1], &af = d[index];
+		assert(index==0||bf<val||!(val<bf));
+		assert(index<=size());
+		assert(index==size()||val<af||!(af<val));
+	}
+	else assert(index==0);	
+	#endif
+
+	insert(begin()+index,val);
 }
 
 template<typename T> 
 bool sorted_list<T>::find_sorted(const T &val, unsigned &index)const
 {
-	int top = size()-1;
-	int bot = 0;
-	int mid = top/2;
+	//(*this)[mid] is slow in debug builds (STL oob-checks)
+	const T *it,*d = data();
 
-	while(bot<=top)
+	if(1) 
 	{
-		if((*this)[mid]==val)
-		{
-			index = mid;
-			return true;
-		}
+		//Note, this is the original code, and I guess
+		//it has value because Microsoft's lower_bound 
+		//seems to do oob-checks as-if it doesn't trust
+		//its own production algorithm!!!
 
-		if((*this)[mid]<val)
+		int sz = size();
+		int top = sz-1;
+		int bot = 0;
+		int mid = top/2;		
+		while(bot<=top)
 		{
-			bot = mid+1;
+		//	if(d[mid]==val)
+			{
+				//index = mid; return true;
+		//		break;
+			}
+
+			if(d[mid]<val)
+			{
+				bot = mid+1;
+			}
+			else top = mid-1;
+
 			mid = (top+bot)/2;
-		}
-		else
-		{
-			top = mid-1;
-			mid = (top+bot)/2;
-		}
+		}		
+		//return false;
+		it = d+mid;
+		if(mid<sz&&*it<val) it++;
+	}
+	else //SLOW??? (CONFIRMED)
+	{
+		it = d+(std::lower_bound(begin(),end(),val)-begin());
 	}
 
-	return false;
+	index = it-d; //2022
+	return index<size()&&val==*it;
 }
 
-//UNUSED
 template<typename T> 
 class sorted_ptr_list : public std::vector<T>
 {
 public:
 
-	//sorted_ptr_list(){} //???
-	//virtual ~sorted_ptr_list(){} //???
-
-	void insert_sorted(const T &val);
+	size_t insert_sorted(const T &val);
+	void insert_sorted(const T &val, unsigned index);
 	bool find_sorted(const T &val, unsigned &index)const;
 
-	typedef int (*CompareFunction)(const T &, const T &);
+	static bool less(T a, T b){ return *a<*b; };
+	void sort(){ std::sort(begin(),end(),less); }
 };
  
 template<typename T> 
-void sorted_ptr_list<T>::insert_sorted(const T &val)
+size_t sorted_ptr_list<T>::insert_sorted(const T &val)
 {
 	if(!empty()&&*val<*back())
 	{
@@ -109,41 +136,73 @@ void sorted_ptr_list<T>::insert_sorted(const T &val)
 		{
 			if(*val<**it) break;
 		}*/
-		auto pred = [](T a, T b){ return *a<*b; };
-		auto it = std::lower_bound(begin(),end(),val,pred);
-		insert(it,val);
+		auto it = std::lower_bound(begin(),end(),val,less);
+		return insert(it,val)-begin();
 	}
-	else push_back(val);
+	else push_back(val); return size()-1;
+}
+template<typename T> 
+void sorted_ptr_list<T>::insert_sorted(const T &val, unsigned index)
+{
+	#ifdef _DEBUG
+	if(!empty())
+	{
+		auto *d = data();
+		auto &bf = d[index-1], &af = d[index];
+		assert(index==0||*bf<*val||!(*val<*bf));
+		assert(index<=size());
+		assert(index==size()||*val<*af||!(*af<*val));
+	}
+	else assert(index==0);	
+	#endif
+
+	insert(begin()+index,val);
 }
 
 template<typename T> 
 bool sorted_ptr_list<T>::find_sorted(const T &val, unsigned &index)const
 {
-	int top = size()-1;
-	int bot = 0;
-	int mid = top/2;
+	//(*this)[mid] is slow in debug builds (STL oob-checks)
+	const T *it,*d = data();
 
-	while(bot<=top)
+	if(1) 
 	{
-		if(*(*this)[mid]==*val)
-		{
-			index = mid;
-			return true;
-		}
+		//See sorted_list notes on this.
+		//Note, KeyframeList is the only
+		//user of sorted_ptr_list, so this
+		//is no big deal.
 
-		if(*(*this)[mid]<*val)
+		int sz = size();
+		int top = sz-1; 
+		int bot = 0;
+		int mid = top/2;		
+		while(bot<=top)
 		{
-			bot = mid+1;
-			mid = (top+bot)/2;
+		//	if(*d[mid]==*val)
+			{
+				//index = mid; return true;
+		//		break;
+			}
+
+			if(*d[mid]<*val)
+			{
+				bot = mid+1; 
+			}
+			else top = mid-1;
+
+			mid = (top+bot)/2; 
 		}
-		else
-		{
-			top = mid-1;
-			mid = (top+bot)/2;
-		}
+		//return false;
+		it = d+mid;
+		if(mid<sz&&**it<*val) it++;
+	}
+	else //SLOW??? (CONFIRMED)
+	{
+		it = d+(std::lower_bound(begin(),end(),val,less)-begin());
 	}
 
-	return false;
+	index = it-d; //2022
+	return index<size()&&*val==**it;	
 }
 
 #endif // __SORTED_LIST_H

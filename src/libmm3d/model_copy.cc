@@ -150,9 +150,9 @@ Model *Model::copySelected(bool animated)const
 		// even if not needed,the user can delete the unecessary parts
 		unsigned tcount = getTextureCount();
 		//log_debug("Copying %d textures\n",tcount);
-		for(unsigned t = 0; t<tcount; t++)
+		for(unsigned t=0;t<tcount;t++)
 		{
-			switch (getMaterialType(t))
+			switch(getMaterialType(t))
 			{
 			case Model::Material::MATTYPE_TEXTURE:
 			{
@@ -179,8 +179,6 @@ Model *Model::copySelected(bool animated)const
 			m->setTextureEmissive(t,c);
 			getTextureShininess(t,c[0]);
 			m->setTextureShininess(t,c[0]);
-
-			// TODO Material m_color (if ever used)
 
 			m->setTextureSClamp(t,getTextureSClamp(t));
 			m->setTextureTClamp(t,getTextureTClamp(t));

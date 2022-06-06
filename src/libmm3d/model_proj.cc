@@ -50,13 +50,8 @@ bool Model::setProjectionType(unsigned proj, int type)
 		//needs a notification.
 		m_changeBits|=MoveOther; 
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetProjectionType;
-			undo->setType(proj,type,m_projections[proj]->m_type);
-			sendUndo(undo);
-		}
-
+		Undo<MU_SetProjectionType>(this,proj,type,m_projections[proj]->m_type);
+		
 		m_projections[proj]->m_type = type;
 
 		applyProjection(proj);
@@ -66,19 +61,36 @@ bool Model::setProjectionType(unsigned proj, int type)
 
 void Model::setTriangleProjection(unsigned triangleNum, int proj)
 {
-	if(proj<(int)m_projections.size()
-		  &&triangleNum<m_triangles.size())
+	if(proj<(int)m_projections.size()&&triangleNum<m_triangles.size())
 	{
-		if(m_undoEnabled)
-		{
-			// negatigve is valid (means "none")
-			auto undo = new MU_SetTriangleProjection;
-			undo->setTriangleProjection(triangleNum,proj,m_triangles[triangleNum]->m_projection);
-			sendUndo(undo);
-		}
+		m_changeBits |= MoveTexture; //2022
 
+		// negative is valid (means "none")
+		if(Undo<MU_SetTriangleProjection>undo=this)
+		undo->setTriangleProjection(triangleNum,proj,m_triangles[triangleNum]->m_projection);
+		
 		m_triangles[triangleNum]->m_projection = proj;
 	}
+	else assert(0);
+}
+void Model::setTrianglesProjection(const int_list &l, int proj)
+{
+	if(l.empty()) return;
+
+	if(proj>=(int)m_projections.size()){ assert(0); return; }
+
+	Undo<MU_SetTriangleProjection> undo(this);
+
+	m_changeBits |= MoveTexture; //2022
+
+	auto &tl = m_triangles;
+	int sz = (int)tl.size(); for(int i:l) if(i<sz)
+	{
+		if(undo) undo->setTriangleProjection(i,proj,tl[i]->m_projection);
+		
+		tl[i]->m_projection = proj;
+	}
+	else assert(0);
 }
 
 int Model::getTriangleProjection(unsigned triangleNum)const
@@ -109,25 +121,20 @@ bool Model::setProjectionRange(unsigned proj,
 {
 	if(proj<m_projections.size())
 	{
+		m_changeBits|=MoveOther; //2022
+
 		TextureProjection *ptr = m_projections[proj];
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SetProjectionRange;
-			undo->setProjectionRange(proj,
-					xmin,ymin,xmax,ymax,
-					ptr->m_range[0][0],ptr->m_range[0][1],
-					ptr->m_range[1][0],ptr->m_range[1][1]);
-			sendUndo(undo/*,true*/); //IMPLEMENT ME
-		}
+		Undo<MU_SetProjectionRange> undo(this,proj,ptr->m_range);
+
+		if(undo) undo->setProjectionRange(xmin,ymin,xmax,ymax);
 
 		ptr->m_range[0][0] = xmin;
 		ptr->m_range[0][1] = ymin;
 		ptr->m_range[1][0] = xmax;
 		ptr->m_range[1][1] = ymax;
 
-		applyProjection(proj);
-		return true;
+		applyProjection(proj); return true;
 	}
 	return false;
 }
@@ -150,13 +157,9 @@ bool Model::moveProjection(unsigned p, double x, double y, double z)
 
 		applyProjection(p);
 
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_MoveUnanimated;
-			undo->addPosition({PT_Projection,p},x,y,z,
-					old[0],old[1],old[2]);
-			sendUndo(undo/*,true*/);
-		}
+		Undo<MU_MoveUnanimated> undo(this);
+		if(undo) 
+		undo->addPosition({PT_Projection,p},x,y,z,old[0],old[1],old[2]);
 
 		return true;
 	}
@@ -180,7 +183,17 @@ void Model::applyProjection(unsigned int pnum)
 	if(pnum>=m_projections.size()) return; //???
 
 	validateAnim(); //2021
-	
+
+	//BOTTLENECK
+	//I was testing this because it's super slow in debug builds.
+	//I realized that counterintuitively generating individual
+	//undo objects could be faster on subsequent frames because
+	//the "combine" operation will avoid std::insert. I tried to
+	//optimize sorted_list::find_sorted to little avail.
+	m_changeBits |= MoveTexture; 
+	invalidateBspTree();	
+	Undo<MU_SetTextureCoords> undo(this);
+		
 	TextureProjection *proj = m_projections[pnum];	
 	auto type = proj->m_type;
 
@@ -209,8 +222,9 @@ void Model::applyProjection(unsigned int pnum)
 	//log_debug("plane = %f,%f,%f\n",planeNormal[0],planeNormal[1],planeNormal[2]);
 
 	unsigned tcount = m_triangles.size();
-	for(unsigned t = 0; t<tcount; t++)	
-	if(pnum==m_triangles[t]->m_projection)
+	auto *tl = m_triangles.data();
+	for(unsigned ti=0;ti<tcount;ti++)	
+	if(pnum==tl[ti]->m_projection)
 	{
 		model_proj_TriangleTexCoordsT tc[3];
 		double center[3] = {0,0,0};
@@ -223,7 +237,7 @@ void Model::applyProjection(unsigned int pnum)
 			tc[i].set = false;
 			double vc[3],vcn[3];
 
-			getVertexCoords(m_triangles[t]->m_vertexIndices[i],tc[i].vc);
+			getVertexCoords(tl[ti]->m_vertexIndices[i],tc[i].vc);
 
 			center[0] += tc[i].vc[0];
 			center[1] += tc[i].vc[1];
@@ -432,7 +446,13 @@ void Model::applyProjection(unsigned int pnum)
 		{
 			double u = tc[i].u*xDiff+proj->m_range[0][0];
 			double v = tc[i].v*yDiff+proj->m_range[0][1];
-			setTextureCoords(t,i,(float)u,(float)v);
+			float ss = (float)u, tt = (float)v;
+			//setTextureCoords(ti,i,ss,tt);
+			{
+				float &s = tl[ti]->m_s[i], &t = tl[ti]->m_t[i];
+				if(undo) undo->addTextureCoords(ti,i,ss,tt,s,t);
+				s = ss, t = tt;
+			}
 		}
 	}
 }

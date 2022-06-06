@@ -33,12 +33,7 @@ void Model::setSelectionMode(Model::SelectionModeE m)
 {
 	if(m!=m_selectionMode)
 	{
-		if(m_undoEnabled)
-		{
-			auto undo = new MU_SelectionMode;
-			undo->setSelectionMode(m,m_selectionMode);
-			sendUndo(undo);
-		}
+		Undo<MU_SelectionMode>(this,m,m_selectionMode);
 
 		m_selectionMode = m;
 	}
@@ -68,14 +63,9 @@ bool Model::selectVertex(unsigned v, unsigned how)
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionVertices; //2019
 		
-			if(m_undoEnabled)
-			{
-				assert(how<=1); //Only Undo should exceed 1.
+			Undo<MU_Select> undo(this,SelectVertices,v,how,s_op);
 
-				auto undo = new MU_Select(SelectVertices);
-				undo->setSelectionDifference(v,how,s_op);
-				sendUndo(undo);
-			}
+			assert(!undo||how<=1); //Only Undo should exceed 1.
 		}
 
 		//m_vertices[v]->m_selected = how;
@@ -110,12 +100,7 @@ bool Model::selectTriangle(unsigned t)
 			for(int i=3;i-->0;) selectVertex(tv[i]);
 			setUndoEnabled(o);
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectTriangles);
-				undo->setSelectionDifference(t,true,false);
-				sendUndo(undo);
-			}
+			Undo<MU_Select>(this,SelectTriangles,t,true,false);				
 		}
 		else for(int i:tp->m_vertexIndices)
 		{
@@ -139,12 +124,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionFaces; //2019
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectTriangles);
-				undo->setSelectionDifference(t,false,true);
-				sendUndo(undo);
-			}
+			Undo<MU_Select>(this,SelectTriangles,t,false,true);
 		}
 
 		tp->m_selected = false;
@@ -196,12 +176,7 @@ bool Model::selectGroup(unsigned m)
 			//m_changeBits |= SelectionChange;			
 			m_changeBits |= SelectionGroups; //2019
 		
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectGroups);
-				undo->setSelectionDifference(m,true,false);
-				sendUndo(undo);
-			}
+			Undo<MU_Select>(this,SelectGroups,m,true,false);
 		}
 
 		grp->m_selected = true;
@@ -247,12 +222,7 @@ bool Model::unselectGroup(unsigned m)
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionGroups; //2019
 			
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectGroups);
-				undo->setSelectionDifference(m,false,true);
-				sendUndo(undo);
-			}
+			Undo<MU_Select>(this,SelectGroups,m,false,true);
 		}					
 		bool o = setUndoEnabled(false);
 		for(int i:getGroupTriangles(m))
@@ -279,12 +249,7 @@ bool Model::selectBoneJoint(unsigned j, bool how)
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionJoints; //2019
 
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectJoints);
-				undo->setSelectionDifference(j,how,!how);
-				sendUndo(undo);
-			}
+			Undo<MU_Select>(this,SelectJoints,j,how,!how);
 		}
 
 		m_joints[j]->m_selected = how;
@@ -303,12 +268,7 @@ bool Model::selectPoint(unsigned p, bool how)
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionPoints; //2019
 		
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectPoints);
-				undo->setSelectionDifference(p,how,!how);
-				sendUndo(undo);
-			}
+			Undo<MU_Select>(this,SelectPoints,p,how,!how);
 		}
 
 		m_points[p]->m_selected = how;
@@ -328,13 +288,7 @@ bool Model::selectProjection(unsigned p, bool how)
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionProjections; //2019
 		
-			if(m_undoEnabled)
-			{
-				auto undo = new MU_Select(SelectProjections);
-				undo->setSelectionDifference(p,how,!how);
-				sendUndo(undo);
-			}
-
+			Undo<MU_Select>(this,SelectProjections,p,how,!how);
 		}
 
 		m_projections[p]->m_selected = how;
@@ -1348,7 +1302,7 @@ bool Model::selectUngroupedTriangles(bool how) //2022
 	//https://github.com/zturtleman/mm3d/issues/90
 	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	bool sel = false;
 
@@ -1366,8 +1320,8 @@ bool Model::selectUngroupedTriangles(bool how) //2022
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectTriangles);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectTriangles);
 				undo->setSelectionDifference(t,how,!how);
 			}
 		}
@@ -1384,7 +1338,7 @@ bool Model::selectUngroupedTriangles(bool how) //2022
 		setUndoEnabled(o);
 	}
 
-	sendUndo(undo); return sel;
+	return sel;
 }
 
 //void Model::selectGroupsFromTriangles(bool all)
@@ -2046,7 +2000,7 @@ bool Model::selectAllVertices(bool how)
 	//https://github.com/zturtleman/mm3d/issues/90
 	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	bool ret = false;
 
@@ -2060,8 +2014,8 @@ bool Model::selectAllVertices(bool how)
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectVertices);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectVertices);
 				undo->setSelectionDifference(v,how,!how);
 			}
 		}
@@ -2071,14 +2025,14 @@ bool Model::selectAllVertices(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionVertices; //2020
 
-	sendUndo(undo); return true;
+	return true;
 }
 bool Model::selectAllTriangles(bool how)
 {
 	//https://github.com/zturtleman/mm3d/issues/90
 	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	bool ret = false;
 
@@ -2092,8 +2046,8 @@ bool Model::selectAllTriangles(bool how)
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectTriangles);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectTriangles);
 				undo->setSelectionDifference(t,how,!how);
 			}
 		}
@@ -2104,14 +2058,14 @@ bool Model::selectAllTriangles(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionFaces; //2020
 	
-	sendUndo(undo); return true;
+	return true;
 }
 bool Model::selectAllGroups(bool how)
 {
 	//https://github.com/zturtleman/mm3d/issues/90
 	//if(m_undoEnabled) beginSelectionDifference(); //OVERKILL!
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	bool ret = false;
 
@@ -2125,8 +2079,8 @@ bool Model::selectAllGroups(bool how)
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectGroups);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectGroups);
 				undo->setSelectionDifference(m,how,!how);
 			}
 		}
@@ -2136,7 +2090,7 @@ bool Model::selectAllGroups(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionGroups; //2020
 
-	sendUndo(undo); return true;
+	return true;
 }
 bool Model::selectAllBoneJoints(bool how)
 {
@@ -2145,7 +2099,7 @@ bool Model::selectAllBoneJoints(bool how)
 
 	bool ret = false;
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	for(unsigned j=0;j<m_joints.size();j++)
 	{
@@ -2157,8 +2111,8 @@ bool Model::selectAllBoneJoints(bool how)
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectJoints);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectJoints);
 				undo->setSelectionDifference(j,how,!how);
 			}
 		}
@@ -2168,7 +2122,7 @@ bool Model::selectAllBoneJoints(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionJoints; //2020
 
-	sendUndo(undo); return ret;
+	return ret;
 }
 bool Model::selectAllPoints(bool how)
 {
@@ -2177,7 +2131,7 @@ bool Model::selectAllPoints(bool how)
 
 	bool ret = false;
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	for(unsigned p = 0; p<m_points.size(); p++)
 	{
@@ -2189,8 +2143,8 @@ bool Model::selectAllPoints(bool how)
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectPoints);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectPoints);
 				undo->setSelectionDifference(p,how,!how);
 			}
 		}
@@ -2200,7 +2154,7 @@ bool Model::selectAllPoints(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionPoints; //2020
 
-	sendUndo(undo); return ret;
+	return ret;
 }
 bool Model::selectAllProjections(bool how)
 {
@@ -2209,7 +2163,7 @@ bool Model::selectAllProjections(bool how)
 
 	bool ret = false;
 
-	MU_Select *undo = nullptr; //2020
+	Undo<MU_Select> undo; //2020
 
 	for(unsigned p = 0; p<m_projections.size(); p++)
 	{
@@ -2221,8 +2175,8 @@ bool Model::selectAllProjections(bool how)
 		{
 			if(m_undoEnabled)
 			{
-				if(!undo) undo = new MU_Select(SelectProjections);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectProjections);
 				undo->setSelectionDifference(p,how,!how);
 			}
 		}
@@ -2232,7 +2186,7 @@ bool Model::selectAllProjections(bool how)
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionProjections; //2020
 
-	sendUndo(undo); return ret;
+	return ret;
 }
 bool Model::selectAllPositions(PositionTypeE pt, bool how)
 {
@@ -2280,15 +2234,15 @@ bool Model::selectFreeVertices(bool how)
 
 			if(ue)
 			{
-				if(!undo) undo = new MU_Select(SelectVertices);
-
+				if(!undo)
+				undo = Undo<MU_Select>(this,SelectVertices);
 				undo->setSelectionDifference(v,how,!how);
 			}
 		}
 	}
 	if(sel) m_changeBits |= SelectionVertices;
 
-	sendUndo(undo); return sel;
+	return sel;
 }
 
 bool Model::setSelectedTriangles(const int_list &l) //2022
@@ -2297,7 +2251,7 @@ bool Model::setSelectedTriangles(const int_list &l) //2022
 	
 	if(l.empty()) return false;
 
-	auto undo = m_undoEnabled?new MU_Select(SelectTriangles):0;
+	Undo<MU_Select> undo(this,SelectTriangles);
 
 	bool sel = false;
 
@@ -2347,7 +2301,7 @@ bool Model::setSelectedTriangles(const int_list &l) //2022
 		m_changeBits |= SelectionFaces;
 	}
 	
-	sendUndo(undo); return sel;
+	return sel;
 }
 void Model::setSelectedUv(const int_list &uvList)
 {
@@ -2357,8 +2311,7 @@ void Model::setSelectedUv(const int_list &uvList)
 
 	if(m_undoEnabled)
 	{
-		auto undo = new MU_SetSelectedUv;
-		undo->setSelectedUv(uvList,m_selectedUv);
+		auto undo = new MU_SetSelectedUv(uvList,m_selectedUv);
 
 		//HACK: I can't recall if this is technically necessary
 		//now, but it's very annoying to have to undo/redo this

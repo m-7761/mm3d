@@ -20,23 +20,22 @@
  * See the COPYING file for full license text.
  */
 
-#include "mm3dtypes.h" //PCH
-#include "win.h"
+#include "mm3dtypes.h" //PCH 
 
 #include "texturecoord.h"
 
 #include "viewwin.h"
 #include "log.h"
 
-//2022: I need a fast solution for mapping
-//PlayStation textures to a unit dimension.
 enum
 {
-	//REMINDER: These names go keycfg.ini!
+	//REMINDER: These names go in keycfg.ini!
 
 	id_uv_view_init=id_view_init,
 	
 	//Fit
+	//2022: I need a fast solution for mapping
+	//PlayStation textures to a unit dimension.
 	id_uv_fit_0=0x100000, //0
 	id_uv_fit_1=0x100001, //1
 	id_uv_fit_2=0x100002, //2
@@ -77,12 +76,10 @@ enum
 	id_uv_tools_f1,
 	id_uv_tools_f2,
 	id_uv_tools_f3,
-
-	id_uv_close, //M
 };
 extern int viewwin_shifthold;
 static int texturecoord_fit_uv = 1|2;
-extern void win_help(const char*);
+extern void win_help(const char*,Win::ui*);
 void TextureCoordWin::_menubarfunc(int id)
 {
 	TextureCoordWin *tw;
@@ -164,19 +161,19 @@ void TextureCoordWin::_menubarfunc(int id)
 	case id_help:
 
 		//tw->f1.execute_callback();
-		win_help(typeid(TextureCoordWin).name());
+		win_help(typeid(TextureCoordWin).name(),tw);
 		break;
 
 	case id_uv_editor:
 
-		tw->submit(tw->ok); //HACK
+		tw->submit(tw->close); //HACK
 		break;
 
 	case id_uv_tools_f1:
 	case id_uv_tools_f2:
 	case id_uv_tools_f3:
 
-		tw->toggle_toolbar(id-id_uv_tools_f1);
+		tw->toggle_toolbar(id-id_uv_tools_f1+1);
 		break;
 
 	case id_edit_undo:
@@ -186,16 +183,17 @@ void TextureCoordWin::_menubarfunc(int id)
 		break;
 
 	case id_tool_toggle: //DICEY
+	case id_tool_none:
 
 		id+=id_uv_model; //break; //Ready for subtraction below.
 
-	case id_uv_model+0: 
-	case id_uv_model+1:
-	case id_uv_model+3:	
+	case id_uv_model+0: //tool_select_connected?
+	case id_uv_model+1: //tool_select_faces?
+	case id_uv_model+3: //tool_select_groups?	
 
 		glutSetWindow(tw->model.glut_window_id);				
 		extern void viewwin_toolboxfunc(int);
-		viewwin_toolboxfunc(id-id_uv_model); //tool_select_faces?
+		viewwin_toolboxfunc(id-id_uv_model);
 		break;
 
 	case id_snap_grid: case id_snap_vert:	
@@ -222,7 +220,11 @@ void TextureCoordWin::_menubarfunc(int id)
 		viewportsettings(tw->model); 
 		break;
 
-	case id_uv_tool_select: case id_uv_tool_move: 
+	case id_uv_tool_select: 
+	
+		tw->model._sync_sel2 = -1; //break; //HACK
+
+	case id_uv_tool_move: 
 	case id_uv_tool_rotate: case id_uv_tool_scale:
 
 		tw->submit(tw->mouse.select_id(id)); break;
@@ -241,19 +243,8 @@ void TextureCoordWin::_menubarfunc(int id)
 
 		tw->mouse.select_id(tw->recall_tool[1]);
 
-		//tw->submit(tw->mouse); //Can't send id_item.		
-		{
-			tw->texture.setMouseOperation
-			((Widget::MouseOperationE)tw->recall_tool[1]);
-
-			if(tw->texture._tool_bs_lock!=tw->recall_lock[1])
-			{
-				tw->texture._tool_bs_lock = tw->recall_lock[1];
-				tw->model.views.status._texshlock.indicate(tw->recall_lock[1]!=0);
-			}
-
-			tw->texture.updateWidget();
-		}			
+		tw->toggle_tool(false);
+		
 		break;
 
 	case id_uv_fit_u:
@@ -352,17 +343,59 @@ void TextureCoordWin::toggle_toolbar(int f)
 	control *c; switch(f)
 	{
 	default: assert(0); return;
-	case 2: c = &toolbar1;break; 
-	case 1: c = &toolbar2; break;	
-	case 0: c = &f1; break;
+	case 3: c = &toolbar3;break; 
+	case 2: c = &toolbar2; break;	
+	case 1: c = &f1; break;
 	}
 	bool x = !c->hidden();
-	c->set_hidden(x,f!=0); 
-	if(f==0) ok.set_hidden(x);
-	int bts = (int)toolbar1.hidden()|(int)toolbar2.hidden()<<1; //C4805?
+	c->set_hidden(x); 
+	if(f==1) close.set_hidden(x);
+	int bts = (int)toolbar3.hidden()<<2|(int)toolbar2.hidden()<<1;
 	map_remap.set_hidden(bts!=0);
-	bts|=f1.hidden()<<2;		 	
+	bts|=(int)f1.hidden();		 	
 	config.set("uv_buttons_mask",bts);	
+
+	if(f==1) close.id(bts&1?id_ok:id_close); //Allow Esc for None tool??
+
+	if(seen()) //DICEY
+	{
+		int dy = _main_panel._h;
+		scene.lock(scene._w,scene._h);
+		_main_panel.lock(0,false);
+		_main_panel.pack();
+		_main_panel.lock(0,true);
+		scene.lock(scene._w,false);		
+		dy = _main_panel._h-dy;
+		_reshape[1]+=dy; _reshape[3]+=dy;	
+	}
+}
+void TextureCoordWin::toggle_tool(bool unlock)
+{
+	texture.setMouseOperation
+	((texture::MouseE)recall_tool[1]);
+
+	if(unlock)
+	recall_lock[1] = viewwin_shifthold?texture._tool_bs_lock:0;
+
+	if(texture._tool_bs_lock!=recall_lock[1])
+	{
+		texture._tool_bs_lock = recall_lock[1];
+		model.views.status._texshlock.indicate(recall_lock[1]!=0);
+	}
+
+	int tt; switch(mouse)
+	{	
+	case texture::MouseNone:
+		default: assert(0); tt = Tool::TT_NullTool; break;
+	case texture::MouseMove: tt = Tool::TT_MoveTool; break;
+	case texture::MouseSelect: tt = Tool::TT_SelectTool; break;
+	case texture::MouseScale: tt = Tool::TT_ScaleTool; break;
+	case texture::MouseRotate: tt = Tool::TT_RotateTool; break;		
+	}
+
+	model._sync_tools(tt,2);
+
+	texture.updateWidget();	
 }
 void TextureCoordWin::_init_menu_toolbar()
 {	
@@ -376,11 +409,11 @@ void TextureCoordWin::_init_menu_toolbar()
 
 	static int fit_menu=0; if(!fit_menu)
 	{
-		int sm = glutCreateMenu(TextureCoordWin::_menubarfunc);		
+		int sm = glutCreateMenu(_menubarfunc);		
 		glutAddMenuEntry(O(false,uv_fit_u,"Fit Width","","Ctrl+W"));
 		glutAddMenuEntry(O(false,uv_fit_v,"Fit Height","","Ctrl+H"));		
 		glutAddMenuEntry(O(true,uv_fit_uv,"Regular Fit","",""));
-		fit_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		fit_menu = glutCreateMenu(_menubarfunc);
 		glutAddSubMenu(::tr("Confine",""),sm);
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(uv_fit_0,"Modulo","","0"));
@@ -402,13 +435,13 @@ void TextureCoordWin::_init_menu_toolbar()
 	}
 	static int conf_menu=0; if(!conf_menu)
 	{
-		conf_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		conf_menu = glutCreateMenu(_menubarfunc);
 		//NOTE: viewwini.cc uses "Restore to Normal" but it
 		//doesn't use Home (Home comes from Misfit Model 3D.)
 		glutAddMenuEntry(E(uv_view_init,"Reset","","Home"));
 	}
 
-	_viewmenu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+	_viewmenu = glutCreateMenu(_menubarfunc);
 	glutAddSubMenu("Reconfigure",conf_menu);
 	glutAddMenuEntry();
 	bool r = config.get("uv_snap_vertex",false);
@@ -422,7 +455,7 @@ void TextureCoordWin::_init_menu_toolbar()
 
 	static int tool_menu=0; if(!tool_menu) //2022
 	{
-		tool_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		tool_menu = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_vertices","Select","Tool","V"),id_uv_tool_select);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_move","Move","Tool","T"),id_uv_tool_move);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_rotate","Rotate","Tool","R"),id_uv_tool_rotate);
@@ -445,14 +478,15 @@ void TextureCoordWin::_init_menu_toolbar()
 		}		
 		glutAddMenuEntry();
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_recall","Switch Tool","","Space"),id_tool_recall);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_none","None","Tool","Esc"),id_tool_none);
 	}
 	static int model_menu=0; if(!model_menu)
 	{
-		model_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		model_menu = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(viewwin_menu_entry(o,"edit_undo","Undo","Undo shortcut","Ctrl+Z"),id_edit_undo);
 		glutAddMenuEntry(viewwin_menu_entry(o,"edit_redo","Redo","Redo shortcut","Ctrl+Y"),id_edit_redo);
 		glutAddMenuEntry();
-		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_connected_mesh","Select Connected Mesh","Tool","C"),id_uv_model+0);
+		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_connected","Select Connected","Tool","C"),id_uv_model+0);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_faces","Select Faces","Tool","F"),id_uv_model+1);
 		glutAddMenuEntry(viewwin_menu_entry(o,"tool_select_groups","Select Groups","Tool","G"),id_uv_model+3);
 		glutAddMenuEntry();
@@ -460,27 +494,27 @@ void TextureCoordWin::_init_menu_toolbar()
 	}
 	static int cmd_menu=0; if(!cmd_menu)
 	{
-		int edit = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		int edit = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(viewwin_menu_entry(o,"cmd_select_all","Select All UVs","Command","Ctrl+A"),id_uv_cmd_select_all+0);
-		int faces = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		int faces = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(E(uv_cmd_select_faces_incl,"Select Faces from UVs","","Ctrl+F"));
 		glutAddMenuEntry(E(uv_cmd_select_faces_excl,"Select Inscribed Faces","","Shift+Ctrl+F"));		
 		//Note, trying to match flipcmd.cc and flattencmd.cc
 		//Snap is just shorter than "Flatten" in the button layout.
-		int snap = glutCreateMenu(TextureCoordWin::_menubarfunc);		
+		int snap = glutCreateMenu(_menubarfunc);		
 		glutAddMenuEntry(E(uv_cmd_snap_u,"Snap on U","","F5"));
 		glutAddMenuEntry(E(uv_cmd_snap_v,"Snap on V","","F6"));
 		glutAddMenuEntry(E(uv_cmd_snap_uv,"Snap Both","","F7"));
-		int flip = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		int flip = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(E(uv_cmd_flip_u,"Flip on U","","Alt+F5"));
 		glutAddMenuEntry(E(uv_cmd_flip_v,"Flip on V","","Alt+F6"));
 		glutAddMenuEntry(E(uv_cmd_flip_uv,"Flip Both","","Alt+F7"));		
-		int turn = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		int turn = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(E(uv_cmd_turn_ccw,"Turn CCW","","F8"));
 		glutAddMenuEntry(E(uv_cmd_turn_cw,"Turn CW","","F9"));
 		glutAddMenuEntry(E(uv_cmd_turn_180,"Turn 180","","F10"));
 
-		cmd_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
+		cmd_menu = glutCreateMenu(_menubarfunc);
 		glutAddSubMenu(TRANSLATE_NOOP("Command","Edit"),edit);
 		glutAddMenuEntry();
 		glutAddSubMenu(TRANSLATE_NOOP("Command","Faces"),faces);
@@ -491,29 +525,29 @@ void TextureCoordWin::_init_menu_toolbar()
 	}
 	static int f1_menu=0; if(!f1_menu)
 	{
-		int buttons = glutCreateMenu(TextureCoordWin::_menubarfunc);		
+		int buttons = glutCreateMenu(_menubarfunc);		
 		glutAddMenuEntry(E(uv_tools_f3,"Toggle Row 3","","Shift+F3"));		
 		glutAddMenuEntry(E(uv_tools_f2,"Toggle Row 2","","Shift+F2"));
 		glutAddMenuEntry(E(uv_tools_f1,"Toggle Row 1","","Shift+F1"));
-		f1_menu = glutCreateMenu(TextureCoordWin::_menubarfunc);
-		glutAddMenuEntry(E(help,"&Contents","Help|Contents","F1"));
+		f1_menu = glutCreateMenu(_menubarfunc);
+		glutAddMenuEntry(E(help,"Contents","Help|Contents","F1"));
 		glutAddMenuEntry();
 		glutAddSubMenu("Buttons",buttons);
 		glutAddMenuEntry();
-		glutAddMenuEntry(E(uv_editor,"&Close","","M"));
+		glutAddMenuEntry(E(uv_editor,"Close","","M"));
 	}
 	int bts = config.get("uv_buttons_mask",0);
-	if(bts&1) toggle_toolbar(0);
-	if(bts&2) toggle_toolbar(1);
-	if(bts&4) toggle_toolbar(2);
+	if(bts&1) toggle_toolbar(1);
+	if(bts&2) toggle_toolbar(2);
+	if(bts&4) toggle_toolbar(3);
 
-	_menubar = glutCreateMenu(TextureCoordWin::_menubarfunc);
-	glutAddSubMenu(::tr("&Fit","menu bar"),fit_menu);
-	glutAddSubMenu(::tr("&View","menu bar"),_viewmenu);
-	glutAddSubMenu(::tr("&Tools","menu bar"),tool_menu);
-	glutAddSubMenu(::tr("&Model","menu bar"),model_menu);
-	glutAddSubMenu(::tr("&Geometry","menu bar"),cmd_menu);
-	glutAddSubMenu(::tr("&Help","menu bar"),f1_menu);
+	_menubar = glutCreateMenu(_menubarfunc);
+	glutAddSubMenu(::tr("Fit","menu bar"),fit_menu);
+	glutAddSubMenu(::tr("View","menu bar"),_viewmenu);
+	glutAddSubMenu(::tr("Tools","menu bar"),tool_menu);
+	glutAddSubMenu(::tr("Model","menu bar"),model_menu);
+	glutAddSubMenu(::tr("Geometry","menu bar"),cmd_menu);
+	glutAddSubMenu(::tr("Help","menu bar"),f1_menu);
 	glutAttachMenu(glutext::GLUT_NON_BUTTON);
 
 	#undef E //viewwin_menu_entry
@@ -522,6 +556,7 @@ void TextureCoordWin::_init_menu_toolbar()
 }
 TextureCoordWin::~TextureCoordWin()
 {
+	for(int*m=&_menubar;m<=&_viewmenu;m++)
 	glutDestroyMenu(_menubar);
 }
 
@@ -563,8 +598,12 @@ void TextureCoordWin::open()
 	setModel();
 	
 	// If visible, setModel already did this
-	if(hidden())
+	if(hidden()||!seen())
 	{
+		int tt = model._sync_tool;
+		if(tt==-1) tt = Tool::TT_SelectTool;
+		_sync_tools(model._sync_tool,model._sync_sel2);
+	
 		//REMINDER: GLX needs to show before
 		//it can use OpenGL.
 		show();
@@ -694,43 +733,72 @@ void TextureCoordWin::openModel()
 	updateSelectionDone();
 }
 
-//NOTE: Win::Widget::getXY could be overriden instead but
-//it doesn't deal with "entry" (really "exit" here) logic.
-static void texturecoord_entry_cb(Widgets95::ui *ui, int state)
+static void texturecoord_reshape(Win::ui *ui, int x, int y)
 {
-	if(!state&&ui==Win::event.active_control_ui)
-	Win::event.deactivate();
-}
-static bool texturecoord_motion_cb(Widgets95::ui *ui, int x, int y)
-{
-	//REMINDER: Win::Widget::getXY already steals focus to
-	//the canvas, but this causes some problems with menus
-	//(mainly around Space and Tab "accelerators" although
-	//I've diabled _space_clicks in widgets95.h there's no
-	//way yet to disable tab navigation.)
-	if(ui==Win::event.active_control_ui)
+	assert(!ui->hidden()); //DEBUGGING
+
+	auto *w = (TextureCoordWin*)ui;
+	auto &r = w->_reshape;
+
+	if(!ui->seen())
 	{
-		//NOTE: x/y are used down below.
-		auto &a = ((TextureCoordWin*)ui)->scene.area(); 	
-		if((unsigned)(x-a[0])<(unsigned)a[2])
-		if((unsigned)(y-a[1])<(unsigned)a[3])
-		Win::event.deactivate();
+		r[0] = x-w->scene.span(); 
+		r[1] = y-w->scene.drop();
+		r[2] = x;
+		r[3] = y; return;
 	}
-	//NOTE: this needs to run after
-	extern bool win_widget_motion(Widgets95::ui*,int,int); //YUCK
-	return win_widget_motion(ui,x,y);
+
+	if(x<r[2]) x+=r[2]-x; 
+	if(y<r[3]) y+=r[3]-y; 
+
+	//NOTE: Can't really lock scene.y because of
+	//the option trays on the bottom make it very
+	//complicated/runaway.
+	w->scene.lock(x-r[0],0);
+	w->_main_panel.lock(0,y);
+}
+
+void TextureCoordWin::_sync_tools(int tt, int arg)
+{
+	int t = (int)mouse; switch(t)
+	{
+	case texture::MouseNone: t = Tool::TT_NullTool; break;
+	case texture::MouseMove: t = Tool::TT_MoveTool; break;
+	case texture::MouseSelect: t = Tool::TT_SelectTool; break;
+	case texture::MouseScale: t = Tool::TT_ScaleTool; break;
+	case texture::MouseRotate: t = Tool::TT_RotateTool; break;
+	default: return;
+	}
+	if(t==tt) return;
+
+	switch(tt)
+	{
+	case Tool::TT_NullTool:  t = texture::MouseNone; break;
+	case Tool::TT_SelectTool: t = texture::MouseSelect; break;
+	case Tool::TT_MoveTool: t = texture::MouseMove; break;
+	case Tool::TT_RotateTool: t = texture::MouseRotate; break;
+	case Tool::TT_ScaleTool: t = texture::MouseScale; break;
+	}
+
+	if(mouse.select_id(t)) submit(mouse);
 }
 void TextureCoordWin::init()
 {
-	//Tab key? (like viewpanel_motion_func)
-	entry_callback = texturecoord_entry_cb;
-	motion_callback = texturecoord_motion_cb; 
+	toolbar3.calign();
+	toolbar2.calign();
+	reshape_callback = texturecoord_reshape; 
+
+	//This is used to let Tab hotkeys go to menus.
+	//It depends on Win::Widget activating itself.
+	scene.ctrl_tab_navigate();
+
+	close.ralign();
 
 	_init_menu_toolbar(); //_menubar //_viewmenu
 
 	m_ignoreChange = false; 
 
-	for(int i=2;i-->0;recall_lock[i]=0) recall_tool[i] = !i;
+	for(int i=2;i-->0;recall_lock[i]=0) recall_tool[i] = !i+1;
 
 	dimensions.disable();
 
@@ -755,11 +823,11 @@ void TextureCoordWin::init()
 	texture.setInteractive(true);
 	texture.setDrawUvBorder(true); 
 
-	mouse.select_id(+Widget::MouseSelect)
-	.add_item(Widget::MouseSelect,"Select")
-	.add_item(Widget::MouseMove,"Move")
-	.add_item(Widget::MouseRotate,"Rotate")
-	.add_item(Widget::MouseScale,"Scale");	
+	mouse.select_id(texture.m_operation)
+	.add_item(texture::MouseSelect,"Select")
+	.add_item(texture::MouseMove,"Move")
+	.add_item(texture::MouseRotate,"Rotate")
+	.add_item(texture::MouseScale,"Scale");	
 		
 	scale_sfc.set(config.get("ui_texcoord_scale_center",true));
 	scale_kar.set(config.get("ui_texcoord_scale_aspect",false));
@@ -785,11 +853,12 @@ void TextureCoordWin::submit(control *c)
 		texture.setSelectionColor((int)red);
 		texture.setScaleFromCenter(scale_sfc);
 		texture.setScaleKeepAspect(scale_kar);
-		//break;
+		break;
 
 	case id_item: 
 
-		//Just to be safe?
+		assert((int)mouse);
+
 		if(recall_tool[1]!=(int)mouse)
 		{
 			recall_lock[0] = recall_lock[1];
@@ -797,17 +866,8 @@ void TextureCoordWin::submit(control *c)
 			recall_tool[1] = mouse;
 		}
 
-		texture.setMouseOperation
-		((Widget::MouseOperationE)recall_tool[1]);
+		toggle_tool(true);
 
-		recall_lock[1] = viewwin_shifthold?texture._tool_bs_lock:0;
-		if(texture._tool_bs_lock!=recall_lock[1])
-		{
-			texture._tool_bs_lock = recall_lock[1];
-			model.views.status._texshlock.indicate(recall_lock[1]!=0);
-		}
-
-		texture.updateWidget();
 		break;
 
 	case id_reset:
@@ -882,22 +942,15 @@ void TextureCoordWin::submit(control *c)
 		updateTextureCoordsDone();
 		break;
 	
-	case id_ok: case id_close:
+		//HACK: This prevents pressing Esc so
+		//the None tool can use it by default.
+		//Note: id_close is preventing Return.
+	case id_ok:
+	case id_close:
 
-		event.close_ui_by_create_id(); //Help?
-
-		//I guess this model saves users' work?
-		hide();
-		
-		//DUPLICATE (FIX)
-		//There seems to be a wxWidgets bug that is documented under hide() which
-		//can be defeated by voiding the current GLUT window. TODO: this needs to
-		//be removed once the bug is long fixed. Other windows are using this too.
-		glutSetWindow(0);
-		
 		toggle_indicators(false); //2022
 
-		return;
+		return hide();
 	}
 
 	basic_submit(id);
@@ -1074,7 +1127,11 @@ void TextureCoordWin::updateTextureCoordsDone(bool done)
 {
 	//NOTE: Could set the coords, but it would be different from
 	//how the Position sidebar behaves.
-	if(done) setTextureCoordsEtc(true);
+	/*2022: projectionwin.cc is now updating in real-time since
+	//it relies on Model::applyProjection and change-notices are
+	//simpler that way.
+	if(done) setTextureCoordsEtc(true);*/
+	setTextureCoordsEtc(!done);
 	if(done) operationComplete(::tr("Move texture coordinates"));
 }
 void TextureCoordWin::updateSelectionDone()
@@ -1141,6 +1198,18 @@ void TextureCoordWin::setTextureCoordsEtc(bool setCoords)
 		u.text().clear();
 		v.text().clear();
 
+		return;
+	}
+
+	if(setCoords) //2022
+	{
+		//NOTE: Something like Tool::Parent::updateView
+		//on texture views only would be an improvement.
+		model->updateObservers();
+
+		//TODO: This is to match the sidebar's
+		//behavior, which is not not update the
+		//text boxes in real-time.
 		return;
 	}
 

@@ -718,7 +718,8 @@ static void model_bool_removeSubtractionTriangles
 			removeList2.push_back(a.tri);
 		}
 	}
-	for(auto i:invertList) model->invertNormals(i);
+	
+	model->invertNormals(invertList);
 
 	// Must delete in reverse order because deleting a triangle invalidates
 	// any index that comes after it.
