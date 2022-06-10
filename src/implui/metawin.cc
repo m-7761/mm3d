@@ -554,7 +554,9 @@ void MetaWin::util_submit(control *c)
 		{
 		case 2: //Double-click? 
 			
-			dblclk: UtilEditWin(i,&lv,header).return_on_close();
+			dblclk: 
+			if(id_ok!=UtilEditWin(i,&lv,header).return_on_close())
+			return;
 			break;
 
 		case 1:

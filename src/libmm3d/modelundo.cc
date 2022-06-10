@@ -2212,6 +2212,8 @@ bool MU_Add::_fg(void(Model::*&f)(int,void*), void(Model::*&g)(int))
 		f = (F)&Model::insertTexture; g = (G)&Model::removeTexture; break;
 	case Model::PartJoints: 
 		f = (F)&Model::insertBoneJoint; g = (G)&Model::removeBoneJoint; break;
+	case Model::PartPoints: 
+		f = (F)&Model::insertPoint; g = (G)&Model::removePoint; break;
 	case Model::PartProjections:
 		f = (F)&Model::insertProjection; g = (G)&Model::removeProjection; break;
 	case Model::PartUtilities:
@@ -2234,6 +2236,8 @@ void MU_Add::_release()
 		for(auto&ea:m_list) ((Model::Material*)ea.ptr)->release(); break;
 	case Model::PartJoints: 
 		for(auto&ea:m_list) ((Model::Joint*)ea.ptr)->release(); break;
+	case Model::PartPoints:
+		for(auto&ea:m_list) ((Model::Point*)ea.ptr)->release(); break;
 	case Model::PartProjections:
 		for(auto&ea:m_list) ((Model::TextureProjection*)ea.ptr)->release(); break;
 	case Model::PartUtilities:
@@ -2251,6 +2255,7 @@ unsigned MU_Add::size()
 	case Model::PartGroups: sz = sizeof(Model::Group); break;
 	case Model::PartMaterials: sz = sizeof(Model::Material); break;
 	case Model::PartJoints: sz = sizeof(Model::Joint); break;
+	case Model::PartPoints: sz = sizeof(Model::Point); break;
 	case Model::PartProjections: sz = sizeof(Model::TextureProjection); break;
 	case Model::PartUtilities:
 		

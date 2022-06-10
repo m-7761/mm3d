@@ -1210,10 +1210,10 @@ Model *MainWin::_swap_models(Model *swap)
 		model->setDrawOption(Model::DO_TEXTURE_MATRIX,true);
 
 		Model::ViewportUnits &vu = model->getViewportUnits();
-		vu.inc = config.get("ui_grid_inc",4.0);
+		vu.inc = config.get("ui_grid_inc",1.0); //4.0?
 		vu.grid = config.get("ui_grid_mode",0);
-		vu.inc3d = config.get("ui_3dgrid_inc",4.0);
-		vu.ptsz3d = config.get("ui_point_size",0.25);
+		vu.inc3d = config.get("ui_3dgrid_inc",1.0); //4.0?
+		vu.ptsz3d = config.get("ui_point_size",0.1); //0.25
 		vu.lines3d = config.get("ui_3dgrid_count",6);
 		vu.xyz3d = 0; //NEW		
 		if(config.get("ui_3dgrid_xy",false)) vu.xyz3d|=4;

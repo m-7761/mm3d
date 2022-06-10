@@ -696,8 +696,6 @@ int Model::addPoint(const char *name, double x, double y, double z,
 	//https://github.com/zturtleman/mm3d/issues/158
 	if(!name[0]) name = "_";
 
-	m_changeBits |= AddOther;
-
 	int num = m_points.size();
 
 	//log_debug("New point at %f,%f,%f\n",x,y,z); //???
