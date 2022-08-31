@@ -180,16 +180,23 @@ void Model::addSelectedToGroup(unsigned groupNum)
 	}
 }
 
-bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
+bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum, bool undo)
 {
 	//LOG_PROFILE(); //???
 
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{
 		auto *tp = m_triangles[triangleNum]; //2022
+
 		int og = tp->m_group;
-		if(og==-1) tp->m_group = groupNum;
-		else return false;
+
+		if(undo) //INTERNAL OPTIMIZATION
+		{
+			if(og==-1)
+			tp->m_group = groupNum;
+			else return false;
+		}
+		else assert(tp->m_group==groupNum);
 		
 		auto &c = m_groups[groupNum]->m_triangleIndices;
 		if(!c.empty()&&(unsigned)c.back()>triangleNum)
@@ -201,6 +208,7 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum)
 		}
 		else c.push_back(triangleNum);
 
+		if(undo) //INTERNAL OPTIMIZATION
 		Undo<MU_AddToGroup>(this,triangleNum,groupNum,og);
 
 		m_changeBits |= SetGroup; //SetTexture?
@@ -226,7 +234,7 @@ bool Model::ungroupTriangle(unsigned triangleNum)
 	return removeTriangleFromGroup(tp->m_group,triangleNum);
 	return true;
 }
-bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
+bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum, bool undo)
 {
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{	
@@ -237,6 +245,7 @@ bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 		auto &c = m_groups[groupNum]->m_triangleIndices;
 		if(c.empty()){ assert(0); return false; }
 
+		if(undo) //INTERNAL OPTIMIZATION
 		tp->m_group = -1;
 				
 		auto it = c.end()-1;
@@ -249,6 +258,7 @@ bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum)
 		{
 			c.erase(it);
 
+			if(undo) //INTERNAL OPTIMIZATION
 			Undo<MU_AddToGroup>(this,triangleNum,-1,og);
 		}
 

@@ -88,8 +88,9 @@ public:
 		for(auto rit=l->rbegin();rit<l->rend();rit++)
 		{
 			if(auto*u=dynamic_cast<U*>(*rit))
-			return u;			
-			if(Undo::CC_Stop==(*rit)->combine())
+			return u;
+			if(U::resume_first_only
+			||Undo::CC_Stop==(*rit)->combine())
 			return nullptr;
 		}
 		return nullptr;

@@ -122,6 +122,12 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 		adjustTriangleIndices(index,+1);
 	}
 	else m_triangles.push_back(triangle);
+
+	//2022: INTERNAL OPTIMIZATION
+	if(triangle->m_group!=-1)
+	{
+		addTriangleToGroup(triangle->m_group,index,false);
+	}
 }
 void Model::removeTriangle(unsigned index)
 {
@@ -142,6 +148,8 @@ void Model::removeTriangle(unsigned index)
 		auto &vi = tp->m_vertexIndices;
 		for(int i=3;i-->0;)
 		m_vertices[vi[i]]->_erase_face(tp,i);
+
+		//assert(tp->m_group==-1); //2022
 
 		//FIX US
 		//https://github.com/zturtleman/mm3d/issues/92
@@ -655,7 +663,7 @@ void Model::adjustVertexIndices(unsigned index, int amount)
 
 void Model::adjustTriangleIndices(unsigned index, int amount)
 {
-	for(unsigned g = 0; g<m_groups.size(); g++)
+	for(unsigned g=0;g<m_groups.size();g++)
 	{
 		//Group *grp = m_groups[g];
 		auto &grp = m_groups[g]->m_triangleIndices;

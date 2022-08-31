@@ -1685,6 +1685,8 @@ class MU_Add : public ModelUndo
 {
 public:
 
+	enum{ resume_first_only=true };
+
 	void undo(Model *);
 	void redo(Model *);
 	int combine(Undo *);

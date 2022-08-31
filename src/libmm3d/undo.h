@@ -28,6 +28,12 @@ class Undo
 {
 	public:
 
+		enum
+		{
+			resume=false,
+			resume_first_only=false
+		};
+
 		enum //2022
 		{
 			CC_Stop=-1, //all categories sequence point

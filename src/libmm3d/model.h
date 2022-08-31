@@ -2099,9 +2099,9 @@ public:
 	const int_list &getGroupTriangles(unsigned groupNumber)const; //2020
 	int getGroupTextureId(unsigned groupNumber)const;
 
-	//FIX ME: THESE ARE EXTREMELY INEFFECIENT
-	bool addTriangleToGroup(unsigned groupNum, unsigned triangleNum);
-	bool removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum);
+	//2022: undo is an internal optimization (FIX ME)
+	bool addTriangleToGroup(unsigned groupNum, unsigned triangleNum,bool undo=true);
+	bool removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum,bool undo=true);
 	bool ungroupTriangle(unsigned triangleNum);
 	void setSelectedAsGroup(unsigned groupNum);
 	void addSelectedToGroup(unsigned groupNum);
