@@ -154,7 +154,7 @@ void TextureCoordWin::_menubarfunc(int id)
 			if(smask) ea.s*=s;
 			if(tmask) ea.t*=t;		
 		}
-	done:tw->updateTextureCoordsDone();
+	done:tw->setTextureCoordsDone();
 	}
 	else switch(id) //Tool?
 	{
@@ -283,7 +283,7 @@ void TextureCoordWin::_menubarfunc(int id)
 		id-=id_uv_cmd_flip_u;
 		if(id!=1) tw->texture.uFlipCoordinates();
 		if(id!=0) tw->texture.vFlipCoordinates();
-		tw->updateTextureCoordsDone(); 
+		tw->setTextureCoordsDone(); 
 		break;
 
 	case id_uv_cmd_snap_u:
@@ -293,7 +293,7 @@ void TextureCoordWin::_menubarfunc(int id)
 		id-=id_uv_cmd_snap_u;
 		if(id!=1) tw->texture.uFlattenCoordinates();
 		if(id!=0) tw->texture.vFlattenCoordinates();
-		tw->updateTextureCoordsDone(); 
+		tw->setTextureCoordsDone(); 
 		break;
 
 	case id_uv_cmd_turn_ccw:
@@ -304,7 +304,7 @@ void TextureCoordWin::_menubarfunc(int id)
 		if(id!=1) tw->texture.rotateCoordinatesCcw();
 		if(id==2) tw->texture.rotateCoordinatesCcw();
 		if(id==1) tw->texture.rotateCoordinatesCw();			
-		tw->updateTextureCoordsDone(); 
+		tw->setTextureCoordsDone(); 
 		break;
 
 	}
@@ -906,7 +906,7 @@ void TextureCoordWin::submit(control *c)
 			if(c==uflip) texture.uFlipCoordinates();
 			if(c==vflip) texture.vFlipCoordinates();
 
-			updateTextureCoordsDone();	
+			setTextureCoordsDone();	
 		}
 		if(c>=l80&&c<=snap)
 		{
@@ -917,7 +917,7 @@ void TextureCoordWin::submit(control *c)
 			if(c==usnap) texture.uFlattenCoordinates();
 			if(c==vsnap) texture.vFlattenCoordinates();
 
-			updateTextureCoordsDone();	
+			setTextureCoordsDone();	
 		}
 		else if(c==scale_sfc)
 		{
@@ -939,7 +939,7 @@ void TextureCoordWin::submit(control *c)
 	case 'U': case 'V':
 	
 		texture.move(u.float_val()-centerpoint[0],v.float_val()-centerpoint[1]); 
-		updateTextureCoordsDone();
+		setTextureCoordsDone();
 		break;
 	
 		//HACK: This prevents pressing Esc so
@@ -1014,7 +1014,7 @@ void TextureCoordWin::mapReset(int id)
 		texture.addTriangle(0,2,3);
 		}
 
-	done: updateTextureCoordsDone();
+	done: setTextureCoordsDone();
 
 		return texture.updateWidget();
 	}
@@ -1123,7 +1123,13 @@ void TextureCoordWin::mapReset(int id)
 	goto done;
 }
 
-void TextureCoordWin::updateTextureCoordsDone(bool done)
+void TextureCoordWin::setTextureCoordsDone()
+{
+	setTextureCoordsEtc(true,true);
+	model->updateObservers();
+	operationComplete(::tr("Set texture coordinates"));
+}
+void TextureCoordWin::moveTextureCoordsDone(bool done)
 {
 	//NOTE: Could set the coords, but it would be different from
 	//how the Position sidebar behaves.
@@ -1131,7 +1137,7 @@ void TextureCoordWin::updateTextureCoordsDone(bool done)
 	//it relies on Model::applyProjection and change-notices are
 	//simpler that way.
 	if(done) setTextureCoordsEtc(true);*/
-	setTextureCoordsEtc(!done);
+	setTextureCoordsEtc(!done,done);
 	if(done) operationComplete(::tr("Move texture coordinates"));
 }
 void TextureCoordWin::updateSelectionDone()
@@ -1144,7 +1150,7 @@ void TextureCoordWin::updateSelectionDone()
 		m_ignoreChange = false;
 	}
 
-	setTextureCoordsEtc(false); //NEW
+	setTextureCoordsEtc(false,true); //NEW
 }
 void TextureCoordWin::operationComplete(const char *opname)
 {
@@ -1152,7 +1158,7 @@ void TextureCoordWin::operationComplete(const char *opname)
 	m_ignoreChange = false;
 }
 
-void TextureCoordWin::setTextureCoordsEtc(bool setCoords)
+void TextureCoordWin::setTextureCoordsEtc(bool setCoords, bool setUI)
 {
 	dimensions.redraw().text().clear();
 	
@@ -1210,8 +1216,9 @@ void TextureCoordWin::setTextureCoordsEtc(bool setCoords)
 		//TODO: This is to match the sidebar's
 		//behavior, which is not not update the
 		//text boxes in real-time.
-		return;
+		//return;
 	}
+	if(!setUI) return;
 
 	for(int i=0;i<2;i++)
 	{

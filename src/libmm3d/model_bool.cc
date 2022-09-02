@@ -109,7 +109,7 @@ static double model_bool_findEdgePlaneDistance
 	double a =	dot3(p2_p1,triNorm), d = -dot3(triCoord,triNorm);
 
 	// prevent divide by zero
-	// edge is parallel to plane,the value of ipoint is undefined
+	// edge is parallel to plane, the value of ipoint is undefined
 	if(fabs(a)<TOLERANCE) return 0;
 
 	// distance along edgeVec (p2_p1) to plane
@@ -126,27 +126,30 @@ static bool model_bool_findEdgePlaneIntersection
 
 	//log_debug("finding intersection with plane with line from %f,%f,%f to %f,%f,%f\n",p1[0],p1[1],p1[2],p2[0],p2[1],p2[2]);
 
-	double dist = model_bool_findEdgePlaneDistance(p1,edgeVec,triCoord,triNorm);
+	//WARNING: This isn't "dist" because edgeVec isn't normalized
+	//That means TOLERANCE below isn't an absolute distance either
+	//double dist = model_bool_findEdgePlaneDistance(p1,edgeVec,triCoord,triNorm);
+	double t = model_bool_findEdgePlaneDistance(p1,edgeVec,triCoord,triNorm);
 
 	// edge is parallel to plane, the value of ipoint is undefined
-	if(0==dist) return false;
+	if(0==t) return false;
 
-	// dist is%of velocity vector, scale to get impact point
+	// t is%of velocity vector, scale to get impact point
 	for(int i=3;i-->0;)
 	{
-		ipoint[i] = p1[i]+dist*edgeVec[i];
+		ipoint[i] = p1[i]+t*edgeVec[i];
 	}
 
 	if(checkRange)
 	{
 		// Make sure intersection point is between p1 and p2
-		return dist>=(0.0-TOLERANCE)&&dist<=(1.0+TOLERANCE);
+		return t>=(0.0-TOLERANCE)&&t<=(1.0+TOLERANCE);
 	}
 	else
 	{
 		// Distance is irrelevant,we just want to know where 
 		// the intersection is (as long as it's not behind the triangle)
-		return dist>=(0.0-TOLERANCE);
+		return t>=(0.0-TOLERANCE);
 	}
 }
 

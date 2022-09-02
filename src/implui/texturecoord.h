@@ -150,7 +150,7 @@ struct TextureCoordWin : Win
 		}
 		virtual void updateCoordinatesSignal()
 		{
-			win().updateTextureCoordsDone(false);
+			win().moveTextureCoordsDone(false);
 		}
 		virtual void updateSelectionDoneSignal()
 		{
@@ -158,7 +158,7 @@ struct TextureCoordWin : Win
 		}
 		virtual void updateCoordinatesDoneSignal()
 		{
-			win().updateTextureCoordsDone(true);
+			win().moveTextureCoordsDone(true);
 		}
 		   
 	}texture;
@@ -186,9 +186,10 @@ protected:
 		
 	void operationComplete(const char*);
 	void updateSelectionDone();
-	void updateTextureCoordsDone(bool done=true);
+	void moveTextureCoordsDone(bool done);
+	void setTextureCoordsDone();
 
-	void setTextureCoordsEtc(bool); //NEW
+	void setTextureCoordsEtc(bool,bool); //NEW
 
 	void toggle_toolbar(int);
 	void toggle_indicators(bool);
