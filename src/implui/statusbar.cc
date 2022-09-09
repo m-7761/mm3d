@@ -76,7 +76,12 @@ void ViewBar::StatusBar::timer_expired()
 	setText(tqi.str.c_str());
 	if(tqi.type!=StatusNormal) //StatusError
 	{
-		text.select_all(); if(beep) event.beep();
+		text.select_all(); if(beep)
+		{
+			//2022: don't beep "Saved" but highlight it
+			if(tqi.type!=StatusNotice||tqi.ms==STATUSTIME_LONG) //DUPLICATE
+			event.beep();
+		}
 	}
 
 	m_queueDisplay = true;
@@ -104,7 +109,11 @@ void ViewBar::StatusBar::addText(StatusTypeE type, int ms, const char *str)
 		setText(str);
 		if(type!=StatusNormal) //StatusError
 		{
-			text.select_all(); event.beep();
+			text.select_all(); 
+			
+			//2022: don't beep "Saved" but highlight it
+			if(type!=StatusNotice||ms==STATUSTIME_LONG) //DUPLICATE
+			event.beep();
 		}
 
 		glutTimerFunc(ms,statusbar_timer,nav.ui()->glut_window_id());

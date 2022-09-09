@@ -434,16 +434,45 @@ public:
 		bool operator==(Marker &m){ return m._op==_select_op; }
 	};
 
+	class Visible2022
+	{
+	public:
+
+		uint8_t m_layer;
+
+		//bool m_visible;
+		union{ uint8_t m_visible1:1,m_visible2; };
+
+		bool visible(unsigned layers)const
+		{
+			return 0!=(m_visible2&layers); 
+		}
+
+		void init(){ m_layer = 1; m_visible2 = 2; }
+				
+		bool hidden(unsigned layers)const
+		{
+			return m_visible1&&(1<<m_layer&layers);
+		}
+		void hide(unsigned layer=0)const
+		{
+			if(layer) const_cast<uint8_t&>(m_layer) = layer; 
+			
+			const_cast<Visible2022*>(this)->m_visible2 = 1<<layer;
+		}
+		void unhide(){ m_visible2 = 1<<m_layer; }
+	};
+
 	// A triangle represents faces in the model. All faces are triangles.
 	// The vertices the triangle is attached to are in m_vertexIndices.
-	class Triangle
+	class Triangle : public Visible2022
 	{
 	public:
 		static int flush();
 		static int allocated(){ return s_allocated; }
 		static int recycled(){ return s_recycle.size(); }
 		static void stats();
-		static Triangle *get();
+		static Triangle *get(unsigned layer);
 		void release();
 		void sprint(std::string &dest);
 
@@ -465,8 +494,8 @@ public:
 		double *m_flatSource;			 // Either m_flatNormal or m_kfFlatNormal
 		double *m_normalSource[3];	  // Either m_finalNormals or m_kfNormals
 		double *m_angleSource;			 // Either m_vertAngles or m_kfVertAngles				
-		bool m_selected;
-		bool m_visible;
+		//bool m_visible;		
+		mutable bool m_selected;
 		mutable bool m_marked;
 		mutable bool m_marked2;
 		mutable bool m_userMarked;
@@ -503,14 +532,14 @@ public:
 	// A vertex defines a polygon corner. The position is in m_coord.
 	// All triangles in all groups (meshes)references triangles from this
 	// one list.
-	class Vertex
+	class Vertex : public Visible2022
 	{
 	public:
 		static int flush();
 		static int allocated(){ return s_allocated; }
 		static int recycled(){ return s_recycle.size(); }
 		static void stats();
-		static Vertex *get(AnimationModeE);
+		static Vertex *get(unsigned layer, AnimationModeE);
 		void release();
 		void releaseData(); //2020 ???
 		void sprint(std::string &dest);
@@ -523,8 +552,8 @@ public:
 		//mutable bool m_marked;
 		mutable _OrderedSelection::Marker m_marked;
 		mutable bool m_marked2;
-		bool m_visible;
-
+		//bool m_visible;
+		
 		unsigned getOrderOfSelection()const
 		{
 			return m_selected._select_op; 
@@ -604,7 +633,7 @@ public:
 		// angle greater than 90 will not be blended).
 		uint8_t m_angle;
 
-		bool m_selected;
+		mutable bool m_selected;
 	//	bool m_visible; //UNUSED
 		mutable bool m_marked;
 
@@ -785,7 +814,7 @@ public:
 		KeyframeGraph():size(1){}
 	};
 				
-	struct Object2020 //RENAME ME
+	struct Object2020 : public Visible2022 //RENAME ME
 	{
 		//https://github.com/zturtleman/mm3d/issues/114
 		
@@ -807,7 +836,7 @@ public:
 		Matrix getMatrix()const;
 		Matrix getMatrixUnanimated()const;
 
-		bool m_selected;
+		mutable bool m_selected;
 
 		PositionTypeE m_type; //getParams
 
@@ -832,7 +861,7 @@ public:
 		static int allocated(){ return s_allocated; }
 		static int recycled(){ return s_recycle.size(); }
 		static void stats();
-		static Joint *get(AnimationModeE);
+		static Joint *get(unsigned layer,AnimationModeE);
 		void release();
 		void sprint(std::string &dest);
 			
@@ -856,10 +885,10 @@ public:
 
 		int m_parent;  // Parent joint index (-1 for no parent)
 
-		//bool m_selected;
-		bool m_visible;
+		//bool m_selected;		
 		mutable bool m_marked;
-
+		//bool m_visible;
+		
 		//2020 (drawJoints)
 		//TODO: Needs Undo objects. Remove it mutable status.
 		mutable bool m_bone;
@@ -920,7 +949,7 @@ public:
 		static int allocated(){ return s_allocated; }
 		static int recycled(){ return s_recycle.size(); }
 		static void stats();
-		static Point *get(AnimationModeE);
+		static Point *get(unsigned layer,AnimationModeE);
 		void release();
 		void sprint(std::string &dest);
 	
@@ -942,9 +971,9 @@ public:
 		//double *m_rotSource;	// m_rot or m_kfRot
 
 		//bool m_selected;
-		bool m_visible;
 		mutable bool m_marked;
-
+		//bool m_visible;
+		
 		// List of bone joints that move the point in skeletal animations.
 		infl_list m_influences;
 
@@ -1331,7 +1360,7 @@ public:
 	// can be combined with a bitwise OR.
 	enum
 	{
-		DO_NONE			  = 0x00, // FLAT
+	//	DO_NONE			  = 0x00, // FLAT
 		DO_TEXTURE		  = 0x01,
 		DO_SMOOTHING		= 0x02, // Normal smoothing/blending between faces
 		DO_WIREFRAME		= 0x04,
@@ -1504,6 +1533,34 @@ public:
 	// Rendering functions
 	// ------------------------------------------------------------------
 
+	//EXPERIMENTAL
+	//
+	// 2022: These methods add layers where layer 0 is the hidden layer
+	// layer/bit 1 is the traditonal layer. Anything not on the primary
+	// layers should be ignored. Overlay layers are drawn, but not more
+	// The overlay mask is stored in a byte in the MM3D header, limited
+	// to 4 layers (it could be 8 but is capped to 4) not including the
+	// hidden layer, which shouldn't be set
+	//
+	void setPrimaryLayers(unsigned add, unsigned aux=0)
+	{
+		unsigned bits = (1<<add)|aux; m_addLayer = add;
+
+		m_primaryLayers = bits; m_drawingLayers = bits|m_overlayLayers;
+	}
+	void setOverlayLayers(unsigned bits=0)
+	{
+		m_overlayLayers = bits; m_drawingLayers = bits|m_primaryLayers;
+	}
+	unsigned getAddLayer()const{ return m_addLayer; }
+	unsigned getPrimaryLayers()const{ return m_primaryLayers; }
+	unsigned getOverlayLayers()const{ return m_overlayLayers; }
+	unsigned getVisibleLayers()const{ return m_drawingLayers; }
+
+	//This is to be set by loaders to alert end-users about layers.
+	void reportAddedLayers(unsigned added){ m_addedLayers = added; }
+	unsigned getAddedLayers()const{ return m_addedLayers; }
+
 	// Functions for rendering the model in a viewport
 	void draw(unsigned drawOptions=DO_TEXTURE,ContextT context=nullptr, double viewPoint[3]=nullptr);
 	void draw_bspTree(unsigned drawOptions, ContextT context, double viewPoint[3]);
@@ -1514,8 +1571,8 @@ public:
 	void drawPoints();
 	void drawProjections();
 	void drawJoints(float alpha=1, float axis=0);
-	struct _draw;
-	void _drawMaterial(_draw&, int g);
+
+	void _drawMaterial(BspTree::Draw&, int g);
 
 	//NOTE: m is ModelViewport::ViewOptionsE
 	void setCanvasDrawMode(int m){ m_canvasDrawMode = m; };
@@ -2576,26 +2633,20 @@ public:
 	// Hide functions
 	// ------------------------------------------------------------------
 
-	bool hideSelected(bool how=true);
-	bool hideUnselected(){ return hideSelected(false); }
+	bool hideSelected(bool how=true, unsigned layer=0);
+	bool hideUnselected(){ return hideSelected(false,0); }
 	bool unhideAll();
 	void invertHidden(); //2022
 
-	bool isVertexVisible(unsigned v)const;
-	bool isTriangleVisible(unsigned t)const;
-	//bool isGroupVisible(unsigned g)const; //UNUSED
-	bool isBoneJointVisible(unsigned j)const;
-	bool isPointVisible(unsigned p)const;
-
 	//WARNING: THESE ARE UNSAFE FOR UNDO/CHANGE-BITS
 	// Don't call these directly... use selection/hide selection
-	void hideVertex(unsigned,int=true);
+	void hideVertex(unsigned,unsigned layer=0);
 	//bool unhideVertex(unsigned);
-	void hideTriangle(unsigned,int=true);
+	void hideTriangle(unsigned,unsigned layer=0);
 	//bool unhideTriangle(unsigned);
-	void hideJoint(unsigned,int=true);
+	void hideJoint(unsigned,unsigned layer=0);
 	//bool unhideJoint(unsigned);
-	void hidePoint(unsigned,int=true);
+	void hidePoint(unsigned,unsigned layer=0);
 	//bool unhidePoint(unsigned);
 
 	// ------------------------------------------------------------------
@@ -2654,20 +2705,6 @@ protected:
 	void adjustVertexIndices(unsigned index, int count);
 	void adjustTriangleIndices(unsigned index, int count);
 	void adjustProjectionIndices(unsigned index, int count);
-
-	// ------------------------------------------------------------------
-	// Hiding/visibility
-	// ------------------------------------------------------------------
-
-	/*??? //2022
-	void beginHideDifference();
-	void endHideDifference(); 
-	// When primitives of one type are hidden, other primitives may need to
-	// be hidden at the same time.
-	void hideVerticesFromTriangles(); //UNUSED/UNSAFE
-	void unhideVerticesFromTriangles(); //UNUSED/UNSAFE
-	void hideTrianglesFromVertices(); //2021: this was modified //UNUSED/UNSAFE
-	void unhideTrianglesFromVertices(); //UNUSED/UNSAFE*/
 
 	// ------------------------------------------------------------------
 	// Selection
@@ -2797,6 +2834,12 @@ protected:
 	//of views. E.g. DO_BADTEX.
 	//https://github.com/zturtleman/mm3d/issues/56
 	int m_drawOptions;
+		
+	unsigned m_addLayer;
+	unsigned m_addedLayers;
+	unsigned m_primaryLayers; //2022
+	unsigned m_overlayLayers; //2022
+	unsigned m_drawingLayers; //2022: m_primaryLayers|m_overlayLayers
 
 //FYI: THIS IS texturewidget.cc STATE. IT HAS
 //NO RELATIONSHIP TO Model DATA.

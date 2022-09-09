@@ -397,41 +397,36 @@ MU_SetSelectedUv::MU_SetSelectedUv(const int_list &newUv, const int_list &oldUv)
 	m_newUv = newUv; m_oldUv = oldUv;
 }
 
-void MU_Hide::hide(Model *model, int how)
+void MU_Hide::undo(Model *model)
 {
-	//log_debug("undo hide\n"); //???
-
-	// Invert visible from our list
-	for(auto&ea:m_diff) switch(ea.mode)
-	{	
-	case Model::SelectVertices:
-		model->hideVertex(ea.number,how);
-		break;
-	case Model::SelectTriangles:
-		model->hideTriangle(ea.number,how);
-		break;
-	case Model::SelectJoints:
-		model->hideJoint(ea.number,how);
-		break;
-	case Model::SelectPoints:
-		model->hidePoint(ea.number,how);
-		break;
-	}
+	for(auto&ea:m_list) ea.obj->hide(ea.old);
+}
+void MU_Hide::redo(Model *model)
+{
+	auto rit = m_list.rbegin();
+	auto ritt = m_list.rend();
+	for(;rit<ritt;rit++) rit->obj->hide(rit->layer);
 }
 int MU_Hide::combine(Undo *u)
 {
 	if(auto*undo=dynamic_cast<MU_Hide*>(u))
-	if(m_hide==undo->m_hide)
 	{
-		for(auto&ea:undo->m_diff)		
-		setHideDifference(ea.mode,ea.number);
+		for(auto&ea:undo->m_list)
+		{
+			//setHideDifference(ea.mode,ea.number,ea.layers,ea.old);
+			m_list.push_back(ea);
+		}
 		return true;
 	}
 	return false;
 }
+void MU_Hide::setHideDifference(Model::Visible2022 *obj, unsigned layer)
+{
+	m_list.push_back({obj,(int)layer,obj->m_visible1?0:obj->m_layer});
+}
 unsigned MU_Hide::size()
 {
-	return sizeof(MU_Hide)+m_diff.size()*sizeof(HideDifferenceT);
+	return sizeof(MU_Hide)+m_list.size()*sizeof(rec);
 }
 
 void MU_InvertNormals::undo(Model *model)

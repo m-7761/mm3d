@@ -37,6 +37,8 @@
 #include "translate.h"
 #include "file_closer.h"
 
+#include "modelstatus.h"
+
 namespace //??? 
 {
 	//NOTE: Misfit Model 3D doesn't check the version number
@@ -379,7 +381,24 @@ namespace //???
 		MF_MAT_CLAMP_T = 32,
 
 		MF_MAT_ACCUMULATE = 256, //2021 (mm3d2021)
+		
+		//2022: ((flags&MF_LAYER_FLAGS)>>MF_LAYER_SHIFT)+1
+		MF_LAYER_FLAGS = 256|512,
+		MF_LAYER_SHIFT = 8,
 	};
+	static uint32_t mm3dfilter_read_layer_stats = 0;
+	uint8_t mm3dfilter_read_layer(uint32_t flags)
+	{
+		auto ret = ((flags&MF_LAYER_FLAGS)>>MF_LAYER_SHIFT)+1;
+
+		mm3dfilter_read_layer_stats|=1<<ret;
+
+		return (uint8_t)ret;
+	}
+	uint16_t mm3dfilter_write_layer(uint8_t layer)
+	{
+		return ((layer-1)<<MF_LAYER_SHIFT)&MF_LAYER_FLAGS;
+	}
 
 	enum MisfitFrameAnimFlagsE
 	{
@@ -403,7 +422,8 @@ namespace //???
 		char magic[8];
 		uint8_t versionMajor;
 		uint8_t versionMinor;
-		uint8_t modelFlags; //UNUSED
+		//uint8_t modelFlags; //UNUSED
+		uint8_t modelFlags; //overlays
 		uint8_t offsetCount;
 	};
 
@@ -643,6 +663,8 @@ namespace //???
 
 Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filename)
 {
+	mm3dfilter_read_layer_stats = 0;
+
 	/*if(sizeof(float32_t)!=4)
 	{
 		msg_error(TRANSLATE("LowLevel","MM3D encountered an unexpected data size problem\nSee Help->About to contact the developers")).c_str());
@@ -668,7 +690,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	m_src->readBytes(fileHeader.magic,sizeof(fileHeader.magic));
 	m_src->read(fileHeader.versionMajor);
 	m_src->read(fileHeader.versionMinor);
-	m_src->read(fileHeader.modelFlags); //UNUSED
+	m_src->read(fileHeader.modelFlags); //overlays?
 	m_src->read(fileHeader.offsetCount);
 
 	bool mm3d2020 = !memcmp(fileHeader.magic,MM3D2020,strlen(MISFIT3D));
@@ -704,6 +726,18 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	log_output("  major:	%d\n",fileHeader.versionMajor);
 	log_output("  minor:	%d\n",fileHeader.versionMinor);
 	//log_debug("  offsets: %d\n",fileHeader.offsetCount);
+
+	//2022: these modelFlags were previously unutilized
+	if(!fileHeader.modelFlags)
+	fileHeader.modelFlags = 1;	
+	{
+		//YUCK: Add makes this maybe not such a good idea?
+		//(There's no room to save it in the 8 bit flags.)
+		unsigned add = 1, aux = (fileHeader.modelFlags&7)<<1;
+		while(~aux&(1<<add)) add++;
+		model->setPrimaryLayers(add>0&&add<5?add:1,aux);
+		model->setOverlayLayers((fileHeader.modelFlags>>4)<<1);
+	}
 
 	//log_debug("Offset information:\n");
 
@@ -770,9 +804,9 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 
 	auto &modelVerts = model->getVertexList();
-	auto &modelTriangles = model->getTriangleList();
+	auto &modelTris = model->getTriangleList();
 	auto &modelGroups = model->getGroupList();
-	auto &modelMaterials = (Model::_MaterialList&)model->getMaterialList();
+	auto &modelMats = (Model::_MaterialList&)model->getMaterialList();
 	auto &modelJoints = model->getJointList();
 	auto &modelPoints = model->getPointList();
 	auto &modelAnims = model->getAnimationList();
@@ -834,7 +868,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		for(unsigned v = 0; v<count; v++)
+		for(unsigned v=0;v<count;v++)
 		{
 			if(os->variable())
 			{
@@ -850,8 +884,14 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			//vert->m_boneId = -1;
 			model->addVertex(fileVert.coord[0],fileVert.coord[1],fileVert.coord[2]);			
-			if(fileVert.flags&MF_SELECTED) model->selectVertex(v);
-			if(fileVert.flags&MF_HIDDEN) model->hideVertex(v);
+			auto *vp = modelVerts[v];
+
+			if(MF_SELECTED&fileVert.flags)
+			vp->m_selected = true;
+			if(auto l=mm3dfilter_read_layer(fileVert.flags))
+			vp->hide(l);
+			if(MF_HIDDEN&fileVert.flags)
+			vp->hide();
 			//2020: this should be implicit
 			//if(fileVert.flags&MF_VERTFREE) model->setVertexFree(v,true);
 		}
@@ -872,7 +912,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		for(unsigned t = 0; t<count; t++)
+		for(unsigned t=0;t<count;t++)
 		{
 			if(os->variable())
 			{
@@ -885,9 +925,15 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(fileTri.vertex[1]);
 			m_src->read(fileTri.vertex[2]);
 
-			int tri = model->addTriangle(fileTri.vertex[0],fileTri.vertex[1],fileTri.vertex[2]);
-			if(MF_SELECTED&fileTri.flags) model->selectTriangle(tri);
-			if(MF_HIDDEN&fileTri.flags) model->hideTriangle(tri);
+			model->addTriangle(fileTri.vertex[0],fileTri.vertex[1],fileTri.vertex[2]);
+			auto *tp = modelTris[t];
+
+			if(MF_SELECTED&fileTri.flags)
+			tp->m_selected = true;
+			if(auto l=mm3dfilter_read_layer(fileTri.flags))
+			tp->hide(l);
+			if(MF_HIDDEN&fileTri.flags)
+			tp->hide();
 		}
 	}
 
@@ -1077,7 +1123,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(lightProp);
 			mat->m_shininess = lightProp;
 
-			modelMaterials.push_back(mat); //REMOVE ME
+			modelMats.push_back(mat); //REMOVE ME
 		}
 	}
 	if(auto*os=seekOffset(MDT_Groups))
@@ -1279,7 +1325,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			MM3DFILE_JointT fileJoint;
 			m_src->read(fileJoint.flags);
-			int jointFlags = fileJoint.flags;
 			m_src->readBytes(fileJoint.name,sizeof(fileJoint.name));			
 			m_src->read(fileJoint.parentIndex);
 			m_src->read(fileJoint.localRot[0]);
@@ -1331,12 +1376,14 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				if(mm3d2020&&!mm3d2021) //REMOVE ME			
 				joint->m_xyz[i] = fileJoint.localScale[i];
 			}			
-			if(jointFlags&MF_SELECTED)
+			if(fileJoint.flags&MF_SELECTED)
 			joint->m_selected = true;
-			if(jointFlags&MF_HIDDEN)
-			joint->m_visible = false;
+			if(auto l=mm3dfilter_read_layer(fileJoint.flags))
+			joint->hide(l);
+			if(fileJoint.flags&MF_HIDDEN)
+			joint->hide();
 			if(mm3d2020)
-			if(jointFlags&MF_VERTFREE) //2020 (draw as line?)
+			if(fileJoint.flags&MF_VERTFREE) //2020 (draw as line?)
 			joint->m_bone = false;
 		}
 
@@ -1377,7 +1424,6 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 
 			MM3DFILE_PointT filePoint;
 			m_src->read(filePoint.flags);
-			int pointFlags = filePoint.flags;
 			m_src->readBytes(filePoint.name,sizeof(filePoint.name));
 			m_src->read(filePoint.type); //UNUSED
 			m_src->read(filePoint.boneIndex); //UNUSED
@@ -1408,28 +1454,28 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			//I removed it.
 			//int boneIndex = filePoint.boneIndex;
 
-			int p = model->addPoint(filePoint.name,
-					trans[0],trans[1],trans[2],
-					rot[0],rot[1],rot[2]/*,boneIndex*/);
+			model->addPoint(filePoint.name,
+			trans[0],trans[1],trans[2],
+			rot[0],rot[1],rot[2]/*,boneIndex*/);
+			auto point = (Model::Point*)modelJoints[j];
 
 			if(mm3d2020&&!mm3d2021) //REMOVE ME
 			{
-				double s[3];
+				//double s[3];
 				for(int i=3;i-->0;)
-				s[i] = filePoint.scale[i];
-				model->setPointScale(p,s);
+				//s[i] = filePoint.scale[i];
+				//model->setPointScale(p,s);
+				point->m_xyz[i] = filePoint.scale[i];
 			}
 
 			//model->setPointType(p,filePoint.type); //UNUSED
 						
-			if(pointFlags&MF_SELECTED)
-			{
-				model->selectPoint(p);
-			}
-			if(pointFlags&MF_HIDDEN)
-			{
-				model->hidePoint(p);
-			}
+			if(filePoint.flags&MF_SELECTED)
+			point->m_selected = true;
+			if(auto l=mm3dfilter_read_layer(filePoint.flags))
+			point->hide(l);
+			if(filePoint.flags&MF_HIDDEN)
+			point->hide();
 		}
 
 		//log_debug("read %d points\n");
@@ -2458,10 +2504,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	// Account for missing elements (vertices,triangles,textures,joints)
 	{
 		unsigned vcount = modelVerts.size();
-		unsigned tcount = modelTriangles.size();
+		unsigned tcount = modelTris.size();
 		unsigned gcount = modelGroups.size();
 		unsigned jcount = modelJoints.size();
-		unsigned mcount = modelMaterials.size();
+		unsigned mcount = modelMats.size();
 
 //		for(unsigned v = 0; v<vcount; v++)
 //		{
@@ -2476,10 +2522,10 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		{
 			for(unsigned i = 0; i<3; i++)
 			{
-				if(modelTriangles[t]->m_vertexIndices[i]>=vcount)
+				if(modelTris[t]->m_vertexIndices[i]>=vcount)
 				{
 					missingElements = true;
-					log_error("Triangle %d uses missing vertex %d\n",t,modelTriangles[t]->m_vertexIndices[i]);
+					log_error("Triangle %d uses missing vertex %d\n",t,modelTris[t]->m_vertexIndices[i]);
 				}
 			}
 		}
@@ -2508,6 +2554,8 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 		return Model::ERROR_BAD_DATA;
 	}
 
+	model->reportAddedLayers(mm3dfilter_read_layer_stats);
+
 	return Model::ERROR_NONE;
 }
 
@@ -2534,9 +2582,9 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Get model data
 
 	auto &modelVerts = model->getVertexList();
-	auto &modelTriangles = model->getTriangleList();
+	auto &modelTris = model->getTriangleList();
 	auto &modelGroups = model->getGroupList();
-	auto &modelMaterials = model->getMaterialList();
+	auto &modelMats = model->getMaterialList();
 	auto &modelJoints = model->getJointList();
 	auto &modelPoints = model->getPointList();
 	auto &modelProjections = model->getProjectionList();
@@ -2549,7 +2597,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 	bool haveProjectionTriangles = false;
 	if(modelProjections.size())
-	for(auto*ea:modelTriangles) if(ea->m_projection>=0)
+	for(auto*ea:modelTris) if(ea->m_projection>=0)
 	{
 		haveProjectionTriangles = true; break;
 	}
@@ -2578,14 +2626,14 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Find out what sections we need to write
 	addOffset(MDT_Meta				  , 0!=model->getMetaDataCount());
 	addOffset(MDT_Vertices			  , !modelVerts.empty());
-	addOffset(MDT_Triangles			  , !modelTriangles.empty());
-	addOffset(MDT_TriangleNormals	  , !modelTriangles.empty());
-	addOffset(MDT_Materials			  , !modelMaterials.empty());
+	addOffset(MDT_Triangles			  , !modelTris.empty());
+	addOffset(MDT_TriangleNormals	  , !modelTris.empty());
+	addOffset(MDT_Materials			  , !modelMats.empty());
 	addOffset(MDT_Groups			  , !modelGroups.empty());
 	addOffset(MDT_SmoothAngles		  , !modelGroups.empty());
-	addOffset(MDT_ExtTextures		  , !modelMaterials.empty());
+	addOffset(MDT_ExtTextures		  , !modelMats.empty());
 	// Some users map texture coordinates before assigning a texture (think: paint texture)
-	addOffset(MDT_TexCoords			  , !modelTriangles.empty()); 
+	addOffset(MDT_TexCoords			  , !modelTris.empty()); 
 	addOffset(MDT_ProjectionTriangles , haveProjectionTriangles);
 	addOffset(MDT_CanvasBackgrounds	  , 0!=backgrounds);
 	addOffset(MDT_Joints			  , !modelJoints.empty());
@@ -2611,11 +2659,16 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	}
 	addOffset(MDT_EndOfFile,true);
 
+	//2022: these modelFlags were previously unutilized
+	unsigned modelFlags = (model->getPrimaryLayers()>>1)&7;
+	if(!modelFlags) modelFlags = 1;
+	modelFlags|=((model->getOverlayLayers()>>1)&7)<<4;
+
 	//m_dst->writeBytes(MISFIT3D,strlen(MISFIT3D));
 	m_dst->writeBytes(MM3D2020,strlen(MISFIT3D));
 	m_dst->write(WRITE_VERSION_MAJOR);
 	m_dst->write(WRITE_VERSION_MINOR);
-	m_dst->write((uint8_t)/*modelFlags*/0); //UNUSED
+	m_dst->write((uint8_t)modelFlags); //0
 	m_dst->write((uint8_t)m_offsetList.size());
 
 	for(auto&ea:m_offsetList)
@@ -2659,22 +2712,23 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		writeHeaderB(0x0000,count,FILE_VERTEX_SIZE);
 
-		for(unsigned v = 0; v<count; v++)
+		for(auto*vp:modelVerts)
 		{
 			MM3DFILE_VertexT fileVertex;
 
-			fileVertex.flags  = 0x0000;
-			if(!modelVerts[v]->m_visible)
+			fileVertex.flags  = 0x0000;			
+			if(vp->m_selected)
+			fileVertex.flags |= MF_SELECTED;			
+			fileVertex.flags |= mm3dfilter_write_layer(vp->m_layer);
+			if(vp->m_visible1)
 			fileVertex.flags |= MF_HIDDEN;
-			if(modelVerts[v]->m_selected)
-			fileVertex.flags |= MF_SELECTED;
-			//if(modelVerts[v]->m_free)
-			if(modelVerts[v]->m_faces.empty())
+			//if(vp->m_free)
+			if(vp->m_faces.empty())
 			fileVertex.flags |= MF_VERTFREE;
 
-			fileVertex.coord[0] = (float32_t)modelVerts[v]->m_coord[0];
-			fileVertex.coord[1] = (float32_t)modelVerts[v]->m_coord[1];
-			fileVertex.coord[2] = (float32_t)modelVerts[v]->m_coord[2];
+			fileVertex.coord[0] = (float32_t)vp->m_coord[0];
+			fileVertex.coord[1] = (float32_t)vp->m_coord[1];
+			fileVertex.coord[2] = (float32_t)vp->m_coord[2];
 
 			m_dst->write(fileVertex.flags);
 			m_dst->write(fileVertex.coord[0]);
@@ -2687,24 +2741,24 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Triangles
 	if(setOffset(MDT_Triangles,true))
 	{
-		unsigned count = modelTriangles.size();
+		unsigned count = modelTris.size();
 
 		writeHeaderB(0x0000,count,FILE_TRIANGLE_SIZE);
 
-		for(unsigned t = 0; t<count; t++)
+		for(auto*tp:modelTris)
 		{
 			MM3DFILE_TriangleT fileTriangle;
 
-			fileTriangle.flags = 0x0000;
-			if(!modelTriangles[t]->m_visible)
-			fileTriangle.flags |= MF_HIDDEN;
-			if(modelTriangles[t]->m_selected)
+			fileTriangle.flags = 0x0000;			
+			if(tp->m_selected)
 			fileTriangle.flags |= MF_SELECTED;
-			fileTriangle.flags = fileTriangle.flags;
+			fileTriangle.flags |= mm3dfilter_write_layer(tp->m_layer);
+			if(tp->m_visible1)
+			fileTriangle.flags |= MF_HIDDEN;
 
-			fileTriangle.vertex[0] = modelTriangles[t]->m_vertexIndices[0];
-			fileTriangle.vertex[1] = modelTriangles[t]->m_vertexIndices[1];
-			fileTriangle.vertex[2] = modelTriangles[t]->m_vertexIndices[2];
+			fileTriangle.vertex[0] = tp->m_vertexIndices[0];
+			fileTriangle.vertex[1] = tp->m_vertexIndices[1];
+			fileTriangle.vertex[2] = tp->m_vertexIndices[2];
 
 			m_dst->write(fileTriangle.flags);
 			m_dst->write(fileTriangle.vertex[0]);
@@ -2717,7 +2771,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Triangle Normals
 	if(setOffset(MDT_TriangleNormals,true))
 	{
-		unsigned count = modelTriangles.size();
+		unsigned count = modelTris.size();
 
 		writeHeaderB(0x0000,count,FILE_TRIANGLE_NORMAL_SIZE);
 
@@ -2732,13 +2786,13 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 				//Can this source from m_finalNormals instead?
 				//NOTE: m_vertexNormals did not factor in smoothing... it can be
 				//disabled by calculateNormals if necessary.
-				//fileNormals.normal[v][...] = modelTriangles[t]->m_vertexNormals[v][...];
+				//fileNormals.normal[v][...] = modelTris[t]->m_vertexNormals[v][...];
 			}
 			m_dst->write((uint16_t)0);
 			m_dst->write((uint32_t)t);
 			for(unsigned v=0;v<3;v++)
 			for(unsigned i=0;i<3;i++)
-			m_dst->write((float32_t)modelTriangles[t]->m_finalNormals[v][i]);
+			m_dst->write((float32_t)modelTris[t]->m_finalNormals[v][i]);
 		}
 		//log_debug("wrote %d triangle normals\n",count);
 	}
@@ -2752,7 +2806,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Materials
 	if(setOffset(MDT_Materials,false))
 	{
-		unsigned count = modelMaterials.size();
+		unsigned count = modelMats.size();
 
 		writeHeaderA(0x0000,count);
 
@@ -2762,7 +2816,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		int texNum = 0;
 		for(unsigned m = 0; m<count; m++)
 		{
-			auto mat = modelMaterials[m];
+			auto mat = modelMats[m];
 			uint32_t matSize = baseSize+mat->m_name.size()+1;
 
 			uint16_t flags = 0x0000;
@@ -2843,7 +2897,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			groupSize+=grp->m_triangleIndices.size()*sizeof(uint32_t);
 
 			uint16_t flags = 0x0000;
-		//	if((modelGroups[g]->m_visible) //UNUSED
+		//	if(modelGroups[g]->m_visible1) //UNUSED
 		//	flags |= MF_HIDDEN; 		
 			/*2022: This state is questionable... readFile was
 			//using it to call selectGroup on loading, as well
@@ -2893,7 +2947,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// External Textures
 	if(setOffset(MDT_ExtTextures,false))
 	{
-		//unsigned count = modelMaterials.size();
+		//unsigned count = modelMats.size();
 		unsigned count = texMap.size();
 
 		writeHeaderA(0x0000,count);
@@ -2933,13 +2987,13 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	// Texture Coordinates
 	if(setOffset(MDT_TexCoords,true))
 	{
-		unsigned count = modelTriangles.size();
+		unsigned count = modelTris.size();
 
 		writeHeaderB(0x0000,count,FILE_TEXCOORD_SIZE);
 
 		for(unsigned t = 0; t<count; t++)
 		{
-			auto *tri = modelTriangles[t];
+			auto *tri = modelTris[t];
 			MM3DFILE_TexCoordT tc;
 
 			tc.flags = 0x0000;
@@ -3050,27 +3104,27 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		writeHeaderB(0x0000,count,FILE_JOINT_SIZE);
 
-		for(unsigned j=0;j<count;j++)
+		for(auto*jp:modelJoints)
 		{
 			MM3DFILE_JointT fileJoint;
-			auto joint = modelJoints[j];
 
-			fileJoint.flags = 0x0000;
-			if(!modelJoints[j]->m_visible)
+			fileJoint.flags = 0x0000;			
+			if(jp->m_selected)
+			fileJoint.flags |= MF_SELECTED;			
+			fileJoint.flags |= mm3dfilter_write_layer(jp->m_layer);
+			if(jp->m_visible1)
 			fileJoint.flags |= MF_HIDDEN;
-			if(modelJoints[j]->m_selected)
-			fileJoint.flags |= MF_SELECTED;
-			if(!modelJoints[j]->m_bone)
+			if(!jp->m_bone)
 			fileJoint.flags |= MF_VERTFREE; //2020 (draw as line?)
 
-			strncpy(fileJoint.name,joint->m_name.c_str(),sizeof(fileJoint.name)); //0 padded?
+			strncpy(fileJoint.name,jp->m_name.c_str(),sizeof(fileJoint.name)); //0 padded?
 			utf8chrtrunc(fileJoint.name,sizeof(fileJoint.name)-1);
 
-			fileJoint.parentIndex = joint->m_parent;
+			fileJoint.parentIndex = jp->m_parent;
 			for(int i=3;i-->0;)
 			{
-				fileJoint.localRot[i]	= (float)joint->m_rot[i];
-				fileJoint.localTrans[i] = (float)joint->m_rel[i];
+				fileJoint.localRot[i]	= (float)jp->m_rot[i];
+				fileJoint.localTrans[i] = (float)jp->m_rel[i];
 			}
 
 			m_dst->write(fileJoint.flags);
@@ -3093,27 +3147,27 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		writeHeaderB(0x0000,count,FILE_POINT_SIZE);
 
-		for(unsigned p = 0; p<count; p++)
+		for(auto*pp:modelPoints)
 		{
 			MM3DFILE_PointT filePoint;
 
-			filePoint.flags = 0x0000;
-			if(!model->isPointVisible(p))
-			filePoint.flags |= MF_HIDDEN;
-			if(model->isPointSelected(p))
+			filePoint.flags = 0x0000;			
+			if(pp->m_selected)
 			filePoint.flags |= MF_SELECTED;
+			filePoint.flags |= mm3dfilter_write_layer(pp->m_layer);
+			if(pp->m_visible1)
+			filePoint.flags |= MF_HIDDEN;
 
-			strncpy(filePoint.name,model->getPointName(p),sizeof(filePoint.name)); //0 padded?
+			strncpy(filePoint.name,pp->m_name.c_str(),sizeof(filePoint.name)); //0 padded?
 			utf8chrtrunc(filePoint.name,sizeof(filePoint.name)-1);
 
 			//MM3D2020: Same deal as MDT_JointVertices?
 			//filePoint.boneIndex = model->getPrimaryPointInfluence(p);
 
-			auto point = modelPoints[p];
 			for(int i=3;i-->0;)
 			{
-				filePoint.rot[i] = (float)point->m_rot[i];
-				filePoint.trans[i] = (float)point->m_abs[i];
+				filePoint.rot[i] = (float)pp->m_rot[i];
+				filePoint.trans[i] = (float)pp->m_abs[i];
 			}
 
 			m_dst->write(filePoint.flags);
@@ -3459,7 +3513,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 					//This is roughly analogous to MDT_Animations 
 					uint8_t format_descriptor[4] = 
 					{
-						f[i],0,kt,(i==0?1:2)
+						(uint8_t)f[i],0,kt,(i==0?1:2)
 					};
 					m_dst->writeBytes(format_descriptor,4);
 

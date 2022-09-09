@@ -105,14 +105,17 @@ struct ViewBar::ModelView
 	
 	ModelView(ViewBar &bar, ModelViewport &port, ModelView *ref)
 		:
-	column(bar.portside_row),
+	column(bar.portside_row),bar(bar),
 	port(port),
 	nav(bar.portside_row),
 	view(nav,"",id_item),
+	layer(nav,"",id_assign),
 	zoom(nav,port.zoom_min,port.zoom_max)
 	{
+		layer.mview = this;
+
 		nav.expand().space(2);
-		
+
 		zoom.nav.ralign();
 
 		if(ref) view.reference(ref->view);
@@ -120,10 +123,35 @@ struct ViewBar::ModelView
 		submit(id_init); //HACK
 	}
 
+	ViewBar &bar; //2022
+
 	ModelViewport &port;
+
+	struct Layer_multiple : multiple
+	{
+		using multiple::multiple;
+
+		ModelView *mview;
+
+		virtual bool mouse_over(bool,int,int);
+
+		struct item : multiple::item
+		{
+			using multiple::item::item;
+
+			virtual bool mouse_over(bool st,int,int)
+			{
+				return parent()->mouse_over(st,0,0);
+			}
+
+			virtual bool mouse_up_handler(int,int,bool);
+		};
+	};
 
 	row nav;
 	dropdown view;
+	Layer_multiple layer;
+	Layer_multiple::item layers[5];
 	Win::zoom_set zoom;
 
 	void setView(Tool::ViewE dir)
@@ -141,7 +169,8 @@ struct ViewBar::StatusBar : StatusObject
 	m_queueDisplay(),
 	nav(bar.exterior_row,bi::sunken),
 	text(nav,""),
-	flags(nav),		
+	overlay(nav,""),
+	flags(nav),
 		//left-to-right reading (priority)
 		//NOTE: IDs are notational
 	_grid_snap(flags,"Gs"), //id_snap_grid
@@ -171,7 +200,8 @@ struct ViewBar::StatusBar : StatusObject
 		text.expand();
 		text.title(true); //EXPERIMENTAL
 		stats.ralign(); _curstats[0][0] = -1;
-		flags.ralign().space(0,/*underscoring*/0,0);
+		flags.ralign().space(0,/*underscoring*/0,0);		
+		overlay.ralign();
 	}
 	~StatusBar();
 
@@ -179,6 +209,25 @@ struct ViewBar::StatusBar : StatusObject
 
 	row nav;
 	textbox text;
+	struct Overlay:titlebar
+	{
+		using titlebar::titlebar;
+
+		void set(int ll, bool snap)
+		{			
+			char buf[8], *p = buf;
+			for(int l=0;ll>>=1;l++)
+			{
+				if(ll&1) *p++ = '1'+l;
+			}
+			if(snap&&p!=buf) 
+			*p++ = 's';
+			*p = '\0';
+			set_name(buf);
+			set_hidden(p==buf);
+		}
+		
+	}overlay;
 	row flags;
 	struct Indicator:titlebar
 	{
@@ -244,6 +293,11 @@ struct ViewBar::StatusBar : StatusObject
 	};
 	std::list<TextQueueItemT> m_queue;
 	bool m_queueDisplay;
+
+	void clear()
+	{
+		m_queue.clear(); m_queueDisplay = false;
+	}
 
 	int _curstats[6][2]; //OPTIMIZING
 };

@@ -360,7 +360,8 @@ void AnimWin::Impl::_init_menu_toolbar()
 		glutAddMenuEntry();
 		bool x = config.get("aw_view_snap",true);
 		animwin_auto_scroll = x;
-		glutAddMenuEntry(X(x,aw_view_snap,"Auto-Scroll","","F12")); 
+		//REMINDER: F12 breaks in MSVC debug mode
+		glutAddMenuEntry(X(x,aw_view_snap,"Auto-Scroll","","Shift+F12")); //F12
 	}	
 		_tool_menu = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(viewwin_menu_radio(o,false,"tool_select_connected","Select","Tool","C"),id_aw_tool_select);

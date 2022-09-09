@@ -57,6 +57,7 @@ ScrollWidget(zoom_min,zoom_max),
 parent(parent),
 m_operation(MO_None),
 m_view(Tool::ViewFront),
+m_layer(1),
 m_rotX(),m_rotY(),m_rotZ(),
 m_width(),m_height(),
 m_unitWidth(1),
@@ -215,7 +216,7 @@ static int modelviewport_opts(int drawMode)
 	o|=Model::DO_BACKFACECULL;*/
 	switch(drawMode)
 	{
-	case ModelViewport::ViewFlat: o = Model::DO_NONE; break;
+	case ModelViewport::ViewFlat: o = 0; break; //Model::DO_NONE;
 	case ModelViewport::ViewSmooth: o = Model::DO_SMOOTHING; break;
 	case ModelViewport::ViewAlpha: o|=Model::DO_ALPHA; break;
 	}
@@ -230,6 +231,9 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	}
 
 	Model *model = parent->getModel();
+
+	//HACK: can this be automated?
+	model->setPrimaryLayers(m_layer); //1 only?
 
 	if(m_rendering)
 	{
@@ -1262,6 +1266,9 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 			}
 			else
 			{
+				//HACK: can this be automated?
+				model->setPrimaryLayers(m_layer); //1 only?
+
 				m_operation = MO_Tool;
 				Tool *tool = parent->tool;
 				tool->mouseButtonDown(bt|bs,x-m_viewportX,y-m_viewportY);
@@ -1321,6 +1328,8 @@ void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 
 	if(!m_activeButton) return; //NEW
 
+	Model *model = parent->getModel();
+
 	if(m_operation==MO_Rotate)
 	{
 		double xDiff = m_scrollStartPosition[0]-x;
@@ -1353,6 +1362,9 @@ void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 	{			
 		bs|=m_activeButton; //NEW
 
+		//HACK: can this be automated?
+		model->setPrimaryLayers(m_layer); //1 only?
+
 		//printf("tool mouse event\n");
 		Tool *tool = parent->tool;
 		tool->mouseButtonMove(bs,x-m_viewportX,y-m_viewportY);
@@ -1370,6 +1382,9 @@ void ModelViewport::mouseReleaseEvent(int bt, int bs, int x, int y)
 	{
 		if(m_operation==MO_Tool)
 		{
+			//HACK: can this be automated?
+			model->setPrimaryLayers(m_layer); //1 only?
+
 			Tool *tool = parent->tool;
 			tool->mouseButtonUp(bt|bs,x-m_viewportX,y-m_viewportY);
 			model->operationComplete(TRANSLATE("Tool",tool->getName(parent->tool_index)));
@@ -1505,6 +1520,7 @@ bool ModelViewport::keyPressEvent(int bt, int bs, int x, int y)
 void ModelViewport::getViewState(ModelViewport::ViewStateT &viewState)
 {				
 	viewState.direction = m_view;
+	viewState.layer = m_layer;
 	viewState.zoom = m_zoom;
 	viewState.rotation[0] = m_rotX;
 	viewState.rotation[1] = m_rotY;
@@ -1592,6 +1608,7 @@ void ModelViewport::rotateViewport(double rotX, double rotY, double rotZ)
 void ModelViewport::setViewState(const ViewStateT &viewState)
 {
 	m_view = viewState.direction;
+	m_layer = viewState.layer;
 	m_zoom = viewState.zoom;
 	m_rotX = viewState.rotation[0];
 	m_rotY = viewState.rotation[1];
@@ -1767,6 +1784,12 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		snaps = snaps?0:~0;
 	}
 
+	int lv; if(parent->snap_overlay) //2022
+	{
+		lv = model->getVisibleLayers();
+	}
+	else lv = model->getPrimaryLayers();
+
 	//EXPERIMENTAL
 	//I've modified polytool.cc and selecttool.cc 
 	//to use this back door to get feedback from 
@@ -1856,7 +1879,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			{
 				i++; if(selected||!ea->m_selected)
 				{
-					if(ea->m_visible)
+					if(ea->visible(lv))
 					{
 						coord.setAll(ea->m_absSource);
 
@@ -1871,7 +1894,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			{
 				i++; if(selected||!ea->m_selected)
 				{
-					if(ea->m_visible)
+					if(ea->visible(lv))
 					{
 						coord.setAll(ea->m_absSource);
 
@@ -1881,14 +1904,14 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			}
 		}			
 		if(mask&1<<Model::PT_Projection)
-		if(model->getDrawProjections()) //2022: m_visible?
+		if(model->getDrawProjections()) //2022: visible?
 		{
 			i = -1;			
 			for(auto*ea:model->getProjectionList())
 			{
 				i++; if(selected||!ea->m_selected)
 				{
-					//if(ea->m_visible) //getDrawProjections?
+					//if(ea->visible(lv)) //getDrawProjections?
 					{
 						coord.setAll(ea->m_absSource);
 
@@ -1908,7 +1931,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			{
 				i++; if(selected||!ea->m_selected)
 				{
-					if(ea->m_visible)
+					if(ea->visible(lv))
 					{
 						coord.setAll(ea->m_absSource);
 

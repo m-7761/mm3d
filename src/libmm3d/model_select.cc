@@ -47,7 +47,7 @@ bool Model::selectVertex(unsigned v, unsigned how)
 
 	if(vp->m_selected!=(how!=0)) //2019
 	{
-		if(how&&!vp->m_visible) //2022
+		if(how&&!vp->visible(m_primaryLayers)) //2022
 		{
 			assert(m_undoEnabled);
 			
@@ -82,7 +82,7 @@ bool Model::selectTriangle(unsigned t)
 
 	auto *tp = m_triangles[t]; if(!tp->m_selected) //2019
 	{
-		if(!tp->m_visible) //2022
+		if(!tp->visible(m_primaryLayers)) //2022
 		{
 			assert(m_undoEnabled);
 			
@@ -135,7 +135,7 @@ bool Model::unselectTriangle(unsigned t, bool remove_me)
 			//_selectVerticesFromTriangles(); //INSANE?!?
 			{
 				//BETTER: leverage new connectivty data?
-				for(auto i:tp->m_vertexIndices)
+				for(int i:tp->m_vertexIndices)
 				if(m_vertices[i]->m_selected)
 				{
 					bool selected = false;
@@ -190,11 +190,13 @@ bool Model::selectGroup(unsigned m)
 
 			bool sel = false;
 
-			for(auto i:grp->m_triangleIndices)
+			auto lv = m_primaryLayers;
+
+			for(int i:grp->m_triangleIndices)
 			{				
 				auto *tp = m_triangles[i];
 
-				if(tp->m_visible&&!tp->m_selected)
+				if(tp->visible(lv)&&!tp->m_selected)
 				{
 					sel = true; tp->m_selected = true;
 				}
@@ -367,52 +369,48 @@ bool Model::selectVerticesInVolumeMatrix(bool how, const Matrix &viewMat, double
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
 
+	auto lv = m_primaryLayers;
+
 	Vector vert; bool tris = false;
 
-	for(unsigned v=0;v<m_vertices.size();v++)
+	for(auto*vp:m_vertices) 
+	if(vp->m_selected!=how&&vp->visible(lv))
 	{
-		auto *vp = m_vertices[v]; 
-		
-		if(vp->m_selected!=how&&vp->m_visible)
-		{
-			vert.setAll(vp->m_absSource,3);
+		vert.setAll(vp->m_absSource,3);
 			
-			vert[3] = 1; viewMat.apply4(vert);
+		vert[3] = 1; viewMat.apply4(vert);
 
-			//TESTING
-			//This lets a projection matrix be used to do the selection.
-			//I guess it should be a permanent feature.
-			double w = vert[3]; if(1!=w) 
+		//TESTING
+		//This lets a projection matrix be used to do the selection.
+		//I guess it should be a permanent feature.
+		double w = vert[3]; if(1!=w) 
+		{
+			//HACK: Reject if behind Z plane.
+			if(w<=0) continue;
+
+			vert.scale(1/w);
+		}
+
+		if(vert[0]>=x1&&vert[0]<=x2&&vert[1]>=y1&&vert[1]<=y2)			
+		if(!test||test->shouldSelect(vp))
+		{
+			vp->m_selected = how;
+
+			if(!how&&!tris) for(auto&ea:vp->m_faces)
 			{
-				//HACK: Reject if behind Z plane.
-				if(w<=0) continue;
-
-				vert.scale(1/w);
-			}
-
-			if(vert[0]>=x1&&vert[0]<=x2&&vert[1]>=y1&&vert[1]<=y2)			
-			if(!test||test->shouldSelect(vp))
-			{
-				vp->m_selected = how;
-
-				if(!how&&!tris) for(auto&ea:vp->m_faces)
-				{
-					if(ea.first->m_selected) tris = true;
-				}
+				if(ea.first->m_selected) tris = true;
 			}
 		}
 	}
 
-	if(!how&&tris) //2022
-	{	
-		for(auto*tp:m_triangles) if(tp->m_visible)
-		{		
-			int count = 0; for(auto i:tp->m_vertexIndices)
-			{
-				count+=m_vertices[i]->m_selected;
-			}
-			if(count!=3) tp->m_selected = false;
+	if(!how&&tris) //2022		
+	for(auto*tp:m_triangles) if(tp->visible(lv))
+	{		
+		int count = 0; for(int i:tp->m_vertexIndices)
+		{
+			count+=m_vertices[i]->m_selected;
 		}
+		if(count!=3) tp->m_selected = false;
 	}
 
 	//endSelectionDifference();
@@ -426,73 +424,161 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 
 	//beginSelectionDifference(); //OVERKILL!
 	
-	for(auto i=m_vertices.size();i-->0;)
+	for(auto*vp:m_vertices)
 	{
 		//Note, I think only "connected" uses these?
-		m_vertices[i]->m_marked2 = false; 
+		vp->m_marked2 = false; 
 	}
 
-	for(auto i=m_triangles.size();i-->0;)
+	for(auto*tp:m_triangles)
 	{
 		//These weren't actually used, but is needed
 		//for _selectGroupsFromTriangles_marked2 now.
-		m_triangles[i]->m_marked2 = false; 
+		tp->m_marked2 = false; 
 	}
 
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
 
-	unsigned t;
-	for(t = 0; t<m_triangles.size(); t++)
+	auto lv = m_primaryLayers;
+
+	for(auto*tri:m_triangles)	
+	if(tri->m_selected!=select&&tri->visible(lv)
+	 &&(!test||(test&&test->shouldSelect(tri))))
 	{
-		Triangle *tri = m_triangles[t];
-		if(tri->m_selected!=select 
-		 &&tri->m_visible
-		 &&(!test||(test&&test->shouldSelect(tri))))
+		bool above = false;
+		bool below = false;
+
+		Vertex *vert[3];
+		double tCords[3][4];
+
+		// 0. Assign vert to triangle's verticies 
+		// 1. Check for vertices within the selection volume in the process
+		for(int v=3;v-->0;)	
 		{
-			bool above = false;
-			bool below = false;
+			//FIX ME
+			//Calculating every instance of the vertex is pretty gratuitous.
 
-			int v;
-			Vertex *vert[3];
-			double tCords[3][4];
-
-			// 0. Assign vert to triangle's verticies 
-			// 1. Check for vertices within the selection volume in the process
-			for(v = 0; v<3; v++)
-			{
-				//FIX ME
-				//Calculating every instance of the vertex is pretty gratuitous.
-
-				unsigned vertId = tri->m_vertexIndices[v];
-				vert[v] = m_vertices[vertId];
+			unsigned vertId = tri->m_vertexIndices[v];
+			vert[v] = m_vertices[vertId];
 				
-				tCords[v][0] = vert[v]->m_absSource[0]; 
-				tCords[v][1] = vert[v]->m_absSource[1]; 
-				tCords[v][2] = vert[v]->m_absSource[2]; 
-				tCords[v][3] = 1.0;
+			tCords[v][0] = vert[v]->m_absSource[0]; 
+			tCords[v][1] = vert[v]->m_absSource[1]; 
+			tCords[v][2] = vert[v]->m_absSource[2]; 
+			tCords[v][3] = 1.0;
 
-				viewMat.apply4(tCords[v]);				
+			viewMat.apply4(tCords[v]);				
 
-				//TESTING
-				//This lets a projection matrix be used to do the selection.
-				//I guess it should be a permanent feature.
-				double w = tCords[v][3]; if(1!=w) 
+			//TESTING
+			//This lets a projection matrix be used to do the selection.
+			//I guess it should be a permanent feature.
+			double w = tCords[v][3]; if(1!=w) 
+			{
+				//HACK: Reject if behind the Z plane because they can't
+				//be clipped to the visible/meaningful parts.
+				if(w<=0) goto next_triangle;
+
+				((Vector*)tCords[v])->scale(1/w);
+			}
+		}
+
+		for(int v=3;v-->0;)			
+		if(tCords[v][0]>=x1&&tCords[v][0]<=x2 
+			&&tCords[v][1]>=y1&&tCords[v][1]<=y2)
+		{
+			// A vertex of the triangle is within the selection area
+			tri->m_selected = select;
+
+			tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
+
+			vert[0]->m_marked2 = true;
+			vert[1]->m_marked2 = true;
+			vert[2]->m_marked2 = true;
+			goto next_triangle; // next triangle
+		}
+
+		// 2. Find intersections between triangle edges and selection edges
+		// 3. Also,check to see if the selection box is completely within triangle
+
+		double m[3];
+		double b[3];
+		double *coord[3][2];
+
+		m[0] = (tCords[0][1]-tCords[1][1])/(tCords[0][0]-tCords[1][0]);
+		coord[0][0] = tCords[0];
+		coord[0][1] = tCords[1];
+		m[1] = (tCords[0][1]-tCords[2][1])/(tCords[0][0]-tCords[2][0]);
+		coord[1][0] = tCords[0];
+		coord[1][1] = tCords[2];
+		m[2] = (tCords[1][1]-tCords[2][1])/(tCords[1][0]-tCords[2][0]);
+		coord[2][0] = tCords[1];
+		coord[2][1] = tCords[2];
+
+		b[0] = tCords[0][1]-(m[0] *tCords[0][0]);
+		b[1] = tCords[2][1]-(m[1] *tCords[2][0]);
+		b[2] = tCords[2][1]-(m[2] *tCords[2][0]);
+
+		for(int line = 0;line<3;line++)
+		{
+			double y;
+			double x;
+			double xmin;
+			double xmax;
+			double ymin;
+			double ymax;
+
+			if(coord[line][0][0]<coord[line][1][0])
+			{
+				xmin = coord[line][0][0];
+				xmax = coord[line][1][0];
+			}
+			else
+			{
+				xmin = coord[line][1][0];
+				xmax = coord[line][0][0];
+			}
+
+			if(coord[line][0][1]<coord[line][1][1])
+			{
+				ymin = coord[line][0][1];
+				ymax = coord[line][1][1];
+			}
+			else
+			{
+				ymin = coord[line][1][1];
+				ymax = coord[line][0][1];
+			}
+
+			if(x1>=xmin&&x1<=xmax)
+			{
+				y = m[line] *x1+b[line];
+				if(y>=y1&&y<=y2)
 				{
-					//HACK: Reject if behind the Z plane because they can't
-					//be clipped to the visible/meaningful parts.
-					if(w<=0) goto next_triangle;
+					tri->m_selected = select;
 
-					((Vector*)tCords[v])->scale(1/w);
+					tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
+
+					vert[0]->m_marked2 = true;
+					vert[1]->m_marked2 = true;
+					vert[2]->m_marked2 = true;
+					goto next_triangle; // next triangle
+				}
+
+				if(y>y1)
+				{
+					above = true;
+				}
+				if(y<y1)
+				{
+					below = true;
 				}
 			}
 
-			for(v = 0; v<3; v++)
+			if(x2>=xmin&&x2<=xmax)
 			{
-				if(tCords[v][0]>=x1&&tCords[v][0]<=x2 
-				 &&tCords[v][1]>=y1&&tCords[v][1]<=y2)
+				y = m[line] *x2+b[line];
+				if(y>=y1&&y<=y2)
 				{
-					// A vertex of the triangle is within the selection area
 					tri->m_selected = select;
 
 					tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
@@ -504,87 +590,11 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 				}
 			}
 
-			// 2. Find intersections between triangle edges and selection edges
-			// 3. Also,check to see if the selection box is completely within triangle
-
-			double m[3];
-			double b[3];
-			double *coord[3][2];
-
-			m[0] = (tCords[0][1]-tCords[1][1])/(tCords[0][0]-tCords[1][0]);
-			coord[0][0] = tCords[0];
-			coord[0][1] = tCords[1];
-			m[1] = (tCords[0][1]-tCords[2][1])/(tCords[0][0]-tCords[2][0]);
-			coord[1][0] = tCords[0];
-			coord[1][1] = tCords[2];
-			m[2] = (tCords[1][1]-tCords[2][1])/(tCords[1][0]-tCords[2][0]);
-			coord[2][0] = tCords[1];
-			coord[2][1] = tCords[2];
-
-			b[0] = tCords[0][1]-(m[0] *tCords[0][0]);
-			b[1] = tCords[2][1]-(m[1] *tCords[2][0]);
-			b[2] = tCords[2][1]-(m[2] *tCords[2][0]);
-
-			for(int line = 0; line<3; line++)
+			if(y1>=ymin&&y1<=ymax)
 			{
-				double y;
-				double x;
-				double xmin;
-				double xmax;
-				double ymin;
-				double ymax;
-
-				if(coord[line][0][0]<coord[line][1][0])
+				if(coord[line][0][0]==coord[line][1][0])
 				{
-					xmin = coord[line][0][0];
-					xmax = coord[line][1][0];
-				}
-				else
-				{
-					xmin = coord[line][1][0];
-					xmax = coord[line][0][0];
-				}
-
-				if(coord[line][0][1]<coord[line][1][1])
-				{
-					ymin = coord[line][0][1];
-					ymax = coord[line][1][1];
-				}
-				else
-				{
-					ymin = coord[line][1][1];
-					ymax = coord[line][0][1];
-				}
-
-				if(x1>=xmin&&x1<=xmax)
-				{
-					y = m[line] *x1+b[line];
-					if(y>=y1&&y<=y2)
-					{
-						tri->m_selected = select;
-
-						tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
-
-						vert[0]->m_marked2 = true;
-						vert[1]->m_marked2 = true;
-						vert[2]->m_marked2 = true;
-						goto next_triangle; // next triangle
-					}
-
-					if(y>y1)
-					{
-						above = true;
-					}
-					if(y<y1)
-					{
-						below = true;
-					}
-				}
-
-				if(x2>=xmin&&x2<=xmax)
-				{
-					y = m[line] *x2+b[line];
-					if(y>=y1&&y<=y2)
+					if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
 					{
 						tri->m_selected = select;
 
@@ -596,121 +606,96 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 						goto next_triangle; // next triangle
 					}
 				}
-
-				if(y1>=ymin&&y1<=ymax)
+				else
 				{
-					if(coord[line][0][0]==coord[line][1][0])
+					x = (y1-b[line])/m[line];
+					if(x>=x1&&x<=x2)
 					{
-						if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
-						{
-							tri->m_selected = select;
+						tri->m_selected = select;
 
-							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
+						tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
-							vert[0]->m_marked2 = true;
-							vert[1]->m_marked2 = true;
-							vert[2]->m_marked2 = true;
-							goto next_triangle; // next triangle
-						}
-					}
-					else
-					{
-						x = (y1-b[line])/m[line];
-						if(x>=x1&&x<=x2)
-						{
-							tri->m_selected = select;
-
-							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
-
-							vert[0]->m_marked2 = true;
-							vert[1]->m_marked2 = true;
-							vert[2]->m_marked2 = true;
-							goto next_triangle; // next triangle
-						}
-					}
-				}
-
-				if(y2>=ymin&&y2<=ymax)
-				{
-					if(coord[line][0][0]==coord[line][1][0])
-					{
-						if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
-						{
-							tri->m_selected = select;
-
-							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
-
-							vert[0]->m_marked2 = true;
-							vert[1]->m_marked2 = true;
-							vert[2]->m_marked2 = true;
-							goto next_triangle; // next triangle
-						}
-					}
-					else
-					{
-						x = (y2-b[line])/m[line];
-						if(x>=x1&&x<=x2)
-						{
-							tri->m_selected = select;
-
-							tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
-
-							vert[0]->m_marked2 = true;
-							vert[1]->m_marked2 = true;
-							vert[2]->m_marked2 = true;
-							goto next_triangle; // next triangle
-						}
+						vert[0]->m_marked2 = true;
+						vert[1]->m_marked2 = true;
+						vert[2]->m_marked2 = true;
+						goto next_triangle; // next triangle
 					}
 				}
 			}
 
-			if(above&&below)
+			if(y2>=ymin&&y2<=ymax)
 			{
-				// There was an intersection above and below the selection area,
-				// This means we're inside the triangle, so add it to our selection list
+				if(coord[line][0][0]==coord[line][1][0])
+				{
+					if(coord[line][0][0]>=x1&&coord[line][0][0]<=x2)
+					{
+						tri->m_selected = select;
+
+						tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
+
+						vert[0]->m_marked2 = true;
+						vert[1]->m_marked2 = true;
+						vert[2]->m_marked2 = true;
+						goto next_triangle; // next triangle
+					}
+				}
+				else
+				{
+					x = (y2-b[line])/m[line];
+					if(x>=x1&&x<=x2)
+					{
+						tri->m_selected = select;
+
+						tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
+
+						vert[0]->m_marked2 = true;
+						vert[1]->m_marked2 = true;
+						vert[2]->m_marked2 = true;
+						goto next_triangle; // next triangle
+					}
+				}
+			}
+		}
+
+		if(above&&below)
+		{
+			// There was an intersection above and below the selection area,
+			// This means we're inside the triangle, so add it to our selection list
+			tri->m_selected = select;
+
+			tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
+
+			vert[0]->m_marked2 = true;
+			vert[1]->m_marked2 = true;
+			vert[2]->m_marked2 = true;
+			goto next_triangle; // next triangle
+		}
+
+		next_triangle:; // because we need a statement after a label		
+	}
+
+	if(connected) for(bool found=true;found;)
+	{
+		found = false;
+		for(auto*tri:m_triangles) if(tri->visible(lv))
+		{
+			int count = 0;
+			for(int i:tri->m_vertexIndices)
+			{
+				if(m_vertices[i]->m_marked2) count++;
+			}
+
+			if(count>0&&(count<3||tri->m_selected!=select))
+			{
+				found = true;
+
 				tri->m_selected = select;
 
 				tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
 
-				vert[0]->m_marked2 = true;
-				vert[1]->m_marked2 = true;
-				vert[2]->m_marked2 = true;
-				goto next_triangle; // next triangle
-			}
-
-next_triangle:
-			; // because we need a statement after a label
-		}
-	}
-
-	if(connected)
-	{
-		bool found = true; while(found)
-		{
-			found = false;
-			for(auto*tri:m_triangles) if(tri->m_visible)
-			{
-				int count = 0;
-				for(unsigned v = 0; v<3; v++)
+				for(int i:tri->m_vertexIndices)
 				{
-					if(m_vertices[tri->m_vertexIndices[v]]->m_marked2)
-					{
-						count++;
-					}
-				}
-
-				if(count>0&&(count<3||tri->m_selected!=select))
-				{
-					found = true;
-
-					tri->m_selected = select;
-
-					tri->m_marked2 = true; //_selectGroupsFromTriangles_marked2?
-
-					for(unsigned v = 0; v<3; v++)
-					{
-						m_vertices[tri->m_vertexIndices[v]]->m_marked2 = true;
-					}
+					m_vertices[i]->m_marked2 = true;
 				}
 			}
 		}
@@ -748,43 +733,37 @@ bool Model::selectBoneJointsInVolumeMatrix(bool select, const Matrix &viewMat, d
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
 
+	auto lv = m_primaryLayers;
+
 	Vector vec;
-
-	for(unsigned j = 0; j<m_joints.size(); j++)
+	for(auto*joint:m_joints)	
+	if(joint->m_selected!=select&&joint->visible(lv))
 	{
-		Joint *joint = m_joints[j];
+		//TODO? Need to update m_final matrix.
+		//validateAnimSkel();
 
-		if(joint->m_selected!=select&&joint->m_visible)
+		vec[0] = joint->m_final.get(3,0);
+		vec[1] = joint->m_final.get(3,1);
+		vec[2] = joint->m_final.get(3,2);
+		vec[3] = 1.0;
+		viewMat.apply4(vec);
+
+		//TESTING
+		//This lets a projection matrix be used to do the selection.
+		//I guess it should be a permanent feature.
+		double w = vec[3]; if(1!=w) 
 		{
-			//TODO? Need to update m_final matrix.
-			//validateAnimSkel();
+			//HACK: Reject if behind Z plane.
+			if(w<=0) continue;
 
-			vec[0] = joint->m_final.get(3,0);
-			vec[1] = joint->m_final.get(3,1);
-			vec[2] = joint->m_final.get(3,2);
-			vec[3] = 1.0;
+			vec.scale(1/w);
+		}
 
-			viewMat.apply4(vec);
-
-			//TESTING
-			//This lets a projection matrix be used to do the selection.
-			//I guess it should be a permanent feature.
-			double w = vec[3]; if(1!=w) 
-			{
-				//HACK: Reject if behind Z plane.
-				if(w<=0) continue;
-
-				vec.scale(1/w);
-			}
-
-			if(vec[0]>=x1&&vec[0]<=x2 
-				  &&vec[1]>=y1&&vec[1]<=y2)
-			{
-				if(test)
-					joint->m_selected = test->shouldSelect(joint)? select : joint->m_selected;
-				else
-					joint->m_selected = select;
-			}
+		if(vec[0]>=x1&&vec[0]<=x2&&vec[1]>=y1&&vec[1]<=y2)
+		{
+			if(test) joint->m_selected = 
+			test->shouldSelect(joint)?select:joint->m_selected;
+			else joint->m_selected = select;
 		}
 	}
 
@@ -802,40 +781,35 @@ bool Model::selectPointsInVolumeMatrix(bool select, const Matrix &viewMat, doubl
 	if(x1>x2) std::swap(x1,x2);
 	if(y1>y2) std::swap(y1,y2);
 
+	auto lv = m_primaryLayers;
+
 	Vector vec;
-
-	for(unsigned p = 0; p<m_points.size(); p++)
+	for(auto*point:m_points)
+	if(point->m_selected!=select&&point->visible(lv))
 	{
-		Point *point = m_points[p];
+		vec.setAll(point->m_absSource,3);
+		vec[3] = 1.0;
+		viewMat.apply4(vec);
 
-		if(point->m_selected!=select&&point->m_visible)
+		//TESTING
+		//This lets a projection matrix be used to do the selection.
+		//I guess it should be a permanent feature.
+		double w = vec[3]; if(1!=w) 
 		{
-			vec.setAll(point->m_absSource,3);
-			vec[3] = 1.0;
+			//HACK: Reject if behind Z plane.
+			if(w<=0) continue;
 
-			viewMat.apply4(vec);
+			vec.scale(1/w);
+		}
 
-			//TESTING
-			//This lets a projection matrix be used to do the selection.
-			//I guess it should be a permanent feature.
-			double w = vec[3]; if(1!=w) 
-			{
-				//HACK: Reject if behind Z plane.
-				if(w<=0) continue;
-
-				vec.scale(1/w);
-			}
-
-			if(vec[0]>=x1&&vec[0]<=x2 
-				  &&vec[1]>=y1&&vec[1]<=y2)
-			{
-				if(test)
-					point->m_selected = test->shouldSelect(point)? select : point->m_selected;
-				else
-					point->m_selected = select;
-			}
+		if(vec[0]>=x1&&vec[0]<=x2&&vec[1]>=y1&&vec[1]<=y2)
+		{
+			if(test) point->m_selected =
+			test->shouldSelect(point)?select:point->m_selected;
+			else point->m_selected = select;
 		}
 	}
+
 	//endSelectionDifference();
 
 	return true;
@@ -1270,22 +1244,22 @@ bool Model::_selectTrianglesFromGroups_marked(bool how)
 
 	bool sel = false;
 
+	auto lv = m_primaryLayers;
+
 	for(auto*grp:m_groups)
 	{
 		//if(grp->m_selected) //_selectGroupsFromTriangles_marked2?
-		if(grp->m_marked)
+		if(grp->m_marked)		
+		for(int i:grp->m_triangleIndices)
 		{
-			for(auto i:grp->m_triangleIndices)
-			{
-				auto *tp = m_triangles[i];
+			auto *tp = m_triangles[i];
 
-				//if(tp->m_visible&&!tp->m_selected)
-				if(tp->m_visible&&how!=tp->m_selected)
-				{
-					sel = true; tp->m_selected = how;
-				}
+			//if(!tp->m_selected&&tp->visible(lv))
+			if(how!=tp->m_selected&&tp->visible(lv))
+			{
+				sel = true; tp->m_selected = how;
 			}
-		}
+		}		
 	}
 
 	//2022: maybe this shouldn't be here but it seems
@@ -1353,7 +1327,7 @@ void Model::_selectGroupsFromTriangles_marked2(bool how)
 	for(auto*grp:m_groups)
 	{
 		unsigned count = 0;
-		for(auto i:grp->m_triangleIndices)
+		for(int i:grp->m_triangleIndices)
 		{
 			//2022: only selectGroupsInVolumeMatrix has a legit reason
 			//to use this, and it sets m_marked2, so this way it doesn't
@@ -1381,11 +1355,13 @@ bool Model::invertSelection()
 
 	beginSelectionDifference(); //OVERKILL!
 
+	auto lv = m_primaryLayers;
+
 	switch(m_selectionMode)
 	{
 	case SelectVertices:
 		
-		for(auto*p:m_vertices) if(p->m_visible) p->m_selected = !p->m_selected;
+		for(auto*p:m_vertices) if(p->visible(lv)) p->m_selected = !p->m_selected;
 
 		break;
 			
@@ -1393,7 +1369,7 @@ bool Model::invertSelection()
 	case SelectConnected:
 	case SelectTriangles:
 
-		for(auto*p:m_triangles) if(p->m_visible) p->m_selected = !p->m_selected;
+		for(auto*p:m_triangles) if(p->visible(lv)) p->m_selected = !p->m_selected;
 
 		_selectVerticesFromTriangles();
 
@@ -1401,13 +1377,13 @@ bool Model::invertSelection()
 
 	case SelectJoints:
 
-		for(auto*p:m_joints) if(p->m_visible) p->m_selected = !p->m_selected;
+		for(auto*p:m_joints) if(p->visible(lv)) p->m_selected = !p->m_selected;
 
 		break;
 
 	case SelectPoints:
 
-		for(auto*p:m_points) if(p->m_visible) p->m_selected = !p->m_selected;
+		for(auto*p:m_points) if(p->visible(lv)) p->m_selected = !p->m_selected;
 
 		break;
 	}
@@ -1432,31 +1408,30 @@ void Model::beginSelectionDifference()
 		if(m_undoEnabled)
 		{
 			//SHOULD THIS BE LIMITED TO m_selectionMode?
-			unsigned t;
-			for(t = 0; t<m_vertices.size(); t++)
+			for(auto*p:m_vertices)
 			{
 				//2022: _OrderedSelection::Marker?
-				m_vertices[t]->m_marked = m_vertices[t]->m_selected;
+				p->m_marked = p->m_selected;
 			}
-			for(t = 0; t<m_triangles.size(); t++)
+			for(auto*p:m_triangles)
 			{
-				m_triangles[t]->m_marked = m_triangles[t]->m_selected;
+				p->m_marked = p->m_selected;
 			}
-			for(t = 0; t<m_groups.size(); t++)
+			for(auto*p:m_groups)
 			{
-				m_groups[t]->m_marked = m_groups[t]->m_selected;
+				p->m_marked = p->m_selected;
 			}
-			for(t = 0; t<m_joints.size(); t++)
+			for(auto*p:m_joints)
 			{
-				m_joints[t]->m_marked = m_joints[t]->m_selected;
+				p->m_marked = p->m_selected;
 			}
-			for(t = 0; t<m_points.size(); t++)
+			for(auto*p:m_points)
 			{
-				m_points[t]->m_marked = m_points[t]->m_selected;
+				p->m_marked = p->m_selected;
 			}
-			for(t = 0; t<m_projections.size(); t++)
+			for(auto*p:m_projections)
 			{
-				m_projections[t]->m_marked = m_projections[t]->m_selected;
+				p->m_marked = p->m_selected;
 			}
 		}
 	}
@@ -1775,46 +1750,47 @@ bool Model::getSelectedBoundingRegion(double *x1, double *y1, double *z1, double
 	bool havePoint = false; //REMOVE ME
 	*x1 = *y1 = *z1 = *x2 = *y2 = *z2 = 0.0;
 
-	for(unsigned v = 0; v<m_vertices.size(); v++)
+	auto lv = m_primaryLayers;
+
+	for(auto*vp:m_vertices) if(vp->m_selected)
 	{
-		if(m_vertices[v]->m_visible&&m_vertices[v]->m_selected)
+		if(!vp->visible(lv)) continue;
+
+		if(havePoint) //???
 		{
-			if(havePoint) //???
+			if(vp->m_absSource[0]<*x1)
 			{
-				if(m_vertices[v]->m_absSource[0]<*x1)
-				{
-					*x1 = m_vertices[v]->m_absSource[0];
-				}
-				if(m_vertices[v]->m_absSource[0]>*x2)
-				{
-					*x2 = m_vertices[v]->m_absSource[0];
-				}
-				if(m_vertices[v]->m_absSource[1]<*y1)
-				{
-					*y1 = m_vertices[v]->m_absSource[1];
-				}
-				if(m_vertices[v]->m_absSource[1]>*y2)
-				{
-					*y2 = m_vertices[v]->m_absSource[1];
-				}
-				if(m_vertices[v]->m_absSource[2]<*z1)
-				{
-					*z1 = m_vertices[v]->m_absSource[2];
-				}
-				if(m_vertices[v]->m_absSource[2]>*z2)
-				{
-					*z2 = m_vertices[v]->m_absSource[2];
-				}
+				*x1 = vp->m_absSource[0];
 			}
-			else //???
+			if(vp->m_absSource[0]>*x2)
 			{
-				*x1 = *x2 = m_vertices[v]->m_absSource[0];
-				*y1 = *y2 = m_vertices[v]->m_absSource[1];
-				*z1 = *z2 = m_vertices[v]->m_absSource[2];
-				havePoint = true;
+				*x2 = vp->m_absSource[0];
 			}
-			visible++;
+			if(vp->m_absSource[1]<*y1)
+			{
+				*y1 = vp->m_absSource[1];
+			}
+			if(vp->m_absSource[1]>*y2)
+			{
+				*y2 = vp->m_absSource[1];
+			}
+			if(vp->m_absSource[2]<*z1)
+			{
+				*z1 = vp->m_absSource[2];
+			}
+			if(vp->m_absSource[2]>*z2)
+			{
+				*z2 = vp->m_absSource[2];
+			}
 		}
+		else //???
+		{
+			*x1 = *x2 = vp->m_absSource[0];
+			*y1 = *y2 = vp->m_absSource[1];
+			*z1 = *z2 = vp->m_absSource[2];
+			havePoint = true;
+		}
+		visible++;
 	}
 
 	for(unsigned j = 0; j<m_joints.size(); j++)
@@ -2221,6 +2197,8 @@ bool Model::selectFreeVertices(bool how)
 {
 	assert(!m_selecting); 
 
+	auto lv = m_primaryLayers;
+
 	bool sel = false;
 	bool ue = m_undoEnabled;	
 	MU_Select *undo = nullptr;
@@ -2228,7 +2206,8 @@ bool Model::selectFreeVertices(bool how)
 	{
 		v++; //selectVertex(v);
 
-		if(vp->m_faces.empty()&&how!=vp->m_selected&&vp->m_visible)
+		if(vp->m_faces.empty())
+		if(how!=vp->m_selected&&vp->visible(lv))
 		{	
 			sel = true; vp->m_selected = how;
 
@@ -2253,6 +2232,8 @@ bool Model::setSelectedTriangles(const int_list &l) //2022
 
 	Undo<MU_Select> undo(this,SelectTriangles);
 
+	auto lv = m_primaryLayers;
+
 	bool sel = false;
 
 	int li = 0, next = l.empty()?-1:l.front();
@@ -2263,7 +2244,7 @@ bool Model::setSelectedTriangles(const int_list &l) //2022
 		{
 			next = ++li<(int)l.size()?l[li]:-1;
 
-			if(!ea->m_selected&&ea->m_visible)
+			if(!ea->m_selected&&ea->visible(lv))
 			{
 				sel = true;
 			

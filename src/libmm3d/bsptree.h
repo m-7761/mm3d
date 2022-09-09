@@ -29,6 +29,19 @@ class BspTree
 {
 public:
 
+	struct Draw
+	{
+		unsigned ops;
+	
+		int texture_matrix;
+	
+		class DrawingContext *context;
+
+		class Model *bsp;
+
+		unsigned layers;
+	};
+
 	class Poly
 	{
 	public:
@@ -59,7 +72,7 @@ public:
 		void intersection(double *p1, double *p2, double *po, float &place);
 
 		//void *render(DrawingContext *context, void *currentMaterial2021);
-		int render(void *context, int compare);
+		int render(Draw&, int compare);
 
 		void print();
 
@@ -86,7 +99,7 @@ public:
 
 		void addChild(Node *n);
 		//void *render(double *point, DrawingContext *context, void *currentMaterial);
-		int render(double *point, void *context, int compare);
+		int render(double *point, Draw&, int compare);
 
 		void splitNodes(int idx1, int idx2, int idx3,
 				double *p1, double *p2,Node *n1, Node *n2,
@@ -116,7 +129,7 @@ public:
 
 	void addPoly(Poly *p);
 	//void render(double *point, DrawingContext *context);
-	void render(double *point, void *Model__draw);
+	void render(double *point, Draw&);
 
 	void clear();
 

@@ -64,9 +64,11 @@ viewwin_help_menu=0,viewwin_face_menu=0,
 viewwin_deletecmd=0,viewwin_interlock=1,
 viewwin_jointlock=0,
 viewwin_toolbar = 0;
-extern int 
+int //extern
 viewwin_joints100=1,
 viewwin_shifthold=0,viewwin_shlk_menu=0;
+
+bool viewwin_snap_overlay = false; //extern
 
 //TODO: Need an elaborate API for this I guess
 static bool &viewwin_rmb = ModelViewport::_rmb_rotates_view;
@@ -499,7 +501,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddSubMenu(::tr("Recent Models","File|Recent Models"),viewwin_mruf_menu);
 	glutAddMenuEntry(E(file_close,"Close","File|Close","Alt+End"));
 	glutAddMenuEntry();
-	glutAddMenuEntry(E(file_save,"Save (Ctrl+S)","File|Save","Ctrl+Alt+S"));
+	glutAddMenuEntry(E(file_save,"Save (Ctrl+S)","File|Save","Shift+Alt+S"));
 	glutAddMenuEntry(E(file_save_as,"Save As...","File|Save As","Alt+F12"));
 	glutAddMenuEntry(E(file_export,"Export...","File|Export","Alt+F11"));
 	glutAddMenuEntry(E(file_export_selection,"Export Selected...","File|Export Selected","Shift+F11"));
@@ -523,21 +525,44 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(file_resume,"Resume","","Windows_Menu")); //Windows_menu
 	glutAddMenuEntry();
 	//REMINDER: Alt+F4 closes a window according to the system menu.
-	glutAddMenuEntry(E(file_quit,"Quit","File|Quit","Ctrl+F4"));
+	glutAddMenuEntry(E(file_quit,"Quit","File|Quit","Shift+Alt+Q"));
 	}	
 
 	if(!viewwin_view_menu) //static menu (NEW)
 	{
+		int layers = glutCreateMenu(viewwin_menubarfunc);
+		glutAddMenuEntry(E(view_layer_0,"Hiding","","Shift+Esc"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(view_layer_1,"Layer 1","","Shift+F1"));
+		glutAddMenuEntry(E(view_layer_2,"Layer 2","","Shift+F2"));
+		glutAddMenuEntry(E(view_layer_3,"Layer 3","","Shift+F3"));
+		glutAddMenuEntry(E(view_layer_4,"Layer 4","","Shift+F4"));
+
+		int overlays = glutCreateMenu(viewwin_menubarfunc);
+		glutAddMenuEntry(E(view_overlay,"Viewing","","Ctrl+O"));		
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(view_overlay_1,"Overlay 1","","Ctrl+F1"));
+		glutAddMenuEntry(E(view_overlay_2,"Overlay 2","","Ctrl+F2"));
+		glutAddMenuEntry(E(view_overlay_3,"Overlay 3","","Ctrl+F3"));
+		glutAddMenuEntry(E(view_overlay_4,"Overlay 4","","Ctrl+F4"));
+		glutAddMenuEntry();
+		viewwin_snap_overlay = config.get("ui_snap_overlay",true);
+		glutAddMenuEntry(X(viewwin_snap_overlay,view_overlay_snap,"Snap to Overlay","","Shift+O"));		
+		
 		//_view_menu is pretty long compared to the others. The
 		//purpose of this submenu is to collect the static menu
 		//items.
-		viewwin_view_menu = glutCreateMenu(viewwin_menubarfunc);	
+		viewwin_view_menu = glutCreateMenu(viewwin_menubarfunc);
 
 		//views.status._interlock.indicate(true); //inverting sense
 		//glutAddMenuEntry(E(frame_all,"Frame All","View|Frame","Home"));
 		glutAddMenuEntry(X(true,frame_lock,"Interlock","","Shift+Ctrl+E"));
 		glutAddMenuEntry(E(frame_all,"Enhance","View|Frame","Shift+E"));
 		glutAddMenuEntry(E(frame_selection,"Enhance Selection","View|Frame","E"));		
+		glutAddMenuEntry();
+		glutAddSubMenu("Switch Layer",layers);
+		//glutAddMenuEntry(E(view_overlay,"Toggle Layer","","Ctrl+O"));
+		glutAddSubMenu("Toggle Overlay",overlays);
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(fullscreen,"Full Screen Mode","","F11"));
 		glutAddMenuEntry(E(viewselect,"Open View Menu","","F4"));
@@ -557,7 +582,7 @@ void MainWin::_init_menu_toolbar() //2019
 		//view_persp does this now	
 		//glutAddMenuEntry(E(view_project,"Project View","","`")); 
 		glutAddMenuEntry(E(view_init,"Restore to Normal","","`")); //Shift+Esc
-		glutAddMenuEntry();	
+		glutAddMenuEntry();
 		glutAddMenuEntry(E(view_swap,"Change Sides","View|Viewports","Ctrl+Tab"));
 		glutAddMenuEntry(E(view_flip,"Bottom on Top","View|Viewports","Ctrl+Q"));	
 	}
@@ -869,7 +894,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influencing","Joints|Remove Selected Joint from Influencing")); 
 	glutAddMenuEntry(E(joint_simplify,"Convert Multiple Influences to Single","Joints|Convert Multiple Influences to Single"));		
 	glutAddMenuEntry();	
-	glutAddMenuEntry(E(joint_draw_bone,"Apply Alternative Appearance to Bone","","Ctrl+Alt+B")); 
+	glutAddMenuEntry(E(joint_draw_bone,"Apply Alternative Appearance to Bone","","Shift+Alt+B")); 
 	//IMPLEMENT ME
 	//REMINDER: animation mode works differently (should they be standardized?)
 	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone Independent of Parent","","Shift+I")); 
@@ -973,13 +998,13 @@ bool MainWin::reshape(int x, int y)
 	if(x==10000){ x = wx; y = wy; } //HACK
 
 	//FIX ME
-	//248 is hardcoded. Want to calculate.
+	//262 is hardcoded. Want to calculate.
 	//NOTE: Depends on text in view menus.
 	int m = views.viewsM;
 	int n = views.viewsN/m;
 	int sbw = sidebar.width();
 	enum{ extra=1 }; //PERFECTLY BALANCED
-	int mx = std::max(extra+243*m+sbw,x); //520
+	int mx = std::max(extra+262*m+sbw,x); //520
 	int my = std::max(520/2*n,y); //520
 		
 	if(mx!=x||my!=y) goto wrong_shape;
@@ -1095,6 +1120,8 @@ _prev_view(),_curr_view()
 		
 
 		_init_menu_toolbar(); //LONG SUBROUTINE		
+
+		views.snap_overlay = viewwin_snap_overlay;
 
 
 	model->clearUndo(); //???
@@ -1267,7 +1294,23 @@ Model *MainWin::_swap_models(Model *swap)
 	std::string e;
 	while(model->popError(e))
 	model_status(model,StatusError,STATUSTIME_LONG,"%s",e.c_str());
-		
+
+	if(int st=model->getAddedLayers()&(4|8|16))
+	{
+		//HACK: get noise out of the way to look better
+		if(e.empty()) views.status.clear();
+
+		int lc = 0;
+		char l[3][2] = {}; for(int i=2;i<=4;i++)
+		{
+			if(st&(1<<i)){ lc++; l[i-2][0] = '0'+i; }
+		}
+
+		const char *f = ::tr("%d secondary layer has data (%s%s%s)");
+		if(lc>1) f = ::tr("%d secondary layers have data (%s%s%s)");
+		model_status(model,StatusNotice,STATUSTIME_SHORT,f,lc,l[0],l[1],l[2]);
+	}
+
 	//This is needed to jumpstart.
 	modelChanged(Model::ChangeAll); return swap;
 }
@@ -1472,6 +1515,9 @@ void MainWin::frame(int scope)
 {
 	auto os = (Model::OperationScopeE)scope;
 
+	//HACK: This is really viewport dependent.
+	model->setPrimaryLayers((int)views->layer);
+	
 	//TODO: Need easy test for no selection.
 	double x1,y1,z1,x2,y2,z2;	
 	if(model->getBounds(os,&x1,&y1,&z1,&x2,&y2,&z2))
@@ -1761,16 +1807,19 @@ void MainWin::perform_menu_action(int id)
 	{		
 	case id_file_save_prompt:
 
-		//Ctrl+Alt+S saves without a prompt. Might want to use Ctrl+S for
-		//a tool, but many expect it to save, however Alt is used for any
-		//actions that are outside the scope of editing.
 		//Note: id_no is included so the behavior is identical to closing
 		if(id_yes==Win::InfoBox(::tr("Save over model?"),
 		m->getSaved()?
 		::tr("The model is unmodified\n""Overwrite file on disk anyway?"):
 		::tr("Model has been modified\n""Overwrite file on disk?"),
 		id_yes|id_no|id_cancel,id_cancel))
-		w->save_work(); return;
+		if(w->save_work())
+		{
+			//2022: show full path and follow suit of hotkey combo
+			model_status(m,StatusNormal,STATUSTIME_SHORT,::tr("Saved %s"),model->getFilename());			
+		}
+		
+		return;
 	}
 
 	viewin_menu raii; //changes the pop-up behavior
@@ -1806,6 +1855,66 @@ void MainWin::perform_menu_action(int id)
 	case id_properties: assert(0);
 		return viewpanel_special_func(GLUT_KEY_F3,0,0);
 
+	case id_view_layer_0:
+	case id_view_layer_1:
+	case id_view_layer_2:
+	case id_view_layer_3:
+	case id_view_layer_4:
+
+		id-=id_view_layer_0;
+		for(int i=w->views.viewsN;i-->0;)
+		{
+			auto &c = w->views[i]->layer;
+			
+			if(id!=c.int_val())
+			{
+				c.set_int_val(id);
+				c.mouse_over(false,0,0); //custom
+			}
+
+			w->views.ports[i].setLayer(id);
+		}
+		model_status(model,StatusNormal,STATUSTIME_SHORT,
+		id?::tr("Layer %d"): ::tr("Hidden layer"),id);
+		break;
+
+	case id_view_overlay:
+
+		if(int l=w->views->layer) id+=l;		
+		else return model_status(m,StatusError,STATUSTIME_LONG,::tr("Hide layer can't overlay"));
+		//break;
+
+	case id_view_overlay_1:
+	case id_view_overlay_2:
+	case id_view_overlay_3:
+	case id_view_overlay_4:	
+
+		if(id-=id_view_overlay_1-1)
+		{
+			int l = 1<<id;
+			int ll = m->getOverlayLayers();
+			ll&l?ll&=~l:ll|=l;
+			m->setOverlayLayers(ll);
+
+			model_status(model,StatusNormal,STATUSTIME_SHORT,
+			ll&l?::tr("Layer %d overlay set"): ::tr("Layer %d overlay unset"),id);
+
+			w->views.status.overlay.set(ll,viewwin_snap_overlay);
+		}
+		else assert(0); break;
+
+	case id_view_overlay_snap:
+
+		viewwin_snap_overlay = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
+
+		for(auto&ea:viewwin_list)
+		{
+			ea->views.snap_overlay = viewwin_snap_overlay;
+			ea->views.status.overlay.set(ea->model->getOverlayLayers(),viewwin_snap_overlay);
+		}
+
+		return;
+
 		/*File menu*/
 	
 	case id_file_new:
@@ -1837,7 +1946,12 @@ void MainWin::perform_menu_action(int id)
 
 	case id_file_save: 
 		
-		w->save_work(); return;
+		if(w->save_work()) //2022: indicate hotkey combo
+		{
+			//HACK: -1 is suppressing beep sound (file name sould be loud enough)
+			model_status(m,StatusNotice,STATUSTIME_LONG-1,::tr("Saved %s"),model->getFilename());
+		}		
+		return;
  
 	case id_file_save_as: case id_file_export:
 		
@@ -2590,7 +2704,12 @@ static void viewwin_geomenufunc(int id)
 		{
 			MainWin *w = viewwin();
 			Model *model = w->model;
-			if(viewwin_face_view)
+
+			//HACK: can this be automated?
+			model->setPrimaryLayers(w->views.getPrimaryLayer()); //1 only?
+
+			//hidecmd.cc needs this
+			//if(viewwin_face_view)
 			cmgr->setViewSurrogate(w->toolbox.getCurrentTool()); //2022
 			if(cmd->activated(id,model))
 			model->operationComplete(TRANSLATE("Command",cmd->getName(id)));

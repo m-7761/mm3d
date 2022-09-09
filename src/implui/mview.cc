@@ -113,7 +113,7 @@ void ViewBar::ModelView::init_view_dropdown()
 	}v.add_item(-1,"<&New View>"); //EXPERIMENTAL
 
 	if(!ref) return; //YUCK
-	auto &vp = ((ViewBar*)ui())->model.views;
+	auto &vp = bar.model.views;
 	for(int i=0;i<vp.viewsN;i++)
 	{
 		auto &vv = vp.views[i]->view;
@@ -122,6 +122,26 @@ void ViewBar::ModelView::init_view_dropdown()
 		vv.reference(*ref).select_id(vv);
 	}		
 }
+bool ViewBar::ModelView::Layer_multiple::item::mouse_up_handler(int x, int y, bool inside)
+{
+	auto *m = (Layer_multiple*)parent();
+	if(event.curr_shift||event.curr_ctrl)
+	if(inside&&id()==m->mview->port.getLayer())
+	{
+		//HACK: Make shift/ctrl work even if the radio is unchanged?
+		parent()->execute_callback();		
+	}
+	return item::_mouse_up_handler(x,y,inside);	
+}
+bool ViewBar::ModelView::Layer_multiple::mouse_over(bool st, int x, int y)
+{
+	int val = int_val();
+	for(auto*ch=first_child();ch;ch=ch->next())
+	{
+		ch->set_hidden(st?false:val!=ch->id());
+	}
+	return true;
+};
 void ViewBar::ModelView::submit(int id)
 {	
 	switch(id)
@@ -129,6 +149,21 @@ void ViewBar::ModelView::submit(int id)
 	case id_init:
 	
 		if(!view.reference()) init_view_dropdown();
+				
+		layer.row_pack().space(0,-3,1,0,3);
+		for(auto&l:layers)
+		{
+			layer.add_item(&l);
+			int i = l.id();
+			const char cc[5] = {'_','=','2','3','4'};
+			l.name().push_back(cc[i]);
+			l.style(l.style_tab|l.style_thin|l.style_hide);
+			l.span(16).drop(18);
+
+			l.set_hidden(i!=1); //mouse_over?		
+		}
+		layer.space<top>(top==ui()->subpos()?2:3); //HACK
+		layer.select_id(1);
 
 		if(top==ui()->subpos())
 		{
@@ -198,6 +233,53 @@ void ViewBar::ModelView::submit(int id)
 	case '=': port.setZoomLevel(zoom.value); break;
 	case '+': port.zoomIn(); break;
 	case '-': port.zoomOut(); break;
+
+	case id_assign:
+
+		id = layer;
+
+		if(event.curr_shift) //broadcast?
+		{
+			if(event.curr_ctrl&&!event.wheel_event) //assign?
+			{
+				if(id) //hidecmd.cc?
+				{
+					bar.model->hideSelected(true,id);
+
+					model_status(bar.model,StatusNormal,STATUSTIME_SHORT,
+					TRANSLATE("Command","Assigned to layer %d"),id);
+
+					bar.model->operationComplete(TRANSLATE("Command","Transfer to Layer"));
+				}
+				else
+				{
+					model_status(bar.model,StatusError,STATUSTIME_LONG,
+					TRANSLATE("Command","Can't assign hidden layer"));
+				}
+				
+				layer.set_int_val(port.getLayer()); //reset?
+			}
+			else bar.model.perform_menu_action(id_view_layer_0+id);
+		}
+		else if(event.curr_ctrl&&!event.wheel_event) //overlay?
+		{
+			bar.model.perform_menu_action(id_view_overlay);
+
+			layer.set_int_val(port.getLayer()); //reset?
+		}
+		else
+		{		
+			port.setLayer(id);
+
+			//HACK: force focus?
+			port.parent->m_focus = &port-port.parent->ports;
+				
+			port.parent->updateView(); 		
+		
+			model_status(bar.model,StatusNormal,STATUSTIME_SHORT,
+			id?::tr("Layer %d"): ::tr("Hidden layer"),id);
+		}
+		return;
 	}
 }
 

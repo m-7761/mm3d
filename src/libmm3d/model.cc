@@ -199,9 +199,6 @@ Model::Model()
 	: m_filename(""),
 	m_validContext(false),
 	  m_validBspTree(false),
-	  m_canvasDrawMode(0),
-	  m_perspectiveDrawMode(3),
-	  m_drawOptions(DO_BONES), //2019
 	  m_drawJoints(/*JOINTMODE_BONES*/true),
 	  m_drawSelection(),
 	  m_drawProjections(true),
@@ -217,7 +214,15 @@ Model::Model()
 	  m_currentFrame(0),
 	  m_currentAnim(0),
 	  m_currentTime(0.0),
-	m_elapsedTime(0.0) //2022
+	m_elapsedTime(0.0), //2022	
+	  m_canvasDrawMode(0),
+	  m_perspectiveDrawMode(3),
+	  m_drawOptions(DO_BONES), //2019
+		m_addLayer(1), //2022
+		m_addedLayers(0),
+		m_primaryLayers(2),
+		m_overlayLayers(0),
+		m_drawingLayers(2)
 #ifdef MM3D_EDIT
 	,
 	  m_saved(true),
@@ -447,52 +452,6 @@ void Model::setUndoCountLimit(unsigned countLimit)
 	m_undoMgr->setCountLimit(countLimit);
 }
 
-bool Model::isVertexVisible(unsigned v)const
-{
-	//LOG_PROFILE(); //???
-
-	if(v<m_vertices.size())	
-	return m_vertices[v]->m_visible;
-	return false;
-}
-
-bool Model::isTriangleVisible(unsigned v)const
-{
-	//LOG_PROFILE(); //???
-
-	if(v<m_triangles.size())	
-	return m_triangles[v]->m_visible;
-	return false;
-}
-
-/*UNUSED
-bool Model::isGroupVisible(unsigned v)const
-{
-	//LOG_PROFILE(); //???
-
-	if(v<m_groups.size())
-	return m_groups[v]->m_visible;
-	return false;
-}*/
-
-bool Model::isBoneJointVisible(unsigned j)const
-{
-	//LOG_PROFILE(); //???
-
-	if(j<m_joints.size())
-	return m_joints[j]->m_visible;
-	return false;
-}
-
-bool Model::isPointVisible(unsigned p)const
-{
-	//LOG_PROFILE(); //???
-
-	if(p<m_points.size())
-	return m_points[p]->m_visible;
-	return false;
-}
-
 static bool model_inv_infls_msg(Model *m, int n) //2021
 {
 	//NOTE: Even if this could be solved in an acceptable way
@@ -511,7 +470,7 @@ int Model::addVertex(double x, double y, double z)
 
 	m_changeBits |= AddGeometry;
 
-	Vertex *vp = Vertex::get(m_animationMode);
+	Vertex *vp = Vertex::get(m_addLayer,m_animationMode);
 
 	vp->m_coord[0] = x;
 	vp->m_coord[1] = y;
@@ -538,7 +497,7 @@ int Model::addVertex(int copy, const double pos[3])
 
 	m_changeBits |= AddGeometry;
 
-	Vertex *vp = Vertex::get(m_animationMode);	
+	Vertex *vp = Vertex::get(m_addLayer,m_animationMode);	
 	m_vertices.push_back(vp);
 
 	if(auto fp=m_vertices.front()->m_frames.size())
@@ -616,7 +575,7 @@ int Model::addTriangle(unsigned v1, unsigned v2, unsigned v3)
 		auto num = (unsigned)m_triangles.size();
 		//log_debug("adding triangle %d for vertices %d,%d,%d\n",num,v1,v2,v3);
 
-		Triangle *triangle = Triangle::get();
+		Triangle *triangle = Triangle::get(m_addLayer);
 		auto &vi = triangle->m_vertexIndices;
 		vi[0] = v1;
 		vi[1] = v2;
@@ -650,7 +609,7 @@ int Model::addBoneJoint(const char *name, int parent)
 
 	int num = m_joints.size();
 
-	Joint *joint = Joint::get(m_animationMode);
+	Joint *joint = Joint::get(m_addLayer,m_animationMode);
 
 	joint->m_parent = parent;
 	joint->m_name	= name;
@@ -700,7 +659,7 @@ int Model::addPoint(const char *name, double x, double y, double z,
 
 	//log_debug("New point at %f,%f,%f\n",x,y,z); //???
 
-	Point *point = Point::get(m_animationMode);
+	Point *point = Point::get(m_addLayer,m_animationMode);
 
 	point->m_name	= name;
 
@@ -977,6 +936,8 @@ void Model::deleteSelected()
 {
 	//LOG_PROFILE(); //???
 
+	auto lv = m_primaryLayers; //???
+
 	//THIS CAN BE SIMPLIFIED
 	for(auto&vp:m_vertices) vp->m_marked = false;
 
@@ -996,13 +957,20 @@ void Model::deleteSelected()
 	{
 		tris.push_back(t);
 	}
-	else if(m_triangles[t]->m_visible)
+	else //if(m_triangles[t]->m_visible) //2022
 	{
-		for(int i:m_triangles[t]->m_vertexIndices)
-		if(m_vertices[i]->m_selected&&!m_vertices[i]->m_marked)
+		//NOTE: I'm not sure it's appropriate to
+		//test "visible" here, but it might be to
+		//mask deletions
+
+		if(m_triangles[t]->visible(lv))
 		{
-			//deleteTriangle(t); break;
-			tris.push_back(t); break;
+			for(int i:m_triangles[t]->m_vertexIndices)
+			if(m_vertices[i]->m_selected&&!m_vertices[i]->m_marked)
+			{
+				//deleteTriangle(t); break;
+				tris.push_back(t); break;
+			}
 		}
 	}
 	deleteTriangles(tris,false);
@@ -1207,53 +1175,6 @@ bool Model::relocateBoneJoint(unsigned j, double x, double y, double z, bool dow
 
 	invalidateSkel(); return true;
 }
-
-/*REFERENCE
-void Model::beginHideDifference() //???
-{
-	//LOG_PROFILE(); //???
-
-	if(m_undoEnabled)
-	{
-		unsigned t;
-		for(t = 0; t<m_vertices.size(); t++)
-		{
-			m_vertices[t]->m_marked = m_vertices[t]->m_visible;
-		}
-		for(t = 0; t<m_triangles.size(); t++)
-		{
-			m_triangles[t]->m_marked = m_triangles[t]->m_visible;
-		}
-	}
-}
-void Model::endHideDifference() //???
-{
-	//LOG_PROFILE(); //???
-
-	if(m_undoEnabled) switch (m_selectionMode)
-	{
-	case SelectVertices:
-	{
-		auto undo = new MU_Hide(SelectVertices);
-		for(unsigned t = 0; t<m_vertices.size(); t++)		
-		if(m_vertices[t]->m_visible!=m_vertices[t]->m_marked)
-		{
-			undo->setHideDifference(t,m_vertices[t]->m_visible);
-		}
-		sendUndo(undo);	break;
-	}
-	case SelectTriangles:
-	case SelectGroups:
-	{
-		auto undo = new MU_Hide(SelectTriangles);
-		for(unsigned t = 0; t<m_triangles.size(); t++)
-		if(m_triangles[t]->m_visible!=m_triangles[t]->m_marked)
-		{
-			undo->setHideDifference(t,m_triangles[t]->m_visible);
-		}
-		sendUndo(undo); break;
-	}}
-}*/
 
 void Model::interpolateSelected(Model::Interpolant2020E d, Model::Interpolate2020E e)
 {
@@ -2457,48 +2378,57 @@ void Model::undo(int how)
 	}
 }
 
-void Model::hideVertex(unsigned i, int how) //UNSAFE???
+void Model::hideVertex(unsigned i, unsigned layer) //UNSAFE???
 {
 	if(i<m_vertices.size()) 
 	{
-		bool &v = m_vertices[i]->m_visible;
-		v = how==-1?!v:!how;
+		//bool &v = m_vertices[i]->m_visible;
+		//v = how==-1?!v:!how;
+		m_vertices[i]->hide(layer);
 	}
 	else assert(0);
 }
-void Model::hideTriangle(unsigned i, int how) //UNSAFE???
+void Model::hideTriangle(unsigned i, unsigned layer) //UNSAFE???
 {
 	if(i<m_triangles.size())
 	{
-		bool &v = m_triangles[i]->m_visible;
-		v = how==-1?!v:!how;
+		//bool &v = m_triangles[i]->m_visible;
+		//v = how==-1?!v:!how;
+		m_triangles[i]->hide(layer);
 	}
 	else assert(0);
 }
-void Model::hideJoint(unsigned i, int how) //UNSAFE???
+void Model::hideJoint(unsigned i, unsigned layer) //UNSAFE???
 {
 	if(i<m_joints.size())
 	{
-		bool &v = m_joints[i]->m_visible;
-		v = how==-1?!v:!how;
+		//bool &v = m_joints[i]->m_visible;
+		//v = how==-1?!v:!how;
+		m_joints[i]->hide(layer);
 	}
 	else assert(0);
 }
-void Model::hidePoint(unsigned i, int how) //UNSAFE???
+void Model::hidePoint(unsigned i, unsigned layer) //UNSAFE???
 {
 	if(i<m_points.size()) 
 	{
-		bool &v = m_points[i]->m_visible;
-		v = how==-1?!v:!how;
+		//bool &v = m_points[i]->m_visible;
+		//v = how==-1?!v:!how;
+		m_points[i]->hide(layer);
 	}
 	else assert(0);
 }
 
-bool Model::hideSelected(bool how)
+bool Model::hideSelected(bool how, unsigned layer)
 {
 	//LOG_PROFILE(); //???
 
-	Undo<MU_Hide> undo(this,true);
+	//If assigning to a layer the elements won't
+	//already be on that layer, so it's no good
+	//to screen them out.
+	auto lv = layer?~1:m_primaryLayers&~1;
+
+	Undo<MU_Hide> undo(this);
 
 	// Need to track whether we are hiding a vertex and any triangles attached to it,
 	// or hiding a triangle,and only vertices if they are orphaned
@@ -2509,29 +2439,30 @@ bool Model::hideSelected(bool how)
 	{
 		auto *tp = m_triangles[t]; 
 		
-		if(tp->m_visible&&how==tp->m_selected)
+		if(how==tp->m_selected&&tp->visible(lv))
 		{
-			tp->m_visible = false;
+			for(int i:tp->m_vertexIndices)
+			{
+				m_vertices[i]->m_marked = false;
+			}
 
-			m_vertices[tp->m_vertexIndices[0]]->m_marked = false;
-			m_vertices[tp->m_vertexIndices[1]]->m_marked = false;
-			m_vertices[tp->m_vertexIndices[2]]->m_marked = false;
+			if(undo) undo->setHideDifference(tp,layer);
 
-			if(undo) undo->setHideDifference(SelectTriangles,t);
+			tp->hide(layer);
 		}
 	}
 
 	// Hide triangles with a lone vertex that is selected
 	for(unsigned t=m_triangles.size();t-->0;)
 	{
-		auto *tp = m_triangles[t]; if(tp->m_visible)
+		auto *tp = m_triangles[t]; if(tp->visible(lv))
 		{
 			for(int i:tp->m_vertexIndices)
 			if(m_vertices[i]->m_marked)
 			{
-				tp->m_visible = false;
+				if(undo) undo->setHideDifference(tp,layer);
 
-				if(undo) undo->setHideDifference(SelectTriangles,t);
+				tp->hide(layer);
 
 				break; //!
 			}
@@ -2542,7 +2473,7 @@ bool Model::hideSelected(bool how)
 	for(unsigned v=m_vertices.size();v-->0;)
 	{
 		auto *vp = m_vertices[v]; 
-		if(vp->m_visible) //if(vp->m_marked)
+		if(vp->visible(lv)) //if(vp->m_marked)
 		{
 			if(vp->m_faces.empty()) //Orphan?
 			{
@@ -2551,16 +2482,16 @@ bool Model::hideSelected(bool how)
 			else // Triangle is visible, vertices must be too
 			{				
 				bool mark = false;
-				for(auto&ea:vp->m_faces) if(ea.first->m_visible)
+				for(auto&ea:vp->m_faces) if(ea.first->visible(lv))
 				{
 					mark = true; break;
 				}
 				if(mark) continue;
 			}
 
-			vp->m_visible = false;
-
-			if(undo) undo->setHideDifference(SelectVertices,v);
+			if(undo) undo->setHideDifference(vp,layer);
+			
+			vp->hide(layer);
 		}
 	}
 
@@ -2568,11 +2499,11 @@ bool Model::hideSelected(bool how)
 	{
 		auto *jp = m_joints[j]; 
 		
-		if(jp->m_visible&&how==jp->m_selected)
+		if(how==jp->m_selected&&jp->visible(lv))
 		{
-			jp->m_visible = false;
+			if(undo) undo->setHideDifference(jp,layer);
 
-			if(undo) undo->setHideDifference(SelectJoints,j);
+			jp->hide(layer);
 		}
 	}
 
@@ -2580,11 +2511,11 @@ bool Model::hideSelected(bool how)
 	{
 		auto *pp = m_points[p];
 		
-		if(pp->m_visible&&how==pp->m_selected)
+		if(how==pp->m_selected&&pp->visible(lv))
 		{
-			pp->m_visible = false;
-
-			if(undo) undo->setHideDifference(SelectPoints,p);
+			if(undo) undo->setHideDifference(pp,layer);
+			
+			pp->hide(layer);
 		}
 	}
 
@@ -2599,43 +2530,35 @@ bool Model::unhideAll()
 {
 	//LOG_PROFILE(); //???
 
-	Undo<MU_Hide> undo(this,false);
+	auto lv = m_primaryLayers;
 
-	int i = -1; for(auto*p:m_vertices)
+	if(lv==1) lv = ~0; else assert(~lv&1);
+
+	Undo<MU_Hide> undo(this);
+
+	for(auto*p:m_vertices) if(p->hidden(lv))
 	{
-		i++; if(!p->m_visible)
-		{
-			p->m_visible = true;
+		if(undo) undo->setHideDifference(p,p->m_layer);
 
-			if(undo) undo->setHideDifference(SelectVertices,i);
-		}
+		p->unhide();
 	}
-	i = -1; for(auto*p:m_triangles)
+	for(auto*p:m_triangles) if(p->hidden(lv))
 	{
-		i++; if(!p->m_visible)
-		{
-			p->m_visible = true;
+		if(undo) undo->setHideDifference(p,p->m_layer);
 
-			if(undo) undo->setHideDifference(SelectTriangles,i);
-		}
+		p->unhide();
 	}
-	i = -1; for(auto*p:m_joints)
+	for(auto*p:m_joints) if(p->hidden(lv))
 	{
-		i++; if(!p->m_visible)
-		{
-			p->m_visible = true;
+		if(undo) undo->setHideDifference(p,p->m_layer);
 
-			if(undo) undo->setHideDifference(SelectPoints,i);
-		}
+		p->unhide();
 	}	
-	i = -1; for(auto*p:m_points)
+	for(auto*p:m_points) if(p->hidden(lv))
 	{
-		i++; if(!p->m_visible)
-		{
-			p->m_visible = true;
+		if(undo) undo->setHideDifference(p,p->m_layer);
 
-			if(undo) undo->setHideDifference(SelectPoints,i);
-		}
+		p->unhide();
 	}
 
 	return true;
@@ -2645,32 +2568,36 @@ void Model::invertHidden()
 {
 	//LOG_PROFILE(); //???
 
+	auto lv = m_primaryLayers;
+
+	if(lv==1) lv = ~0; else assert(~lv&1);
+
 	//first pass (undo)
 	{
 		int i = -1; for(auto*p:m_triangles)
 		{
-			i++;if(p->m_selected&&p->m_visible)
+			i++; if(p->m_selected&&p->visible(lv))
 			{
 				unselectTriangle(i);
 			}
 		}
 		i = -1; for(auto*p:m_vertices)
 		{
-			i++; if(p->m_selected&&p->m_visible)
+			i++; if(p->m_selected&&p->visible(lv))
 			{
 				unselectVertex(i);
 			}
 		}		
 		i = -1; for(auto*p:m_joints)
 		{
-			i++; if(p->m_selected&&p->m_visible)
+			i++; if(p->m_selected&&p->visible(lv))
 			{
 				unselectBoneJoint(i);
 			}
 		}	
 		i = -1; for(auto*p:m_points)
 		{
-			i++; if(p->m_selected&&p->m_visible)
+			i++; if(p->m_selected&&p->visible(lv))
 			{
 				unselectPoint(i);
 			}
@@ -2678,97 +2605,42 @@ void Model::invertHidden()
 	}
 	//second pass (undo)
 	{
-		Undo<MU_Hide> undo(this,-1);
+		Undo<MU_Hide> undo(this);
 
-		int i = -1; for(auto*p:m_vertices)
+		for(auto*p:m_vertices) if(lv&(1<<p->m_layer))
 		{
-			i++; p->m_visible = !p->m_visible;
+			auto l = p->m_visible1?p->m_layer:0;
 		
-			if(undo) undo->setHideDifference(SelectVertices,i);
-		}
-		i = -1; for(auto*p:m_triangles)
-		{
-			i++; p->m_visible = !p->m_visible;
-		
-			if(undo) undo->setHideDifference(SelectTriangles,i);
-		}
-		i = -1; for(auto*p:m_joints)
-		{
-			i++; p->m_visible = !p->m_visible;
+			if(undo) undo->setHideDifference(p,l);
 
-			if(undo) undo->setHideDifference(SelectPoints,i);
+			p->hide(l);
+		}
+		for(auto*p:m_triangles) if(lv&(1<<p->m_layer))
+		{
+			auto l = p->m_visible1?p->m_layer:0;
+
+			if(undo) undo->setHideDifference(p,l);
+
+			p->hide(l);
+		}
+		for(auto*p:m_joints) if(lv&(1<<p->m_layer))
+		{
+			auto l = p->m_visible1?p->m_layer:0;
+
+			if(undo) undo->setHideDifference(p,l);
+
+			p->hide(l);
 		}	
-		i = -1; for(auto*p:m_points)
+		for(auto*p:m_points) if(lv&(1<<p->m_layer))
 		{
-			i++; p->m_visible = !p->m_visible;
-		
-			if(undo) undo->setHideDifference(SelectPoints,i);
+			auto l = p->m_visible1?p->m_layer:0;
+						
+			if(undo) undo->setHideDifference(p,l);
+
+			p->hide(l);
 		}
 	}
 }
-
-/*REFERENCE
-void Model::hideTrianglesFromVertices() //UNUSED
-{
-	//LOG_PROFILE(); //???
-
-	// Hide triangles with at least one vertex hidden
-	for(auto*ea:m_triangles)	
-	if(!m_vertices[ea->m_vertexIndices[0]]->m_visible
-	 ||!m_vertices[ea->m_vertexIndices[1]]->m_visible
-	 ||!m_vertices[ea->m_vertexIndices[2]]->m_visible)
-	{
-		ea->m_visible = false; //UNSAFE???
-	}
-}
-void Model::unhideTrianglesFromVertices() //UNUSED
-{
-	//LOG_PROFILE(); //???
-
-	// Hide triangles with at least one vertex hidden
-	for(auto*ea:m_triangles)	
-	if(m_vertices[ea->m_vertexIndices[0]]->m_visible
-	 &&m_vertices[ea->m_vertexIndices[1]]->m_visible
-	 &&m_vertices[ea->m_vertexIndices[2]]->m_visible)
-	{
-		ea->m_visible = true; //UNSAFE???
-	}
-}
-void Model::hideVerticesFromTriangles() //UNUSED
-{
-	//LOG_PROFILE(); //???
-
-	//REFERENCE
-	* 
-	* 2021: This is how this was implemented
-	* (refactored for readability)
-	* 
-	// Hide vertices with all triangles hidden
-	{
-	//	for(auto*ea:m_vertices) ea->m_visible = false; //???
-	//	unhideVerticesFromTriangles();
-	}
-
-	//2021
-	//I'm not sure this is better but at least
-	//it has the same semantics as the others
-	for(auto*ea:m_triangles)
-	if(!ea->m_visible) for(int i:ea->m_vertexIndices)
-	{
-		m_vertices[i]->m_visible = false; //UNSAFE???
-	}	
-}
-void Model::unhideVerticesFromTriangles() //UNUSED
-{
-	//LOG_PROFILE(); //???
-
-	// Unhide vertices with at least one triangle visible
-	for(auto*ea:m_triangles)	
-	if(ea->m_visible) for(int i:ea->m_vertexIndices)
-	{
-		m_vertices[i]->m_visible = true; //UNSAFE???
-	}
-}*/
 
 bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, double *y2, double *z2)const
 {
@@ -2782,9 +2654,11 @@ bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, do
 	bool havePoint = false; //REMOVE ME
 	*x1 = *y1 = *z1 = *x2 = *y2 = *z2 = 0.0;
 
-	for(unsigned v = 0; v<m_vertices.size(); v++)		
+	auto lv = m_primaryLayers;
+
+	for(auto*vp:m_vertices)
 	{
-		if(!m_vertices[v]->m_visible) continue;
+		if(!vp->visible(lv)) continue;
 
 		visible++;
 
@@ -2792,35 +2666,35 @@ bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, do
 		{
 			havePoint = true;
 
-			*x1 = *x2 = m_vertices[v]->m_absSource[0];
-			*y1 = *y2 = m_vertices[v]->m_absSource[1];
-			*z1 = *z2 = m_vertices[v]->m_absSource[2];
+			*x1 = *x2 = vp->m_absSource[0];
+			*y1 = *y2 = vp->m_absSource[1];
+			*z1 = *z2 = vp->m_absSource[2];
 		}
 		else //???
 		{
-			if(m_vertices[v]->m_absSource[0]<*x1)
+			if(vp->m_absSource[0]<*x1)
 			{
-				*x1 = m_vertices[v]->m_absSource[0];
+				*x1 = vp->m_absSource[0];
 			}
-			if(m_vertices[v]->m_absSource[0]>*x2)
+			if(vp->m_absSource[0]>*x2)
 			{
-				*x2 = m_vertices[v]->m_absSource[0];
+				*x2 = vp->m_absSource[0];
 			}
-			if(m_vertices[v]->m_absSource[1]<*y1)
+			if(vp->m_absSource[1]<*y1)
 			{
-				*y1 = m_vertices[v]->m_absSource[1];
+				*y1 = vp->m_absSource[1];
 			}
-			if(m_vertices[v]->m_absSource[1]>*y2)
+			if(vp->m_absSource[1]>*y2)
 			{
-				*y2 = m_vertices[v]->m_absSource[1];
+				*y2 = vp->m_absSource[1];
 			}
-			if(m_vertices[v]->m_absSource[2]<*z1)
+			if(vp->m_absSource[2]<*z1)
 			{
-				*z1 = m_vertices[v]->m_absSource[2];
+				*z1 = vp->m_absSource[2];
 			}
-			if(m_vertices[v]->m_absSource[2]>*z2)
+			if(vp->m_absSource[2]>*z2)
 			{
-				*z2 = m_vertices[v]->m_absSource[2];
+				*z2 = vp->m_absSource[2];
 			}
 		}
 	}

@@ -244,6 +244,11 @@ class Tool::Parent
 {
 public:
 	
+	Parent() //2022
+	{
+		snap_select = snap_overlay = false;
+	}
+
 	Tool *const tool = nullptr; 
 	
 	int tool_index;
@@ -399,6 +404,10 @@ public:
 		}
 	}
 
+	//2022: This is for the Hide command to figure
+	//out which layer to assign to.
+	virtual unsigned getPrimaryLayer() = 0;
+
 	// The addDecal and removeDecal methods are not called directly
 	// by tools. You must use the DecalManager::addDecalToParent
 	// function instead.
@@ -425,6 +434,7 @@ public:
 	//EXPERIMENTAL
 	//polytool.cc and selecttool.cc
 	bool snap_select;
+	bool snap_overlay;
 	Model::Position snap_object;
 	unsigned snap_vertex;
 

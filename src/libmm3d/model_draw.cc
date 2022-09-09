@@ -40,17 +40,7 @@ static void model_draw_defaultMaterial()
 	glMaterialfv(GL_FRONT,GL_EMISSION,fval);
 	glMaterialf(GL_FRONT,GL_SHININESS,0.0f);
 }
-struct Model::_draw
-{
-	unsigned ops;
-	
-	int texture_matrix;
-	
-	DrawingContext *context;
-
-	Model *bsp;
-};
-void Model::_drawMaterial(Model::_draw &d, int g)
+void Model::_drawMaterial(BspTree::Draw &d, int g)
 {
 	auto &gl = m_groups;
 
@@ -128,10 +118,6 @@ void Model::_drawMaterial(Model::_draw &d, int g)
 		glEnable(GL_TEXTURE_2D);
 	}
 	else glDisable(GL_TEXTURE_2D);
-}
-extern void model_draw_material_bsp(void *bsp, int group)
-{
-	((Model::_draw*)bsp)->bsp->_drawMaterial(*(Model::_draw*)bsp,group);
 }
 
 static void model_draw_drawPointOrientation(bool selected, double scale, const Matrix &m)
@@ -488,9 +474,9 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 	glDisable(GL_LIGHT1);
 	//glColor3f(0.9f,0.9f,0.9f); //??? //glColorMaterial?
 
-	Model::_draw d = 
+	BspTree::Draw d = 
 	{
-		drawOptions&~DO_ALPHA,-1,drawContext,nullptr 
+		drawOptions&~DO_ALPHA,-1,drawContext,nullptr,m_drawingLayers 
 	};
 
 	//https://github.com/zturtleman/mm3d/issues/98
@@ -523,7 +509,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 			
 			tp->m_marked = true;
 
-			if(!tp->m_visible) continue;
+			if(!tp->visible(d.layers)) continue;
 			
 			if(tp->m_selected)
 			{
@@ -591,7 +577,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		{
 			tp->m_marked = true;
 
-			if(!tp->m_visible) continue;
+			if(!tp->visible(d.layers)) continue;
 			
 			if(tp->m_selected)
 			{
@@ -642,7 +628,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		{
 			glDepthMask(0);
 			glEnable(GL_BLEND);		
-			m_bspTree.render(viewPoint,drawContext);		
+			m_bspTree.render(viewPoint,d); //drawContext		
 			glDisable(GL_BLEND);
 			glDepthMask(1);
 
@@ -697,16 +683,16 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 		}*/
 	}
 
-	Model::_draw d = //2022
+	BspTree::Draw d = //2022
 	{
-		drawOptions,-1,drawContext,this
+		drawOptions,-1,drawContext,this,m_drawingLayers
 	};
 
 	//if(!m_bspTree.empty())
 	{
 		glDepthMask(0);
 		glEnable(GL_BLEND);		
-		m_bspTree.render(viewPoint,&d); //drawContext
+		m_bspTree.render(viewPoint,d); //drawContext
 		glDisable(GL_BLEND);
 		glDepthMask(1);
 
@@ -785,6 +771,8 @@ void Model::drawLines(float a)
 }
 void Model::drawVertices(float a)
 {
+	unsigned lv = m_drawingLayers; //2022
+
 	//HACK: This should match the below
 	//behavior. It's easier to break it
 	//out.
@@ -796,7 +784,7 @@ void Model::drawVertices(float a)
 	glColor3ub(255,0,0);
 	glBegin(GL_POINTS);
 	for(auto*vp:m_vertices)
-	if(vp->m_selected&&vp->m_visible)		
+	if(vp->m_selected&&vp->visible(lv))
 	glVertex3dv(vp->m_absSource);
 	glEnd();
 	
@@ -833,7 +821,7 @@ void Model::drawVertices(float a)
 	//Or, typically all the selected vertices.
 	glBegin(GL_POINTS);
 	for(auto*vp:m_vertices) 
-	if(!vp->m_selected&&vp->m_visible)
+	if(!vp->m_selected&&vp->visible(lv))
 	{
 		/*2022 Can leverage m_faces for this.
 		if(vp->m_marked||vp->m_marked2) continue;*/
@@ -853,6 +841,8 @@ void Model::drawVertices(float a)
 }
 void Model::_drawPolygons(int pass/*,bool mark*/)
 {	
+	unsigned lv = m_drawingLayers; //2022
+
 	validateAnim();
 
 	int cull = m_drawOptions&DO_BACKFACECULL;
@@ -903,7 +893,7 @@ void Model::_drawPolygons(int pass/*,bool mark*/)
 			else continue;
 		}
 
-		if(triangle->m_visible)
+		if(triangle->visible(lv))
 		{			
 			double *vertices[3];
 
@@ -927,6 +917,8 @@ void Model::drawJoints(float a, float axis)
 	bool draw = m_drawJoints;
 	if(!draw&&!getSelectedBoneJointCount()) 
 	return;
+
+	unsigned lv = m_drawingLayers; //2022
 	
 	//NOTE: Both up vectors seem to work.
 	//Using Y up is easier since the bone
@@ -971,7 +963,7 @@ void Model::drawJoints(float a, float axis)
 		}
 		else if(draw)
 		{
-			ea->m_marked = skel&&ea->m_visible
+			ea->m_marked = skel&&ea->visible(lv)
 			&&hasKeyframe(m_currentAnim,m_currentFrame,j);
 			marks+=ea->m_marked;
 		}		
@@ -991,7 +983,7 @@ void Model::drawJoints(float a, float axis)
 		{
 			glColor3f(0,0,l);
 			for(auto*ea:m_joints)
-			if(!ea->m_marked&&ea->m_visible)
+			if(!ea->m_marked&&ea->visible(lv))
 			{
 				glVertex3dv(ea->m_absSource);
 			}	
@@ -1047,9 +1039,10 @@ void Model::drawJoints(float a, float axis)
 
 		Joint *joint  = m_joints[j];
 		Joint *parent = m_joints[joint->m_parent];
-		if(!joint->m_visible
-		||!parent->m_visible) continue;
-
+		if(!joint->visible(lv)
+		||!parent->visible(lv))
+		continue;
+		
 		skel2 = skel&&parentJointSelected(j);
 		
 		if(!draw&&!skel2)
@@ -1164,6 +1157,8 @@ void Model::drawPoints()
 {
 	validateAnim();
 
+	unsigned lv = m_drawingLayers; //2022
+
 	//float scale = 2; //???
 	double scale = m_viewportUnits.ptsz3d;
 	if(!scale) scale = 0.25;
@@ -1173,7 +1168,7 @@ void Model::drawPoints()
 	glPointSize(3);
 	for(unsigned p = 0; p<m_points.size(); p++)
 	{
-		if(m_points[p]->m_visible)
+		if(m_points[p]->visible(lv))
 		{
 			Point *pt = m_points[p];
 

@@ -303,37 +303,27 @@ class MU_Hide : public ModelUndo
 {
 public:
 
-	MU_Hide(int how):m_hide(how){}
-
-	bool resume2(int how){ return how==m_hide; }
-
 	virtual bool nonEdit(){ return true; }
 
-	void undo(Model*m){ hide(m,m_hide==-1?-1:0==m_hide); }
-	void redo(Model*m){ hide(m,m_hide==-1?-1:0!=m_hide); }
+	void undo(Model*m);
+	void redo(Model*m);
 	int combine(Undo *);
 
 	unsigned size();
 
-	void setHideDifference(Model::SelectionModeE mode, int number)
-	{
-		m_diff.push_back({mode,number});
-	}
+	void setHideDifference(Model::Visible2022 *obj, unsigned layer);
 
 private:
 
 	void hide(Model*,int);
 
-	typedef struct _HideDifference_t
+	struct rec
 	{
-		Model::SelectionModeE mode;
-		int number;			
-	}HideDifferenceT;
+		Model::Visible2022 *obj; int layer,old;
+	};
+	typedef std::vector<rec> HideDifferenceList;
 
-	typedef std::vector<HideDifferenceT> HideDifferenceList;
-
-	int m_hide;
-	HideDifferenceList m_diff;
+	HideDifferenceList m_list;
 };
 
 //TODO: Can replace with MU_SwapStableMem?

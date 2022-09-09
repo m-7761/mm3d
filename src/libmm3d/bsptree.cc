@@ -29,8 +29,6 @@
 #include "log.h"
 #include "model.h"
 
-extern void model_draw_material_bsp(void *bsp, int group); //2022
-
 std::vector<BspTree::Poly*> BspTree::Poly::s_recycle;
 std::vector<BspTree::Node*> BspTree::Node::s_recycle;
 
@@ -130,7 +128,7 @@ void BspTree::Poly::intersection(double *p1, double *p2, double *po, float &plac
 	place = oldPlace;
 }
 
-int BspTree::Poly::render(void *context, int compare)
+int BspTree::Poly::render(Draw &context, int compare)
 {
 	//printf("render triangle %d\n",id);
 
@@ -146,21 +144,18 @@ int BspTree::Poly::render(void *context, int compare)
 		glEnd();
 
 		//bsptree_setMaterial(context,texture,static_cast<Model::Material*>(material));
-		model_draw_material_bsp(context,compare);
+		context.bsp->_drawMaterial(context,compare);
 
 		glBegin(GL_TRIANGLES);
 	}
 
-	
-	if(tri->m_visible)
+	if(tri->visible(context.layers))	
+	for(int i=0;i<3;i++)
 	{
-		for(int i = 0; i<3; i++)
-		{
-			glTexCoord2f(s[i],t[i]);
-			glNormal3dv(drawNormals[i]);
-			glVertex3dv(coord[i]);
-		}
-	}
+		glTexCoord2f(s[i],t[i]);
+		glNormal3dv(drawNormals[i]);
+		glVertex3dv(coord[i]);
+	}	
 
 	return compare; //2021
 }
@@ -182,7 +177,7 @@ void BspTree::addPoly(BspTree::Poly *p)
 	else m_root->addChild(n);
 }
 
-void BspTree::render(double *point, void *context)
+void BspTree::render(double *point, Draw &context)
 {
 	if(m_root)
 	{
@@ -190,7 +185,7 @@ void BspTree::render(double *point, void *context)
 
 		//bsptree_setMaterial(context,m_root->self->texture,
 		//static_cast<Model::Material*>(m_root->self->material));
-		model_draw_material_bsp(context,tri->m_group);
+		context.bsp->_drawMaterial(context,tri->m_group);
 
 		//glEnable(GL_TEXTURE_2D); //???
 		{
@@ -660,7 +655,7 @@ void BspTree::Node::addChild(Node *n)
 	}
 }
 
-int BspTree::Node::render(double *point, void *context, int compare)
+int BspTree::Node::render(double *point, Draw &context, int compare)
 {
 	double d = dot_product(self->norm,point);
 

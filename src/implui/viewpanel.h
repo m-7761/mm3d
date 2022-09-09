@@ -41,6 +41,7 @@ public:
 	void setModel();
 
 	Model *m_model; //REMOVE ME
+
 	virtual Model *getModel() //REMOVE ME
 	{
 		return m_model; //return model;
@@ -116,7 +117,13 @@ public: //slots:
 
 	ViewBar::ModelView *operator->()
 	{
-		return views[0];
+		//2022: assuming this won't break anything
+		//return views[0];
+		return views[m_focus];
+	}
+	operator ViewBar::ModelView**() //2022
+	{
+		return views;
 	}
 
 	enum{ memoryN=1+2+2+4+6 };

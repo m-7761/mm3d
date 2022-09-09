@@ -1668,7 +1668,16 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		//glColor3ub(255,255,255);
 		glColor3ub(0x80,0x80,0x80);
 		glLogicOp(GL_XOR);
-		glRectd(m_xSel1,m_ySel1,m_xSel2,m_ySel2);
+		{
+			//2022: doesn't work with new AMD Adrenalin
+			//glRectd(m_xSel1,m_ySel1,m_xSel2,m_ySel2);
+			glBegin(GL_QUADS);
+			glVertex2d(m_xSel1,m_ySel1);
+			glVertex2d(m_xSel1,m_ySel2);
+			glVertex2d(m_xSel2,m_ySel2);
+			glVertex2d(m_xSel2,m_ySel1);
+			glEnd();
+		}
 		glDisable(GL_COLOR_LOGIC_OP);
 	}
 

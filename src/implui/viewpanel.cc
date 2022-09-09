@@ -35,6 +35,8 @@
 #include "log.h"
 #include "msg.h"
 
+extern bool viewwin_snap_overlay;
+
 void ViewPanel::setModel()
 {
 	status.setModel(model);
@@ -45,6 +47,15 @@ void ViewPanel::setModel()
 
 	if(viewsN&&model)
 	{
+		//HACK: Use value saved in model?
+		auto add = model->getAddLayer();
+		if(add>1) for(int i=viewsN;i-->0;)
+		{
+			views[i]->layer.set_int_val(add);
+			views[i]->submit(id_assign);
+		}
+		status.overlay.set(model->getOverlayLayers(),viewwin_snap_overlay);
+
 		double x1,y1,z1,x2,y2,z2;
 		if(model&&model->getBoundingRegion(&x1,&y1,&z1,&x2,&y2,&z2))
 		frameArea(true,x1,y1,z1,x2,y2,z2);
@@ -151,7 +162,7 @@ extern void viewpanel_special_func(int kb, int x, int y)
 	switch(kb)
 	{
 	case -'s': //Ctrl+S? (viewpanel_keyboard_func)
-	
+
 		if(cm&GLUT_ACTIVE_CTRL)
 		return vp.model.perform_menu_action(id_file_save_prompt);
 		return;
@@ -578,6 +589,8 @@ bool ViewPanel::_recall(int a, int b)
 		ports[i].setViewState(memory[a]);
 		views[i]->setView(memory[a].direction);		
 		views[i]->zoom.value.set_float_val(memory[a].zoom);
+		views[i]->layer.set_int_val(memory[a].layer);
+		views[i]->layer.mouse_over(false,0,0); //HACK
 	}
 	else return false; return true;
 }
@@ -605,6 +618,8 @@ void ViewPanel::_defaultViews(int mem, bool save)
 			ports[0].setViewState(m);
 			views[0]->setView(m.direction);
 			views[0]->zoom.value.set_float_val(m.zoom);
+			views[0]->layer.set_int_val(m.layer);
+			views[0]->layer.mouse_over(false,0,0); //HACK
 			c = 0; break;
 		}
 

@@ -56,15 +56,16 @@ bool CapCommand::activated(int arg, Model *model)
 {
 	assert(!m_view);
 
-	double view[4];
+	//double view[4];
 	//HACK: polytool.cc uses the view port to flip the face instead
 	//of winding... I intend to add an option to control this later.
+	/*2022: need some way to opt into this other than nullptr check.
 	if(Tool*tool=CommandManager::getInstance()->getViewSurrogate(model))
 	{
 		m_view = view; //0,0,1
 		view[0] = view[1] = 0; view[2] = 1;
 		((Vector*)m_view)->transform3(tool->parent->getParentBestInverseMatrix());		
-	}
+	}*/
 
 	int added = 0;
 

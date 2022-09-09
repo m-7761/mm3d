@@ -94,7 +94,7 @@ static bool influencesMatch(const infl_list &lhs,
 		}
 
 		// This doesn't matter if we only care about weights
-		if(propBits &Model::PropInfluences)
+		if(propBits&Model::PropInfluences)
 		{
 			//if(lhs_it->second.m_type!=it->m_type)
 			if(jt->m_type!=it->m_type)
@@ -129,11 +129,11 @@ static bool influencesMatch(const infl_list &lhs,
 }
 
 Model::Vertex::Vertex()
-	/*2020: NOT init()?
-	: m_selected(false),
-	  m_visible(true),
-	  m_free(false),
-	  m_absSource(m_coord)*/
+	 //:
+	 //m_selected(false),
+	 //m_visible(true),
+	 //m_free(false),
+	 //m_absSource(m_coord)
 {
 	s_allocated++;
 
@@ -150,7 +150,10 @@ Model::Vertex::~Vertex()
 void Model::Vertex::init()
 {
 	m_selected = false;
-	m_visible = true;
+
+	//m_visible = true;
+	Visible2022::init();
+
 	//m_free = false;
 
 	m_absSource = m_coord;
@@ -177,7 +180,7 @@ void Model::Vertex::stats()
 	//log_debug("Vertex: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
-Model::Vertex *Model::Vertex::get(AnimationModeE am)
+Model::Vertex *Model::Vertex::get(unsigned layer, AnimationModeE am)
 {
 	Vertex *v; if(!s_recycle.empty())
 	{
@@ -186,6 +189,9 @@ Model::Vertex *Model::Vertex::get(AnimationModeE am)
 		v->init();
 	}
 	else v = new Vertex();
+
+	if(layer>1) v->hide(layer);
+	else assert(layer!=0);
 
 	v->_source(am); return v;
 }
@@ -220,7 +226,7 @@ bool Model::Vertex::propEqual(const Vertex &rhs, int propBits, double tolerance)
 			return false;
 
 	if((propBits &PropVisibility))
-		if(m_visible!=rhs.m_visible)
+		if(m_visible1!=rhs.m_visible1)
 			return false;
 
 	/*if((propBits &PropFree))
@@ -251,12 +257,12 @@ bool Model::Vertex::propEqual(const Vertex &rhs, int propBits, double tolerance)
 }
 
 Model::Triangle::Triangle()
-	: 
-	  m_selected(false),
-	  m_visible(true),
-	  m_marked(false),
-	  m_projection(-1),
-	  m_group(-1) //2022
+	  //: 
+	  //m_selected(false),
+	  //m_visible(true),
+	  //m_marked(false),
+	  //m_projection(-1),
+	  //m_group(-1) //2022
 {
 	init();
 
@@ -278,8 +284,11 @@ void Model::Triangle::init()
 	m_t[2] = 0;
 
 	m_selected = false;
-	m_marked	= false;
-	m_visible  = true;
+	m_marked = false;
+
+	//m_visible  = true;
+	Visible2022::init();
+
 	m_projection = -1;
 	m_group = -1; //2022
 
@@ -306,16 +315,21 @@ void Model::Triangle::stats()
 	//log_debug("Triangle: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
-Model::Triangle *Model::Triangle::get()
+Model::Triangle *Model::Triangle::get(unsigned layer)
 {
+	Triangle *v;
 	if(!s_recycle.empty())
 	{
-		Triangle *v = s_recycle.back();
+		v = s_recycle.back();
 		s_recycle.pop_back();
 		v->init();
-		return v;
 	}
-	else return new Triangle();
+	else v = new Triangle();
+
+	if(layer>1) v->hide(layer);
+	else assert(layer!=0);
+
+	return v;
 }
 
 void Model::Triangle::release()
@@ -361,7 +375,7 @@ bool Model::Triangle::propEqual(const Triangle &rhs, int propBits, double tolera
 	return false;
 
 	if((propBits &PropVisibility)!=0)
-	if(m_visible!=rhs.m_visible)
+	if(m_visible1!=rhs.m_visible1)
 	return false;
 
 	return true;
@@ -454,7 +468,7 @@ bool Model::Group::propEqual(const Group &rhs, int propBits, double tolerance)co
 			return false;
 
 //	if((propBits &PropVisibility)!=0)
-//		if(m_visible!=rhs.m_visible)
+//		if(m_visible1!=rhs.m_visible1)
 //			return false;
 
 	//Note, unless rhs and *this belong to different
@@ -728,7 +742,9 @@ void Model::Joint::init()
 	
 	m_parent = -1; //2022???
 
-	m_visible = true;
+	//m_visible = true;
+	Visible2022::init();
+
 	m_bone = true;
 
 	for(int i=0;i<3;i++)
@@ -745,9 +761,9 @@ void Model::Joint::init()
 	_dirty_mask = ~0;
 }
 
-Model::Joint *Model::Joint::get(AnimationModeE am)
+Model::Joint *Model::Joint::get(unsigned layer, AnimationModeE am)
 {
-	Joint *v;
+	Joint *v; 
 	if(!s_recycle.empty())
 	{
 		v = s_recycle.back();
@@ -755,6 +771,9 @@ Model::Joint *Model::Joint::get(AnimationModeE am)
 		v->init();
 	}
 	else v = new Joint();
+
+	if(layer>1) v->hide(layer);
+	else assert(layer!=0);
 
 	v->_source(am); return v;
 }
@@ -818,7 +837,7 @@ bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)co
 			return false;
 
 	if((propBits &PropVisibility)!=0)
-		if(m_visible!=rhs.m_visible)
+		if(m_visible1!=rhs.m_visible1)
 			return false;
 
 	return true;
@@ -840,7 +859,8 @@ void Model::Point::init()
 {
 	Object2020::init(PT_Point); //2022
 
-	m_visible  = true;
+	//m_visible = true;
+	Visible2022::init();
 
 	for(int i=0;i<3;i++)
 	{
@@ -851,7 +871,7 @@ void Model::Point::init()
 	m_influences.clear();
 }
 
-Model::Point *Model::Point::get(AnimationModeE am)
+Model::Point *Model::Point::get(unsigned layer, AnimationModeE am)
 {
 	Point *v;
 	if(!s_recycle.empty())
@@ -861,6 +881,9 @@ Model::Point *Model::Point::get(AnimationModeE am)
 		v->init();
 	}
 	else v = new Point();
+
+	if(layer>1) v->hide(layer);
+	else assert(layer!=0);
 
 	v->_source(am); return v;
 }
@@ -912,7 +935,7 @@ bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)co
 			return false;
 
 	if((propBits &PropVisibility)!=0)
-		if(m_visible!=rhs.m_visible)
+		if(m_visible1!=rhs.m_visible1)
 			return false;
   	
 	if((propBits &(PropInfluences | PropWeights))!=0)

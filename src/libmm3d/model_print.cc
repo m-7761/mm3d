@@ -50,7 +50,7 @@ void Model::Vertex::sprint(std::string &dest)
 	dest = tempstr;
 
 	sprintf(tempstr,"%c%c%c",
-			(m_visible ? 'V' : 'H'),
+			(m_visible1 ? 'H' : 'V'),
 			(m_selected ? 'S' : 'U'),
 			//(m_free ? 'F' : 'N'));
 			(m_faces.empty() ? 'F' : 'N')); //???
@@ -89,7 +89,7 @@ void Model::Triangle::sprint(std::string &dest)
 	dest = tempstr;
 
 	sprintf(tempstr,"%c%c  ",
-			(m_visible ? 'V' : 'H'),
+			(m_visible1 ? 'H' : 'V'),
 			(m_selected ? 'S' : 'U'));
 	dest += tempstr;
 
@@ -130,7 +130,7 @@ void Model::Group::sprint(std::string &dest)
 
 	//UNUSED
 	//sprintf(tempstr,"%c%c  ",
-	//		(m_visible ? 'V' : 'H'),
+	//		(m_visible1 ? 'H' : 'V'),
 	sprintf(tempstr,"%c  ",
 			(m_selected ? 'S' : 'U'));
 	dest += tempstr;
@@ -190,7 +190,7 @@ void Model::Point::sprint(std::string &dest)
 	dest = m_name;
 
 	sprintf(tempstr,"  %c%c  ",
-			(m_visible ? 'V' : 'H'),
+			(m_visible1 ? 'H' : 'V'),
 			(m_selected ? 'S' : 'U'));
 	dest += tempstr;
 
@@ -240,7 +240,7 @@ void Model::Joint::sprint(std::string &dest)
 	dest += tempstr;
 
 	sprintf(tempstr,"%c%c  ",
-			(m_visible ? 'V' : 'H'),
+			(m_visible1 ? 'H' : 'V'),
 			(m_selected ? 'S' : 'U'));
 	dest += tempstr;
 

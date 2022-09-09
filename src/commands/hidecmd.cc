@@ -26,9 +26,12 @@
 #include "modelstatus.h"
 #include "command.h"
 
+#include "cmdmgr.h" //layer?
+#include "tool.h"
+
 struct HideCommand : Command
 {
-	HideCommand():Command(4,
+	HideCommand():Command(5,
 	TRANSLATE_NOOP("Command","Hide")){}
 
 	virtual const char *getName(int arg)
@@ -40,7 +43,7 @@ struct HideCommand : Command
 		case 1: return TRANSLATE_NOOP("Command","Hide Unselected");
 		case 2: return TRANSLATE_NOOP("Command","Unhide");
 		case 3: return TRANSLATE_NOOP("Command","Unhide All");
-		
+		case 4: return TRANSLATE_NOOP("Command","Transfer to Layer");		
 		}
 	}
 
@@ -53,6 +56,7 @@ struct HideCommand : Command
 		case 1: return "Shift+H";		
 		case 2: return "Shift+Space";
 		case 3: return "Ctrl+H";
+		case 4: return "Ctrl+L";
 		}
 	}
 
@@ -78,8 +82,20 @@ bool HideCommand::activated(int arg, Model *model)
 	case 3:
 		msg = TRANSLATE("Command","All unhidden");
 		model->unhideAll(); break;
+	case 4:
+		msg = TRANSLATE("Command","Assigned to layer %d");
+		arg = 0; //HACK
+		if(Tool*tool=CommandManager::getInstance()->getViewSurrogate(model))			
+		arg = tool->parent->getPrimaryLayer();
+		if(!arg)
+		{
+			model_status(model,StatusError,STATUSTIME_LONG,
+			TRANSLATE("Command","Can't assign hidden layer"));
+			return false;				
+		}
+		model->hideSelected(true,arg); break;
 	}
-	model_status(model,StatusNormal,STATUSTIME_SHORT,msg);
+	model_status(model,StatusNormal,STATUSTIME_SHORT,msg,arg);
 	return true;
 }
 

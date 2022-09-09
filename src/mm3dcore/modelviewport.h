@@ -101,6 +101,7 @@ public:
 	struct ViewStateT
 	{
 		Tool::ViewE direction;
+		int layer;
 		double zoom;
 		double rotation[3];
 		double translation[3];
@@ -132,6 +133,10 @@ public:
 
 	Tool::ViewE getView(){ return m_view; }
 
+	void setLayer(int l){ m_layer = l; }
+
+	int getLayer(){ return m_layer; }
+
 protected:
 	
 	friend class Parent;
@@ -159,6 +164,8 @@ protected:
 	MouseE m_operation;
 
 	Tool::ViewE m_view;
+
+	int m_layer; //2022
 
 	//2019: m_projMatrix do perspective correct selection.
 	//Ideally this matrix would be used by all tools, but
@@ -300,6 +307,11 @@ public: //slots:
 		return ports[m_click].m_zoom;
 	} 
 	virtual void getXYZ(double*,double*,double*);
+		
+	virtual unsigned getPrimaryLayer()
+	{
+		return ports[m_focus].m_layer; 
+	}
 };
 
 #endif // __MVIEWPORT_H
