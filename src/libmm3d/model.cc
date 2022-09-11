@@ -403,7 +403,7 @@ bool Model::popError(std::string &rval)
 
 #ifdef MM3D_EDIT //???
 
-void Model::updateObservers(bool remove_me)
+void Model::updateObservers()
 {
 	//2019: Prevent recursion.
 	static int recursive = 0;
@@ -411,9 +411,9 @@ void Model::updateObservers(bool remove_me)
 	//https://github.com/zturtleman/mm3d/issues/90
 	//I'm letting 0 indicate simply to refresh the view.
 	//assert(m_changeBits);
-	if(!m_changeBits)
+	//if(!m_changeBits)
 	{
-		if(recursive||!remove_me) return;
+		if(recursive) return;
 	}
 
 	recursive++;
@@ -422,6 +422,14 @@ void Model::updateObservers(bool remove_me)
 	for(auto*ea:m_observers) ea->modelChanged(change);
 	//m_changeBits = 0;
 	recursive--;
+
+	//2022: consolidate inner changes (in response)
+	//NOTE: this can't detect changes that don't set
+	//m_changeBits
+	if(m_changeBits&&!recursive)
+	{
+		updateObservers();
+	}
 }
 
 void Model::addObserver(Model::Observer *o)
@@ -2238,10 +2246,7 @@ void Model::operationComplete(const char *opname)
 
 	m_undoMgr->operationComplete(opname);
 	
-	//https://github.com/zturtleman/mm3d/issues/90
-	//Treating operationComplete as-if calling updateObservers from outside.
-	//updateObservers(false);
-	updateObservers(!false);
+	updateObservers();
 }
 
 bool Model::setUndoEnabled(bool o)
@@ -2357,7 +2362,7 @@ void Model::undo(int how)
 
 	if(how!=0) //undo/redo //Continued below...
 	{
-		updateObservers(false);
+		updateObservers();
 	}
 
 	//setUndoEnabled(true);
@@ -2373,8 +2378,7 @@ void Model::undo(int how)
 
 		//https://github.com/zturtleman/mm3d/issues/90
 		//Treating operationComplete as-if calling updateObservers from outside.
-		//updateObservers(false);
-		updateObservers(!false);
+		updateObservers();
 	}
 }
 
@@ -2522,6 +2526,8 @@ bool Model::hideSelected(bool how, unsigned layer)
 	//NOTE: This actually does selection undo logic, ensuring
 	//hidden elements aren't seen as selected.
 	if(how) unselectAll();
+
+	m_changeBits|=RedrawAll; //2022
 	
 	return true;
 }
@@ -2560,6 +2566,8 @@ bool Model::unhideAll()
 
 		p->unhide();
 	}
+
+	m_changeBits|=RedrawAll; //2022
 
 	return true;
 }
@@ -2640,6 +2648,8 @@ void Model::invertHidden()
 			p->hide(l);
 		}
 	}
+
+	m_changeBits|=RedrawAll; //2022
 }
 
 bool Model::getBoundingRegion(double *x1, double *y1, double *z1, double *x2, double *y2, double *z2)const

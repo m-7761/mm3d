@@ -217,11 +217,6 @@ void MainWin::modelChanged(int changeBits) // Model::Observer method
 	//Plus the animation coordinates should be validated to be safe.
 	_deferredModelChanged|=changeBits;
 
-	if(-1==_deferredModelChanged) //WTH???
-	{
-		changeBits = changeBits; //breakpoint
-	}
-
 	//Do on redraw so animation data isn't calculated unnecessarily.
 	views.modelUpdatedEvent();
 }

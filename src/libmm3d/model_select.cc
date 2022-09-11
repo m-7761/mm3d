@@ -47,7 +47,7 @@ bool Model::selectVertex(unsigned v, unsigned how)
 
 	if(vp->m_selected!=(how!=0)) //2019
 	{
-		if(how&&!vp->visible(m_primaryLayers)) //2022
+		if(how&&vp->m_visible1) //2022
 		{
 			assert(m_undoEnabled);
 			
@@ -82,7 +82,7 @@ bool Model::selectTriangle(unsigned t)
 
 	auto *tp = m_triangles[t]; if(!tp->m_selected) //2019
 	{
-		if(!tp->visible(m_primaryLayers)) //2022
+		if(tp->m_visible1) //2022
 		{
 			assert(m_undoEnabled);
 			

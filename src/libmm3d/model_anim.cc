@@ -2026,7 +2026,7 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	}
 
 	//2019: Inappropriate/unexpected???
-	//updateObservers(false);
+	//updateObservers();
 	return true;
 }
 void Model::invalidateSkel()

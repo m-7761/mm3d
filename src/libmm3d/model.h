@@ -132,6 +132,7 @@ public:
 		AnimationSelection   = 0x01000000, // graph.cc selection/selected keys changed
 		ShowJoints           = 0x02000000, // Joints forced visible
 		ShowProjections      = 0x04000000, // Projections forced visible
+		RedrawAll		     = 0x80000000, // Hide/unhide
 		ChangeAll			 = 0xFFFFFFFF, // All of the above
 
 		AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty|AnimationSelection,
@@ -2752,13 +2753,8 @@ protected:
 	// Meta
 	// ------------------------------------------------------------------
 
-	//REMOVE ME
-	//This parameter is true for UI code that uses
-	//this to refresh the display. It shouldn't be
-	//necessary, but m_changeBits isn't always set.
-	//https://github.com/zturtleman/mm3d/issues/90
 	public:
-	void updateObservers(bool remove_me=true);
+	void updateObservers();
 	protected:
 
 	// ------------------------------------------------------------------
