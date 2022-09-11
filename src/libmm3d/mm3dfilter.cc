@@ -1457,7 +1457,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			model->addPoint(filePoint.name,
 			trans[0],trans[1],trans[2],
 			rot[0],rot[1],rot[2]/*,boneIndex*/);
-			auto point = (Model::Point*)modelJoints[j];
+			auto point = (Model::Point*)modelPoints[j];
 
 			if(mm3d2020&&!mm3d2021) //REMOVE ME
 			{
