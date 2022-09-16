@@ -133,7 +133,7 @@ public:
 
 	Tool::ViewE getView(){ return m_view; }
 
-	void setLayer(int l){ m_layer = l; }
+	void setLayer(int layer);
 
 	int getLayer(){ return m_layer; }
 

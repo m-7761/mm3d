@@ -51,8 +51,6 @@ void ViewPanel::setModel()
 		auto add = model->getAddLayer();
 		if(add>1) for(int i=viewsN;i-->0;)
 		{
-			views[i]->layer.set_int_val(add);
-			views[i]->layer.mouse_over();
 			views[i]->port.setLayer(add);
 		}
 		status.overlay.set(model->getOverlayLayers(),viewwin_snap_overlay);
@@ -588,10 +586,6 @@ bool ViewPanel::_recall(int a, int b)
 	if(memory[a]) for(int i=0;a<=b;a++,i++)
 	{
 		ports[i].setViewState(memory[a]);
-		views[i]->setView(memory[a].direction);		
-		views[i]->zoom.value.set_float_val(memory[a].zoom);
-		views[i]->layer.set_int_val(memory[a].layer);
-		views[i]->layer.mouse_over(); //HACK
 	}
 	else return false; return true;
 }
@@ -617,10 +611,6 @@ void ViewPanel::_defaultViews(int mem, bool save)
 		{
 			auto &m = memory[a+m_focus];
 			ports[0].setViewState(m);
-			views[0]->setView(m.direction);
-			views[0]->zoom.value.set_float_val(m.zoom);
-			views[0]->layer.set_int_val(m.layer);
-			views[0]->layer.mouse_over(); //HACK
 			c = 0; break;
 		}
 
@@ -711,7 +701,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 			//if(memory[j].direction!=ViewOrtho)
 			//continue;		
 			double z = ports[i].getZoomLevel();
-			ports[i].setViewState(memory[j]);				
+			ports[i].setViewState(memory[j]);
 			frame = !memory[c+i];
 			if(!frame)
 			{
@@ -746,7 +736,18 @@ void ViewPanel::updateView()
 
 void ViewPanel::viewChangeEvent(ModelViewport &mvp)
 {
-	views[&mvp-ports]->view.select_id(mvp.getView());
+	auto &v = views[&mvp-ports];
+
+	//NOTE: Zoom has its own event, but probably
+	//should be updated here too.
+
+	v->view.select_id(mvp.getView());
+
+	if(mvp.getLayer()!=(int)v->layer)
+	{
+		v->layer.select_id(mvp.getLayer());
+		v->layer.mouse_over(); //HACK
+	}
 }
 void ViewPanel::zoomLevelChangedEvent(ModelViewport &mvp)
 {
@@ -771,7 +772,7 @@ void ViewPanel::rearrange(int how)
 		ports[flip?viewsM+i:viewsM-1-i].getViewState(swap[i]);
 		ports[flip?j-viewsM:viewsN-1-i].getViewState(swap[j]);
 	}
-	for(int i=0;i<viewsN;i++) ports[i].setViewState(swap[i]);
+	for(int i=0;i<viewsN;i++) ports[i].setViewState(swap[i]); 
 }
 
 void ViewPanel::reset()

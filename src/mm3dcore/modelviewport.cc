@@ -1624,6 +1624,10 @@ void ModelViewport::setViewState(const ViewStateT &viewState)
 
 	parent->viewChangeEvent(*this); //NEW
 }
+void ModelViewport::setLayer(int l)
+{
+	m_layer = l; parent->viewChangeEvent(*this); 
+}
 
 void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 {

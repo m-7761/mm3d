@@ -234,51 +234,76 @@ void ViewBar::ModelView::submit(int id)
 	case '+': port.zoomIn(); break;
 	case '-': port.zoomOut(); break;
 
-	case id_assign:
+	case id_assign: id = layer;		
 
-		id = layer;
-
-		if(event.curr_shift) //broadcast?
+		//Ctrl: overlay toggle (Ctrl+F1)
+		//Shift: change all views (Shift+F1)
+		//Alt: move/unselect selection (Shift doesn't modify)
+		//Ctrl+Alt: move/keep selection and change current view (Ctrl+L)
+		//Shift+Ctrl: move/keep selection and change all views (Ctrl+L)
+		//Shift+Ctrl+Alt: same
+		if(!event.wheel_event)		
+		if(event.curr_alt||event.curr_ctrl&&event.curr_shift)
 		{
-			if(event.curr_ctrl&&!event.wheel_event) //assign?
+			if(!event.curr_alt||event.curr_ctrl) 
 			{
-				if(id) //hidecmd.cc?
-				{
-					bar.model->hideSelected(true,id);
+				//keeping selection? (changing?)
 
-					model_status(bar.model,StatusNormal,STATUSTIME_SHORT,
-					TRANSLATE("Command","Assigned to layer %d"),id);
-
-					bar.model->operationComplete(TRANSLATE("Command","Transfer to Layer"));
-				}
-				else
-				{
-					model_status(bar.model,StatusError,STATUSTIME_LONG,
-					TRANSLATE("Command","Can't assign hidden layer"));
-				}
-				
-				layer.set_int_val(port.getLayer()); //reset?
+				bar.model->setPrimaryLayers(id);
 			}
-			else bar.model.perform_menu_action(id_view_layer_0+id);
+
+			if(id) //hidecmd.cc?
+			{
+				bar.model->hideSelected(true,id);
+
+				model_status(bar.model,StatusNormal,STATUSTIME_SHORT,
+				TRANSLATE("Command","Assigned to layer %d"),id);
+
+				bar.model->operationComplete(TRANSLATE("Command","Transfer to Layer"));
+			}
+			else
+			{
+				bar.model->hideSelected();
+
+				model_status(bar.model,StatusNormal,STATUSTIME_SHORT,
+				TRANSLATE("Command","Selection hidden"));
+
+				bar.model->operationComplete(TRANSLATE("Command","Hide Selected"));
+			}
+			
+			if(!event.curr_ctrl) 
+			{
+				reset: //discard selection? (no change?)
+
+				layer.set_int_val(port.getLayer());
+
+				return;
+			}
 		}
-		else if(event.curr_ctrl&&!event.wheel_event) //overlay?
+		else if(event.curr_ctrl) //overlay?
 		{
 			bar.model.perform_menu_action(id_view_overlay);
 
-			layer.set_int_val(port.getLayer()); //reset?
+			goto reset; //return;
 		}
-		else
+
+		if(!event.curr_shift) //don't broadcast?
 		{		
 			port.setLayer(id);
 
 			//HACK: force focus?
 			port.parent->m_focus = &port-port.parent->ports;
 				
-			port.parent->updateView(); 		
-		
+			port.parent->updateView();			
+		}
+		else bar.model.perform_menu_action(id_view_layer_0+id);
+
+		if(event.wheel_event?!event.curr_shift:!event.curr_ctrl&&!event.curr_alt)
+		{
 			model_status(bar.model,StatusNormal,STATUSTIME_SHORT,
 			id?::tr("Layer %d"): ::tr("Hidden layer"),id);
 		}
+
 		return;
 	}
 }

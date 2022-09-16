@@ -69,7 +69,7 @@ bool HideCommand::activated(int arg, Model *model)
 {
 	const char *msg; switch(arg)
 	{
-	case 0:
+	case 0: hide:
 		msg = TRANSLATE("Command","Selection hidden");
 		model->hideSelected(); break;
 	case 1:
@@ -87,12 +87,7 @@ bool HideCommand::activated(int arg, Model *model)
 		arg = 0; //HACK
 		if(Tool*tool=CommandManager::getInstance()->getViewSurrogate(model))			
 		arg = tool->parent->getPrimaryLayer();
-		if(!arg)
-		{
-			model_status(model,StatusError,STATUSTIME_LONG,
-			TRANSLATE("Command","Can't assign hidden layer"));
-			return false;				
-		}
+		if(!arg) goto hide;
 		model->hideSelected(true,arg); break;
 	}
 	model_status(model,StatusNormal,STATUSTIME_SHORT,msg,arg);

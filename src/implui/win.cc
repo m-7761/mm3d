@@ -486,7 +486,12 @@ Win::Win(int p, int sp):ui(&_main_panel)
 
 	_main_panel.space(1,1,1,1,1);
 
-	set_main_esc_window(glutGetWindow());
+	//2022: This blocks Esc for hotkeys
+	//in certain situations.
+	//Down side is you can't escape out
+	//of UI focus without a mouse input.
+	//set_main_esc_window(glutGetWindow());
+	set_main_esc_window();
 
 	Win::_common_init(false);
 }

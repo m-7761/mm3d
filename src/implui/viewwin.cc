@@ -1858,17 +1858,7 @@ void MainWin::perform_menu_action(int id)
 
 		id-=id_view_layer_0;
 		for(int i=w->views.viewsN;i-->0;)
-		{
-			auto &c = w->views[i]->layer;
-			
-			if(id!=c.int_val())
-			{
-				c.set_int_val(id);
-				c.mouse_over(); //HACK
-			}
-
-			w->views.ports[i].setLayer(id);
-		}
+		w->views.ports[i].setLayer(id);
 		model_status(model,StatusNormal,STATUSTIME_SHORT,
 		id?::tr("Layer %d"): ::tr("Hidden layer"),id);
 		break;

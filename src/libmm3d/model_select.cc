@@ -47,13 +47,15 @@ bool Model::selectVertex(unsigned v, unsigned how)
 
 	if(vp->m_selected!=(how!=0)) //2019
 	{
+		/*2022: this won't work if selection in 
+		//hidden layer is allowed (which it is)
 		if(how&&vp->m_visible1) //2022
 		{
 			assert(m_undoEnabled);
 			
 			//TODO: modelundo.cc can use a lightweight path.
 			if(!m_undoEnabled) return false;
-		}
+		}*/
 
 		//2022: PolyTool uses this to sort by selection order.
 		auto &s_op = vp->m_selected._select_op;
@@ -82,13 +84,15 @@ bool Model::selectTriangle(unsigned t)
 
 	auto *tp = m_triangles[t]; if(!tp->m_selected) //2019
 	{
-		if(tp->m_visible1) //2022
+		/*2022: this won't work if selection in 
+		//hidden layer is allowed (which it is)
+		if(tp->m_visible1)
 		{
 			assert(m_undoEnabled);
 			
 			//TODO: modelundo.cc can use a lightweight path.
 			if(!m_undoEnabled) return false;
-		}
+		}*/
 
 		if(!m_selecting) //2020: make foolproof?
 		{

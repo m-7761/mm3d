@@ -2435,7 +2435,9 @@ bool Model::hideSelected(bool how, unsigned layer)
 	// than this will support. Only any existing
 	// patterns in use by editors are considered.
 	//
-	auto lv = layer?~1:m_primaryLayers&~1;
+	auto lv = layer||1==m_primaryLayers?~1:m_primaryLayers&~1;
+
+	if(layer&&how) lv|=1; //Use hidden selection.
 
 	Undo<MU_Hide> undo(this);
 
@@ -2534,7 +2536,7 @@ bool Model::hideSelected(bool how, unsigned layer)
 
 	//NOTE: This actually does selection undo logic, ensuring
 	//hidden elements aren't seen as selected.
-	if(how) unselectAll();
+	if(how&&0==(1<<layer&m_primaryLayers)) unselectAll();
 
 	m_changeBits|=RedrawAll; //2022
 	
