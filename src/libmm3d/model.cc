@@ -2496,7 +2496,12 @@ bool Model::hideSelected(bool how, unsigned layer)
 				//layers change. Instead, try to reject
 				//any faces not qualified to be modified.
 				//if(f.m_visible)
-				if(f.m_visible2!=lv2||how!=f.m_selected)
+				//may be only vertices are selected...
+				//in which case this hides the triangles
+				//but not the vertices (i.e. opposite of
+				//of what's implied)
+			//	if(f.m_visible2!=lv2||how!=f.m_selected)
+				if(f.m_visible2!=lv2)
 				{
 					mark = true; break;	
 				}

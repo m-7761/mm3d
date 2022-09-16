@@ -783,9 +783,17 @@ void Model::drawVertices(float a)
 	glDepthFunc(GL_ALWAYS);
 	glColor3ub(255,0,0);
 	glBegin(GL_POINTS);
-	for(auto*vp:m_vertices)
-	if(vp->m_selected&&vp->visible(lv))
-	glVertex3dv(vp->m_absSource);
+	for(auto*vp:m_vertices) if(vp->m_selected)
+	{
+		if(vp->visible(lv)) draw:
+		{
+			glVertex3dv(vp->m_absSource);
+		}
+		else for(auto&ea:vp->m_faces)
+		{
+			if(ea.first->visible(lv)) goto draw;
+		}
+	}
 	glEnd();
 	
 	if(0==a) //return;
@@ -825,10 +833,15 @@ void Model::drawVertices(float a)
 	{
 		/*2022 Can leverage m_faces for this.
 		if(vp->m_marked||vp->m_marked2) continue;*/
-		if(!cull||vp->m_faces.empty())
-		{					
-			glVertex3dv(vp->m_absSource);
+		if(cull) for(auto&ea:vp->m_faces)
+		{
+			//NOTE: This is in case a vertex is
+			//left behind in a layer without its
+			//triangles. This scenario used to be
+			//possible. It may be unlikely now.
+			if(ea.first->visible(lv)) goto no_draw;
 		}
+		glVertex3dv(vp->m_absSource); no_draw:;
 	}
 	glEnd();
 

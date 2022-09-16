@@ -374,7 +374,13 @@ bool Model::selectVerticesInVolumeMatrix(bool how, const Matrix &viewMat, double
 	Vector vert; bool tris = false;
 
 	for(auto*vp:m_vertices) 
-	if(vp->m_selected!=how&&vp->visible(lv))
+	if(vp->m_selected!=how) if(!vp->visible(lv))
+	{
+		for(auto&ea:vp->m_faces)
+		if(ea.first->visible(lv))
+		goto visible;
+	}
+	else visible:
 	{
 		vert.setAll(vp->m_absSource,3);
 			
