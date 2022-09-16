@@ -2430,6 +2430,11 @@ bool Model::hideSelected(bool how, unsigned layer)
 	//If assigning to a layer the elements won't
 	//already be on that layer, so it's no good
 	//to screen them out.
+	//
+	// NOTE: This API allows for more variations
+	// than this will support. Only any existing
+	// patterns in use by editors are considered.
+	//
 	auto lv = layer?~1:m_primaryLayers&~1;
 
 	Undo<MU_Hide> undo(this);
@@ -2439,17 +2444,16 @@ bool Model::hideSelected(bool how, unsigned layer)
 	for(auto*vp:m_vertices) vp->m_marked = how==vp->m_selected;
 
 	// Hide selected triangles
-	for(unsigned t=m_triangles.size();t-->0;)
+	for(auto*tp:m_triangles)	
+	if(how==tp->m_selected&&tp->visible(lv))
 	{
-		auto *tp = m_triangles[t]; 
-		
-		if(how==tp->m_selected&&tp->visible(lv))
+		for(int i:tp->m_vertexIndices)
 		{
-			for(int i:tp->m_vertexIndices)
-			{
-				m_vertices[i]->m_marked = false;
-			}
+			m_vertices[i]->m_marked = false;
+		}
 
+		if(tp->hide_difference(layer))
+		{
 			if(undo) undo->setHideDifference(tp,layer);
 
 			tp->hide(layer);
@@ -2457,70 +2461,70 @@ bool Model::hideSelected(bool how, unsigned layer)
 	}
 
 	// Hide triangles with a lone vertex that is selected
-	for(unsigned t=m_triangles.size();t-->0;)
+	for(auto*tp:m_triangles)
+	if(tp->hide_difference(layer))
+	if(tp->visible(lv))
 	{
-		auto *tp = m_triangles[t]; if(tp->visible(lv))
+		for(int i:tp->m_vertexIndices)
+		if(m_vertices[i]->m_marked)
 		{
-			for(int i:tp->m_vertexIndices)
-			if(m_vertices[i]->m_marked)
-			{
-				if(undo) undo->setHideDifference(tp,layer);
+			if(undo) undo->setHideDifference(tp,layer);
 
-				tp->hide(layer);
+			tp->hide(layer);
 
-				break; //!
-			}
+			break; //!
 		}
 	}
 
-	// Hide orphaned vertices
-	for(unsigned v=m_vertices.size();v-->0;)
+	auto lv2 = 1<<layer; //DICEY
+
+	for(auto*vp:m_vertices)
+	if(vp->hide_difference(layer)&&vp->visible(lv))
 	{
-		auto *vp = m_vertices[v]; 
-		if(vp->visible(lv)) //if(vp->m_marked)
+		if(vp->m_faces.empty()) //Orphan?
 		{
-			if(vp->m_faces.empty()) //Orphan?
+			if(how!=vp->m_selected) continue;
+		}
+		else // Triangle is visible, vertices must be too
+		{
+			bool mark = false;
+			for(auto&ea:vp->m_faces) 
 			{
-				if(how!=vp->m_selected) continue;
-			}
-			else // Triangle is visible, vertices must be too
-			{				
-				bool mark = false;
-				for(auto&ea:vp->m_faces) if(ea.first->visible(lv))
+				auto &f = *ea.first;
+
+				//This won't work any longer with this
+				//layers change. Instead, try to reject
+				//any faces not qualified to be modified.
+				//if(f.m_visible)
+				if(f.m_visible2!=lv2||how!=f.m_selected)
 				{
-					mark = true; break;
+					mark = true; break;	
 				}
-				if(mark) continue;
 			}
-
-			if(undo) undo->setHideDifference(vp,layer);
-			
-			vp->hide(layer);
+			if(mark) continue;
 		}
+
+		if(undo) undo->setHideDifference(vp,layer);
+			
+		vp->hide(layer);
 	}
 
-	for(unsigned j=m_joints.size();j-->0;)
+	for(auto*jp:m_joints)	
+	if(jp->hide_difference(layer))
+	if(how==jp->m_selected&&jp->visible(lv))
 	{
-		auto *jp = m_joints[j]; 
-		
-		if(how==jp->m_selected&&jp->visible(lv))
-		{
-			if(undo) undo->setHideDifference(jp,layer);
+		if(undo) undo->setHideDifference(jp,layer);
 
-			jp->hide(layer);
-		}
+		jp->hide(layer);
 	}
 
-	for(unsigned p=m_points.size();p-->0;)
+	for(auto*pp:m_points)
+	if(pp->hide_difference(layer))
+	if(how==pp->m_selected&&pp->visible(lv))
 	{
-		auto *pp = m_points[p];
-		
-		if(how==pp->m_selected&&pp->visible(lv))
-		{
-			if(undo) undo->setHideDifference(pp,layer);
+		if(undo) undo->setHideDifference(pp,layer);
 			
-			pp->hide(layer);
-		}
+		pp->hide(layer);
 	}
 
 	//NOTE: This actually does selection undo logic, ensuring

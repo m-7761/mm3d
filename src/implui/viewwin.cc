@@ -1864,7 +1864,7 @@ void MainWin::perform_menu_action(int id)
 			if(id!=c.int_val())
 			{
 				c.set_int_val(id);
-				c.mouse_over(false,0,0); //custom
+				c.mouse_over(); //HACK
 			}
 
 			w->views.ports[i].setLayer(id);

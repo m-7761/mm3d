@@ -186,30 +186,33 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum, bool und
 
 	if(groupNum<m_groups.size()&&triangleNum<m_triangles.size())
 	{
-		auto *tp = m_triangles[triangleNum]; //2022
+		int t = triangleNum;
+
+		auto *tp = m_triangles[t];
 
 		int og = tp->m_group;
 
 		if(undo) //INTERNAL OPTIMIZATION
 		{
-			if(og==-1)
-			tp->m_group = groupNum;
+			if(og==-1) tp->m_group = groupNum;
 			else return false;
 		}
-		else assert(tp->m_group==groupNum);
+		else assert(og==groupNum);
 		
 		auto &c = m_groups[groupNum]->m_triangleIndices;
-		if(!c.empty()&&(unsigned)c.back()>triangleNum)
+		if(!c.empty()&&(unsigned)c.back()>t)
 		{
-			//c.insert(triangleNum);
-			auto it = std::lower_bound(c.begin(),c.end(),(int)triangleNum);
-			if(it==c.end()||*it!=triangleNum)
-			c.insert(it,triangleNum);
+			auto it = std::lower_bound(c.begin(),c.end(),t);
+			if(it==c.end()||*it!=t)
+			{
+				c.insert(it,t);
+			}
+			else assert(it==c.end()); //Seeing doubles in MM3D files?!
 		}
-		else c.push_back(triangleNum);
+		else c.push_back(t);
 
 		if(undo) //INTERNAL OPTIMIZATION
-		Undo<MU_AddToGroup>(this,triangleNum,groupNum,og);
+		Undo<MU_AddToGroup>(this,t,groupNum,og);
 
 		m_changeBits |= SetGroup; //SetTexture?
 
@@ -218,8 +221,7 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum, bool und
 	}
 	else
 	{
-		log_error("addTriangleToGroup(%d,%d) argument out of range\n",
-				groupNum,triangleNum);
+		log_error("addTriangleToGroup(%d,%d) argument out of range\n",groupNum,triangleNum);
 	}
 
 	return false;

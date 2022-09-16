@@ -150,7 +150,7 @@ void ViewBar::ModelView::submit(int id)
 	
 		if(!view.reference()) init_view_dropdown();
 				
-		layer.row_pack().space(0,-3,1,0,3);
+		layer.row_pack().space(0,-3,0,0,3);
 		for(auto&l:layers)
 		{
 			layer.add_item(&l);

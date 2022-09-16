@@ -52,7 +52,8 @@ void ViewPanel::setModel()
 		if(add>1) for(int i=viewsN;i-->0;)
 		{
 			views[i]->layer.set_int_val(add);
-			views[i]->submit(id_assign);
+			views[i]->layer.mouse_over();
+			views[i]->port.setLayer(add);
 		}
 		status.overlay.set(model->getOverlayLayers(),viewwin_snap_overlay);
 
@@ -590,7 +591,7 @@ bool ViewPanel::_recall(int a, int b)
 		views[i]->setView(memory[a].direction);		
 		views[i]->zoom.value.set_float_val(memory[a].zoom);
 		views[i]->layer.set_int_val(memory[a].layer);
-		views[i]->layer.mouse_over(false,0,0); //HACK
+		views[i]->layer.mouse_over(); //HACK
 	}
 	else return false; return true;
 }
@@ -619,7 +620,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 			views[0]->setView(m.direction);
 			views[0]->zoom.value.set_float_val(m.zoom);
 			views[0]->layer.set_int_val(m.layer);
-			views[0]->layer.mouse_over(false,0,0); //HACK
+			views[0]->layer.mouse_over(); //HACK
 			c = 0; break;
 		}
 

@@ -133,7 +133,7 @@ struct ViewBar::ModelView
 
 		ModelView *mview;
 
-		virtual bool mouse_over(bool,int,int);
+		virtual bool mouse_over(bool=false,int=-1,int=-1);
 
 		struct item : multiple::item
 		{

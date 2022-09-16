@@ -453,7 +453,7 @@ public:
 				
 		bool hidden(unsigned layers)const
 		{
-			return m_visible1&&(1<<m_layer&layers);
+			return m_visible1&&(1<<m_layer)&layers;
 		}
 		void hide(unsigned layer=0)const
 		{
@@ -462,6 +462,11 @@ public:
 			const_cast<Visible2022*>(this)->m_visible2 = 1<<layer;
 		}
 		void unhide(){ m_visible2 = 1<<m_layer; }
+
+		bool hide_difference(unsigned layer=0)const
+		{
+			return (layer&&m_layer!=layer)||m_visible2!=1<<layer;
+		}
 	};
 
 	// A triangle represents faces in the model. All faces are triangles.
