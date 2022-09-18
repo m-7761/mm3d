@@ -601,7 +601,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 	case 6: _save(a=9,b=14); break; //3x2
 	}
 
-	switch(viewsN)
+	bool rc; switch(viewsN)
 	{
 	case 1: 
 
@@ -611,17 +611,18 @@ void ViewPanel::_defaultViews(int mem, bool save)
 		{
 			auto &m = memory[a+m_focus];
 			ports[0].setViewState(m);
-			c = 0; break;
+			//c = 0; break;
+			return; //2022
 		}
 
-		if(_recall(c=0,0))
+		if(rc=_recall(c=0,0))
 		break;
 		views[0]->setView(Tool::ViewPerspective);
 		break;
 
 	case 2:
 
-		if(views1x2?_recall(c=1,2):_recall(c=3,4))
+		if(rc=views1x2?_recall(c=1,2):_recall(c=3,4))
 		break;
 
 		//NOTE: This layout will be more convenient if persp
@@ -633,7 +634,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 
 	case 4:
 
-		if(_recall(c=5,8))
+		if(rc=_recall(c=5,8))
 		break;
 
 		//2019: Changing to Blender defaults, expecting users to 
@@ -648,7 +649,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 
 	case 6:
 
-		if(_recall(c=9,14))
+		if(rc=_recall(c=9,14))
 		break;
 
 		/*2019: Can't be implemented as multipane window->
@@ -694,6 +695,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 	for(int i=0;i<viewsN;i++)
 	{
 		bool frame = true;
+		int src = -1;
 		if(a>=0) for(int j=a;j<=b;j++)	
 		if(ports[i].getView()==memory[j].direction)
 		{
@@ -710,7 +712,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 			}
 			break;
 		}	
-		if(!frame) continue;
+		if(rc||!frame) continue;
 
 		if(!framed&&model)
 		framed = model->getBoundingRegion(&x1,&y1,&z1,&x2,&y2,&z2);
@@ -730,7 +732,7 @@ void ViewPanel::updateAllViews()
 }
 void ViewPanel::updateView()
 {
-	//ports[m_focus].updateGL(); //FIX ME
+	//ports[m_focus].updateGL(); //This isn't possible.
 	updateAllViews();	
 }
 
@@ -738,20 +740,28 @@ void ViewPanel::viewChangeEvent(ModelViewport &mvp)
 {
 	auto &v = views[&mvp-ports];
 
-	//NOTE: Zoom has its own event, but probably
-	//should be updated here too.
+	if(mvp.getView()!=(int)v->view||!v->view.selection())
+	{
+		v->view.select_id(mvp.getView());
+	}
 
-	v->view.select_id(mvp.getView());
-
-	if(mvp.getLayer()!=(int)v->layer)
+	if(mvp.getLayer()!=(int)v->layer) //2022
 	{
 		v->layer.select_id(mvp.getLayer());
 		v->layer.mouse_over(); //HACK
 	}
+
+	//TODO: zoomLevelChangedEvent should be
+	//merged into viewChangeEvent...
 }
 void ViewPanel::zoomLevelChangedEvent(ModelViewport &mvp)
 {
-	views[&mvp-ports]->zoom.value.set_float_val(mvp.getZoomLevel());
+	auto &v = views[&mvp-ports];
+
+	if(mvp.getZoomLevel()!=(double)v->zoom.value)
+	{
+		v->zoom.value.set_float_val(mvp.getZoomLevel());
+	}
 }
 
 void ViewPanel::rearrange(int how)

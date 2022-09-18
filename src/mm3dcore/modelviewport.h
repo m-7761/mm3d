@@ -224,8 +224,12 @@ public:
 public: //slots:
 
 	virtual void getXY(int&,int&) = 0;
+
+	//TODO: MERGE THESE INTO viewStateChangeEvent
+	//THAT COVERS EVERYTHING STORED IN ViewStateT.
 	virtual void viewChangeEvent(ModelViewport&) = 0;
 	virtual void zoomLevelChangedEvent(ModelViewport&) = 0;	
+
 	void viewportSaveStateEvent(int,const ModelViewport::ViewStateT&);
 	void viewportRecallStateEvent(ModelViewport&,int);
 
