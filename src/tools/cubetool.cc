@@ -168,10 +168,10 @@ void CubeTool::mouseButtonDown()
 				{
 					//log_debug("%d,%d,%d,%d\n",row1+x,row1+x+1,row2+x,row2+x+1);
 
-					int a = row2+x, b = m_vertices[row1+x];
+					int a = m_vertices[row2+x], b = m_vertices[row1+x];
 					if(side>=2) std::swap(a,b); //invertNormal?
 					int t1 = model->addTriangle(a,m_vertices[row1+x+1],b);
-					a = row2+x, b = m_vertices[row1+x+1];
+					a = m_vertices[row2+x], b = m_vertices[row1+x+1];
 					if(side>=2) std::swap(a,b); //invertNormal?
 					int t2 = model->addTriangle(a,m_vertices[row2+x+1],b);
 					m_triangles.push_back(t1);
