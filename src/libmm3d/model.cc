@@ -789,7 +789,7 @@ void Model::deleteTriangle(unsigned t)
 	if(tp->m_group>=0)
 	{
 		//2022: Passing false is an optimization to
-		//avoi interleaving undo objects since that
+		//avoid interleaving undo objects since that
 		//prevents MU_Delete from resuming/combining.
 		removeTriangleFromGroup(tp->m_group,t,false);
 	}

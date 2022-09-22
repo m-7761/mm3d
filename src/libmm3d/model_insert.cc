@@ -125,9 +125,7 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 
 	//2022: INTERNAL OPTIMIZATION
 	if(triangle->m_group!=-1)
-	{
-		addTriangleToGroup(triangle->m_group,index,false);
-	}
+	addTriangleToGroup(triangle->m_group,index,false);
 }
 void Model::removeTriangle(unsigned index)
 {
@@ -150,6 +148,10 @@ void Model::removeTriangle(unsigned index)
 		m_vertices[vi[i]]->_erase_face(tp,i);
 
 		//assert(tp->m_group==-1); //2022
+
+		//2022: INTERNAL OPTIMIZATION
+		if(tp->m_group!=-1)
+		removeTriangleFromGroup(tp->m_group,index,false);
 
 		//FIX US
 		//https://github.com/zturtleman/mm3d/issues/92
@@ -683,7 +685,7 @@ void Model::adjustTriangleIndices(unsigned index, int amount)
 		*/		
 		for(size_t i=grp.size();i-->0;)
 		{
-			if((unsigned)grp[i]>=index) grp[i]+=amount; 
+			if((unsigned)grp[i]>index) grp[i]+=amount; 
 			else break;
 		}
 	}
@@ -691,13 +693,8 @@ void Model::adjustTriangleIndices(unsigned index, int amount)
 
 void Model::adjustProjectionIndices(unsigned index, int amount)
 {
-	for(unsigned t = 0; t<m_triangles.size(); t++)
-	{
-		if(m_triangles[t]->m_projection>=(int)index)
-		{
-			m_triangles[t]->m_projection += amount;
-		}
-	}
+	for(auto*tp:m_triangles)	
+	if(tp->m_projection>=(int)index) tp->m_projection+=amount;	
 }
 
 #endif // MM3D_EDIT

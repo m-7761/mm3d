@@ -245,7 +245,7 @@ bool Model::removeTriangleFromGroup(unsigned groupNum, unsigned triangleNum, boo
 		if(og!=groupNum) return false;
 
 		auto &c = m_groups[groupNum]->m_triangleIndices;
-		if(c.empty()){ assert(0); return false; }
+		if(c.empty()){ assert(!undo); return false; }
 
 		if(undo) //INTERNAL OPTIMIZATION
 		tp->m_group = -1;
