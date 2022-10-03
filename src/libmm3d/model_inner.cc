@@ -177,7 +177,7 @@ int Model::Vertex::flush()
 
 void Model::Vertex::stats()
 {
-	//log_debug("Vertex: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Vertex: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Vertex *Model::Vertex::get(unsigned layer, AnimationModeE am)
@@ -312,7 +312,7 @@ int Model::Triangle::flush()
 
 void Model::Triangle::stats()
 {
-	//log_debug("Triangle: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Triangle: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Triangle *Model::Triangle::get(unsigned layer)
@@ -421,7 +421,7 @@ int Model::Group::flush()
 
 void Model::Group::stats()
 {
-	//log_debug("Group: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Group: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Group *Model::Group::get()
@@ -526,7 +526,7 @@ int Model::Material::flush()
 
 void Model::Material::stats()
 {
-	//log_debug("Material: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Material: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Material *Model::Material::get()
@@ -649,7 +649,7 @@ int Model::Keyframe::flush()
 
 void Model::Keyframe::stats()
 {
-	//log_debug("Keyframe: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Keyframe: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 Model::Keyframe *Model::Keyframe::get()
@@ -803,7 +803,7 @@ int Model::Joint::flush()
 
 void Model::Joint::stats()
 {
-	//log_debug("Joint: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Joint: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 bool Model::Joint::propEqual(const Joint &rhs, int propBits, double tolerance)const
@@ -913,7 +913,7 @@ int Model::Point::flush()
 
 void Model::Point::stats()
 {
-	//log_debug("Point: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Point: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 bool Model::Point::propEqual(const Point &rhs, int propBits, double tolerance)const
@@ -1020,7 +1020,7 @@ int Model::TextureProjection::flush()
 
 void Model::TextureProjection::stats()
 {
-	//log_debug("TextureProjection: %d/%d\n",0,s_allocated);
+	log_debug("TextureProjection: %d/%d\n",0,s_allocated);
 }
 
 bool Model::TextureProjection::propEqual(const TextureProjection &rhs, int propBits, double tolerance)const
@@ -1125,7 +1125,7 @@ int Model::Animation::flush()
 }
 void Model::Animation::stats()
 {
-	//log_debug("Animation: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Animation: %d/%d\n",s_recycle.size(),s_allocated);
 }
 bool Model::Animation::propEqual(const Animation &rhs, int propBits, double tolerance)const
 {
@@ -1277,7 +1277,7 @@ int Model::FrameAnimVertex::flush()
 
 void Model::FrameAnimVertex::stats()
 {
-	//log_debug("FrameAnimVertex: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("FrameAnimVertex: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
 bool Model::FrameAnimVertex::propEqual(const FrameAnimVertex &rhs, int propBits, double tolerance)const
@@ -1360,7 +1360,7 @@ int Model::FrameAnimPoint::flush()
 }
 void Model::FrameAnimPoint::stats()
 {
-	//log_debug("FrameAnimPoint: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("FrameAnimPoint: %d/%d\n",s_recycle.size(),s_allocated);
 }
 bool Model::FrameAnimPoint::propEqual(const FrameAnimPoint &rhs, int propBits, double tolerance)const
 {

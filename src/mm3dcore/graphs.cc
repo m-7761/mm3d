@@ -1236,9 +1236,10 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		glPushAttrib(attribs2); //splines
 	
 	double l_z = 1/m_zoom;
-	double px,py,sMin,sMax,tMin,tMax;
+	double cx,cy,px,py,sMin,sMax,tMin,tMax;
 	{
-		double cx = m_xMax+m_xMin, cy = m_yMax+m_yMin;
+		cx = m_xMax+m_xMin; cy = m_yMax+m_yMin;
+	//	double cx = m_xMax+m_xMin, cy = m_yMax+m_yMin;
 		double cw = m_xMax-m_xMin, ch = m_yMax-m_yMin;
 		cw*=(double)w/ww; ch*=(double)h/hh;
 		cx/=2; cy/=2; cw/=2; ch/=2;
@@ -1250,6 +1251,9 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		//cx = cw/w; cy = ch/h;
 		px = 2*cw/w;
 		py = 2*ch/h;
+
+	//	cx = cw/w*0.95; cy = ch/h*0.95;
+		cx = cw/w; cy = ch/h;
 	}
 
 	//setViewportDraw(); //DUPLICATE
@@ -1261,7 +1265,16 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		glPushMatrix();
 		glLoadIdentity();
 
-		glOrtho(sMin,sMax,tMin,tMax,-1,1);
+		//HACK: I'm adding cx/cy just because 
+		//Nvidia drivers are drawing the selection
+		//rectangle with fully disconnected lines
+		//(I thought Nvidia OpenGL was good?)
+		//NOTE: Nvida works fine with glRectd but
+		//AMD Adrenalin draws nothing with glRectd
+		//NOTE: texwidget.cc does the same thing for a
+		//different reason
+		//glOrtho(sMin,sMax,tMin,tMax,-1,1);
+		glOrtho(sMin-cx,sMax-cx,tMin+cy,tMax+cy,-1,1);
 	
 		glMatrixMode(GL_MODELVIEW);		
 		glPushMatrix(); 
@@ -1635,7 +1648,9 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 			glPushMatrix();
 			glLoadIdentity();
 
-			glOrtho(sMin,sMax,tMin,tMax,-1,1);
+			//HACK: see comment above (DUPLICATE)
+			//glOrtho(sMin,sMax,tMin,tMax,-1,1);
+			glOrtho(sMin-cx,sMax-cx,tMin+cy,tMax+cy,-1,1);
 	
 			glMatrixMode(GL_MODELVIEW);		
 			glPushMatrix(); 

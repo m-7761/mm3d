@@ -29,127 +29,142 @@
 #include "log.h"
 #include "model.h"
 
-std::vector<BspTree::Poly*> BspTree::Poly::s_recycle;
-std::vector<BspTree::Node*> BspTree::Node::s_recycle;
+struct BspTree::Poly //REMOVE ME?
+{
+	const Model::Triangle *triangle;
 
-int BspTree::Poly::s_allocated = 0;
-int BspTree::Node::s_allocated = 0;
+	double coord[3][3];
+	double drawNormals[3][3];
 
-bool float_equiv(double rhs, double lhs)
+	float s[3],t[3]; // texture coordinates
+
+	double d; // dot product (plane distance)
+
+	double *BspTree::Poly::norm()
+	{
+		return triangle->m_flatSource;
+	}
+	void BspTree::Poly::calculateD()
+	{
+		d = dot_product(coord[0],norm());
+	}
+
+	double intersection(double *p1, double *p2, double *po);
+
+	int _render(Draw&, int compare);
+};
+struct BspTree::Node : public Poly //self
+{
+	void addChild(Node *n);
+
+	int render(double *point, Draw&, int compare);
+
+	void splitNodes(int i1, int i2, int i3,
+			double *p1, double *p2,Node *n1, Node *n2,
+			double place1, double place2);
+
+	void splitNode(int i1, int i2, int i3,
+			double *p1, Node *n1, double place);
+
+	Node *left, *right; //self
+	
+	static Node *get(); void release();
+	Node():left(),right(){ s_allocated++; } //self
+	~Node(){ s_allocated--; }
+};
+
+void BspTree::clear()
+{
+	if(m_root) m_root->release(); m_root = nullptr;
+}
+
+static bool bsptree_equiv(double rhs, double lhs)
 {
 	return fabs(rhs-lhs)<0.0001f;
 }
 
-int BspTree::Poly::s_nextId = 0;
-
-void BspTree::Poly::calculateNormal()
+double BspTree::Poly::intersection(double *p1, double *p2, double *po)
 {
-	double A = coord[0][1] *(coord[1][2]-coord[2][2])+coord[1][1] *(coord[2][2]-coord[0][2])+coord[2][1] *(coord[0][2]-coord[1][2]);
-	double B = coord[0][2] *(coord[1][0]-coord[2][0])+coord[1][2] *(coord[2][0]-coord[0][0])+coord[2][2] *(coord[0][0]-coord[1][0]);
-	double C = coord[0][0] *(coord[1][1]-coord[2][1])+coord[1][0] *(coord[2][1]-coord[0][1])+coord[2][0] *(coord[0][1]-coord[1][1]);
+	double *abc = norm(), p2_p1[3];
 
-	double len = sqrt((A *A)+(B *B)+(C *C));
+	for(int i=3;i-->0;) p2_p1[i] = p2[i]-p1[i];
 
-	norm[0] = A/len;
-	norm[1] = B/len;
-	norm[2] = C/len;
+	double t = (d-dot_product(abc,p1))/dot_product(abc,p2_p1);
 
-	calculateD();
-
-	//printf("normal: %f %f %f\n",norm[0],norm[1],norm[2]);
-	//printf("d:		%f\n",d);
+	lerp3(po,p1,p2,t); return t;
 }
 
-void BspTree::Poly::calculateD()
+void BspTree::addTriangle(Model *m, unsigned t)
 {
-	d = dot_product(coord[0],norm);
-}
-
-void BspTree::Poly::intersection(double *p1, double *p2, double *po, float &place)
-{
-	double dtemp	 = 0.0f;
-
-	place	 = 0.5f;
-
-	bool greater = false;
-
-	if(dot_product(p2,norm)>d)
+	Node *np = Node::get();
+	auto *tp = m->getTriangleList()[t];
+	auto &vl = m->getVertexList();
+	for(int i=3;i-->0;)
 	{
-		greater = true;
+		auto *vp = vl[tp->m_vertexIndices[i]];
+		memcpy(np->coord[i],vp->m_absSource,3*sizeof(double));
+		memcpy(np->drawNormals[i],tp->m_normalSource[i],3*sizeof(double));
+		np->s[i] = tp->m_s[i];
+		np->t[i] = tp->m_t[i];
 	}
+	np->triangle = tp; np->calculateD();
 
-	if(dot_product(p1,norm)>d)
+	if(m_root) m_root->addChild(np); 
+	else m_root = np;
+}
+
+void BspTree::render(double *point, Draw &context)
+{
+	if(!m_root) return;
+	
+	context.bsp->_drawMaterial(context,m_root->triangle->m_group);
+
+	//glEnable(GL_TEXTURE_2D); //???
 	{
-		if(greater)
-		{
-			//printf("no intersection!\n");
-			return;
-		}
+		glBegin(GL_TRIANGLES);
+		m_root->render(point,context,m_root->triangle->m_group);
+		glEnd();
+	}
+	//glDisable(GL_TEXTURE_2D); //NEW
+
+	//2021: restore in case m_accumulate used GL_ONE
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+}
+int BspTree::Node::render(double *point, Draw &context, int compare)
+{
+	if(dot_product(norm(),point)<d)
+	{
+		if(right)
+		compare = right->render(point,context,compare);
+		compare = _render(context,compare);
+		if(left)
+		compare = left->render(point,context,compare);
 	}
 	else
 	{
-		if(!greater)
-		{
-			//printf("no intersection!\n");
-			return;
-		}
+		if(left)
+		compare = left->render(point,context,compare);
+		compare = _render(context,compare);
+		if(right)
+		compare = right->render(point,context,compare);
 	}
 
-	double diff[3];
-	float oldPlace = place;
-	float interval = 0.25f;
-
-	diff[0] = p2[0]-p1[0];
-	diff[1] = p2[1]-p1[1];
-	diff[2] = p2[2]-p1[2];
-
-	do 
-	{
-		po[0] = diff[0] *place+p1[0];
-		po[1] = diff[1] *place+p1[1];
-		po[2] = diff[2] *place+p1[2];
-
-		dtemp = dot_product(po,norm);
-
-		oldPlace = place;
-
-		if(greater)
-		{
-			place += (dtemp>d)? -interval : interval;
-		}
-		else
-		{
-			place += (dtemp>d)? interval : -interval;
-		}
-
-		interval = interval *0.5f;
-	} while(!float_equiv(d,dtemp));
-
-	place = oldPlace;
+	return compare; //2021
 }
-
-int BspTree::Poly::render(Draw &context, int compare)
+int BspTree::Poly::_render(Draw &context, int compare)
 {
-	//printf("render triangle %d\n",id);
-
-	auto tri = (Model::Triangle*)triangle;
-
-	//2021: this can't get other alpha sources
-	//if(context->m_currentTexture!=texture)
-	//if(compare!=material)
-	if(compare!=tri->m_group)
+	if(compare!=triangle->m_group)
 	{
-		compare = tri->m_group; //material
+		compare = triangle->m_group; //material
 
 		glEnd();
 
-		//bsptree_setMaterial(context,texture,static_cast<Model::Material*>(material));
 		context.bsp->_drawMaterial(context,compare);
 
 		glBegin(GL_TRIANGLES);
 	}
 
-	if(tri->visible(context.layers))	
+	if(triangle->visible(context.layers))	
 	for(int i=0;i<3;i++)
 	{
 		glTexCoord2f(s[i],t[i]);
@@ -160,379 +175,221 @@ int BspTree::Poly::render(Draw &context, int compare)
 	return compare; //2021
 }
 
-void BspTree::Poly::print()
-{
-	//printf("Poly %d\n",id);
-	//printf("  coord[0] = %f %f %f\n",coord[0][0],coord[0][1],coord[0][2]);
-	//printf("  coord[1] = %f %f %f\n",coord[1][0],coord[1][1],coord[1][2]);
-	//printf("  coord[2] = %f %f %f\n",coord[2][0],coord[2][1],coord[2][2]);
-	//printf("  n  = %f %f %f\n",norm[0],norm[1],norm[2]);
-}
-
-void BspTree::addPoly(BspTree::Poly *p)
-{
-	Node *n = Node::get();
-	n->self = p;
-	if(!m_root) m_root = n;
-	else m_root->addChild(n);
-}
-
-void BspTree::render(double *point, Draw &context)
-{
-	if(m_root)
-	{
-		auto tri = (Model::Triangle*)m_root->self->triangle;
-
-		//bsptree_setMaterial(context,m_root->self->texture,
-		//static_cast<Model::Material*>(m_root->self->material));
-		context.bsp->_drawMaterial(context,tri->m_group);
-
-		//glEnable(GL_TEXTURE_2D); //???
-		{
-			glBegin(GL_TRIANGLES);
-			//m_root->render(point,context,m_root->self->material);
-			m_root->render(point,context,tri->m_group);
-			glEnd();
-		}
-		//glDisable(GL_TEXTURE_2D); //NEW
-
-		//2021: restore in case m_accumulate used GL_ONE
-		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-	}
-}
-
-void BspTree::clear()
-{
-	if(m_root)
-	{
-		m_root->release();
-		m_root = nullptr;
-	}
-}
-
-BspTree::Poly *BspTree::Poly::get()
-{
-	if(!s_recycle.empty())
-	{
-		Poly *n = s_recycle.back();
-		s_recycle.pop_back();
-		return n;
-	}
-	else
-	{
-		return new Poly;
-	}
-}
-
-void BspTree::Poly::release()
-{
-	s_recycle.push_back(this);
-}
-
-BspTree::Node *BspTree::Node::get()
-{
-	if(!s_recycle.empty())
-	{
-		Node *n = s_recycle.back();
-		s_recycle.pop_back();
-		n->self = nullptr;
-		n->left = nullptr;
-		n->right = nullptr;
-		return n;
-	}
-	else
-	{
-		return new Node;
-	}
-}
-
-void BspTree::Node::release()
-{
-	if(left)
-	{
-		left->release();
-	}
-	if(self)
-	{
-		self->release();
-	}
-	if(right)
-	{
-		right->release();
-	}
-	s_recycle.push_back(this);
-}
-
-void BspTree::Node::splitNodes(int idx1, int idx2, int idx3,
+void BspTree::Node::splitNodes(int i1, int i2, int i3,
 		double *p1, double *p2,
 		BspTree::Node *n1, BspTree::Node *n2,
-		float place1,
-		float place2)
+		double place1, double place2)
 {
-	n1->self = Poly::get();
-	//printf("split node poly: %d\n",n1->self->id);
-	for(int i = 0; i<3; i++)
+	for(int i=3;i-->0;)
 	{
-		n1->self->coord[0][i] = p1[i];
-		n1->self->coord[1][i] = self->coord[idx2][i];
-		n1->self->coord[2][i] = self->coord[idx3][i];
+		n1->coord[0][i] = p1[i];
+		n1->coord[1][i] = coord[i2][i];
+		n1->coord[2][i] = coord[i3][i];
 
-		n1->self->drawNormals[0][i] = self->norm[i];
-		n1->self->drawNormals[1][i] = self->drawNormals[idx2][i];
-		n1->self->drawNormals[2][i] = self->drawNormals[idx3][i];
+		n1->drawNormals[1][i] = drawNormals[i2][i];
+		n1->drawNormals[2][i] = drawNormals[i3][i];
+		//n1->drawNormals[0][i] = norm[i]; //???
 	}
-	n1->self->s[0] = (self->s[idx2]-self->s[idx1])*place1+self->s[idx1];
-	n1->self->s[1] = self->s[idx2];
-	n1->self->s[2] = self->s[idx3];
+	lerp3(n1->drawNormals[0], //2022
+	drawNormals[i1],drawNormals[i2],place1);
+	n1->s[0] = lerp(s[i1],s[i2],place1);
+	n1->t[0] = lerp(t[i1],t[i2],place1);
+	n1->s[1] = s[i2];
+	n1->t[1] = t[i2];
+	n1->s[2] = s[i3];
+	n1->t[2] = t[i3];
 
-	n1->self->t[0] = (self->t[idx2]-self->t[idx1])*place1+self->t[idx1];
-	n1->self->t[1] = self->t[idx2];
-	n1->self->t[2] = self->t[idx3];
+	//n1->calculateNormal();
+	n1->triangle = triangle;
+	n1->d = d; //2022
 
-	n1->self->calculateNormal();
-	//n1->self->texture = self->texture;
-	//n1->self->material = self->material;
-	n1->self->triangle = self->triangle;
-
-	n2->self = Poly::get();
-	//printf("split node poly: %d\n",n2->self->id);
-	for(int i = 0; i<3; i++)
+	for(int i=3;i-->0;)
 	{
-		n2->self->coord[0][i] = p1[i];
-		n2->self->coord[1][i] = self->coord[idx3][i];
-		n2->self->coord[2][i] = p2[i];
+		n2->coord[0][i] = p1[i];
+		n2->coord[1][i] = coord[i3][i];
+		n2->coord[2][i] = p2[i];
 
-		n2->self->drawNormals[0][i] = self->norm[i];
-		n2->self->drawNormals[1][i] = self->drawNormals[idx3][i];
-		n2->self->drawNormals[2][i] = self->norm[i];
+		n2->drawNormals[1][i] = drawNormals[i3][i];
+		//n2->drawNormals[0][i] = norm[i]; //???		
+		//n2->drawNormals[2][i] = norm[i]; //???
 	}
-	n2->self->s[0] = (self->s[idx2]-self->s[idx1])*place1+self->s[idx1];
-	n2->self->s[1] = self->s[idx3];
-	n2->self->s[2] = (self->s[idx3]-self->s[idx1])*place2+self->s[idx1];
+	lerp3(n2->drawNormals[0], //2022
+	drawNormals[i1],drawNormals[i2],place1);	
+	n2->s[0] = lerp(s[i1],s[i2],place1);
+	n2->t[0] = lerp(t[i1],t[i2],place1);
+	n2->s[1] = s[i3];
+	n2->t[1] = t[i3];
+	lerp3(n2->drawNormals[2], //2022
+	drawNormals[i1],drawNormals[i3],place2);
+	n2->s[2] = lerp(s[i1],s[i3],place2);
+	n2->t[2] = lerp(t[i1],t[i3],place2);
 
-	n2->self->t[0] = (self->t[idx2]-self->t[idx1])*place1+self->t[idx1];
-	n2->self->t[1] = self->t[idx3];
-	n2->self->t[2] = (self->t[idx3]-self->t[idx1])*place2+self->t[idx1];
+	//n2->calculateNormal();
+	n2->triangle = triangle;
+	n2->d = d; //2022
 
-	n2->self->calculateNormal();
-	//n2->self->texture = self->texture;	
-	//n2->self->material = self->material;
-	n2->self->triangle = self->triangle;
-
-	for(int i = 0; i<3; i++)
+	for(int i=3;i-->0;)
 	{
-		self->coord[idx2][i] = p1[i];
-		self->coord[idx3][i] = p2[i];
-
-		self->drawNormals[idx2][i] = self->norm[i];
-		self->drawNormals[idx3][i] = self->norm[i];
+		coord[i2][i] = p1[i];
+		coord[i3][i] = p2[i];
+		//drawNormals[i2][i] = norm[i]; //???
+		//drawNormals[i3][i] = norm[i]; //???
 	}
-	self->s[idx2] = (self->s[idx2]-self->s[idx1])*place1+self->s[idx1];
-	self->s[idx3] = (self->s[idx3]-self->s[idx1])*place2+self->s[idx1];
+	lerp3(drawNormals[i2], //2022
+	drawNormals[i1],drawNormals[i2],place1);
+	s[i2] = lerp(s[i1],s[i2],place1);	
+	t[i2] = lerp(t[i1],t[i2],place1);
+	lerp3(drawNormals[i3], //2022
+	drawNormals[i1],drawNormals[i3],place2);
+	s[i3] = lerp(s[i1],s[i3],place2);
+	t[i3] = lerp(t[i1],t[i3],place2);
 
-	self->t[idx2] = (self->t[idx2]-self->t[idx1])*place1+self->t[idx1];
-	self->t[idx3] = (self->t[idx3]-self->t[idx1])*place2+self->t[idx1];
-
-	self->calculateD();
+	//calculateD(); //???
 }
 
-void BspTree::Node::splitNode(int idx1, int idx2, int idx3,
-		double *p1, BspTree::Node *n1, float place)
+void BspTree::Node::splitNode(int i1, int i2, int i3,
+		double *p1, BspTree::Node *n1, double place)
 {
-	n1->self = Poly::get();
-	//printf("split node poly: %d\n",n1->self->id);
-	for(int i = 0; i<3; i++)
+	for(int i=3;i-->0;)
 	{
-		n1->self->coord[0][i] = self->coord[idx1][i];
-		n1->self->coord[1][i] = self->coord[idx2][i];
-		n1->self->coord[2][i] = p1[i];
+		n1->coord[0][i] = coord[i1][i];
+		n1->coord[1][i] = coord[i2][i];
+		n1->coord[2][i] = p1[i];
 
-		n1->self->drawNormals[0][i] = self->drawNormals[idx1][i];
-		n1->self->drawNormals[1][i] = self->drawNormals[idx2][i];
-		n1->self->drawNormals[2][i] = self->norm[i];
+		n1->drawNormals[0][i] = drawNormals[i1][i];
+		n1->drawNormals[1][i] = drawNormals[i2][i];
+		//n1->drawNormals[2][i] = norm[i]; //???
 	}
+	n1->s[0] = s[i1];
+	n1->t[0] = t[i1];
+	n1->s[1] = s[i2];
+	n1->t[1] = t[i2];
+	lerp3(n1->drawNormals[2], //2022
+	drawNormals[i2],drawNormals[i3],place);
+	n1->s[2] = lerp(s[i2],s[i3],place);
+	n1->t[2] = lerp(t[i2],t[i3],place);
 
-	n1->self->s[0] = self->s[idx1];
-	n1->self->s[1] = self->s[idx2];
-	n1->self->s[2] = (self->s[idx3]-self->s[idx2])*place+self->s[idx2];
+	//n1->calculateNormal();
+	n1->triangle = triangle;
+	n1->d = d; //2022
 
-	n1->self->t[0] = self->t[idx1];
-	n1->self->t[1] = self->t[idx2];
-	n1->self->t[2] = (self->t[idx3]-self->t[idx2])*place+self->t[idx2];
-
-	n1->self->calculateNormal();
-	//n1->self->texture = self->texture;	
-	//n1->self->material = self->material;
-	n1->self->triangle = self->triangle;
-
-	for(int i = 0; i<3; i++)
+	for(int i=3;i-->0;)
 	{
-		self->coord[idx2][i] = p1[i];
+		coord[i2][i] = p1[i];
 
-		self->drawNormals[idx2][i] = self->norm[i];
+		//drawNormals[i2][i] = norm[i]; //???
 	}
-	self->s[idx2] = (self->s[idx3]-self->s[idx2])*place+self->s[idx2];
-	self->t[idx2] = (self->t[idx3]-self->t[idx2])*place+self->t[idx2];
+	lerp3(drawNormals[i2], //2022
+	drawNormals[i2],drawNormals[i3],place);
+	s[i2] = lerp(s[i2],s[i3],place);
+	t[i2] = lerp(t[i2],t[i3],place);
 
-	self->calculateD();
+	//calculateD(); //???
 }
 
 void BspTree::Node::addChild(Node *n)
 {
-	double d1 = dot_product(self->norm,n->self->coord[0]);
-	double d2 = dot_product(self->norm,n->self->coord[1]);
-	double d3 = dot_product(self->norm,n->self->coord[2]);
+	double d1 = dot_product(norm(),n->coord[0]);
+	double d2 = dot_product(norm(),n->coord[1]);
+	double d3 = dot_product(norm(),n->coord[2]);
 
-	int i1 = 0;
-	int i2 = 0;
-	int i3 = 0;
-
-	if(!float_equiv(d1,self->d))
-		i1 = (d1<self->d)? -1 : 1;
-	if(!float_equiv(d2,self->d))
-		i2 = (d2<self->d)? -1 : 1;
-	if(!float_equiv(d3,self->d))
-		i3 = (d3<self->d)? -1 : 1;
-
-	//printf("self d = %f\n",self->d);
-	//printf("addChild d = %f %f %f\n",d1,d2,d3);
-	//printf("addChild i = %d %d %d\n",i1,i2,i3);
+	int i1,i2,i3;
+	if(i1=!bsptree_equiv(d1,d)) i1 = d1<d?-1:1;
+	if(i2=!bsptree_equiv(d2,d)) i2 = d2<d?-1:1;
+	if(i3=!bsptree_equiv(d3,d)) i3 = d3<d?-1:1;
 
 	// This will catch co-plane also... which should be fine
 	if(i1<=0&&i2<=0&&i3<=0)
 	{
-		//printf("add right\n");
-		if(left)
-		{
-			left->addChild(n);
-		}
-		else
-		{
-			left = n;
-		}
+		if(left) left->addChild(n);
+		else left = n;
 		return;
 	}
-
-	if(i1>=0&&i2>=0&&i3>=0)
+	else if(i1>=0&&i2>=0&&i3>=0)
 	{
-		//printf("add left\n");
-		if(right)
-		{
-			right->addChild(n);
-		}
-		else
-		{
-			right = n;
-		}
+		if(right) right->addChild(n);
+		else right = n;
 		return;
 	}
 
-	//printf("split\n");
-
-	double p1[3];
-	double p2[3];
-	float place1 = 0.0f;
-	float place2 = 0.0f;
+	double place1,p1[3];
+	double place2,p2[3];
 
 	if(i1==0||i2==0||i3==0)
 	{
 		// one of the vertices is on the plane
-		//printf("split on vertex\n");
-
+		
 		Node *n1 = Node::get();
 		if(i1==0)
 		{
-			self->intersection(n->self->coord[1],n->self->coord[2],p1,place1);
+			place1 = intersection(n->coord[1],n->coord[2],p1);
 
 			n->splitNode(0,1,2,p1,n1,place1);
 
 			if(i2<0)
 			{
-				if(right)
-					addChild(n);
-				else
-					right = n;
+				if(right) addChild(n);
+				else right = n;
 
-				if(left)
-					left->addChild(n1);
-				else
-					left = n1;
+				if(left) left->addChild(n1);
+				else left = n1;
 			}
 			else
 			{
-				if(right)
-					addChild(n1);
-				else
-					right = n1;
+				if(right) addChild(n1);
+				else right = n1;
 
-				if(left)
-					left->addChild(n);
-				else
-					left = n;
+				if(left) left->addChild(n);
+				else left = n;
 			}
 		}
 		else if(i2==0)
 		{
-			self->intersection(n->self->coord[2],n->self->coord[0],p1,place1);
+			place1 = intersection(n->coord[2],n->coord[0],p1);
 
 			n->splitNode(1,2,0,p1,n1,place1);
 
 			if(i1<0)
 			{
-				if(right)
-					addChild(n1);
-				else
-					right = n1;
+				if(right) addChild(n1);
+				else right = n1;
 
-				if(left)
-					left->addChild(n);
-				else
-					left = n;
+				if(left) left->addChild(n);
+				else left = n;
 			}
 			else
 			{
-				if(right)
-					addChild(n);
-				else
-					right = n;
+				if(right) addChild(n);
+				else right = n;
 
-				if(left)
-					left->addChild(n1);
-				else
-					left = n1;
+				if(left) left->addChild(n1);
+				else left = n1;
 			}
 		}
 		else if(i3==0)
 		{
-			self->intersection(n->self->coord[0],n->self->coord[1],p1,place1);
+			place1 = intersection(n->coord[0],n->coord[1],p1);
 
 			n->splitNode(2,0,1,p1,n1,place1);
 
 			if(i1<0)
 			{
-				if(right)
-					addChild(n);
-				else
-					right = n;
+				if(right) addChild(n);
+				else right = n;
 
-				if(left)
-					left->addChild(n1);
-				else
-					left = n1;
+				if(left) left->addChild(n1);
+				else left = n1;
 			}
 			else
 			{
-				if(right)
-					addChild(n1);
-				else
-					right = n1;
+				if(right) addChild(n1);
+				else right = n1;
 
-				if(left)
-					left->addChild(n);
-				else
-					left = n;
+				if(left) left->addChild(n);
+				else left = n;
 			}
 		}
+		else assert(0); //MEMORY LEAK?
 	}
 	else
 	{
@@ -540,50 +397,36 @@ void BspTree::Node::addChild(Node *n)
 		Node *n2 = Node::get();
 		if(i1==i2)
 		{
-			//printf("split 1/2\n");
-			self->intersection(n->self->coord[2],n->self->coord[0],p1,place1);
-			self->intersection(n->self->coord[2],n->self->coord[1],p2,place2);
-			//printf("split at %f %f %f\n",p1[0],p1[1],p1[2]);
-			//printf("split at %f %f %f\n",p2[0],p2[1],p2[2] );
-
+			place1 = intersection(n->coord[2],n->coord[0],p1);
+			place2 = intersection(n->coord[2],n->coord[1],p2);
+		
 			n->splitNodes(2,0,1,p1,p2,n1,n2,place1,place2);
 
 			if(i3<0)
 			{
 				n1->left = n2;
 
-				if(right)
-					right->addChild(n1);
-				else
-					right = n1;
+				if(right) right->addChild(n1);
+				else right = n1;
 
-				if(left)
-					left->addChild(n);
-				else
-					left = n;
+				if(left) left->addChild(n);
+				else left = n;
 			}
 			else
 			{
 				n1->right = n2;
 
-				if(left)
-					left->addChild(n1);
-				else
-					left = n1;
+				if(left) left->addChild(n1);
+				else left = n1;
 
-				if(right)
-					right->addChild(n);
-				else
-					right = n;
+				if(right) right->addChild(n);
+				else right = n;
 			}
 		}
 		else if(i1==i3)
 		{
-			//printf("split 1/3\n");
-			self->intersection(n->self->coord[1],n->self->coord[2],p1,place1);
-			self->intersection(n->self->coord[1],n->self->coord[0],p2,place2);
-			//printf("split at %f %f %f\n",p1[0],p1[1],p1[2] );
-			//printf("split at %f %f %f\n",p2[0],p2[1],p2[2] );
+			place1 = intersection(n->coord[1],n->coord[2],p1);
+			place2 = intersection(n->coord[1],n->coord[0],p2);
 
 			n->splitNodes(1,2,0,p1,p2,n1,n2,place1,place2);
 
@@ -591,35 +434,27 @@ void BspTree::Node::addChild(Node *n)
 			{
 				n1->left = n2;
 
-				if(right)
-					right->addChild(n1);
-				else
-					right = n1;
+				if(right) right->addChild(n1);
+				else right = n1;
 
-				if(left)
-					left->addChild(n);
-				else
-					left = n;
+				if(left) left->addChild(n);
+				else left = n;
 			}
 			else
 			{
 				n1->right = n2;
 
-				if(left)
-					left->addChild(n1);
-				else
-					left = n1;
+				if(left) left->addChild(n1);
+				else left = n1;
 
-				if(right)
-					right->addChild(n);
-				else
-					right = n;
+				if(right) right->addChild(n);
+				else right = n;
 			}
 		}
 		else if(i2==i3)
 		{
-			self->intersection(n->self->coord[0],n->self->coord[1],p1,place1);
-			self->intersection(n->self->coord[0],n->self->coord[2],p2,place2);
+			place1 = intersection(n->coord[0],n->coord[1],p1);
+			place2 = intersection(n->coord[0],n->coord[2],p2);
 
 			n->splitNodes(0,1,2,p1,p2,n1,n2,place1,place2);
 
@@ -627,151 +462,63 @@ void BspTree::Node::addChild(Node *n)
 			{
 				n1->left = n2;
 
-				if(right)
-					right->addChild(n1);
-				else
-					right = n1;
+				if(right) right->addChild(n1);
+				else right = n1;
 
-				if(left)
-					left->addChild(n);
-				else
-					left = n;
+				if(left) left->addChild(n);
+				else left = n;
 			}
 			else
 			{
 				n1->right = n2;
 
-				if(left)
-					left->addChild(n1);
-				else
-					left = n1;
+				if(left) left->addChild(n1);
+				else left = n1;
 
-				if(right)
-					right->addChild(n);
-				else
-					right = n;
+				if(right) right->addChild(n);
+				else right = n;
 			}
 		}
+		else assert(0); //MEMORY LEAK?
 	}
 }
 
-int BspTree::Node::render(double *point, Draw &context, int compare)
+std::vector<BspTree::Node*> BspTree::s_recycle;
+int BspTree::s_allocated = 0;
+BspTree::Node *BspTree::Node::get()
 {
-	double d = dot_product(self->norm,point);
-
-	if(d<self->d)
+	if(!s_recycle.empty())
 	{
-		if(right)
-		{
-			compare = right->render(point,context,compare);
-		}
-
-		compare = self->render(context,compare);
-
-		if(left)
-		{
-			compare = left->render(point,context,compare);
-		}
+		Node *n = s_recycle.back();
+		s_recycle.pop_back();
+	//	n->self = nullptr;
+		n->left = nullptr;
+		n->right = nullptr;
+		return n;
 	}
-	else
-	{
-		if(left)
-		{
-			compare = left->render(point,context,compare);
-		}
-
-		compare = self->render(context,compare);
-
-		if(right)
-		{
-			compare = right->render(point,context,compare);
-		}
-	}
-
-	return compare; //2021
+	else return new Node;
 }
-
-void BspTree::Poly::stats()
+void BspTree::Node::release()
 {
-	//log_debug("BspTree::Poly: %d/%d\n",s_recycle.size(),s_allocated);
+	if(left) left->release();
+	
+	//if(self) release();
+	s_recycle.push_back(this);
+	
+	if(right) right->release();
+
+	//s_recycle.push_back(this);
 }
 
-void BspTree::Node::stats()
+int BspTree::flush()
 {
-	//log_debug("BspTree::Node: %d/%d\n",s_recycle.size(),s_allocated);
+	for(auto*ea:s_recycle) delete ea;
+
+	auto ret = s_recycle.size(); s_recycle.clear(); return ret;
 }
 
-int BspTree::Poly::flush()
+void BspTree::stats()
 {
-	int c = 0;
-	std::vector<Poly*>::iterator it = s_recycle.begin();
-	while(it!=s_recycle.end())
-	{
-		delete *it;
-		it++;
-		c++;
-	}
-	s_recycle.clear();
-	return c;
+	log_debug("BspTree::Node: %d/%d\n",s_recycle.size(),s_allocated);
 }
 
-int BspTree::Node::flush()
-{
-	int c = 0;
-	std::vector<Node*>::iterator it = s_recycle.begin();
-	while(it!=s_recycle.end())
-	{
-		delete *it;
-		it++;
-		c++;
-	}
-	s_recycle.clear();
-	return c;
-}
-
-#if 0
-
-int main(int argc,char *argv[])
-{
-	char input[128];
-
-	BspTree tree;
-
-	while(fgets(input,sizeof(input),stdin))
-	{
-		float coord[0][3];
-		float coord[1][3];
-		float coord[2][3];
-
-		if(input[0]=='c')
-		{
-			printf("camera\n");
-			if(sscanf(&input[1],"%f %f %f",
-						&coord[0][0],&coord[0][1],&coord[0][2])==3)
-			{
-				printf("got camera point\n");
-				tree.render(coord[0]);
-			}
-		}
-		else if(sscanf(input,"%f %f %f	%f %f %f	%f %f %f",
-					&coord[0][0],&coord[0][1],&coord[0][2],
-					&coord[1][0],&coord[1][1],&coord[1][2],
-					&coord[2][0],&coord[2][1],&coord[2][2])==9)
-		{
-			Poly *p = Poly::get();
-			printf("read poly: %d\n",p->id);
-			for(int i = 0; i<3; i++)
-			{
-				p->coord[0][i] = coord[0][i];
-				p->coord[1][i] = coord[1][i];
-				p->coord[2][i] = coord[2][i];
-			}
-			p->calculateNormal();
-
-			tree.addPoly(p);
-		}
-	}
-	return 0;
-}
-
-#endif // 0

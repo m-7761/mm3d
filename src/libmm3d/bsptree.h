@@ -41,103 +41,28 @@ public:
 
 		unsigned layers;
 	};
+	struct Node;
+	struct Poly;
 
-	class Poly
-	{
-	public:
-
-		static Poly *get();
-		void release();
-
-		static int flush();
-		static void stats();
-
-		int	id;
-
-		double coord[3][3];
-		double drawNormals[3][3];
-
-		//int texture;
-		//void *material; // Yeah, yeah, I know... it's hackish
-		void *triangle; // Yeah, yeah, I know... it's hackish
-
-		float s[3];	 // texture coordinates
-		float t[3];
-
-		double norm[3];
-		double d;		 // dot product
-
-		void calculateNormal();
-		void calculateD();
-		void intersection(double *p1, double *p2, double *po, float &place);
-
-		//void *render(DrawingContext *context, void *currentMaterial2021);
-		int render(Draw&, int compare);
-
-		void print();
-
-	protected:
-
-		Poly(): id(++s_nextId){ s_allocated++; }; 
-		~Poly(){ s_allocated--; };
-
-		static int s_nextId;
-		static std::vector<Poly*> s_recycle;
-
-		static int s_allocated;
-	};
-
-	class Node
-	{
-	public:
-
-		static Node *get();
-		void release();
-
-		static int flush();
-		static void stats();
-
-		void addChild(Node *n);
-		//void *render(double *point, DrawingContext *context, void *currentMaterial);
-		int render(double *point, Draw&, int compare);
-
-		void splitNodes(int idx1, int idx2, int idx3,
-				double *p1, double *p2,Node *n1, Node *n2,
-				float place1, float place2);
-
-		void splitNode(int idx1, int idx2, int idx3,
-				double *p1, Node *n1, float place);
-
-		Poly *self;
-
-		Node *left;
-		Node *right;
-
-	protected:
-
-		Node(): self(nullptr),left(nullptr),right(nullptr){ s_allocated++; }
-		~Node(){ s_allocated--; }
-
-		static std::vector<Node*> s_recycle;
-
-		static int s_allocated;
-
-	};
-
-	BspTree(): m_root(nullptr){};
+	BspTree():m_root(){};
 	~BspTree(){ clear(); };
 
-	void addPoly(Poly *p);
-	//void render(double *point, DrawingContext *context);
 	void render(double *point, Draw&);
 
+	void addTriangle(Model*m,unsigned);
 	void clear();
-
 	bool empty(){ return !m_root; }
+
+	static int flush();
+	static void stats();
 
 protected:
 
 	Node *m_root;
+
+	static std::vector<Node*> s_recycle;
+
+	static int s_allocated;
 };
 
 #endif // __BSPTREE_H

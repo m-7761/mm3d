@@ -3898,10 +3898,9 @@ void Model::calculateBspTree()
 			{
 				Triangle *triangle = m_triangles[ti];
 				triangle->m_marked = true;
-
-				BspTree::Poly *poly = BspTree::Poly::get();
-					
-				for(int i=0;i<3;i++)
+				/*2022
+				BspTree::Poly *poly = BspTree::Poly::get();					
+				for(int i=3;i-->0;)
 				{
 					poly->coord[0][i] = m_vertices[triangle->m_vertexIndices[0]]->m_absSource[i];
 					poly->coord[1][i] = m_vertices[triangle->m_vertexIndices[1]]->m_absSource[i];
@@ -3911,11 +3910,8 @@ void Model::calculateBspTree()
 					poly->drawNormals[1][i] = triangle->m_normalSource[1][i];
 					poly->drawNormals[2][i] = triangle->m_normalSource[2][i];
 
-					poly->norm[i] = triangle->m_flatSource[i];
-				}
+					//poly->norm[i] = triangle->m_flatSource[i];
 
-				for(int i = 0; i<3; i++)
-				{
 					poly->s[i] = triangle->m_s[i];
 					poly->t[i] = triangle->m_t[i];
 				}
@@ -3923,7 +3919,8 @@ void Model::calculateBspTree()
 				//poly->material = static_cast<void*>(m_materials[index]);
 				poly->triangle = static_cast<void*>(triangle);
 				poly->calculateD();
-				m_bspTree.addPoly(poly);
+				m_bspTree.addPoly(poly);*/
+				m_bspTree.addTriangle(this,ti); //2022
 			}
 		}
 	}
@@ -3964,10 +3961,10 @@ void Model::clearMarkedTriangles()
 
 void model_show_alloc_stats()
 {
-	//log_debug("\n");
-	//log_debug("primitive allocation stats (recycler/total)\n");
+	log_debug("\n");
+	log_debug("primitive allocation stats (recycler/total)\n");
 
-	//log_debug("Model: none/%d\n",model_allocated);
+	log_debug("Model: none/%d\n",model_allocated);
 	Model::Vertex::stats();
 	Model::Triangle::stats();
 	Model::Group::stats();
@@ -3979,14 +3976,13 @@ void model_show_alloc_stats()
 	Model::Animation::stats();
 	Model::FrameAnimVertex::stats();
 //	Model::FrameAnimPoint::stats();
-	BspTree::Poly::stats();
-	BspTree::Node::stats();
-	//log_debug("Textures: none/%d\n",Texture::s_allocated);
-	//log_debug("GlTextures: none/%d\n",Model::s_glTextures);
+	BspTree::stats();
+	log_debug("Textures: none/%d\n",Texture::s_allocated);
+	log_debug("GlTextures: none/%d\n",Model::s_glTextures);
 #ifdef MM3D_EDIT
-	//log_debug("ModelUndo: none/%d\n",ModelUndo::s_allocated);
+	log_debug("ModelUndo: none/%d\n",ModelUndo::s_allocated);
 #endif // MM3D_EDIT
-	//log_debug("\n");
+	log_debug("\n");
 }
 
 int model_free_primitives()
@@ -4004,8 +4000,7 @@ int model_free_primitives()
 	c += Model::Keyframe::flush();
 	//c += Model::SkelAnim::flush();
 	c += Model::Animation::flush();
-	c += BspTree::Poly::flush();
-	c += BspTree::Node::flush();
+	c += BspTree::flush();
 	//c += Model::FrameAnim::flush();
 	c += Model::FrameAnimVertex::flush();
 //	c += Model::FrameAnimPoint::flush();

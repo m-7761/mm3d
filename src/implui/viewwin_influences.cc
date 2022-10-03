@@ -89,6 +89,9 @@ static void viewwin_influences_jointAssignSelectedToJoint(MainWin &model)
 	}
 
 	model->operationComplete(::tr("Assign Selected to Joint"));
+
+	model_status(model,StatusNormal,STATUSTIME_SHORT,
+	::tr("Assigned selected to selected bone joints")); //2022
 }
 
 static void viewwin_influences_jointAutoAssignSelected(MainWin &model)
@@ -119,6 +122,9 @@ static void viewwin_influences_jointRemoveInfluencesFromSelected(MainWin &model)
 	for(auto&i:model.selection) model->removeAllPositionInfluences(i);
 
 	model->operationComplete(::tr("Remove All Influences from Selected"));
+
+	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+	::tr("Removed all influences from selected vertices and points"));
 }
 
 static void viewwin_influences_jointRemoveInfluenceJoint(MainWin &model)
@@ -132,6 +138,9 @@ static void viewwin_influences_jointRemoveInfluenceJoint(MainWin &model)
 			if(j.type==Model::PT_Joint)
 			for(auto i:model.selection) model->removePositionInfluence(i,j);
 		}
+
+		model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+		::tr("Removed influence of bone joint for selected vertices and points"));
 	}
 	else //OLD WAY
 	{
@@ -146,6 +155,9 @@ static void viewwin_influences_jointRemoveInfluenceJoint(MainWin &model)
 			if(j.type==Model::PT_Joint)
 			for(unsigned p=pcount;p-->0;) model->removePointInfluence(p,j);
 		}
+
+		model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+		::tr("Removed all influence of bone joint"));
 	}
 
 	model->operationComplete(::tr("Remove Joint from Influencing"));
@@ -167,6 +179,9 @@ static void viewwin_influences_jointMakeSingleInfluence(MainWin &model)
 				if(b!=joint) model->removePositionInfluence(i,b);
 			}
 		}
+
+		model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+		::tr("Converted selected vertices and points to single influence model (100)"));
 	}
 	else //OLD WAY (OPERATE OVER ENTIRE MODEL?)	
 	{
@@ -188,45 +203,12 @@ static void viewwin_influences_jointMakeSingleInfluence(MainWin &model)
 				if(b!=joint) model->removePointInfluence(p,b);
 			}
 		}
+
+		model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+		::tr("Converted all vertices and points to single influence model (100)"));
 	}
 
 	model->operationComplete(::tr("Convert To Single Influence"));
-}
-
-static void viewwin_influences_jointSelectUnassignedVertices(MainWin &model)
-{
-	model->beginSelectionDifference(); //OVERKILL!
-	model->unselectAllVertices();
-	{
-		for(unsigned v=model->getVertexCount();v-->0;)
-		if(model->getVertexInfluences(v).empty())
-		{
-			model->selectVertex(v);
-		}
-	}
-	model->endSelectionDifference();
-	model->operationComplete(::tr("Select Unassigned Vertices"));
-}
-
-static void viewwin_influences_jointSelectUnassignedPoints(MainWin &model)
-{
-	model->unselectAllPoints();
-	//2020: Assuming a small point count
-	//model->beginSelectionDifference(); //OVERKILL! 
-	{
-		for(unsigned p=model->getPointCount();p-->0;)
-		{
-			//infl_list l;
-			//model->getPointInfluences(p,l);
-			//if(l.empty())
-			if(model->getPointInfluences(p).empty())
-			{
-				model->selectPoint(p);
-			}
-		}
-	}
-	//model->endSelectionDifference();
-	model->operationComplete(::tr("Select Unassigned Points"));
 }
 
 static void viewwin_influences_jointSelectInfluenceJoints(MainWin &model)
@@ -243,6 +225,9 @@ static void viewwin_influences_jointSelectInfluenceJoints(MainWin &model)
 	}
 	//model->endSelectionDifference();
 	model->operationComplete(::tr("Select Joint Influences"));
+
+	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+	::tr("Selected influencing joints"));
 }
 
 static void viewwin_influences_jointSelectInfluencedVertices(MainWin &model)
@@ -265,8 +250,10 @@ static void viewwin_influences_jointSelectInfluencedVertices(MainWin &model)
 	}
 	model->endSelectionDifference();
 	model->operationComplete(::tr("Select Influences Vertices"));
-}
 
+	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+	::tr("Selected influenced vertices"));
+}
 static void viewwin_influences_jointSelectInfluencedPoints(MainWin &model)
 {
 	//2020: Assuming a small point count
@@ -288,6 +275,50 @@ static void viewwin_influences_jointSelectInfluencedPoints(MainWin &model)
 	}
 	//model->endSelectionDifference();
 	model->operationComplete(::tr("Select Influenced Points"));
+
+	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+	::tr("Selected influenced points"));
+}
+
+static void viewwin_influences_jointSelectUnassignedVertices(MainWin &model)
+{
+	model->beginSelectionDifference(); //OVERKILL!
+	model->unselectAllVertices();
+	{
+		for(unsigned v=model->getVertexCount();v-->0;)
+		if(model->getVertexInfluences(v).empty())
+		{
+			model->selectVertex(v);
+		}
+	}
+	model->endSelectionDifference();
+	model->operationComplete(::tr("Select Unassigned Vertices"));
+
+	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+	::tr("Selected all vertices not assigned to bone joints"));
+}
+static void viewwin_influences_jointSelectUnassignedPoints(MainWin &model)
+{
+	model->unselectAllPoints();
+	//2020: Assuming a small point count
+	//model->beginSelectionDifference(); //OVERKILL! 
+	{
+		for(unsigned p=model->getPointCount();p-->0;)
+		{
+			//infl_list l;
+			//model->getPointInfluences(p,l);
+			//if(l.empty())
+			if(model->getPointInfluences(p).empty())
+			{
+				model->selectPoint(p);
+			}
+		}
+	}
+	//model->endSelectionDifference();
+	model->operationComplete(::tr("Select Unassigned Points"));
+
+	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+	::tr("Selected all points not assigned to bone joints"));
 }
 
 extern void viewwin_influences(MainWin &model, int id)
@@ -326,20 +357,24 @@ extern void viewwin_influences(MainWin &model, int id)
 
 	case id_joint_select_verts_of: 
 		
+		if(!model.nselection[Model::PT_Joint]) //Reuse hotkey?
+		goto free_verts;
 		viewwin_influences_jointSelectInfluencedVertices(model);
 		break;
 
 	case id_joint_select_points_of: 
 		
+		if(!model.nselection[Model::PT_Joint]) //Reuse hotkey?
+		goto free_points;
 		viewwin_influences_jointSelectInfluencedPoints(model);
 		break;
 
-	case id_joint_unnassigned_verts:
+	case id_joint_unnassigned_verts: free_verts:
 		
 		viewwin_influences_jointSelectUnassignedVertices(model);
 		break;
 
-	case id_joint_unnassigned_points:
+	case id_joint_unnassigned_points: free_points:
 		
 		viewwin_influences_jointSelectUnassignedPoints(model);
 		break;

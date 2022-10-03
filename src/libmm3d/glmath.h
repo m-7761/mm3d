@@ -374,4 +374,27 @@ static T *delta3(T *result, const T *a, const T *b)
 	result[2] = a[2]-b[2]; return result;
 }
 
+template<typename T> //2022
+static T *lerp3(T *result, const T *a, const T *b, T t)
+{
+	for(int i=3;i-->0;)
+	result[i] = a[i]+(b[i]-a[i])*t; return result;
+}
+template<typename T> //2022
+static T *lerp2(T *result, const T *a, const T *b, T t)
+{
+	for(int i=2;i-->0;)
+	result[i] = a[i]+(b[i]-a[i])*t; return result;
+}
+template<typename T> //2022
+static T lerp(const T &a, const T &b, float t)
+{
+	return a+(b-a)*(T)t;
+}
+template<typename T> //2022
+static T lerp(const T &a, const T &b, double t)
+{
+	return a+(b-a)*(T)t;
+}
+
 #endif // __GLMATH_H

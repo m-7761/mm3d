@@ -532,6 +532,11 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(E(view_layer_2,"Layer 2","","Shift+F2"));
 		glutAddMenuEntry(E(view_layer_3,"Layer 3","","Shift+F3"));
 		glutAddMenuEntry(E(view_layer_4,"Layer 4","","Shift+F4"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(E(view_layer_lower,"Lower","","Alt+Left"));
+		glutAddMenuEntry(E(view_layer_lower_all,"Lower All","","Shift+Alt+Left"));
+		glutAddMenuEntry(E(view_layer_raise,"Raise","","Alt+Right"));
+		glutAddMenuEntry(E(view_layer_raise_all,"Raise All","","Shift+Alt+Right"));
 
 		int overlays = glutCreateMenu(viewwin_menubarfunc);
 		glutAddMenuEntry(E(view_overlay,"Viewing","","Ctrl+O"));		
@@ -876,20 +881,22 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry();	
 
 		int sel = glutCreateMenu(viewwin_menubarfunc);
-	glutAddMenuEntry(E(joint_select_bones_of,"Select Joint Influences","Joints|Select Joint Influences")); 
-	glutAddMenuEntry(E(joint_select_verts_of,"Select Influenced Vertices","Joints|Select Influenced Vertices")); 	
-	glutAddMenuEntry(E(joint_select_points_of,"Select Influenced Points","Joints|Select Influenced Points")); 
-	glutAddMenuEntry(E(joint_unnassigned_verts,"Select Unassigned Vertices","Joints|Select Unassigned Vertices")); 
-	glutAddMenuEntry(E(joint_unnassigned_points,"Select Unassigned Points","Joints|Select Unassigned Points")); 
+	glutAddMenuEntry(E(joint_select_bones_of,"Select Joint Influences","Joints|Select Joint Influences","Shift+J")); 
+	glutAddMenuEntry();
+	glutAddMenuEntry(E(joint_select_verts_of,"Select Influenced Vertices","Joints|Select Influenced Vertices","Shift+Alt+V")); 	
+	glutAddMenuEntry(E(joint_select_points_of,"Select Influenced Points","Joints|Select Influenced Points","Shift+Alt+O")); 
+	glutAddMenuEntry();
+	glutAddMenuEntry(E(joint_unnassigned_verts,"Select Unassigned Vertices","Joints|Select Unassigned Vertices","Shift+Ctrl+F")); 
+	glutAddMenuEntry(E(joint_unnassigned_points,"Select Unassigned Points","Joints|Select Unassigned Points","Shift+Alt+F")); 
 		glutSetMenu(viewwin_infl_menu);
 		glutAddSubMenu(::tr("Select","Tool"),sel);
 
 	glutAddMenuEntry();	
-	glutAddMenuEntry(E(joint_remove_bones,"Remove All Influences from Selected","Joints|Remove All Influences from Selected")); 
-	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influencing","Joints|Remove Selected Joint from Influencing")); 
-	glutAddMenuEntry(E(joint_simplify,"Convert Multiple Influences to Single","Joints|Convert Multiple Influences to Single"));		
+	glutAddMenuEntry(E(joint_simplify,"Convert Multi-Influenced to Single","Joints|Convert Multiple Influences to Single","Shift+I"));		
+	glutAddMenuEntry(E(joint_remove_bones,"Remove All Influences from Selected","Joints|Remove All Influences from Selected","Shift+Alt+I")); 
+	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influenced","Joints|Remove Selected Joint from Influencing","Shift+Alt+J")); 
 	glutAddMenuEntry();	
-	glutAddMenuEntry(E(joint_draw_bone,"Apply Alternative Appearance to Bone","","Shift+Alt+B")); 
+	glutAddMenuEntry(E(joint_draw_bone,"Apply Alternative Appearance to Bones","","Shift+Alt+B")); 
 	//IMPLEMENT ME
 	//REMINDER: animation mode works differently (should they be standardized?)
 	//glutAddMenuEntry(E(joint_lock_bone,"Articulate Bone Independent of Parent","","Shift+I")); 
@@ -1859,9 +1866,29 @@ void MainWin::perform_menu_action(int id)
 		id-=id_view_layer_0;
 		for(int i=w->views.viewsN;i-->0;)
 		w->views.ports[i].setLayer(id);
+		layer_next:
 		model_status(model,StatusNormal,STATUSTIME_SHORT,
 		id?::tr("Layer %d"): ::tr("Hidden layer"),id);
 		break;
+
+	case id_view_layer_lower_all:
+	case id_view_layer_raise_all:
+
+		id = id==id_view_layer_lower_all?-1:1;
+		id+=w->views->layer.int_val();
+		if(id<0) id = 4;
+		if(id>4) id = 0;
+		return perform_menu_action(id_view_layer_0+id);
+
+	case id_view_layer_lower:
+	case id_view_layer_raise:
+
+		id = id==id_view_layer_lower?-1:1;
+		id+=w->views->layer.int_val();
+		if(id<0) id = 4;
+		if(id>4) id = 0;
+		w->views->port.setLayer(id);
+		goto layer_next;
 
 	case id_view_overlay:
 
@@ -2357,6 +2384,8 @@ void MainWin::perform_menu_action(int id)
 			#endif
 			//m->setSaved(false); //Doesn't do anything?
 		}
+		model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
+		::tr("Changed appearance of selected bone joints"));
 		break;
 
 	case id_animate_settings: 
