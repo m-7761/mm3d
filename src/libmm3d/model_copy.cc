@@ -154,7 +154,7 @@ Model *Model::copySelected(bool animated)const
 		{
 			switch(getMaterialType(t))
 			{
-			case Model::Material::MATTYPE_TEXTURE:
+			case Model::MATTYPE_TEXTURE:
 			{
 				Texture *tex = TextureManager::getInstance()->getTexture(getTextureFilename(t));
 				int num = m->addTexture(tex);
@@ -163,7 +163,7 @@ Model *Model::copySelected(bool animated)const
 			}			
 			default:
 				log_error("Unknown material type %d in duplicate\n",getMaterialType(t));
-			case Model::Material::MATTYPE_BLANK:
+			case Model::MATTYPE_BLANK:
 				m->addColorMaterial(getTextureName(t));
 				break;
 			}

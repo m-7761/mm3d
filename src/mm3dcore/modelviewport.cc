@@ -223,6 +223,7 @@ static int modelviewport_opts(int drawMode)
 	return o;
 }
 
+static bool modelviewport_offset_1 = false;
 void ModelViewport::draw(int x, int y, int w, int h)
 {	
 	if(1) //Parent::initializeGL(parent->getModel());
@@ -587,10 +588,25 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		glEnable(GL_LIGHTING);
 		glEnable(GL_LIGHT0);
 	
-		if(poffset&&drawSelections)
+		//2022: With cuts in the polygons GL_LEQUAL
+		//isn't cutting it. Note, I'm not sure that
+		//all hardware allows for -1, but the alpha 
+		//blend mode is nonessential.
+		//if(poffset&&drawSelections)
+		if(poffset&&(modelviewport_offset_1||drawSelections))
 		{
 			glEnable(GL_POLYGON_OFFSET_FILL);
-			glPolygonOffset(1,1);
+
+			//NOTE: This obscures lines, however in
+			//alpha modes triangle selection isn't
+			//highlighted either, so it's more just
+			//for preview.			
+			//NOTE: in drawSelections mode no offset
+			//is viable but it makes lines dotted and
+			//that's not so bad when it's even, but
+			//it isn't always even, and it may depend
+			//on the hardware
+			glPolygonOffset(modelviewport_offset_1?-1.0f:1.0f,1);
 		}
 
 		//there are some grid artifacts but this
@@ -2075,6 +2091,10 @@ ModelViewport::Parent::Parent()
 
 void ModelViewport::Parent::initializeGL(Model *m)
 {		
+	glGetError(); //Clear?
+	glPolygonOffset(-1,1);
+	modelviewport_offset_1 = !glGetError();
+
 	//NOTE: ViewPanel calls initializeGL to initialize its OpenGL context.
 	//Ideally ViewPanel is a thin UI class. This gets some code out of it. 
 

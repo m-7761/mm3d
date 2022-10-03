@@ -32,6 +32,41 @@
 #include "modelundo.h"
 #endif // MM3D_EDIT
 
+infl_list &Model::getVertexInfluences(unsigned vertex) //NEW
+{		
+	return m_vertices[vertex]->m_influences;
+}
+infl_list &Model::getPointInfluences(unsigned point) //NEW
+{
+	return m_points[point]->m_influences;
+}
+infl_list *Model::getPositionInfluences(const Position &pos) //NEW
+{
+	switch(pos.type)
+	{
+	case PT_Vertex: return &getVertexInfluences(pos.index);			
+	case PT_Point: return &getPointInfluences(pos.index);
+	}
+	return nullptr;
+}
+const infl_list &Model::getVertexInfluences(unsigned vertex)const //NEW 
+{		
+	return m_vertices[vertex]->m_influences;
+}
+const infl_list &Model::getPointInfluences(unsigned point)const //NEW 
+{
+	return m_points[point]->m_influences;
+}
+const infl_list *Model::getPositionInfluences(const Position &pos)const //NEW
+{
+	switch(pos.type)
+	{
+	case PT_Vertex: return &getVertexInfluences(pos.index);
+	case PT_Point: return &getPointInfluences(pos.index);
+	}
+	return nullptr;
+}
+
 bool Model::setPositionBoneJoint(const Position &pos, int joint)
 {
 	removeAllPositionInfluences(pos);

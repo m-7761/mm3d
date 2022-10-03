@@ -465,7 +465,7 @@ bool ObjFilter::writeMaterials()
 			m_model->getTextureAmbient(m,fval);
 			writeStripped("\tKa %f %f %f",fval[0],fval[1],fval[2]);
 
-			if(m_model->getMaterialType(m)==Model::Material::MATTYPE_TEXTURE)
+			if(m_model->getMaterialType(m)==Model::MATTYPE_TEXTURE)
 			{
 				std::string filename = getRelativePath(m_modelPath.c_str(),m_model->getTextureFilename(m));
 				//char *filecpy = strdup(filename.c_str());
@@ -662,13 +662,13 @@ void ObjFilter::addObjMaterial(ObjMaterial *objmat)
 	{
 		Model::Material *mat = Model::Material::get();
 
-		mat->m_type	  = Model::Material::MATTYPE_BLANK;
+		mat->m_type	  = Model::MATTYPE_BLANK;
 		mat->m_name	  = objmat->name;
 		mat->m_filename = objmat->textureMap;
 
 		if(!mat->m_filename.empty())
 		{
-			mat->m_type = Model::Material::MATTYPE_TEXTURE;
+			mat->m_type = Model::MATTYPE_TEXTURE;
 		}
 
 		for(int t=0;t<4;t++)

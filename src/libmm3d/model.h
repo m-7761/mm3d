@@ -28,7 +28,6 @@
 
 #include "glheaders.h"
 #include "glmath.h"
-#include "bsptree.h"
 #include "drawcontext.h"
 #include "sorted_list.h"
 #include "texture.h"
@@ -375,361 +374,45 @@ public:
 		InterpolantRotation = 1, //KeyRotate>>1
 		InterpolantScale = 2, //KeyScale>>1 
 	};
-				
-	// Describes the position and normal for a vertex in a frame animation.
-	class FrameAnimVertex
-	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static FrameAnimVertex *get();
-		void release();
-		void sprint(std::string &dest);
-
-		double m_coord[3];
-	//	double m_normal[3]; //https://github.com/zturtleman/mm3d/issues/109
-
-		Interpolate2020E m_interp2020;
-
-		bool propEqual(const FrameAnimVertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const FrameAnimVertex &rhs)const{ return propEqual(rhs); }
-
-		//This is standard lerp as implemented by interpKeyframe. z can equal x or y.
-		static void lerp(const double x[3], const double y[3], double t, double z[3]);
-
-	protected:
-		FrameAnimVertex(),~FrameAnimVertex();
-		void init();
-
-		static std::vector<FrameAnimVertex*> s_recycle;
-		static int s_allocated;
-	};
-
-	typedef std::vector<FrameAnimVertex*> FrameAnimVertexList;
 		
-	struct _OrderedSelection //EXPERIMENTAL
-	{
-		//2022: This is a helper to implement PolyTool.
+	struct _OrderedSelection; //EXPERIMENTAL
+	
+	struct Visible2022;
 
-	//	static unsigned _op;
-		unsigned _select_op;
-		operator bool()const{ return _select_op!=0; }
-		bool operator=(bool s){ _select_op=s?_op:0; return s; }
-
-	//REMOVE ME //begin/endSelectionDifference?
-
-		union Marker //mutable 
-		{
-			bool _bool; unsigned _op;
-
-			operator bool&(){ return _bool; }
-
-			void operator=(bool m){ _bool = m; } //C++
-			void operator=(_OrderedSelection &s){ _op = s._select_op; }
-			bool operator!=(_OrderedSelection &s){ return _op!=s._select_op; }
-			bool operator==(_OrderedSelection &s){ return _op==s._select_op; }
-		};
-		bool operator!=(Marker &m){ return m._op!=_select_op; }
-		bool operator==(Marker &m){ return m._op==_select_op; }
-	};
-
-	class Visible2022
-	{
-	public:
-
-		uint8_t m_layer;
-
-		//bool m_visible;
-		union{ uint8_t m_visible1:1,m_visible2; };
-
-		bool visible(unsigned layers)const
-		{
-			return 0!=(m_visible2&layers); 
-		}
-
-		void init(){ m_layer = 1; m_visible2 = 2; }
-				
-		bool hidden(unsigned layers)const
-		{
-			return m_visible1&&(1<<m_layer)&layers;
-		}
-		void hide(unsigned layer=0)const
-		{
-			if(layer) const_cast<uint8_t&>(m_layer) = layer; 
-			
-			const_cast<Visible2022*>(this)->m_visible2 = 1<<layer;
-		}
-		void unhide(){ m_visible2 = 1<<m_layer; }
-
-		bool hide_difference(unsigned layer=0)const
-		{
-			return (layer&&m_layer!=layer)||m_visible2!=1<<layer;
-		}
-	};
-
-	// A triangle represents faces in the model. All faces are triangles.
-	// The vertices the triangle is attached to are in m_vertexIndices.
-	class Triangle : public Visible2022
-	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Triangle *get(unsigned layer);
-		void release();
-		void sprint(std::string &dest);
-
-		unsigned m_vertexIndices[3];
-
-		// Texture coordinate 0,0 is in the lower left corner of
-		// the texture.
-		float m_s[3];  // Horizontal,one for each vertex.
-		float m_t[3];  // Vertical,one for each vertex.
-
-		double m_finalNormals[3][3];	 // Final normals to draw
-	//	double m_vertexNormals[3][3];	// Normals blended for each face attached to the vertex
-		double m_flatNormal[3];		  // Normal for this triangle
-		double m_vertAngles[3];			// Angle of vertices
-		double m_kfFlatNormal[3];		// Flat normal, rotated relative to the animating bone joints
-		double m_kfNormals[3][3];		 // Final normals, rotated relative to the animating bone joints
-		double m_kfVertAngles[3];
-		//Can these be one pointer?
-		double *m_flatSource;			 // Either m_flatNormal or m_kfFlatNormal
-		double *m_normalSource[3];	  // Either m_finalNormals or m_kfNormals
-		double *m_angleSource;			 // Either m_vertAngles or m_kfVertAngles				
-		//bool m_visible;		
-		mutable bool m_selected;
-		mutable bool m_marked;
-		mutable bool m_marked2;
-		mutable bool m_userMarked;
-
-		mutable int m_user; //2020: associate an index with a pointer
-
-		int	m_projection;  // Index of texture projection (-1 for none)
-
-		int m_group; //2022
-
-		bool propEqual(const Triangle &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Triangle &rhs)const{ return propEqual(rhs); }
-
-		void _source(AnimationModeE);
-
-		//NOTE: Flat is a "degenerated" triangle by virtue of 
-		//its indices alone. See too deleteFlattenedTriangles.
-		bool _flattened()const
-		{
-			auto *tv = m_vertexIndices; 
-			return tv[0]==tv[1]||tv[0]==tv[2]||tv[1]==tv[2];
-		}
-
-	protected:
-		Triangle(),~Triangle();
-		void init();
-
-		static std::vector<Triangle*> s_recycle;
-		static int s_allocated;
-	};
+	class Triangle;
+	class Vertex;
+	class Group;
 
 	typedef std::pair<Triangle*,unsigned> Face;
 
-	// A vertex defines a polygon corner. The position is in m_coord.
-	// All triangles in all groups (meshes)references triangles from this
-	// one list.
-	class Vertex : public Visible2022
+	class Material;
+	enum MaterialTypeE
 	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Vertex *get(unsigned layer, AnimationModeE);
-		void release();
-		void releaseData(); //2020 ???
-		void sprint(std::string &dest);
-
-		double m_coord[3];	  // Absolute vertex location
-		double m_kfCoord[3];	// Animated position
-		double *m_absSource;  // Points to m_coord or m_kfCoord for drawing
-		//mutable bool m_selected;
-		mutable _OrderedSelection m_selected;		
-		//mutable bool m_marked;
-		mutable _OrderedSelection::Marker m_marked;
-		mutable bool m_marked2;
-		//bool m_visible;
-		
-		unsigned getOrderOfSelection()const
-		{
-			return m_selected._select_op; 
-		}
-		static bool &getOrderOfSelectionCCW()
-		{
-			return Model::_op_ccw;
-		}
-
-		// If m_free is false, the vertex will be implicitly deleted when
-		// all faces using it are deleted
-		//bool	m_free;
+		MATTYPE_TEXTURE  =  0,  // Texture mapped material
+		MATTYPE_BLANK	 =  1,  // Blank texture, lighting only
+		MATTYPE_Max		=  2	 // For convenience
+	//	MATTYPE_COLOR	 =  2,  // Unused
+	//	MATTYPE_GRADIENT =  3,  // Unused
+	//	MATTYPE_Max	 =  4	 // For convenience			
+	};			
 				
-		// List of bone joints that move the vertex in skeletal animations.
-		infl_list m_influences;
+	struct Object2020;
+	class Joint;
+	class Point;
+	class TextureProjection;	
+	class BackgroundImage;
 
-		//Each of these is a triangle and the index held by this vertex in
-		//that triangle is encoded in the two bits
-		//NOTE: Hoping "small string optimization" is in play for vertices
-		//that don't touch many triangles, but the terminator wastes space
-		//In that case 4 probably allocates memory
-		//https://github.com/zturtleman/mm3d/issues/109
-		//Can't be stored as indices.
-		//std::basic_string<unsigned> m_faces;
-		std::vector<Face> m_faces;
-		void _erase_face(Triangle*,unsigned);
+	class Animation; //2020
+	class FrameAnimVertex;
+	class Keyframe;
 
-		//This change enables editing a model having vertex animation data
-		//https://github.com/zturtleman/mm3d/issues/87
-		FrameAnimVertexList m_frames;
+	typedef std::vector<FrameAnimVertex*> FrameAnimVertexList;
 
-		bool propEqual(const Vertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Vertex &rhs)const{ return propEqual(rhs); }
-
-		void _source(AnimationModeE),_resample(Model&,unsigned);
-
-	protected:
-		Vertex(),~Vertex();
-		void init();
-
-		static std::vector<Vertex*> s_recycle;
-		static int s_allocated;
-	};
-
-	class Utility;
-
-	// Group of triangles. All triangles in a group share a material (if one
-	// is assigned to the Group). Vertices assigned to the triangles may
-	// be shared between triangles in different groups. You can change how
-	// normals are blended by modifying m_angle and m_smooth.
-	class Group
-	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Group *get();
-		void release();
-		void sprint(std::string &dest);
-
-		std::string m_name;
-		int m_materialIndex;	 // Material index (-1 for none)
-
-		//FIX ME (TEST ME)
-		//Draw code is order-independent. 
-		//std::set<int> m_triangleIndices;  // List of triangles in this group
-		//std::unordered_set<int> m_triangleIndices;  // List of triangles in this group
-		int_list m_triangleIndices;
-
-		// Percentage of blending between flat normals and smooth normals
-		// 0 = 0%,255 = 100%
-		uint8_t m_smooth;
-
-		// Maximum angle around which triangle normals will be blended
-		// (ie,if m_angle = 90,triangles with an edge that forms an
-		// angle greater than 90 will not be blended).
-		uint8_t m_angle;
-
-		mutable bool m_selected;
-	//	bool m_visible; //UNUSED
-		mutable bool m_marked;
-
-		bool propEqual(const Group &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Group &rhs)const{ return propEqual(rhs); }
-
-		std::vector<Utility*> m_utils; //2022
-
-		bool _assoc_util(Utility*, bool how);
-
-	protected:
-		Group(),~Group();
-		void init();
-
-		static std::vector<Group*> s_recycle;
-		static int s_allocated;
-	};
-
-	// The Material defines how lighting is reflected off of triangles and
-	// may include a texture map.
-	class Material
-	{
-	public:
-
-		enum MaterialTypeE
-		{
-			MATTYPE_TEXTURE  =  0,  // Texture mapped material
-			MATTYPE_BLANK	 =  1,  // Blank texture, lighting only
-			MATTYPE_Max		=  2	 // For convenience
-		//	MATTYPE_COLOR	 =  2,  // Unused
-		//	MATTYPE_GRADIENT =  3,  // Unused
-		//	MATTYPE_Max	 =  4	 // For convenience			
-		};
-
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Material *get();
-		void release();
-		void sprint(std::string &dest);
-
-		std::string	m_name;
-		MaterialTypeE m_type;			// See MaterialTypeE above
-
-		// Lighting values (RGBA,0.0 to 1.0)
-		float m_ambient[4];
-		float m_diffuse[4];
-		float m_specular[4];
-		float m_emissive[4];
-
-		// Lighting value 0 to 100.0
-		float m_shininess;
-
-		// The clamp properties determine if the texture map wraps when crossing
-		// the 0.0 or 1.0 boundary (false)or if the pixels along the edge are
-		// used for coordinates outside the 0.0-1.0 limits (true).
-		bool m_sClamp;  // horizontal wrap/clamp
-		bool m_tClamp;  // vertical wrap/clamp
-
-		bool m_accumulate; //2021: standard "additive" blend model
-
-		// Open GL texture index (not actually used in model editing
-		// viewports since each viewport needs its own texture index)
-		GLuint m_texture;
-
-		std::string	m_filename;		 // Absolute path to texture file (for MATTYPE_TEXTURE)
-		std::string	m_alphaFilename;  // Unused (ms3dfilter.cc)
-		Texture *m_textureData;	 // Texture data (for MATTYPE_TEXTURE)
-
-		bool propEqual(const Material &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Material &rhs)const{ return propEqual(rhs); }
-
-		//2021: model_draw.cc was only considering RGBA textures
-		bool needsAlpha() 
-		{
-			//Note, glMaterial docs say only diffuse alpha matters
-			return m_accumulate||m_diffuse[3]!=1.0f
-			||m_type==MATTYPE_TEXTURE //m_textureData?
-			&&m_textureData->m_format==Texture::FORMAT_RGBA;
-		}
-
-	protected:
-		Material(),~Material();
-		void init();
-
-		static std::vector<Material*> s_recycle;
-		static int s_allocated;
-	};
-				
+	// TODO: Probably should use a map for the KeyframeList
+	typedef sorted_ptr_list<Keyframe*> KeyframeList;		
+	//typedef std::vector<KeyframeList> ObjectKeyframeList;
+	typedef std::unordered_map<Position,KeyframeList,Position::hash> ObjectKeyframeList;
+			
 	enum KeyType2020E
 	{
 		KeyAny = -1,
@@ -748,69 +431,7 @@ public:
 		KM_Joint = 1<<PT_Joint,
 		KM_Point = 1<<PT_Point,
 	};
-	// A keyframe for a single joint in a single frame. Keyframes may be rotation or 
-	// translation (you can set one without setting the other).
-	class Keyframe
-	{
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Keyframe *get();
-
-		void release();
-		void sprint(std::string &dest);
-
-		Position m_objectIndex; // Joint that this keyframe affects
-							//on a per frame basis and frame numbers are implicit.
-		unsigned m_frame;	 // Frame number for this keyframe
-
-//		double m_time;	// Time for this keyframe in seconds
-
-		double m_parameter[3];  // Translation or rotation (radians), see m_isRotation
-
-		//bool m_isRotation;
-		KeyType2020E m_isRotation;	 // Indicates if m_parameter describes rotation (true) or translation (false)
-
-		Interpolate2020E m_interp2020;
-
-		mutable bool m_selected[4]; //graph.cc
-
-		//CAREFUL: This doesn't work with bitwise combinations of KeyType2020E.
-		bool operator<(const Keyframe &rhs)const
-		{
-			return m_frame!=rhs.m_frame?m_frame<rhs.m_frame:m_isRotation<rhs.m_isRotation;
-		}
-		bool operator==(const Keyframe &rhs)const
-		{
-			return m_frame==rhs.m_frame&&m_isRotation&rhs.m_isRotation;
-		}
-		bool propEqual(const Keyframe &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-
-		//This is standard lerp as implemented by interpKeyframe. z can equal x or y.
-		static void lerp(const double x[3], const double y[3], double t, double z[3]);
-		//This is the quaternion form of lerp. It may not actually be "slerp" but it's
-		//named this way to avoid overloading lerp. It has the same semantics as lerp.
-		static void slerp(const double x[4], const double y[4], double t, double z[4]); 
-
-//	protected:
-
-		Keyframe(),~Keyframe();
-
-	protected:
-
-		void init(); //UNUSED (NOP)
-
-		static std::vector<Keyframe*> s_recycle;
-		static int s_allocated;
-	};
 	
-	// TODO: Probably should use a map for the KeyframeList
-	typedef sorted_ptr_list<Keyframe*> KeyframeList;		
-	//typedef std::vector<KeyframeList> ObjectKeyframeList;
-	typedef std::unordered_map<Position,KeyframeList,Position::hash> ObjectKeyframeList;
-
 	struct KeyframeGraph //graphs.cc
 	{
 		float size;
@@ -819,296 +440,7 @@ public:
 
 		KeyframeGraph():size(1){}
 	};
-				
-	struct Object2020 : public Visible2022 //RENAME ME
-	{
-		//https://github.com/zturtleman/mm3d/issues/114
-		
-		std::string m_name;
-
-		//NOTE: calculateAnim assumes stored back-to-back.
-		double m_abs[3]; //Absolute position
-		double m_rot[3]; //Relative rotation
-		double m_xyz[3]; //Nonunimform scale
-
-		double *m_absSource; //Absolute position
-		double *m_rotSource; //Relative rotation
-		double *m_xyzSource; //Nonunimform scale
-		double(*_sources()const)[3]
-		{
-			return (double(*)[3])&m_absSource;
-		}
-
-		Matrix getMatrix()const;
-		Matrix getMatrixUnanimated()const;
-
-		mutable bool m_selected;
-
-		PositionTypeE m_type; //getParams
-
-		//WARNING: Return relative values for keyframes
-		const double *getParams(Interpolant2020E)const;
-		const double *getParamsUnanimated(Interpolant2020E)const;
-		void getParams(double abs[3], double rot[3], double xyz[3])const;
-
-	protected:
-
-		void init(PositionTypeE t);
-	};
-
-	// A bone joint in the skeletal structure,used for skeletal animations.
-	// When a vertex or point is assigned to one or more bone joints with a specified
-	// weight,the joint is referred to as an Influence.
-	class Joint : public Object2020
-	{
-	public:
-
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Joint *get(unsigned layer,AnimationModeE);
-		void release();
-		void sprint(std::string &dest);
-			
-		//2020: This is complicated because historically
-		//getPositionCoords, etc. works in absolute coordinates
-		//for translation but not rotation.
-		//double m_localRotation[3];     // Rotation relative to parent joint (or origin if no parent)
-		//double m_localTranslation[3];  // Translation relative to parent joint (or origin if no parent)
-		//TODO: Computable?
-		double m_rel[3];
-		double m_kfRel[3];
-		//m_rotSource COMPAT			
-		double m_kfRot[3];
-		double m_kfXyz[3];
-		//MEMORY OPTIMIZATION
-		double *m_kfAbs(){ return m_final.getVector(3); }
-
-		Matrix m_absolute;  // Absolute matrix for the joint's original position and orientation
-		Matrix m_relative;  // Matrix relative to parent joint
-		Matrix m_final;	  // Final animated absolute position for bone joint
-
-		int m_parent;  // Parent joint index (-1 for no parent)
-
-		//bool m_selected;		
-		mutable bool m_marked;
-		//bool m_visible;
-		
-		//2020 (drawJoints)
-		//TODO: Needs Undo objects. Remove it mutable status.
-		mutable bool m_bone;
-
-		//TODO: If Euler angles are easily inverted it makes
-		//more sense to just calculate m_inv in validateSkel.
-		int _dirty_mask;
-		Matrix _dirty_mats[3];
-		Matrix &getAbsoluteInverse() //2020
-		{
-			if(_dirty_mask&1)
-			{
-				_dirty_mask&=~1;
-				_dirty_mats[0] = m_absolute.getInverse();
-			}
-			return _dirty_mats[0];
-		}
-		Matrix &getSkinMatrix() //2021
-		{
-			if(_dirty_mask&2)
-			{
-				_dirty_mask&=~2;
-				_dirty_mats[1] = getAbsoluteInverse()*m_final;
-			}
-			return _dirty_mats[1];
-		}
-		Matrix &getSkinverseMatrix() //2021
-		{
-			if(_dirty_mask&4)
-			{
-				_dirty_mask&=~4;
-				_dirty_mats[2] = getSkinMatrix().getInverse();
-			}
-			return _dirty_mats[2];
-		}
-
-		mutable KeyframeGraph _reference; //graphs.cc
-
-		bool propEqual(const Joint &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Joint &rhs)const{ return propEqual(rhs); }
-
-		void _source(AnimationModeE);
-
-	protected:
-
-		Joint(),~Joint();
-		void init();
-
-		static std::vector<Joint*> s_recycle;
-		static int s_allocated;
-	};
-
-	class Point : public Object2020
-	{
-	public:
-
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Point *get(unsigned layer,AnimationModeE);
-		void release();
-		void sprint(std::string &dest);
 	
-		//UNUSED: Note old MM3D files have garbage written to this field
-		//since the MM3DFILE_PointT wasn't zero-initalized.
-		//int m_type;
-
-		//double m_trans[3];    // Position
-        //double m_rot[3];      // Rotation
-
-		//NOTE: calculateAnim assumes stored back-to-back.
-		double m_kfAbs[3];  // Animated position
-		double m_kfRot[3];	 // Animated rotation
-		double m_kfXyz[3]; // Animated scale
-
-		// These pointers point to the unanimated or animated properties
-		// depending on whether or not the model is animated when it is drawn.
-		//double *m_absSource;  // m_abs or m_kfAbs
-		//double *m_rotSource;	// m_rot or m_kfRot
-
-		//bool m_selected;
-		mutable bool m_marked;
-		//bool m_visible;
-		
-		// List of bone joints that move the point in skeletal animations.
-		infl_list m_influences;
-
-		mutable KeyframeGraph _reference; //graphs.cc
-
-		void _resample(Model&,unsigned); //2020
-
-		bool propEqual(const Point &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Point &rhs)const{ return propEqual(rhs); }
-
-		void _source(AnimationModeE);
-
-	protected:
-
-		Point(),~Point();
-		void init();
-
-		static std::vector<Point*> s_recycle;
-		static int s_allocated;
-	};
-
-	// A TextureProjection is used automatically map texture coordinates to a group
-	// of vertices. Common projection types are Sphere,Cylinder,and Plane.
-	class TextureProjection : public Object2020
-	{
-	public:
-
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static void stats();
-		static TextureProjection *get();
-		void release();
-		void sprint(std::string &dest);
-
-		int m_type;				// See TextureProjectionTypeE
-			
-		//double m_abs[3];
-
-		//Object2020 makes these fields editor friendly.
-		//https://github.com/zturtleman/mm3d/issues/114
-		//double m_upVec[3];	  // Vector that defines "up" for this projection
-		//double m_seamVec[3];	// Vector that indicates where the texture wraps from 1.0 back to 0.0
-
-		double m_range[2][2];  // min/max,x/y
-
-		//bool m_selected;
-		mutable bool m_marked;
-
-		bool propEqual(const TextureProjection &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const TextureProjection &rhs)const{ return propEqual(rhs); }
-
-	protected:
-
-		TextureProjection(),~TextureProjection();
-		void init();
-
-		static int s_allocated;
-	};
-
-	class Animation //2020
-	{
-	public:
-
-		int _type; //AnimationModeE
-
-		std::string m_name;
-
-		ObjectKeyframeList m_keyframes;
-
-		double m_fps;  // Frames per second
-		bool m_wrap; // Whether or not the animation uses wraparound keyframe interpotion
-
-		//https://github.com/zturtleman/mm3d/issues/106
-		//Usually use _time_frame() to access this 
-		//If -1 (less than 0) m_timetable2020.size is used
-		//to support older MM3D files that didn't have any
-		//timestamps
-		double m_frame2020;
-		std::vector<double> m_timetable2020;
-
-		//UPDATE: Since mode 3 is added this is ~0 for animations without 
-		//vertex data. If ~m_frame0 is 0 it must be left alone.
-		// Each element in m_frameData is one frame. The frames hold lists of
-		// all vertex positions and point positions.
-		//FrameAnimDataList m_frameData;
-		unsigned m_frame0;
-			
-		size_t _frame_count()const
-		{
-			return m_timetable2020.size(); 
-		}
-		double _time_frame()const //REMOVE ME
-		{
-			//TODO: this workaround can be retired if legacy
-			//loaders did setAnimTimeFrame(frames)
-			//return m_frame2020>=0?m_frame2020:_frame_count();			
-			return m_frame2020; //2022
-		}
-		double _frame_time(unsigned frame)const
-		{
-			return frame<_frame_count()?m_timetable2020[frame]:0;
-		}
-		unsigned _frame0(Model *m)const
-		{
-			if(0==~m_frame0) m->_anim_valloc(this); return m_frame0;
-		}
-
-		mutable bool_list m_selected_frames; //graph.cc
-						
-		bool propEqual(const Animation &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const Animation &rhs)const{ return propEqual(rhs); }
-
-	public:
-		static int flush();
-		static int allocated(){ return s_allocated; }
-		static int recycled(){ return s_recycle.size(); }
-		static void stats();
-		static Animation *get();
-		void release();
-		void releaseData();
-		void sprint(std::string &dest);
-
-	protected:
-		Animation(),~Animation();
-		void init();
-
-		static std::vector<Animation*> s_recycle;
-		static int s_allocated;
-	};
 	//TEMPORARY FIX
 	Animation *_anim(unsigned,AnimationModeE=ANIMMODE_NONE)const;
 	Animation *_anim(unsigned,unsigned,Position,bool=true)const;
@@ -1117,29 +449,26 @@ public:
 	bool _skel_xform_abs(int inv,infl_list&,Vector&v);
 	bool _skel_xform_rot(int inv,infl_list&,Matrix&m);
 	bool _skel_xform_mat(int inv,infl_list&,Matrix&m);
-
-	// Reference background images for canvas viewports.
-	class BackgroundImage : public Object2020
-	{
-	public:
 		
-		BackgroundImage()
-		{
-			Object2020::init(_OT_Background_);
-
-			m_xyz[0] = 30; /*???*/ 
-		}
-
-		//std::string m_filename;
-		//float m_scale;      // 1.0 means 1 GL unit from the center to the edges of the image
-		//float m_center[3];  // Point in the viewport where the image is centered
-
-		void sprint(std::string &dest);
-
-		bool propEqual(const BackgroundImage &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
-		bool operator==(const BackgroundImage &rhs)const{ return propEqual(rhs); }
+	// Arbitrary key/value string pairs. This is used to provide a simple interface
+	// for model attributes that are not manipulated by commands/tools. Often
+	// user-editable format-specific data is stored as MetaData key/value pairs
+	// (for example texture paths in MD2 and MD3 models).
+	class MetaData
+	{
+	public: std::string key,value;
 	};
+	typedef std::vector<MetaData> MetaDataList;
 
+	class FormatData;
+	class Utility; class UvAnimation;
+	enum UtilityTypeE
+	{
+		UT_NONE=0,
+		UT_UvAnimation, //NOTE: Written to file.
+		UT_MAX
+	};
+		
 	//https://github.com/zturtleman/mm3d/issues/56
 	struct ViewportUnits
 	{
@@ -1167,152 +496,34 @@ public:
 		ViewportUnits(){ memset(this,0x00,sizeof(*this)); }
 	};
 
-	typedef Model::Vertex *VertexPtr;
-	typedef Model::Triangle *TrianglePtr;
-	typedef Model::Group *GroupPtr;
-	typedef Model::Material *MaterialPtr;
-	//typedef Model::Joint *JointPtr;
-
-	// FormatData is used to store data that is used by specific file formats
-	// that is not understood by MM3D.
-	class FormatData
+	class BspTree //bsptree.h
 	{
 	public:
 
-		FormatData():offsetType(),index(),len(),data()
-		{};
-		virtual ~FormatData(); //???
+		struct Draw;
+		struct Node;
+		struct Poly;
 
-		uint16_t offsetType;  // 0 = none,is valid
-		std::string	format;	 // Should not be empty
-		uint32_t index;		// for formats with multiple data sets
-		uint32_t len;		// length of data in 'data'
-		uint8_t *data;		// pointer to data
+		BspTree():m_root(){};
+		~BspTree(){ clear(); };
 
-		virtual void serialize();
-	};
+		void render(double *point, Draw&);
+		void addTriangle(Model*,unsigned);
+		void clear();
+		bool empty(){ return !m_root; }
 
-	// Arbitrary key/value string pairs. This is used to provide a simple interface
-	// for model attributes that are not manipulated by commands/tools. Often
-	// user-editable format-specific data is stored as MetaData key/value pairs
-	// (for example texture paths in MD2 and MD3 models).
-	class MetaData
-	{
-	public: std::string key,value;
-	};
-	typedef std::vector<MetaData> MetaDataList;
+		static int flush();
+		static void stats();
 
-	enum UtilityTypeE
-	{
-		UT_NONE=0,
-		UT_UvAnimation, //NOTE: Written to file.
-		UT_MAX
-	};
-
-	//2022: A utility is a more obscure feature that's not a plugin (although
-	//it may have a plugin interface if necessary) or key-value pair MetaData.
-	class Utility
-	{
-	public:
-
-		//These aren't recycled right now.
-		static Utility *get(UtilityTypeE); //model_meta.cc
-		void release();
-
-		//This is for access to m_undoMgr/m_changeBits
-		//to avoid passing (or mixing) a Model pointer.
-		Model * model; 
-
-		std::string name;
-
-		const UtilityTypeE type;
-
-		const int assoc;
-
-		Utility(UtilityTypeE t, int a)
-		:model(),type(t),assoc((ComparePartsE)a)
-		{}
-		virtual ~Utility(){ /*NOP*/ }
-	
 	protected:
-		
-		template<class T>
-		inline void _set(const T *m, const T &v)const
-		{
-			_set(m,&v,sizeof(T));
-		}
-		template<class T>
-		inline bool _set_if(bool cond, const T *m, const T &v)const
-		{
-			if(!cond){ assert(0); return false; }
-			else _set(m,&v,sizeof(T)); return true;
-		}
-		template<int N,class T> 
-		static inline T(&_pack(T*v))[N]{ return *(T(*)[N])v; }
 
-		template<class T> 
-		static inline T &_set_cast(const T &m){ return const_cast<T&>(m); }
+		Node *m_root;
 
-		void _set(const void *p, const void *cp, size_t sz)const;
+		static std::vector<Node*> s_recycle;
+
+		static int s_allocated;
 	};
-	class UvAnimation : public Utility
-	{
-	public:
-
-		double fps;
-		double frames;
-		double unit,vnit;
-		bool wrap;
-		struct Key /* Nothing too complicated? */
-		{
-			double frame;
-
-			//I guess rotate, scale, translate order
-			//since it's what the existing animation
-			//code does. I thought about using a 2x3 
-			//matrix to shear but I worry there's no
-			//way to interpolate it, with or without
-			//a rotation component.
-			//double mat[3][2];
-			double rz,sx,sy,tx,ty;			
-			Interpolate2020E r,s,t; 
-
-			bool operator<(const Key &b)const
-			{
-				return frame<b.frame;
-			}
-
-			Key():rz(),sx(1),sy(1),tx(),ty()
-			{
-				frame = 1; //For basic 0~1 animation.
-				r = s = t = InterpolateNone;
-			}
-		};
-		std::vector<Key> keys;
-
-		UvAnimation():Utility(UT_UvAnimation,PartGroups),
-		fps(1),frames(1),unit(1),vnit(1),wrap()
-		{}
-
-		bool set_fps(double)const;
-		bool set_frames(double)const;
-		bool set_units(double,double)const;
-		void set_wrap(bool)const;
-		int set_key(const Key&)const;
-		bool delete_key(unsigned)const;
-
-	public: //These aren't saved state.
-
-		mutable Key _cur_key; //validateAnim intermediate values
-
-		mutable Matrix _cur_texture_matrix; //validateAnim matrix
-
-		double _cur_time;
-		void _dirty()const,_make_cur()const;
-		void _interp_keys(Key&,double)const;
-		void _refresh_texture_matrix()const;
-	};
-
+	
 	// See errorToString()
 	enum ModelErrorE
 	{
@@ -2110,7 +1321,7 @@ public:
 	int getGroupByName(const char *groupName, bool ignoreCase=false)const;
 	int getMaterialByName(const char *materialName, bool ignoreCase=false)const;
 
-	Material::MaterialTypeE getMaterialType(unsigned materialIndex)const;
+	MaterialTypeE getMaterialType(unsigned materialIndex)const;
 
 	int removeUnusedGroups();
 	int mergeIdenticalGroups();
@@ -2244,40 +1455,12 @@ public:
 	bool getVertexInfluences(unsigned vertex,infl_list &l)const;
 	bool getPointInfluences(unsigned point,infl_list &l)const;		
 	//2019: Trying to encourage better programming.
-	infl_list &getVertexInfluences(unsigned vertex) //NEW
-	{		
-		return m_vertices[vertex]->m_influences;
-	}
-	infl_list &getPointInfluences(unsigned point) //NEW
-	{
-		return m_points[point]->m_influences;
-	}
-	infl_list *getPositionInfluences(const Position &pos) //NEW
-	{
-		switch(pos.type)
-		{
-		case PT_Vertex: return &getVertexInfluences(pos.index);			
-		case PT_Point: return &getPointInfluences(pos.index);
-		}
-		return nullptr;
-	}
-	const infl_list &getVertexInfluences(unsigned vertex)const //NEW 
-	{		
-		return m_vertices[vertex]->m_influences;
-	}
-	const infl_list &getPointInfluences(unsigned point)const //NEW 
-	{
-		return m_points[point]->m_influences;
-	}
-	const infl_list *getPositionInfluences(const Position &pos)const //NEW
-	{
-		switch(pos.type)
-		{
-		case PT_Vertex: return &getVertexInfluences(pos.index);
-		case PT_Point: return &getPointInfluences(pos.index);
-		}
-		return nullptr;
-	}
+	infl_list &getVertexInfluences(unsigned vertex);
+	infl_list &getPointInfluences(unsigned point);
+	infl_list *getPositionInfluences(const Position &pos);
+	const infl_list &getVertexInfluences(unsigned vertex)const;
+	const infl_list &getPointInfluences(unsigned point)const;
+	const infl_list *getPositionInfluences(const Position &pos)const;
 
 	//NOTE: These appear to replace getVertexBoneJoint/getPointBoneJoint
 	//so I'm removing those.
@@ -2779,7 +1962,7 @@ protected:
 
 	std::list<std::string> m_loadErrors; //queue
 
-	MetaDataList			 m_metaData;
+	MetaDataList m_metaData;
 	_VertexList m_vertices;
 	_TriangleList m_triangles;
 	_GroupList m_groups;
@@ -2890,5 +2073,849 @@ extern const char *modelErrStr(Model::ModelErrorE,Model*m=nullptr);
 //things that it seems unsuited to.
 typedef Model::pos_list pos_list;
 typedef Model::infl_list infl_list;
+
+// Describes the position and normal for a vertex in a frame animation.
+class Model::FrameAnimVertex
+{
+public:
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static FrameAnimVertex *get();
+	void release();
+	void sprint(std::string &dest);
+
+	double m_coord[3];
+//	double m_normal[3]; //https://github.com/zturtleman/mm3d/issues/109
+
+	Interpolate2020E m_interp2020;
+
+	bool propEqual(const FrameAnimVertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const FrameAnimVertex &rhs)const{ return propEqual(rhs); }
+
+	//This is standard lerp as implemented by interpKeyframe. z can equal x or y.
+	static void lerp(const double x[3], const double y[3], double t, double z[3]);
+
+protected:
+	FrameAnimVertex(),~FrameAnimVertex();
+	void init();
+
+	static std::vector<FrameAnimVertex*> s_recycle;
+	static int s_allocated;
+};
+
+struct Model::_OrderedSelection //EXPERIMENTAL
+{
+	//2022: This is a helper to implement PolyTool.
+
+//	static unsigned _op;
+	unsigned _select_op;
+	operator bool()const{ return _select_op!=0; }
+	bool operator=(bool s){ _select_op=s?_op:0; return s; }
+
+//REMOVE ME //begin/endSelectionDifference?
+
+	union Marker //mutable 
+	{
+		bool _bool; unsigned _op;
+
+		operator bool&(){ return _bool; }
+
+		void operator=(bool m){ _bool = m; } //C++
+		void operator=(_OrderedSelection &s){ _op = s._select_op; }
+		bool operator!=(_OrderedSelection &s){ return _op!=s._select_op; }
+		bool operator==(_OrderedSelection &s){ return _op==s._select_op; }
+	};
+	bool operator!=(Marker &m){ return m._op!=_select_op; }
+	bool operator==(Marker &m){ return m._op==_select_op; }
+};
+
+struct Model::Visible2022
+{
+	uint8_t m_layer;
+
+	//bool m_visible;
+	union{ uint8_t m_visible1:1,m_visible2; };
+
+	bool visible(unsigned layers)const
+	{
+		return 0!=(m_visible2&layers); 
+	}
+
+	void init(){ m_layer = 1; m_visible2 = 2; }
+				
+	bool hidden(unsigned layers)const
+	{
+		return m_visible1&&(1<<m_layer)&layers;
+	}
+	void hide(unsigned layer=0)const
+	{
+		if(layer) const_cast<uint8_t&>(m_layer) = layer; 
+			
+		const_cast<Visible2022*>(this)->m_visible2 = 1<<layer;
+	}
+	void unhide(){ m_visible2 = 1<<m_layer; }
+
+	bool hide_difference(unsigned layer=0)const
+	{
+		return (layer&&m_layer!=layer)||m_visible2!=1<<layer;
+	}
+};
+
+// A triangle represents faces in the model. All faces are triangles.
+// The vertices the triangle is attached to are in m_vertexIndices.
+class Model::Triangle : public Visible2022
+{
+public:
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Triangle *get(unsigned layer);
+	void release();
+	void sprint(std::string &dest);
+
+	unsigned m_vertexIndices[3];
+
+	// Texture coordinate 0,0 is in the lower left corner of
+	// the texture.
+	float m_s[3];  // Horizontal,one for each vertex.
+	float m_t[3];  // Vertical,one for each vertex.
+
+	double m_finalNormals[3][3];	 // Final normals to draw
+//	double m_vertexNormals[3][3];	// Normals blended for each face attached to the vertex
+	double m_flatNormal[3];		  // Normal for this triangle
+	double m_vertAngles[3];			// Angle of vertices
+	double m_kfFlatNormal[3];		// Flat normal, rotated relative to the animating bone joints
+	double m_kfNormals[3][3];		 // Final normals, rotated relative to the animating bone joints
+	double m_kfVertAngles[3];
+	//Can these be one pointer?
+	double *m_flatSource;			 // Either m_flatNormal or m_kfFlatNormal
+	double *m_normalSource[3];	  // Either m_finalNormals or m_kfNormals
+	double *m_angleSource;			 // Either m_vertAngles or m_kfVertAngles				
+	//bool m_visible;		
+	mutable bool m_selected;
+	mutable bool m_marked;
+	mutable bool m_marked2;
+	mutable bool m_userMarked;
+
+	mutable int m_user; //2020: associate an index with a pointer
+
+	int	m_projection;  // Index of texture projection (-1 for none)
+
+	int m_group; //2022
+
+	bool propEqual(const Triangle &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Triangle &rhs)const{ return propEqual(rhs); }
+
+	void _source(AnimationModeE);
+
+	//NOTE: Flat is a "degenerated" triangle by virtue of 
+	//its indices alone. See too deleteFlattenedTriangles.
+	bool _flattened()const
+	{
+		auto *tv = m_vertexIndices; 
+		return tv[0]==tv[1]||tv[0]==tv[2]||tv[1]==tv[2];
+	}
+
+protected:
+	Triangle(),~Triangle();
+	void init();
+
+	static std::vector<Triangle*> s_recycle;
+	static int s_allocated;
+};
+
+// A vertex defines a polygon corner. The position is in m_coord.
+// All triangles in all groups (meshes)references triangles from this
+// one list.
+class Model::Vertex : public Visible2022
+{
+public:
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Vertex *get(unsigned layer, AnimationModeE);
+	void release();
+	void releaseData(); //2020 ???
+	void sprint(std::string &dest);
+
+	double m_coord[3];	  // Absolute vertex location
+	double m_kfCoord[3];	// Animated position
+	double *m_absSource;  // Points to m_coord or m_kfCoord for drawing
+	//mutable bool m_selected;
+	mutable _OrderedSelection m_selected;		
+	//mutable bool m_marked;
+	mutable _OrderedSelection::Marker m_marked;
+	mutable bool m_marked2;
+	//bool m_visible;
+		
+	unsigned getOrderOfSelection()const
+	{
+		return m_selected._select_op; 
+	}
+	static bool &getOrderOfSelectionCCW()
+	{
+		return Model::_op_ccw;
+	}
+
+	// If m_free is false, the vertex will be implicitly deleted when
+	// all faces using it are deleted
+	//bool	m_free;
+				
+	// List of bone joints that move the vertex in skeletal animations.
+	infl_list m_influences;
+
+	//Each of these is a triangle and the index held by this vertex in
+	//that triangle is encoded in the two bits
+	//NOTE: Hoping "small string optimization" is in play for vertices
+	//that don't touch many triangles, but the terminator wastes space
+	//In that case 4 probably allocates memory
+	//https://github.com/zturtleman/mm3d/issues/109
+	//Can't be stored as indices.
+	//std::basic_string<unsigned> m_faces;
+	std::vector<Face> m_faces;
+	void _erase_face(Triangle*,unsigned);
+
+	//This change enables editing a model having vertex animation data
+	//https://github.com/zturtleman/mm3d/issues/87
+	FrameAnimVertexList m_frames;
+
+	bool propEqual(const Vertex &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Vertex &rhs)const{ return propEqual(rhs); }
+
+	void _source(AnimationModeE),_resample(Model&,unsigned);
+
+protected:
+	Vertex(),~Vertex();
+	void init();
+
+	static std::vector<Vertex*> s_recycle;
+	static int s_allocated;
+};
+
+// Group of triangles. All triangles in a group share a material (if one
+// is assigned to the Group). Vertices assigned to the triangles may
+// be shared between triangles in different groups. You can change how
+// normals are blended by modifying m_angle and m_smooth.
+class Model::Group
+{
+public:
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Group *get();
+	void release();
+	void sprint(std::string &dest);
+
+	std::string m_name;
+	int m_materialIndex;	 // Material index (-1 for none)
+
+	//FIX ME (TEST ME)
+	//Draw code is order-independent. 
+	//std::set<int> m_triangleIndices;  // List of triangles in this group
+	//std::unordered_set<int> m_triangleIndices;  // List of triangles in this group
+	int_list m_triangleIndices;
+
+	// Percentage of blending between flat normals and smooth normals
+	// 0 = 0%,255 = 100%
+	uint8_t m_smooth;
+
+	// Maximum angle around which triangle normals will be blended
+	// (ie,if m_angle = 90,triangles with an edge that forms an
+	// angle greater than 90 will not be blended).
+	uint8_t m_angle;
+
+	mutable bool m_selected;
+//	bool m_visible; //UNUSED
+	mutable bool m_marked;
+
+	bool propEqual(const Group &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Group &rhs)const{ return propEqual(rhs); }
+
+	std::vector<Utility*> m_utils; //2022
+
+	bool _assoc_util(Utility*, bool how);
+
+protected:
+	Group(),~Group();
+	void init();
+
+	static std::vector<Group*> s_recycle;
+	static int s_allocated;
+};
+
+// The Material defines how lighting is reflected off of triangles and
+// may include a texture map.
+class Model::Material
+{
+public:
+
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Material *get();
+	void release();
+	void sprint(std::string &dest);
+
+	std::string	m_name;
+	MaterialTypeE m_type;			// See MaterialTypeE above
+
+	// Lighting values (RGBA,0.0 to 1.0)
+	float m_ambient[4];
+	float m_diffuse[4];
+	float m_specular[4];
+	float m_emissive[4];
+
+	// Lighting value 0 to 100.0
+	float m_shininess;
+
+	// The clamp properties determine if the texture map wraps when crossing
+	// the 0.0 or 1.0 boundary (false)or if the pixels along the edge are
+	// used for coordinates outside the 0.0-1.0 limits (true).
+	bool m_sClamp;  // horizontal wrap/clamp
+	bool m_tClamp;  // vertical wrap/clamp
+
+	bool m_accumulate; //2021: standard "additive" blend model
+
+	// Open GL texture index (not actually used in model editing
+	// viewports since each viewport needs its own texture index)
+	GLuint m_texture;
+
+	std::string	m_filename;		 // Absolute path to texture file (for MATTYPE_TEXTURE)
+	std::string	m_alphaFilename;  // Unused (ms3dfilter.cc)
+	Texture *m_textureData;	 // Texture data (for MATTYPE_TEXTURE)
+
+	bool propEqual(const Material &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Material &rhs)const{ return propEqual(rhs); }
+
+	//2021: model_draw.cc was only considering RGBA textures
+	bool needsAlpha() 
+	{
+		//Note, glMaterial docs say only diffuse alpha matters
+		return m_accumulate||m_diffuse[3]!=1.0f
+		||m_type==MATTYPE_TEXTURE //m_textureData?
+		&&m_textureData->m_format==Texture::FORMAT_RGBA;
+	}
+
+protected:
+	Material(),~Material();
+	void init();
+
+	static std::vector<Material*> s_recycle;
+	static int s_allocated;
+};
+
+// A keyframe for a single joint in a single frame. Keyframes may be rotation or 
+// translation (you can set one without setting the other).
+class Model::Keyframe
+{
+public:
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Keyframe *get();
+
+	void release();
+	void sprint(std::string &dest);
+
+	Position m_objectIndex; // Joint that this keyframe affects
+						//on a per frame basis and frame numbers are implicit.
+	unsigned m_frame;	 // Frame number for this keyframe
+
+//		double m_time;	// Time for this keyframe in seconds
+
+	double m_parameter[3];  // Translation or rotation (radians), see m_isRotation
+
+	//bool m_isRotation;
+	KeyType2020E m_isRotation;	 // Indicates if m_parameter describes rotation (true) or translation (false)
+
+	Interpolate2020E m_interp2020;
+
+	mutable bool m_selected[4]; //graph.cc
+
+	//CAREFUL: This doesn't work with bitwise combinations of KeyType2020E.
+	bool operator<(const Keyframe &rhs)const
+	{
+		return m_frame!=rhs.m_frame?m_frame<rhs.m_frame:m_isRotation<rhs.m_isRotation;
+	}
+	bool operator==(const Keyframe &rhs)const
+	{
+		return m_frame==rhs.m_frame&&m_isRotation&rhs.m_isRotation;
+	}
+	bool propEqual(const Keyframe &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+
+	//This is standard lerp as implemented by interpKeyframe. z can equal x or y.
+	static void lerp(const double x[3], const double y[3], double t, double z[3]);
+	//This is the quaternion form of lerp. It may not actually be "slerp" but it's
+	//named this way to avoid overloading lerp. It has the same semantics as lerp.
+	static void slerp(const double x[4], const double y[4], double t, double z[4]); 
+
+//	protected:
+
+	Keyframe(),~Keyframe();
+
+protected:
+
+	void init(); //UNUSED (NOP)
+
+	static std::vector<Keyframe*> s_recycle;
+	static int s_allocated;
+};
+
+struct Model::Object2020 : public Visible2022 //RENAME ME
+{
+	//https://github.com/zturtleman/mm3d/issues/114
+		
+	std::string m_name;
+
+	//NOTE: calculateAnim assumes stored back-to-back.
+	double m_abs[3]; //Absolute position
+	double m_rot[3]; //Relative rotation
+	double m_xyz[3]; //Nonunimform scale
+
+	double *m_absSource; //Absolute position
+	double *m_rotSource; //Relative rotation
+	double *m_xyzSource; //Nonunimform scale
+	double(*_sources()const)[3]
+	{
+		return (double(*)[3])&m_absSource;
+	}
+
+	Matrix getMatrix()const;
+	Matrix getMatrixUnanimated()const;
+
+	mutable bool m_selected;
+
+	PositionTypeE m_type; //getParams
+
+	//WARNING: Return relative values for keyframes
+	const double *getParams(Interpolant2020E)const;
+	const double *getParamsUnanimated(Interpolant2020E)const;
+	void getParams(double abs[3], double rot[3], double xyz[3])const;
+
+protected:
+
+	void init(PositionTypeE t);
+};
+
+// A bone joint in the skeletal structure,used for skeletal animations.
+// When a vertex or point is assigned to one or more bone joints with a specified
+// weight,the joint is referred to as an Influence.
+class Model::Joint : public Object2020
+{
+public:
+
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Joint *get(unsigned layer,AnimationModeE);
+	void release();
+	void sprint(std::string &dest);
+			
+	//2020: This is complicated because historically
+	//getPositionCoords, etc. works in absolute coordinates
+	//for translation but not rotation.
+	//double m_localRotation[3];     // Rotation relative to parent joint (or origin if no parent)
+	//double m_localTranslation[3];  // Translation relative to parent joint (or origin if no parent)
+	//TODO: Computable?
+	double m_rel[3];
+	double m_kfRel[3];
+	//m_rotSource COMPAT			
+	double m_kfRot[3];
+	double m_kfXyz[3];
+	//MEMORY OPTIMIZATION
+	double *m_kfAbs(){ return m_final.getVector(3); }
+
+	Matrix m_absolute;  // Absolute matrix for the joint's original position and orientation
+	Matrix m_relative;  // Matrix relative to parent joint
+	Matrix m_final;	  // Final animated absolute position for bone joint
+
+	int m_parent;  // Parent joint index (-1 for no parent)
+
+	//bool m_selected;		
+	mutable bool m_marked;
+	//bool m_visible;
+		
+	//2020 (drawJoints)
+	//TODO: Needs Undo objects. Remove it mutable status.
+	mutable bool m_bone;
+
+	//TODO: If Euler angles are easily inverted it makes
+	//more sense to just calculate m_inv in validateSkel.
+	int _dirty_mask;
+	Matrix _dirty_mats[3];
+	Matrix &getAbsoluteInverse() //2020
+	{
+		if(_dirty_mask&1)
+		{
+			_dirty_mask&=~1;
+			_dirty_mats[0] = m_absolute.getInverse();
+		}
+		return _dirty_mats[0];
+	}
+	Matrix &getSkinMatrix() //2021
+	{
+		if(_dirty_mask&2)
+		{
+			_dirty_mask&=~2;
+			_dirty_mats[1] = getAbsoluteInverse()*m_final;
+		}
+		return _dirty_mats[1];
+	}
+	Matrix &getSkinverseMatrix() //2021
+	{
+		if(_dirty_mask&4)
+		{
+			_dirty_mask&=~4;
+			_dirty_mats[2] = getSkinMatrix().getInverse();
+		}
+		return _dirty_mats[2];
+	}
+
+	mutable KeyframeGraph _reference; //graphs.cc
+
+	bool propEqual(const Joint &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Joint &rhs)const{ return propEqual(rhs); }
+
+	void _source(AnimationModeE);
+
+protected:
+
+	Joint(),~Joint();
+	void init();
+
+	static std::vector<Joint*> s_recycle;
+	static int s_allocated;
+};
+
+class Model::Point : public Object2020
+{
+public:
+
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Point *get(unsigned layer,AnimationModeE);
+	void release();
+	void sprint(std::string &dest);
+	
+	//UNUSED: Note old MM3D files have garbage written to this field
+	//since the MM3DFILE_PointT wasn't zero-initalized.
+	//int m_type;
+
+	//double m_trans[3];    // Position
+    //double m_rot[3];      // Rotation
+
+	//NOTE: calculateAnim assumes stored back-to-back.
+	double m_kfAbs[3];  // Animated position
+	double m_kfRot[3];	 // Animated rotation
+	double m_kfXyz[3]; // Animated scale
+
+	// These pointers point to the unanimated or animated properties
+	// depending on whether or not the model is animated when it is drawn.
+	//double *m_absSource;  // m_abs or m_kfAbs
+	//double *m_rotSource;	// m_rot or m_kfRot
+
+	//bool m_selected;
+	mutable bool m_marked;
+	//bool m_visible;
+		
+	// List of bone joints that move the point in skeletal animations.
+	infl_list m_influences;
+
+	mutable KeyframeGraph _reference; //graphs.cc
+
+	void _resample(Model&,unsigned); //2020
+
+	bool propEqual(const Point &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Point &rhs)const{ return propEqual(rhs); }
+
+	void _source(AnimationModeE);
+
+protected:
+
+	Point(),~Point();
+	void init();
+
+	static std::vector<Point*> s_recycle;
+	static int s_allocated;
+};
+
+// A TextureProjection is used automatically map texture coordinates to a group
+// of vertices. Common projection types are Sphere,Cylinder,and Plane.
+class Model::TextureProjection : public Object2020
+{
+public:
+
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static void stats();
+	static TextureProjection *get();
+	void release();
+	void sprint(std::string &dest);
+
+	int m_type;				// See TextureProjectionTypeE
+			
+	//double m_abs[3];
+
+	//Object2020 makes these fields editor friendly.
+	//https://github.com/zturtleman/mm3d/issues/114
+	//double m_upVec[3];	  // Vector that defines "up" for this projection
+	//double m_seamVec[3];	// Vector that indicates where the texture wraps from 1.0 back to 0.0
+
+	double m_range[2][2];  // min/max,x/y
+
+	//bool m_selected;
+	mutable bool m_marked;
+
+	bool propEqual(const TextureProjection &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const TextureProjection &rhs)const{ return propEqual(rhs); }
+
+protected:
+
+	TextureProjection(),~TextureProjection();
+	void init();
+
+	static int s_allocated;
+};
+
+class Model::Animation //2020
+{
+public:
+
+	int _type; //AnimationModeE
+
+	std::string m_name;
+
+	ObjectKeyframeList m_keyframes;
+
+	double m_fps;  // Frames per second
+	bool m_wrap; // Whether or not the animation uses wraparound keyframe interpotion
+
+	//https://github.com/zturtleman/mm3d/issues/106
+	//Usually use _time_frame() to access this 
+	//If -1 (less than 0) m_timetable2020.size is used
+	//to support older MM3D files that didn't have any
+	//timestamps
+	double m_frame2020;
+	std::vector<double> m_timetable2020;
+
+	//UPDATE: Since mode 3 is added this is ~0 for animations without 
+	//vertex data. If ~m_frame0 is 0 it must be left alone.
+	// Each element in m_frameData is one frame. The frames hold lists of
+	// all vertex positions and point positions.
+	//FrameAnimDataList m_frameData;
+	unsigned m_frame0;
+			
+	size_t _frame_count()const
+	{
+		return m_timetable2020.size(); 
+	}
+	double _time_frame()const //REMOVE ME
+	{
+		//TODO: this workaround can be retired if legacy
+		//loaders did setAnimTimeFrame(frames)
+		//return m_frame2020>=0?m_frame2020:_frame_count();			
+		return m_frame2020; //2022
+	}
+	double _frame_time(unsigned frame)const
+	{
+		return frame<_frame_count()?m_timetable2020[frame]:0;
+	}
+	unsigned _frame0(Model *m)const
+	{
+		if(0==~m_frame0) m->_anim_valloc(this); return m_frame0;
+	}
+
+	mutable bool_list m_selected_frames; //graph.cc
+						
+	bool propEqual(const Animation &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const Animation &rhs)const{ return propEqual(rhs); }
+
+public:
+	static int flush();
+	static int allocated(){ return s_allocated; }
+	static int recycled(){ return s_recycle.size(); }
+	static void stats();
+	static Animation *get();
+	void release();
+	void releaseData();
+	void sprint(std::string &dest);
+
+protected:
+	Animation(),~Animation();
+	void init();
+
+	static std::vector<Animation*> s_recycle;
+	static int s_allocated;
+};
+
+// Reference background images for canvas viewports.
+class Model::BackgroundImage : public Object2020
+{
+public:
+		
+	BackgroundImage()
+	{
+		Object2020::init(_OT_Background_);
+
+		m_xyz[0] = 30; /*???*/ 
+	}
+
+	//std::string m_filename;
+	//float m_scale;      // 1.0 means 1 GL unit from the center to the edges of the image
+	//float m_center[3];  // Point in the viewport where the image is centered
+
+	void sprint(std::string &dest);
+
+	bool propEqual(const BackgroundImage &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
+	bool operator==(const BackgroundImage &rhs)const{ return propEqual(rhs); }
+};
+
+// FormatData is used to store data that is used by specific file formats
+// that is not understood by MM3D.
+class Model::FormatData
+{
+public:
+
+	FormatData():offsetType(),index(),len(),data()
+	{};
+	virtual ~FormatData(); //???
+
+	uint16_t offsetType;  // 0 = none,is valid
+	std::string	format;	 // Should not be empty
+	uint32_t index;		// for formats with multiple data sets
+	uint32_t len;		// length of data in 'data'
+	uint8_t *data;		// pointer to data
+
+	virtual void serialize();
+};
+
+//2022: A utility is a more obscure feature that's not a plugin (although
+//it may have a plugin interface if necessary) or key-value pair MetaData.
+class Model::Utility
+{
+public:
+
+	//These aren't recycled right now.
+	static Utility *get(UtilityTypeE); //model_meta.cc
+	void release();
+
+	//This is for access to m_undoMgr/m_changeBits
+	//to avoid passing (or mixing) a Model pointer.
+	Model * model; 
+
+	std::string name;
+
+	const UtilityTypeE type;
+
+	const int assoc;
+
+	Utility(UtilityTypeE t, int a)
+	:model(),type(t),assoc((ComparePartsE)a)
+	{}
+	virtual ~Utility(){ /*NOP*/ }
+	
+protected:
+		
+	template<class T>
+	inline void _set(const T *m, const T &v)const
+	{
+		_set(m,&v,sizeof(T));
+	}
+	template<class T>
+	inline bool _set_if(bool cond, const T *m, const T &v)const
+	{
+		if(!cond){ assert(0); return false; }
+		else _set(m,&v,sizeof(T)); return true;
+	}
+	template<int N,class T> 
+	static inline T(&_pack(T*v))[N]{ return *(T(*)[N])v; }
+
+	template<class T> 
+	static inline T &_set_cast(const T &m){ return const_cast<T&>(m); }
+
+	void _set(const void *p, const void *cp, size_t sz)const;
+};
+class Model::UvAnimation : public Utility
+{
+public:
+
+	double fps;
+	double frames;
+	double unit,vnit;
+	bool wrap;
+	struct Key /* Nothing too complicated? */
+	{
+		double frame;
+
+		//I guess rotate, scale, translate order
+		//since it's what the existing animation
+		//code does. I thought about using a 2x3 
+		//matrix to shear but I worry there's no
+		//way to interpolate it, with or without
+		//a rotation component.
+		//double mat[3][2];
+		double rz,sx,sy,tx,ty;			
+		Interpolate2020E r,s,t; 
+
+		bool operator<(const Key &b)const
+		{
+			return frame<b.frame;
+		}
+
+		Key():rz(),sx(1),sy(1),tx(),ty()
+		{
+			frame = 1; //For basic 0~1 animation.
+			r = s = t = InterpolateNone;
+		}
+	};
+	std::vector<Key> keys;
+
+	UvAnimation():Utility(UT_UvAnimation,PartGroups),
+	fps(1),frames(1),unit(1),vnit(1),wrap()
+	{}
+
+	bool set_fps(double)const;
+	bool set_frames(double)const;
+	bool set_units(double,double)const;
+	void set_wrap(bool)const;
+	int set_key(const Key&)const;
+	bool delete_key(unsigned)const;
+
+public: //These aren't saved state.
+
+	mutable Key _cur_key; //validateAnim intermediate values
+
+	mutable Matrix _cur_texture_matrix; //validateAnim matrix
+
+	double _cur_time;
+	void _dirty()const,_make_cur()const;
+	void _interp_keys(Key&,double)const;
+	void _refresh_texture_matrix()const;
+};
+
+struct Model::BspTree::Draw
+{
+	unsigned ops;
+	
+	int texture_matrix;
+	
+	class DrawingContext *context;
+
+	unsigned layers;
+
+	class Model *bsp;
+
+	int bsp_group; bool bsp_selected;
+};
 
 #endif //__MODEL_H

@@ -1067,7 +1067,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			{
 			case 0:
 				//log_debug("  got external texture %d\n",texIndex);
-				mat->m_type = Model::Material::MATTYPE_TEXTURE;
+				mat->m_type = Model::MATTYPE_TEXTURE;
 				if(texIndex<texNames.size())				
 				mat->m_filename = texNames[texIndex];
 				else
@@ -1075,19 +1075,19 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				break;
 				/*2022
 			case 13: //UNUSED
-				mat->m_type = Model::Material::MATTYPE_COLOR;
+				mat->m_type = Model::MATTYPE_COLOR;
 				mat->m_filename = "";
 			//	memset(mat->m_color,255,sizeof(mat->m_color)); //2022
 				break;
 			case 14: //UNUSED
-				mat->m_type = Model::Material::MATTYPE_GRADIENT;
+				mat->m_type = Model::MATTYPE_GRADIENT;
 				mat->m_filename = "";
 			//	memset(mat->m_color,255,sizeof(mat->m_color)); //2022
 				break;*/
 			default:
 				//log_debug("  got unknown material type\n",texIndex);
 			case 15: 
-				mat->m_type = Model::Material::MATTYPE_BLANK;
+				mat->m_type = Model::MATTYPE_BLANK;
 				mat->m_filename = "";
 			//	memset(mat->m_color,255,sizeof(mat->m_color)); //2022
 				break;
@@ -2825,16 +2825,16 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			switch(mat->m_type)
 			{
 			default: /*2022
-			case Model::Material::MATTYPE_COLOR: //UNUSED
+			case Model::MATTYPE_COLOR: //UNUSED
 				flags = 0x000d;
 				break;
-			case Model::Material::MATTYPE_GRADIENT: //UNUSED
+			case Model::MATTYPE_GRADIENT: //UNUSED
 				flags = 0x000e;
 				break;*/
-			case Model::Material::MATTYPE_BLANK:
+			case Model::MATTYPE_BLANK:
 				flags = 0x000f;
 				break;
-			case Model::Material::MATTYPE_TEXTURE:
+			case Model::MATTYPE_TEXTURE:
 			{
 				flags = 0x0000;
 				auto ins = texMap.insert({mat->m_filename,texNum});

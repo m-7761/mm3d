@@ -472,10 +472,10 @@ Model::ModelErrorE Ms3dFilter::readFile(Model *model, const char *const filename
 		//OpenGL's range is 128 but MM3D's is 100
 		mat->m_shininess = std::min(100.0f,mat->m_shininess); //128
 
-		mat->m_type = Model::Material::MATTYPE_TEXTURE;
+		mat->m_type = Model::MATTYPE_TEXTURE;
 		if(material.m_texture[0]=='\0')
 		{
-			mat->m_type = Model::Material::MATTYPE_BLANK;
+			mat->m_type = Model::MATTYPE_BLANK;
 		}
 
 		replaceBackslash(material.m_texture);

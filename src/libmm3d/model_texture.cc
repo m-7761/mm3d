@@ -61,7 +61,7 @@ bool Model::loadTextures(ContextT context)
 		drawContext->m_matTextures.push_back(-1);
 
 		if(m_materials[t]->m_filename[0] 
-		&&m_materials[t]->m_type==Model::Material::MATTYPE_TEXTURE)
+		&&m_materials[t]->m_type==Model::MATTYPE_TEXTURE)
 		{
 			Texture *tex = TextureManager::getInstance()->getTexture(m_materials[t]->m_filename.c_str());
 
@@ -162,7 +162,7 @@ int Model::addTexture(Texture *tex)
 
 		Material *material = Material::get();
 		material->m_name = tex->m_name;
-		material->m_type = Material::MATTYPE_TEXTURE;
+		material->m_type = MATTYPE_TEXTURE;
 		material->m_texture = 0;
 		material->m_textureData = tex;
 		material->m_filename = tex->m_filename;
@@ -208,7 +208,7 @@ int Model::addColorMaterial(const char *name)
 
 	Material *material = Material::get();
 	material->m_name = name;
-	material->m_type = Material::MATTYPE_BLANK;
+	material->m_type = MATTYPE_BLANK;
 	material->m_texture = 0;
 	material->m_textureData = nullptr;
 	material->m_filename = "";
@@ -419,7 +419,7 @@ void Model::setMaterialTexture(unsigned textureId, Texture *tex)
 
 		m_materials[textureId]->m_textureData = tex;
 		m_materials[textureId]->m_filename = tex->m_filename;
-		m_materials[textureId]->m_type = Material::MATTYPE_TEXTURE;
+		m_materials[textureId]->m_type = MATTYPE_TEXTURE;
 
 		invalidateTextures(); //OVERKILL
 	}
@@ -428,7 +428,7 @@ void Model::setMaterialTexture(unsigned textureId, Texture *tex)
 void Model::removeMaterialTexture(unsigned textureId)
 {
 	if(textureId<m_materials.size())
-	if(m_materials[textureId]->m_type==Material::MATTYPE_TEXTURE)
+	if(m_materials[textureId]->m_type==MATTYPE_TEXTURE)
 	{
 		m_changeBits|=AddOther|SetTexture; //2022
 
@@ -436,7 +436,7 @@ void Model::removeMaterialTexture(unsigned textureId)
 
 		m_materials[textureId]->m_textureData = nullptr;
 		m_materials[textureId]->m_filename = "";
-		m_materials[textureId]->m_type = Material::MATTYPE_BLANK;
+		m_materials[textureId]->m_type = MATTYPE_BLANK;
 
 		invalidateTextures(); //OVERKILL
 	}
@@ -619,11 +619,11 @@ const char *Model::getTextureFilename(unsigned textureId)const
 	return nullptr;
 }
 
-Model::Material::MaterialTypeE Model::getMaterialType(unsigned materialIndex)const
+Model::MaterialTypeE Model::getMaterialType(unsigned materialIndex)const
 {
 	if(materialIndex<m_materials.size())	
 	return m_materials[materialIndex]->m_type;
-	return Material::MATTYPE_BLANK;
+	return MATTYPE_BLANK;
 }
 
 int Model::getMaterialByName(const char *const materialName, bool ignoreCase)const

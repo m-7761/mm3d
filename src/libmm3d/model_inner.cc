@@ -595,7 +595,7 @@ bool Model::Material::propEqual(const Material &rhs, int propBits, double tolera
 		else
 		{
 			// If no texture data,must not be a texture-mapped material
-			if(m_type==Model::Material::MATTYPE_TEXTURE)
+			if(m_type==Model::MATTYPE_TEXTURE)
 				return false;
 		}
 	}

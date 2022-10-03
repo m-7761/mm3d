@@ -3976,7 +3976,7 @@ void model_show_alloc_stats()
 	Model::Animation::stats();
 	Model::FrameAnimVertex::stats();
 //	Model::FrameAnimPoint::stats();
-	BspTree::stats();
+	Model::BspTree::stats();
 	log_debug("Textures: none/%d\n",Texture::s_allocated);
 	log_debug("GlTextures: none/%d\n",Model::s_glTextures);
 #ifdef MM3D_EDIT
@@ -4000,7 +4000,7 @@ int model_free_primitives()
 	c += Model::Keyframe::flush();
 	//c += Model::SkelAnim::flush();
 	c += Model::Animation::flush();
-	c += BspTree::flush();
+	c += Model::BspTree::flush();
 	//c += Model::FrameAnim::flush();
 	c += Model::FrameAnimVertex::flush();
 //	c += Model::FrameAnimPoint::flush();

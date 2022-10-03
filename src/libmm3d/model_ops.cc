@@ -348,7 +348,7 @@ bool Model::equivalent(const Model *model, double tolerance)const
 			if(m>=0)
 			{
 				compareTexCoords =
-					(getMaterialType(g)!=Model::Material::MATTYPE_BLANK);
+					(getMaterialType(g)!=Model::MATTYPE_BLANK);
 			}
 		}
 
@@ -1347,7 +1347,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 			if(materialsNeeded.find(n)!=materialsNeeded.end())
 			{
 				int newMat;
-				if(model->getMaterialType(n)==Model::Material::MATTYPE_TEXTURE)
+				if(model->getMaterialType(n)==Model::MATTYPE_TEXTURE)
 				{
 					auto *texmgr = TextureManager::getInstance();
 					auto *newtex = texmgr->getTexture(model->getTextureFilename(n));

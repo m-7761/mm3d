@@ -24,12 +24,12 @@
 
 #include "glheaders.h"
 #include "glmath.h"
-#include "bsptree.h"
+//#include "bsptree.h"
 #include "glmath.h"
 #include "log.h"
 #include "model.h"
 
-struct BspTree::Poly //REMOVE ME?
+struct Model::BspTree::Poly //REMOVE ME?
 {
 	const Model::Triangle *triangle;
 
@@ -40,24 +40,24 @@ struct BspTree::Poly //REMOVE ME?
 
 	double d; // dot product (plane distance)
 
-	double *BspTree::Poly::norm()
+	double *Model::BspTree::Poly::norm()
 	{
 		return triangle->m_flatSource;
 	}
-	void BspTree::Poly::calculateD()
+	void Model::BspTree::Poly::calculateD()
 	{
 		d = dot_product(coord[0],norm());
 	}
 
 	double intersection(double *p1, double *p2, double *po);
 
-	int _render(Draw&, int compare);
+	void _render(Draw&);
 };
-struct BspTree::Node : public Poly //self
+struct Model::BspTree::Node : public Poly //self
 {
 	void addChild(Node *n);
 
-	int render(double *point, Draw&, int compare);
+	void render(double *point, Draw&);
 
 	void splitNodes(int i1, int i2, int i3,
 			double *p1, double *p2,Node *n1, Node *n2,
@@ -73,17 +73,12 @@ struct BspTree::Node : public Poly //self
 	~Node(){ s_allocated--; }
 };
 
-void BspTree::clear()
+void Model::BspTree::clear()
 {
 	if(m_root) m_root->release(); m_root = nullptr;
 }
 
-static bool bsptree_equiv(double rhs, double lhs)
-{
-	return fabs(rhs-lhs)<0.0001f;
-}
-
-double BspTree::Poly::intersection(double *p1, double *p2, double *po)
+double Model::BspTree::Poly::intersection(double *p1, double *p2, double *po)
 {
 	double *abc = norm(), p2_p1[3];
 
@@ -94,7 +89,7 @@ double BspTree::Poly::intersection(double *p1, double *p2, double *po)
 	lerp3(po,p1,p2,t); return t;
 }
 
-void BspTree::addTriangle(Model *m, unsigned t)
+void Model::BspTree::addTriangle(Model *m, unsigned t)
 {
 	Node *np = Node::get();
 	auto *tp = m->getTriangleList()[t];
@@ -113,71 +108,80 @@ void BspTree::addTriangle(Model *m, unsigned t)
 	else m_root = np;
 }
 
-void BspTree::render(double *point, Draw &context)
+void Model::BspTree::render(double *point, Draw &context)
 {
 	if(!m_root) return;
-	
-	context.bsp->_drawMaterial(context,m_root->triangle->m_group);
+
+	context.bsp_group = m_root->triangle->m_group;
+	context.bsp_selected = false;
+	context.bsp->_drawMaterial(context,context.bsp_group);
 
 	//glEnable(GL_TEXTURE_2D); //???
 	{
 		glBegin(GL_TRIANGLES);
-		m_root->render(point,context,m_root->triangle->m_group);
+		m_root->render(point,context);
 		glEnd();
 	}
 	//glDisable(GL_TEXTURE_2D); //NEW
 
 	//2021: restore in case m_accumulate used GL_ONE
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	if(context.bsp_selected) glDisable(GL_LIGHT1);
 }
-int BspTree::Node::render(double *point, Draw &context, int compare)
+void Model::BspTree::Node::render(double *point, Draw &context)
 {
 	if(dot_product(norm(),point)<d)
 	{
-		if(right)
-		compare = right->render(point,context,compare);
-		compare = _render(context,compare);
-		if(left)
-		compare = left->render(point,context,compare);
+		if(right) right->render(point,context);
+		_render(context);
+		if(left) left->render(point,context);
 	}
 	else
 	{
-		if(left)
-		compare = left->render(point,context,compare);
-		compare = _render(context,compare);
-		if(right)
-		compare = right->render(point,context,compare);
+		if(left) left->render(point,context);
+		_render(context);
+		if(right) right->render(point,context);
 	}
-
-	return compare; //2021
 }
-int BspTree::Poly::_render(Draw &context, int compare)
+void Model::BspTree::Poly::_render(Draw &context)
 {
-	if(compare!=triangle->m_group)
+	if(!triangle->visible(context.layers)) return;
+
+	if(context.bsp_group!=triangle->m_group) 
 	{
-		compare = triangle->m_group; //material
+		context.bsp_group = triangle->m_group; //material
 
 		glEnd();
 
-		context.bsp->_drawMaterial(context,compare);
+		context.bsp->_drawMaterial(context,context.bsp_group);
+
+		if(context.bsp_selected!=triangle->m_selected)
+		goto selected;
 
 		glBegin(GL_TRIANGLES);
 	}
+	if(context.bsp_selected!=triangle->m_selected)
+	{
+		context.bsp_selected = triangle->m_selected; //red light
 
-	if(triangle->visible(context.layers))	
+		glEnd(); selected: //OPTIMIZING?
+		glDisable(context.bsp_selected?GL_LIGHT0:GL_LIGHT1);
+		glEnable(context.bsp_selected?GL_LIGHT1:GL_LIGHT0);
+		glBegin(GL_TRIANGLES);
+	}
+
 	for(int i=0;i<3;i++)
 	{
 		glTexCoord2f(s[i],t[i]);
 		glNormal3dv(drawNormals[i]);
 		glVertex3dv(coord[i]);
-	}	
-
-	return compare; //2021
+	}
 }
 
-void BspTree::Node::splitNodes(int i1, int i2, int i3,
+void Model::BspTree::Node::splitNodes(int i1, int i2, int i3,
 		double *p1, double *p2,
-		BspTree::Node *n1, BspTree::Node *n2,
+		Model::BspTree::Node *n1, Model::BspTree::Node *n2,
 		double place1, double place2)
 {
 	for(int i=3;i-->0;)
@@ -247,8 +251,8 @@ void BspTree::Node::splitNodes(int i1, int i2, int i3,
 	//calculateD(); //???
 }
 
-void BspTree::Node::splitNode(int i1, int i2, int i3,
-		double *p1, BspTree::Node *n1, double place)
+void Model::BspTree::Node::splitNode(int i1, int i2, int i3,
+		double *p1, Model::BspTree::Node *n1, double place)
 {
 	for(int i=3;i-->0;)
 	{
@@ -287,16 +291,19 @@ void BspTree::Node::splitNode(int i1, int i2, int i3,
 	//calculateD(); //???
 }
 
-void BspTree::Node::addChild(Node *n)
+void Model::BspTree::Node::addChild(Node *n)
 {
 	double d1 = dot_product(norm(),n->coord[0]);
 	double d2 = dot_product(norm(),n->coord[1]);
 	double d3 = dot_product(norm(),n->coord[2]);
 
-	int i1,i2,i3;
-	if(i1=!bsptree_equiv(d1,d)) i1 = d1<d?-1:1;
-	if(i2=!bsptree_equiv(d2,d)) i2 = d2<d?-1:1;
-	if(i3=!bsptree_equiv(d3,d)) i3 = d3<d?-1:1;
+	auto eq = [](double rhs, double lhs)
+	{
+		return fabs(rhs-lhs)<0.0001f;
+	};
+	int i1; if(i1=!eq(d1,d)) i1 = d1<d?-1:1;
+	int i2; if(i2=!eq(d2,d)) i2 = d2<d?-1:1;
+	int i3; if(i3=!eq(d3,d)) i3 = d3<d?-1:1;
 
 	// This will catch co-plane also... which should be fine
 	if(i1<=0&&i2<=0&&i3<=0)
@@ -483,9 +490,9 @@ void BspTree::Node::addChild(Node *n)
 	}
 }
 
-std::vector<BspTree::Node*> BspTree::s_recycle;
-int BspTree::s_allocated = 0;
-BspTree::Node *BspTree::Node::get()
+std::vector<Model::BspTree::Node*> Model::BspTree::s_recycle;
+int Model::BspTree::s_allocated = 0;
+Model::BspTree::Node *Model::BspTree::Node::get()
 {
 	if(!s_recycle.empty())
 	{
@@ -498,7 +505,7 @@ BspTree::Node *BspTree::Node::get()
 	}
 	else return new Node;
 }
-void BspTree::Node::release()
+void Model::BspTree::Node::release()
 {
 	if(left) left->release();
 	
@@ -510,15 +517,15 @@ void BspTree::Node::release()
 	//s_recycle.push_back(this);
 }
 
-int BspTree::flush()
+int Model::BspTree::flush()
 {
 	for(auto*ea:s_recycle) delete ea;
 
 	auto ret = s_recycle.size(); s_recycle.clear(); return ret;
 }
 
-void BspTree::stats()
+void Model::BspTree::stats()
 {
-	log_debug("BspTree::Node: %d/%d\n",s_recycle.size(),s_allocated);
+	log_debug("Model::BspTree::Node: %d/%d\n",s_recycle.size(),s_allocated);
 }
 

@@ -72,7 +72,7 @@ void Model::_drawMaterial(BspTree::Draw &d, int g)
 	glMaterialfv(GL_FRONT,GL_EMISSION,mp->m_emissive);
 	glMaterialf(GL_FRONT,GL_SHININESS,mp->m_shininess);
 
-	if(mp->m_type==Model::Material::MATTYPE_TEXTURE
+	if(mp->m_type==Model::MATTYPE_TEXTURE
 	&&(!mp->m_textureData->m_isBad||d.ops&DO_BADTEX))
 	{
 		if(d.context)
@@ -476,7 +476,7 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 
 	BspTree::Draw d = 
 	{
-		drawOptions&~DO_ALPHA,-1,drawContext,nullptr,m_drawingLayers 
+		drawOptions&~DO_ALPHA,-1,drawContext,m_drawingLayers 
 	};
 
 	//https://github.com/zturtleman/mm3d/issues/98
@@ -685,7 +685,7 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 
 	BspTree::Draw d = //2022
 	{
-		drawOptions,-1,drawContext,this,m_drawingLayers
+		drawOptions,-1,drawContext,m_drawingLayers,this
 	};
 
 	//if(!m_bspTree.empty())
