@@ -554,11 +554,13 @@ public:
 		~BspTree(){ clear(); };
 
 		void render(double *point, Draw&);
-		void addTriangle(Model*,unsigned);
+		void addTriangles(Model*,int_list&);
+		void partition(); //2022
 		void clear();
 		bool empty(){ return !m_root; }
 
 		static int flush();
+		static int flush2();
 		static void stats();
 
 	protected:
@@ -566,8 +568,9 @@ public:
 		Node *m_root;
 
 		static std::vector<Node*> s_recycle;
+		static std::vector<Poly*> s_recycle2;
 
-		static int s_allocated;
+		static int s_allocated,s_allocated2;
 	};
 	
 	struct InfluenceT

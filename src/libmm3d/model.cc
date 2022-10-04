@@ -3886,44 +3886,13 @@ void Model::calculateBspTree()
 	//log_debug("calculating BSP tree\n");
 	m_bspTree.clear();
 
-	for(unsigned m = 0; m<m_groups.size(); m++)
+	for(auto*gp:m_groups)
 	{
-		Group *grp = m_groups[m];
-		if(grp->m_materialIndex>=0)
-		{
-			int index = grp->m_materialIndex;
-
-			if(m_materials[index]->needsAlpha())			
-			for(int ti:grp->m_triangleIndices)
-			{
-				Triangle *triangle = m_triangles[ti];
-				triangle->m_marked = true;
-				/*2022
-				BspTree::Poly *poly = BspTree::Poly::get();					
-				for(int i=3;i-->0;)
-				{
-					poly->coord[0][i] = m_vertices[triangle->m_vertexIndices[0]]->m_absSource[i];
-					poly->coord[1][i] = m_vertices[triangle->m_vertexIndices[1]]->m_absSource[i];
-					poly->coord[2][i] = m_vertices[triangle->m_vertexIndices[2]]->m_absSource[i];
-
-					poly->drawNormals[0][i] = triangle->m_normalSource[0][i];
-					poly->drawNormals[1][i] = triangle->m_normalSource[1][i];
-					poly->drawNormals[2][i] = triangle->m_normalSource[2][i];
-
-					//poly->norm[i] = triangle->m_flatSource[i];
-
-					poly->s[i] = triangle->m_s[i];
-					poly->t[i] = triangle->m_t[i];
-				}
-				//poly->texture = index;
-				//poly->material = static_cast<void*>(m_materials[index]);
-				poly->triangle = static_cast<void*>(triangle);
-				poly->calculateD();
-				m_bspTree.addPoly(poly);*/
-				m_bspTree.addTriangle(this,ti); //2022
-			}
-		}
+		int index = gp->m_materialIndex;
+		if(index>=0&&m_materials[index]->needsAlpha())
+		m_bspTree.addTriangles(this,gp->m_triangleIndices);
 	}
+	m_bspTree.partition(); //2022
 
 	m_validBspTree = true;
 }
@@ -3977,6 +3946,7 @@ void model_show_alloc_stats()
 	Model::FrameAnimVertex::stats();
 //	Model::FrameAnimPoint::stats();
 	Model::BspTree::stats();
+//	Model::BspTree::stats2();
 	log_debug("Textures: none/%d\n",Texture::s_allocated);
 	log_debug("GlTextures: none/%d\n",Model::s_glTextures);
 #ifdef MM3D_EDIT
@@ -4000,7 +3970,8 @@ int model_free_primitives()
 	c += Model::Keyframe::flush();
 	//c += Model::SkelAnim::flush();
 	c += Model::Animation::flush();
-	c += Model::BspTree::flush();
+	c += Model::BspTree::flush(); //nodes
+	c += Model::BspTree::flush2(); //triangles
 	//c += Model::FrameAnim::flush();
 	c += Model::FrameAnimVertex::flush();
 //	c += Model::FrameAnimPoint::flush();

@@ -650,6 +650,8 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 
 	if(0!=(drawOptions&DO_WIREFRAME))
 	{
+		//NOTE: This will draw cuts in the BSP tree
+		//which may not be desired?
 		glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
 	}
 	else

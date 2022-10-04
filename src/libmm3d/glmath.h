@@ -335,14 +335,13 @@ template<typename T> T dot2(const T *lhs, const T *rhs)
 	return lhs[0]*rhs[0]+lhs[1]*rhs[1];
 }
 
-static double dot_product(double *val1, double *val2)
+static double dot_product(const double val1[3], const double val2[3])
 {
 	return val1[0]*val2[0]+val1[1]*val2[1]+val1[2]*val2[2];
 }
 
 template<typename T> //2020
-static T *cross_product(T *result,
-		const T *a, const T *b)
+static T *cross_product(T *result, const T a[3], const T b[3])
 {
 	result[0] = a[1]*b[2]-b[1]*a[2];
 	result[1] = a[2]*b[0]-b[2]*a[0];
