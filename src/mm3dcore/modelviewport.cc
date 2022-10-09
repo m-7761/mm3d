@@ -223,7 +223,6 @@ static int modelviewport_opts(int drawMode)
 	return o;
 }
 
-static bool modelviewport_offset_1 = false;
 void ModelViewport::draw(int x, int y, int w, int h)
 {	
 	if(1) //Parent::initializeGL(parent->getModel());
@@ -435,8 +434,19 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	{
 		glEnable(GL_LIGHTING);
 		glEnable(GL_LIGHT0);
+		
+		//ContextT was because every view was its own OpenGL context
+		//model->draw(opt,static_cast<ContextT>(this),_viewPoint);
+		//model->draw(modelviewport_opts(drawMode),nullptr,_viewPoint);
+		opt = modelviewport_opts(drawMode);
+		if(opt&Model::DO_ALPHA)
+		{
+			opt|=Model::DO_ALPHA_DEFER_BSP;
+			bspEye = m_viewInverse.getVector(3);
+		}
 
-		if(poffset&&drawSelections)
+		if(poffset)
+		if(int off=(bspEye?1:0)+drawSelections)
 		{
 			//GL_CULL_FACE doesn't play nice with this on my system
 			//with a light cube it shows the dark back faces along 
@@ -452,23 +462,13 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			//(with a flat polygon)
 			//glPolygonOffset(1,0);
 			//glPolygonOffset(1.5,0); //fails forward facing polygons
-			glPolygonOffset(1,1);
+			glPolygonOffset(1,off);
 		}
 
 		//this is to make the grid consistently in front of polygons
 		//in the six standard orther directions
 		glDepthRange(0.00001,1);
-		{
-			//ContextT was because every view was its own OpenGL context
-			//model->draw(opt,static_cast<ContextT>(this),_viewPoint);
-			//model->draw(modelviewport_opts(drawMode),nullptr,_viewPoint);
-			opt = modelviewport_opts(drawMode);
-			if(opt&Model::DO_ALPHA)
-			{
-				opt|=Model::DO_ALPHA_DEFER_BSP;
-				bspEye = m_viewInverse.getVector(3);
-			}
-			
+		{	 			
 			if(opt&Model::DO_TEXTURE)
 			{
 				//2022: by default this is now set to 0, but it's a
@@ -588,25 +588,14 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		glEnable(GL_LIGHTING);
 		glEnable(GL_LIGHT0);
 	
-		//2022: With cuts in the polygons GL_LEQUAL
-		//isn't cutting it. Note, I'm not sure that
-		//all hardware allows for -1, but the alpha 
-		//blend mode is nonessential.
-		//if(poffset&&drawSelections)
-		if(poffset&&(modelviewport_offset_1||drawSelections))
+		//REMINDER: This has to offset more than opaque
+		//polygons since cuts made by bsptree.cc cannot
+		//match exactly for GL_LEQUAL.
+		if(poffset&&drawSelections)
 		{
 			glEnable(GL_POLYGON_OFFSET_FILL);
 
-			//NOTE: This obscures lines, however in
-			//alpha modes triangle selection isn't
-			//highlighted either, so it's more just
-			//for preview.			
-			//NOTE: in drawSelections mode no offset
-			//is viable but it makes lines dotted and
-			//that's not so bad when it's even, but
-			//it isn't always even, and it may depend
-			//on the hardware
-			glPolygonOffset(modelviewport_offset_1?-1.0f:1.0f,1);
+			glPolygonOffset(1,1);
 		}
 
 		//there are some grid artifacts but this
@@ -2090,11 +2079,7 @@ ModelViewport::Parent::Parent()
 }
 
 void ModelViewport::Parent::initializeGL(Model *m)
-{		
-	glGetError(); //Clear?
-	glPolygonOffset(-1,1);
-	modelviewport_offset_1 = !glGetError();
-
+{
 	//NOTE: ViewPanel calls initializeGL to initialize its OpenGL context.
 	//Ideally ViewPanel is a thin UI class. This gets some code out of it. 
 

@@ -39,13 +39,22 @@ struct Model::BspTree::Poly
 
 	const Model::Triangle *triangle;
 
-	double coord[3][3];
-	double drawNormals[3][3];
+	struct vertex
+	{
+		float coord[3];
+		float drawNormals[3];
+		float st[2];
 
-	float s[3],t[3]; // texture coordinates
+		void lerp(vertex &a, vertex &b, float t)
+		{
+			for(int i=8;i-->0;)
+			coord[i] = a.coord[i]+(b.coord[i]-a.coord[i])*t;
+		}
 
-	void split(int i1, int i2, int i3, double p1[3], Poly*, double t);
-	void split2(int,int,int, double[3],double p2[3], Poly*,Poly*, double,double t2);
+	}v[3];
+
+	void split(int i1, int i2, int i3, Poly*, float t);
+	void split2(int,int,int, Poly*,Poly*, float,float t2);
 
 	void _render(Draw&);
 };
@@ -55,23 +64,25 @@ struct Model::BspTree::Node
 
 	Poly *first;
 	
-	double d; double *abc() // plane equation
+	float d; // plane equation
+	float abc_dot_product(const float p[3])
 	{
-		return first->triangle->m_flatSource;
+		double *n = first->triangle->m_flatSource;
+		return (float)(p[0]*n[0]+p[1]*n[1]+p[2]*n[2]);
 	}
 
 	void partition();
 	
 	enum{ LEFT=-1,SAME,RIGHT,BOTH };
 
-	struct side_t{ int i1:4,i2:4,i3:4,result:4; };
+	struct side_t{ int i0:4,i1:4,i2:4,result:4; };
 
 	side_t side(Poly*);
 	Poly *split(Poly*&,side_t);
 
-	double intersection(const double p1[3], const double p2[3], double po[3]);
+	float intersection(const float p1[3], const float p2[3]);
 
-	void render(double point[3], Draw&);
+	void render(float point[3], Draw&);
 	
 	static Node *get(); void release();
 	Node():left(),right(),first(){ s_allocated++; }
@@ -98,11 +109,15 @@ void Model::BspTree::addTriangles(Model *m, int_list &l)
 		auto *tp = tl[i];	
 		for(int j=3;j-->0;)
 		{
+			auto &vj = np->v[j];
 			auto *vp = vl[tp->m_vertexIndices[j]];
-			memcpy(np->coord[j],vp->m_absSource,3*sizeof(double));
-			memcpy(np->drawNormals[j],tp->m_normalSource[j],3*sizeof(double));
-			np->s[j] = tp->m_s[j];
-			np->t[j] = tp->m_t[j];
+			for(int k=3;k-->0;)
+			{
+				vj.coord[k] = (float)vp->m_absSource[k];
+				vj.drawNormals[k] = (float)tp->m_normalSource[j][k];
+			}
+			vj.st[0] = tp->m_s[j];
+			vj.st[1] = tp->m_t[j];
 		}	
 		np->triangle = tp;
 
@@ -116,7 +131,7 @@ void Model::BspTree::partition()
 }
 void Model::BspTree::Node::partition()
 {
-	d = dot_product(first->coord[0],abc());
+	d = abc_dot_product(first->v[0].coord);
 
 	Poly *_l[3] = {}, **l = _l-LEFT; //YUCK!
 
@@ -170,202 +185,124 @@ void Model::BspTree::Node::partition()
 	}
 }
 
-double Model::BspTree::Node::intersection
-(const double p1[3], const double p2[3], double po[3])
+float Model::BspTree::Node::intersection(const float p1[3], const float p2[3])
 {
-	double p2_p1[3]; for(int i=3;i-->0;) p2_p1[i] = p2[i]-p1[i];
-	double t = (d-dot_product(abc(),p1))/dot_product(abc(),p2_p1);
-	lerp3(po,p1,p2,t); return t;
-}
-void Model::BspTree::Poly::split
-(int i1, int i2, int i3, double p1[3], Poly *n1, double place)
-{
-	for(int i=3;i-->0;)
-	{
-		n1->coord[0][i] = coord[i1][i];
-		n1->coord[1][i] = coord[i2][i];
-		n1->coord[2][i] = p1[i];
+	float p2_p1[3]; for(int i=3;i-->0;) p2_p1[i] = p2[i]-p1[i];
 
-		n1->drawNormals[0][i] = drawNormals[i1][i];
-		n1->drawNormals[1][i] = drawNormals[i2][i];
-		//n1->drawNormals[2][i] = norm[i]; //???
-	}
-	n1->s[0] = s[i1];
-	n1->t[0] = t[i1];
-	n1->s[1] = s[i2];
-	n1->t[1] = t[i2];
-	lerp3(n1->drawNormals[2], //2022
-	drawNormals[i2],drawNormals[i3],place);
-	n1->s[2] = lerp(s[i2],s[i3],place);
-	n1->t[2] = lerp(t[i2],t[i3],place);
+	return (d-abc_dot_product(p1))/abc_dot_product(p2_p1);
+}
+void Model::BspTree::Poly::split(int i0, int i1, int i2, Poly *n1, float t1)
+{
+	n1->v[2].lerp(v[i1],v[i2],t1);
+
+	n1->v[0] = v[i0];
+	n1->v[1] = v[i1];
 
 	n1->triangle = triangle;
 
-	for(int i=3;i-->0;)
-	{
-		coord[i2][i] = p1[i];
-
-		//drawNormals[i2][i] = norm[i]; //???
-	}
-	lerp3(drawNormals[i2], //2022
-	drawNormals[i2],drawNormals[i3],place);
-	s[i2] = lerp(s[i2],s[i3],place);
-	t[i2] = lerp(t[i2],t[i3],place);
+	v[i1] = n1->v[2];
 }
-void Model::BspTree::Poly::split2(int i1, int i2, int i3,
-double p1[3], double p2[3], Poly *n1, Poly *n2, double t1, double t2)
+void Model::BspTree::Poly::split2
+(int i0, int i1, int i2, Poly *n1, Poly *n2, float t1, float t2)
 {
-	for(int i=3;i-->0;)
-	{
-		n1->coord[0][i] = p1[i];
-		n1->coord[1][i] = coord[i2][i];
-		n1->coord[2][i] = coord[i3][i];
+	n1->v[0].lerp(v[i0],v[i1],t1);
+	n2->v[2].lerp(v[i0],v[i2],t2);
 
-		n1->drawNormals[1][i] = drawNormals[i2][i];
-		n1->drawNormals[2][i] = drawNormals[i3][i];
-		//n1->drawNormals[0][i] = norm[i]; //???
-	}
-	lerp3(n1->drawNormals[0], //2022
-	drawNormals[i1],drawNormals[i2],t1);
-	n1->s[0] = lerp(s[i1],s[i2],t1);
-	n1->t[0] = lerp(t[i1],t[i2],t1);
-	n1->s[1] = s[i2];
-	n1->t[1] = t[i2];
-	n1->s[2] = s[i3];
-	n1->t[2] = t[i3];
+	n1->v[1] = v[i1]; 
+	n1->v[2] = v[i2];
 
 	n1->triangle = triangle;
 
-	for(int i=3;i-->0;)
-	{
-		n2->coord[0][i] = p1[i];
-		n2->coord[1][i] = coord[i3][i];
-		n2->coord[2][i] = p2[i];
-
-		n2->drawNormals[1][i] = drawNormals[i3][i];
-		//n2->drawNormals[0][i] = norm[i]; //???		
-		//n2->drawNormals[2][i] = norm[i]; //???
-	}
-	lerp3(n2->drawNormals[0], //2022
-	drawNormals[i1],drawNormals[i2],t1);	
-	n2->s[0] = lerp(s[i1],s[i2],t1);
-	n2->t[0] = lerp(t[i1],t[i2],t1);
-	n2->s[1] = s[i3];
-	n2->t[1] = t[i3];
-	lerp3(n2->drawNormals[2], //2022
-	drawNormals[i1],drawNormals[i3],t2);
-	n2->s[2] = lerp(s[i1],s[i3],t2);
-	n2->t[2] = lerp(t[i1],t[i3],t2);
+	n2->v[0] = n1->v[0]; 
+	n2->v[1] = v[i2];
 
 	n2->triangle = triangle;
 
-	for(int i=3;i-->0;)
-	{
-		coord[i2][i] = p1[i];
-		coord[i3][i] = p2[i];
-		//drawNormals[i2][i] = norm[i]; //???
-		//drawNormals[i3][i] = norm[i]; //???
-	}
-	lerp3(drawNormals[i2], //2022
-	drawNormals[i1],drawNormals[i2],t1);
-	s[i2] = lerp(s[i1],s[i2],t1);	
-	t[i2] = lerp(t[i1],t[i2],t1);
-	lerp3(drawNormals[i3], //2022
-	drawNormals[i1],drawNormals[i3],t2);
-	s[i3] = lerp(s[i1],s[i3],t2);
-	t[i3] = lerp(t[i1],t[i3],t2);
+	v[i1] = n1->v[0]; 
+	v[i2] = n2->v[2];
 }
 Model::BspTree::Node::side_t
 Model::BspTree::Node::side(Poly *p)
 {
-	auto eq = [](double rhs, double lhs)
+	auto eq = [](float rhs, float lhs)
 	{
-		return fabs(rhs-lhs)<0.0001f;
+		return fabsf(rhs-lhs)<0.0001f;
 	};
-	double *n = abc();
-	double d1 = dot_product(n,p->coord[0]);
-	double d2 = dot_product(n,p->coord[1]);
-	double d3 = dot_product(n,p->coord[2]);
+	float d0 = abc_dot_product(p->v[0].coord);
+	float d1 = abc_dot_product(p->v[1].coord);
+	float d2 = abc_dot_product(p->v[2].coord);
 
-	int e1,e2,e3,er;
+	int e0,e1,e2,er;
+	if(e0=!eq(d0,d)) e0 = d0<d?LEFT:RIGHT;
 	if(e1=!eq(d1,d)) e1 = d1<d?LEFT:RIGHT;
 	if(e2=!eq(d2,d)) e2 = d2<d?LEFT:RIGHT;
-	if(e3=!eq(d3,d)) e3 = d3<d?LEFT:RIGHT;
 
-	if(e1<=0&&e2<=0&&e3<=0)
+	if(e0<=0&&e1<=0&&e2<=0)
 	{
-		er = e1|e2|e3?LEFT:SAME;
+		er = e0|e1|e2?LEFT:SAME;
 	}
-	else er = e1>=0&&e2>=0&&e3>=0?RIGHT:BOTH;
+	else er = e0>=0&&e1>=0&&e2>=0?RIGHT:BOTH;
 
-	return side_t{e1,e2,e3,er};
+	return side_t{e0,e1,e2,er};
 }
 Model::BspTree::Poly *Model::BspTree::Node::split(Poly* &p, side_t e)
 {
-	Poly *r1,*r2;
-	int i0,i1,i2; bool rtl;
-	double t1,p1[3],t2,p2[3]; assert(!p->next);
-	if(!e.i1||!e.i2||!e.i3)
+	auto r = Poly::get(); assert(!p->next);
+	bool rtl;
+	if(!e.i0||!e.i1||!e.i2)
 	{
 		// one of the vertices is on the plane
 		
-		if(!e.i1)
+		int i0,i1,i2; if(!e.i0)
 		{
-			i0 = 0; i1 = 1; i2 = 2; rtl = e.i2<0;
+			i0 = 0; i1 = 1; i2 = 2; rtl = e.i1<0;
+		}
+		else if(!e.i1)
+		{
+			i0 = 1; i1 = 2; i2 = 0; rtl = e.i0>=0;
 		}
 		else if(!e.i2)
 		{
-			i0 = 1; i1 = 2; i2 = 0; rtl = e.i1>=0;
-		}
-		else if(!e.i3)
-		{
-			i0 = 2; i1 = 0; i2 = 1; rtl = e.i1<0;
+			i0 = 2; i1 = 0; i2 = 1; rtl = e.i0<0;
 		}
 		else //MEMORY LEAK?
 		{
 			assert(0); return nullptr; //2022
 		}
-		
-		t1 = intersection(p->coord[i1],p->coord[i2],p1);
 
-		r1 = Poly::get();
-
-		p->split(i0,i1,i2,p1,r1,t1);
+		p->split(i0,i1,i2,r,intersection(p->v[i1].coord,p->v[i2].coord));
 	}
 	else //triangle and quadrangle (or 3 triangles IOW)
 	{
-		if(e.i1==e.i2)
+		int i0,i1,i2; if(e.i0==e.i1)
 		{
-			i0 = 2; i1 = 0; i2 = 1; rtl = e.i3>=0;
+			i0 = 2; i1 = 0; i2 = 1; rtl = e.i2>=0;
 		}
-		else if(e.i1==e.i3)
+		else if(e.i0==e.i2)
 		{
-			i0 = 1; i1 = 2; i2 = 0; rtl = e.i2>=0;
+			i0 = 1; i1 = 2; i2 = 0; rtl = e.i1>=0;
 		}
-		else if(e.i2==e.i3)
+		else if(e.i1==e.i2)
 		{
-			i0 = 0; i1 = 1; i2 = 2; rtl = e.i1>=0;
+			i0 = 0; i1 = 1; i2 = 2; rtl = e.i0>=0;
 		}
 		else //MEMORY LEAK?
 		{
 			assert(0); return nullptr; //2022
 		}
-		
-		t1 = intersection(p->coord[i0],p->coord[i1],p1);
-		t2 = intersection(p->coord[i0],p->coord[i2],p2);
 
-		r1 = Poly::get(); r2 = Poly::get();
-		
-		p->split2(i0,i1,i2,p1,p2,r1,r2,t1,t2);
-
-		r1->next = r2;
+		p->split2(i0,i1,i2,r,r->next=Poly::get(),
+		intersection(p->v[i0].coord,p->v[i1].coord),intersection(p->v[i0].coord,p->v[i2].coord));
 	}
-	if(rtl) std::swap(p,r1); return r1;
+	if(rtl) std::swap(p,r); return r;
 }
 
 void Model::BspTree::render(double point[3], Draw &context)
 {
 	if(!m_root) return;
+
+	float pointf[3]; 
+	for(int i=3;i-->0;) pointf[i] = (float)point[i];
 
 	Poly *p = m_root->first; assert(p);
 
@@ -376,7 +313,7 @@ void Model::BspTree::render(double point[3], Draw &context)
 	//glEnable(GL_TEXTURE_2D); //???
 	{
 		glBegin(GL_TRIANGLES);
-		m_root->render(point,context);
+		m_root->render(pointf,context); //point
 		glEnd();
 	}
 	//glDisable(GL_TEXTURE_2D); //NEW
@@ -386,9 +323,9 @@ void Model::BspTree::render(double point[3], Draw &context)
 
 	if(context.bsp_selected) glDisable(GL_LIGHT1);
 }
-void Model::BspTree::Node::render(double point[3], Draw &context)
+void Model::BspTree::Node::render(float point[3], Draw &context)
 {
-	if(dot_product(abc(),point)<d)
+	if(abc_dot_product(point)<d)
 	{
 		if(right) right->render(point,context);
 
@@ -434,9 +371,9 @@ void Model::BspTree::Poly::_render(Draw &context)
 
 	for(int i=0;i<3;i++)
 	{
-		glTexCoord2f(s[i],t[i]);
-		glNormal3dv(drawNormals[i]);
-		glVertex3dv(coord[i]);
+		glTexCoord2fv(v[i].st);
+		glNormal3fv(v[i].drawNormals);
+		glVertex3fv(v[i].coord);
 	}
 }
 
