@@ -34,7 +34,6 @@ many convenience features that I hope will find their way into MM3D applications
 https://github.com/mick-p1982/mm3d<br>
 Copyright &copy; 2019-2022 Mick Pearson<br><br>
 <h1>Maverick Model 3D</h1>
-<h2>1.3.11</h2><br>
 https://clover.moe/mm3d/<br>
 Copyright &copy; 2009-2019 Zack Middleton<br><br>
 <h1>Misfit Model 3D</h1>		
