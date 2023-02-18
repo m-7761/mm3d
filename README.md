@@ -28,22 +28,16 @@ many convenience features that I hope will find their way into MM3D applications
 
 # about
 <html>
-<head><title>MM3D-About</title></head> 
 <body><center><br>
-<br> //NEW
+<br>
 <h1>Multimedia 3D</h1><br>
-%s<br>
+https://github.com/mick-p1982/mm3d<br>
 Copyright &copy; 2019-2022 Mick Pearson<br><br>
 <h1>Maverick Model 3D</h1>
-<h2> VERSION_STRING </h2><br>
-%s<br>
+<h2>1.3.11</h2><br>
+https://clover.moe/mm3d/<br>
 Copyright &copy; 2009-2019 Zack Middleton<br><br>
 <h1>Misfit Model 3D</h1>		
-%s<br>
+http://www.misfitcode.com/misfitmodel3d/<br>
 Copyright &copy; 2004-2008 Kevin Worcester<br><br>
-<h1>Configuration Files</h1><br>
-%s%s<br>
-<i>Tip: New versions of MM3D have new default hotkeys 
-that require keycfg.ini to be purged of old defaults. 
-Quit/restart to take effect.
 </center></body></html>
