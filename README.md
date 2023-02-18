@@ -30,13 +30,13 @@ many convenience features that I hope will find their way into MM3D applications
 <html>
 <body><center><br>
 <br>
-<h1>Multimedia 3D</h1><br>
+<h2>Multimedia 3D</h2><br>
 https://github.com/mick-p1982/mm3d<br>
 Copyright &copy; 2019-2022 Mick Pearson<br><br>
-<h1>Maverick Model 3D</h1>
+<h2>Maverick Model 3D</h2>
 https://clover.moe/mm3d/<br>
 Copyright &copy; 2009-2019 Zack Middleton<br><br>
-<h1>Misfit Model 3D</h1>		
+<h2>Misfit Model 3D</h2>		
 http://www.misfitcode.com/misfitmodel3d/<br>
 Copyright &copy; 2004-2008 Kevin Worcester<br><br>
 </center></body></html>
