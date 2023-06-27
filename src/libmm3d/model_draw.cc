@@ -648,11 +648,19 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 	//https://github.com/zturtleman/mm3d/issues/56
 	drawOptions|=m_drawOptions;
 
+	//TESTING SOMETHING
+	int wireframe = drawOptions&DO_WIREFRAME;
 	if(0!=(drawOptions&DO_WIREFRAME))
 	{
+		drawOptions&=~DO_TEXTURE;
+
+		glColor3f(1,1,1); //a
+
 		//NOTE: This will draw cuts in the BSP tree
 		//which may not be desired?
 		glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+		glEnable(GL_LINE_STIPPLE);
+		glDisable(GL_TEXTURE_2D);
 	}
 	else
 	{
@@ -707,9 +715,10 @@ void Model::draw_bspTree(unsigned drawOptions, ContextT context, double viewPoin
 		glMatrixMode(GL_MODELVIEW_MATRIX);
 	}
 
-	if(0!=(drawOptions&DO_WIREFRAME))
+	if(wireframe)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+		glDisable(GL_LINE_STIPPLE);
 	}
 }
 

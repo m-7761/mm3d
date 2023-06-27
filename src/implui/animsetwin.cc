@@ -104,7 +104,7 @@ struct AnimSetWin : Win
 	MainWin &model;
 	int mode; //Model::AnimationModeE mode;
 
-	dropdown type; listbox table; //MERGE US?
+	dropdown type; listbox table;
 	listbar header;
 	multiple::item name_col,fps_col,frames_col;
 	boolean wrap; 
@@ -140,7 +140,8 @@ struct AnimSetWin : Win
 
 	static void cbcb(int impl, checkbox_item &it)
 	{
-		assert(impl&it.impl_checkbox);
+		if(~impl&it.impl_checkbox) return;
+
 		auto w = (AnimSetWin*)it.list().ui();
 		w->model->setAnimWrap(it.id(),it.checkbox());
 	}
@@ -297,7 +298,7 @@ struct AnimConvertWin : Win
 
 	listbox table;
 	listbar header;
-	f1_ok_cancel_panel f1_ok_cancel;
+	f1_ok_cancel_panel f1_ok_cancel; //"Convert"
 };
 void AnimConvertWin::submit(int id)
 {

@@ -36,6 +36,8 @@ typedef std::unordered_map<int,int> model_copy_int_map;
 
 Model *Model::copySelected(bool animated)const
 {
+	int_list vert;
+	getSelectedVertices(vert);
 	int_list tri;
 	getSelectedTriangles(tri);
 	int_list joints;
@@ -46,7 +48,7 @@ Model *Model::copySelected(bool animated)const
 	getSelectedPoints(points);
 	int_list proj;
 	getSelectedProjections(proj);
-	if(tri.empty()&&joints.empty()&&points.empty()&&proj.empty())
+	if(vert.empty()&&tri.empty()&&joints.empty()&&points.empty()&&proj.empty())
 	return nullptr; //2021
 
 	if(animated) validateAnim();
@@ -94,9 +96,6 @@ Model *Model::copySelected(bool animated)const
 
 	if(!tri.empty())
 	{
-		int_list vert;
-		getSelectedVertices(vert);
-
 		// Copy vertices
 		//log_debug("Copying %d vertices\n",vert.size());
 		for(auto i:vert)
@@ -164,7 +163,7 @@ Model *Model::copySelected(bool animated)const
 			default:
 				log_error("Unknown material type %d in duplicate\n",getMaterialType(t));
 			case Model::MATTYPE_BLANK:
-				m->addColorMaterial(getTextureName(t));
+				m->addMaterial(getTextureName(t));
 				break;
 			}
 

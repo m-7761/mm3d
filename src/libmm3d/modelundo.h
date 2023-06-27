@@ -1196,13 +1196,13 @@ private:
 	Model::FrameAnimData m_vertices;
 };
 
-class MU_MoveAnimation : public ModelUndo
+class MU_IndexAnimation : public ModelUndo
 {
 public:
 
 	enum{ resume=false };
 
-	MU_MoveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff=0)
+	MU_IndexAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff=0)
 	:m_oldIndex(oldIndex),m_newIndex(newIndex),m_typeDiff(typeDiff)
 	{}
 
@@ -1215,6 +1215,26 @@ public:
 private:
 
 	unsigned m_oldIndex,m_newIndex; int m_typeDiff;
+};
+class MU_Index : public ModelUndo
+{
+public:
+
+	enum{ resume=false };
+
+	MU_Index(Model::ComparePartsE type, unsigned oldIndex, unsigned newIndex)
+	:m_oldIndex(oldIndex),m_newIndex(newIndex),m_type(type)
+	{}
+
+	void undo(Model *);
+	void redo(Model *);
+	int combine(Undo *);
+
+	unsigned size();
+
+private:
+
+	unsigned m_oldIndex,m_newIndex; Model::ComparePartsE m_type;
 };
 
 class MU_SetJointParent : public ModelUndo

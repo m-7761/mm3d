@@ -868,7 +868,7 @@ public:
 	bool getPositionRotationUnanimated(const Position &pos, double rot[3])const;
 	bool getPositionScale(const Position &pos, double scale[3])const;
 	bool getPositionScaleUnanimated(const Position &pos, double scale[3])const;		
-
+	
 	// ------------------------------------------------------------------
 	// Animation functions
 	// ------------------------------------------------------------------
@@ -1061,8 +1061,14 @@ public:
 	int convertAnimToType(AnimationModeE, unsigned anim);
 
 	//MU_MoveAnimation and convertAnimToType use this version.
-	void _moveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff);
+	int _moveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff);
 	bool moveAnimation(unsigned oldIndex, unsigned newIndex);		
+
+	//2023: pointwin.cc
+	bool indexPoint(unsigned oldIndex, unsigned newIndex);
+	bool indexJoint(unsigned oldIndex, unsigned newIndex);
+	bool indexGroup(unsigned oldIndex, unsigned newIndex);
+	bool indexMaterial(unsigned oldIndex, unsigned newIndex);
 
 	// For undo,don't call these directly
 	bool insertKeyframe(unsigned anim, Keyframe *keyframe);
@@ -1276,7 +1282,7 @@ public:
 
 	// Textures and Color materials go into the same material list
 	int addTexture(Texture *tex);
-	int addColorMaterial(const char *name);
+	int addMaterial(const char *name);
 
 	bool setGroupTextureId(unsigned groupNumber, int textureId);
 
@@ -1300,7 +1306,7 @@ public:
 	int mergeIdenticalMaterials();
 
 	// These implicitly change the material type.
-	void setMaterialTexture(unsigned textureId,Texture *tex);
+	void setMaterialTexture(unsigned textureId, Texture *tex);
 	void removeMaterialTexture(unsigned textureId);
 
 	uint8_t getGroupSmooth(unsigned groupNum)const;
@@ -1482,7 +1488,7 @@ public:
 	// Point functions
 	// ------------------------------------------------------------------
 
-	int addPoint(const char *name, double x, double y, double z, double xrot, double yrot, double zrot);
+	int addPoint(const char *name, double x=0, double y=0, double z=0, double xrot=0, double yrot=0, double zrot=0);
 
 	void deletePoint(unsigned point);
 
@@ -1507,7 +1513,7 @@ public:
 	// Texture projection functions
 	// ------------------------------------------------------------------
 
-	int addProjection(const char *name, int type, double x, double y, double z);
+	int addProjection(const char *name, int type=0, double x=0, double y=0, double z=0);
 	void deleteProjection(unsigned proj);
 
 	const char *getProjectionName(unsigned proj)const;		

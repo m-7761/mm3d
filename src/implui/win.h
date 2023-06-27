@@ -208,6 +208,7 @@ enum
 	id_keycfg,
 	id_license,
 	id_unscale,
+	id_reorder,
 
 	id_toolparams,
 	id_properties,
@@ -379,8 +380,12 @@ struct Win : Widgets95::ui
 		multisel_item(int id, utf8 text):item(id,text),m()
 		{}
 
+		typedef void (*mscb)(int,multisel_item&);
+
 		virtual int impl(int s)
 		{
+			int cmp = m; //2023
+
 			if(~s&impl_multisel) switch(s)
 			{
 			case impl_features: return impl_multisel;
@@ -391,6 +396,12 @@ struct Win : Widgets95::ui
 			case impl_set: m|=impl_multisel; break;
 			case impl_xor: m^=impl_multisel; break;
 			}
+
+			if(cmp!=m)
+			if(parent())
+			if(mscb f=(mscb)list().user_cb)
+			f(s,*this);
+
 			return m;
 		}
 	};

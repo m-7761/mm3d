@@ -170,7 +170,7 @@ struct UtilWin : Win
 	{
 		p->model->addObserver(p);
 
-		nav.expand();
+		nav.expand(); close.ralign();
 
 		p->main.set_parent(main,nav);
 
@@ -670,7 +670,8 @@ struct UtilWin::UvAnimation : UtilWin::Plugin
 
 	static void cbcb(int impl, checkbox_item &it)
 	{
-		assert(impl&it.impl_checkbox);
+		if(~impl&it.impl_checkbox) return;
+
 		union{ Plugin *p; char *os; };
 		os = (char*)&it.list()-offsetof(UvAnimation,table);
 		p->model->addGroupToUtility(p->u,it.id(),it.checkbox());

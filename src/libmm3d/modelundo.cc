@@ -1724,21 +1724,49 @@ bool MU_SetGroupAngle::resume2(unsigned group,
 	m_list.push_back(ss); return true;
 }
 
-void MU_MoveAnimation::undo(Model *model)
+void MU_IndexAnimation::undo(Model *model)
 {
 	model->_moveAnimation(m_newIndex,m_oldIndex,-m_typeDiff);
 }
-void MU_MoveAnimation::redo(Model *model)
+void MU_IndexAnimation::redo(Model *model)
 {
 	model->_moveAnimation(m_oldIndex,m_newIndex,+m_typeDiff);
 }
-int MU_MoveAnimation::combine(Undo *u)
+int MU_IndexAnimation::combine(Undo *u)
 {
 	return CC_Stop;
 }
-unsigned MU_MoveAnimation::size()
+unsigned MU_IndexAnimation::size()
 {
-	return sizeof(MU_MoveAnimation);
+	return sizeof(MU_IndexAnimation);
+}
+void MU_Index::undo(Model *model)
+{
+	switch(m_type)
+	{
+	case Model::PartPoints: model->indexPoint(m_newIndex,m_oldIndex); break;
+	case Model::PartJoints: model->indexJoint(m_newIndex,m_oldIndex); break;
+	case Model::PartGroups: model->indexGroup(m_newIndex,m_oldIndex); break;
+	case Model::PartMaterials: model->indexMaterial(m_newIndex,m_oldIndex); break;
+	}
+}
+void MU_Index::redo(Model *model)
+{
+	switch(m_type)
+	{
+	case Model::PartPoints: model->indexPoint(m_oldIndex,m_newIndex); break;
+	case Model::PartJoints: model->indexJoint(m_oldIndex,m_newIndex); break;
+	case Model::PartGroups: model->indexGroup(m_oldIndex,m_newIndex); break;
+	case Model::PartMaterials: model->indexMaterial(m_oldIndex,m_newIndex); break;
+	}
+}
+int MU_Index::combine(Undo *u)
+{
+	return CC_Stop;
+}
+unsigned MU_Index::size()
+{
+	return sizeof(MU_Index);
 }
 
 void MU_SetMaterialBool::undo(Model *model)

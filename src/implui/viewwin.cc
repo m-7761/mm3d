@@ -960,6 +960,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(::tr("License","Help|License"),id_license);		
 	glutAddMenuEntry(::tr("About","Help|About"),id_about);
 	glutAddMenuEntry();
+	glutAddMenuEntry(E(reorder,"Reorder","",","));
 	glutAddMenuEntry(E(unscale,"Unscale","","Shift+Alt+1"));
 	}
 		
@@ -2343,11 +2344,17 @@ void MainWin::perform_menu_action(int id)
 		
 		extern void painttexturewin(Model*);
 		painttexturewin(m); return;
+	
+	case id_reorder:
+
+		extern void pointwin(MainWin&);
+		pointwin(*w);
+		return;
 
 	/*Influences menu*/
 	case id_joint_settings: 
 		
-		extern void jointwin(MainWin&,int&);
+		extern void jointwin(MainWin&,int);
 		jointwin(*w,viewwin_joints100); 
 		return;
 		

@@ -4532,3 +4532,167 @@ const double *Model::Object2020::getParamsUnanimated(Interpolant2020E d)const
 	default: return nullptr;
 	}
 }
+
+bool Model::indexPoint(unsigned oldIndex, unsigned newIndex)
+{
+	if(oldIndex==newIndex) return true;
+
+	if(oldIndex<m_points.size()&&newIndex<m_points.size())
+	{
+		auto p = m_points[oldIndex];
+
+		m_points.erase(m_points.begin()+oldIndex);			
+		m_points.insert(m_points.begin()+newIndex,p);
+
+		if(newIndex==oldIndex) return false;
+	}
+	else return false;
+			
+	m_changeBits|=AddOther; //2020
+			
+	Undo<MU_Index>(this,PartPoints,oldIndex,newIndex);
+
+	return true;
+}
+bool Model::indexJoint(unsigned oldIndex, unsigned newIndex)
+{
+	if(oldIndex==newIndex) return true;
+
+	if(oldIndex<m_joints.size()&&newIndex<m_joints.size())
+	{
+		auto p = m_joints[oldIndex];
+
+		m_joints.erase(m_joints.begin()+oldIndex);			
+		m_joints.insert(m_joints.begin()+newIndex,p);
+
+		size_t sz = m_joints.size();
+		std::vector<unsigned> v; v.reserve(sz);
+		for(size_t i=0;i<sz;i++) 
+		v.push_back(i);
+		v.erase(v.begin()+oldIndex);
+		v.insert(v.begin()+newIndex,oldIndex); 
+		{
+			std::vector<unsigned> w; w.reserve(sz*2);
+			for(size_t i=sz;i-->0;)
+			{
+				auto *ea = m_joints[i];
+				if(-1!=ea->m_parent)
+				{
+					w.push_back(i);
+					w.push_back(v[ea->m_parent]);
+
+					//ea->m_parent = -1;
+					setBoneJointParent((unsigned)i,-1,false); 
+				}
+			}
+			int j = 0; for(auto&ea:m_joints2)
+			{
+				ea.first = j++; 
+				ea.second = m_joints[ea.first];
+			}
+			for(size_t i=0;i<w.size();i+=2)
+			{
+				//ea->m_parent = v[ea->m_parent];
+				setBoneJointParent(w[i],w[i+1],false); 
+			}					
+		}
+		for(auto*ea:m_points)
+		for(auto&eb:ea->m_influences)
+		{
+			eb.m_boneId = v[eb.m_boneId];
+		}
+		for(auto*ea:m_vertices)
+		for(auto&eb:ea->m_influences)
+		{
+			eb.m_boneId = v[eb.m_boneId];
+		}
+		for(auto*a:m_anims)
+		{
+			typedef ObjectKeyframeList::value_type w_t; //2023
+			std::vector<w_t> w;
+
+			for(auto&ea:a->m_keyframes)
+			if(v[ea.first]!=ea.first)
+			{
+				auto i = v[ea.first];
+				for(auto&eb:ea.second)			
+				eb->m_objectIndex.index = i;
+				w.push_back(w_t(ea.first,std::move(ea.second)));
+			}
+			for(auto&ea:w) 
+			{
+				a->m_keyframes.erase(ea.first);
+			}
+			for(auto&ea:w) 
+			{
+				auto i = v[ea.first];
+				const_cast<Position&>(ea.first).index = i;
+				w_t e(ea.first,std::move(ea.second));
+				a->m_keyframes.insert(e);
+			}
+		}
+
+		calculateSkel();
+
+		if(newIndex==oldIndex) return false;
+	}
+	else return false;
+
+	m_changeBits|=AddOther; //2020
+			
+	Undo<MU_Index>(this,PartJoints,oldIndex,newIndex);
+
+	return true;
+}
+bool Model::indexGroup(unsigned oldIndex, unsigned newIndex)
+{
+	if(oldIndex==newIndex) return true;
+
+	if(oldIndex<m_groups.size()&&newIndex<m_groups.size())
+	{
+		auto p = m_groups[oldIndex];
+
+		m_groups.erase(m_groups.begin()+oldIndex);			
+		m_groups.insert(m_groups.begin()+newIndex,p);
+
+		if(newIndex==oldIndex) return false;
+	}
+	else return false;
+			
+	m_changeBits|=AddOther; //2020
+			
+	Undo<MU_Index>(this,PartGroups,oldIndex,newIndex);
+
+	return true;
+}
+bool Model::indexMaterial(unsigned oldIndex, unsigned newIndex)
+{
+	if(oldIndex==newIndex) return true;
+
+	if(oldIndex<m_materials.size()&&newIndex<m_materials.size())
+	{
+		auto p = m_materials[oldIndex];
+
+		m_materials.erase(m_materials.begin()+oldIndex);			
+		m_materials.insert(m_materials.begin()+newIndex,p);
+
+		std::vector<size_t> v(m_joints.size());
+		for(size_t i=v.size();i-->0;) v[i] = i;
+		v.erase(v.begin()+oldIndex);
+		v.insert(v.begin()+newIndex,oldIndex); 
+
+		for(auto*ea:m_groups)
+		{
+			ea->m_materialIndex = v[ea->m_materialIndex];
+		}
+
+		if(newIndex==oldIndex) return false;
+	}
+	else return false;
+			
+	m_changeBits|=AddOther; //2020
+			
+	Undo<MU_Index>(this,PartTextures,oldIndex,newIndex);
+
+	return true;
+}

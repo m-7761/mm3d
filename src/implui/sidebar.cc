@@ -960,7 +960,7 @@ void SideBar::PropPanel::group_props::submit(int id)
 				group.menu.add_item(iN+1,::tr("<New Material>"));
 				if(g==iN+1) //2022
 				{
-					int i = model->addColorMaterial(groupName.c_str());
+					int i = model->addMaterial(groupName.c_str());
 					model->setGroupTextureId(iN,i);
 					material.menu.add_item(i,groupName);
 					material.menu.select_id(i);

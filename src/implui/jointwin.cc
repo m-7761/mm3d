@@ -37,7 +37,7 @@ struct JointWin : Win
 {
 	void submit(control*);
 
-	JointWin(MainWin &model, int &i)
+	JointWin(MainWin &model, int i)
 		:
 	Win("Joints"),model(model),loo(i!=0),
 	joint(main,"",id_item),
@@ -244,4 +244,4 @@ void JointWin::submit(control *c)
 	basic_submit(id);
 }
 
-extern void jointwin(MainWin &m, int &loo){ JointWin(m,loo).return_on_close(); }
+extern void jointwin(MainWin &m, int loo){ JointWin(m,loo).return_on_close(); }

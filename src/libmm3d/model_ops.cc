@@ -1354,7 +1354,7 @@ bool Model::mergeModels(const Model *model, bool textures, AnimationMergeE anima
 					newMat = addTexture(newtex);
 					setTextureName(newMat,model->getTextureName(n));
 				}
-				else newMat = addColorMaterial(model->getTextureName(n));
+				else newMat = addMaterial(model->getTextureName(n));
 				materialMap[n] = newMat;
 
 				float val[4], shin;

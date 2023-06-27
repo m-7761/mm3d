@@ -305,7 +305,7 @@ void TextureWin::new_material_or_name(int id)
 		}
 		else if(id==id_new)
 		{
-			m = model->addColorMaterial(name.c_str());
+			m = model->addMaterial(name.c_str());
 			material.add_item(m,name);
 			material.select_id(m);
 			material_selected();

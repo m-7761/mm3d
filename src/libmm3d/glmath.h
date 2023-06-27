@@ -335,13 +335,13 @@ template<typename T> T dot2(const T *lhs, const T *rhs)
 	return lhs[0]*rhs[0]+lhs[1]*rhs[1];
 }
 
-static double dot_product(const double val1[3], const double val2[3])
+inline double dot_product(const double val1[3], const double val2[3])
 {
 	return val1[0]*val2[0]+val1[1]*val2[1]+val1[2]*val2[2];
 }
 
 template<typename T> //2020
-static T *cross_product(T *result, const T a[3], const T b[3])
+T *cross_product(T *result, const T a[3], const T b[3])
 {
 	result[0] = a[1]*b[2]-b[1]*a[2];
 	result[1] = a[2]*b[0]-b[2]*a[0];
@@ -349,8 +349,7 @@ static T *cross_product(T *result, const T a[3], const T b[3])
 }
 
 template<typename T>
-static double calculate_normal(T *normal,
-		const T *a, const T *b, const T *c)
+double calculate_normal(T *normal, const T *a, const T *b, const T *c)
 {
 	//Newell's Method for triangles?
 	//https://github.com/zturtleman/mm3d/issues/115
@@ -366,34 +365,11 @@ static double calculate_normal(T *normal,
 }
 
 template<typename T> //2020
-static T *delta3(T *result, const T *a, const T *b)
+T *delta3(T *result, const T *a, const T *b)
 {
 	result[0] = a[0]-b[0];
 	result[1] = a[1]-b[1];
 	result[2] = a[2]-b[2]; return result;
-}
-
-template<typename T> //2022
-static T *lerp3(T *result, const T *a, const T *b, T t)
-{
-	for(int i=3;i-->0;)
-	result[i] = a[i]+(b[i]-a[i])*t; return result;
-}
-template<typename T> //2022
-static T *lerp2(T *result, const T *a, const T *b, T t)
-{
-	for(int i=2;i-->0;)
-	result[i] = a[i]+(b[i]-a[i])*t; return result;
-}
-template<typename T> //2022
-static T lerp(const T &a, const T &b, float t)
-{
-	return a+(b-a)*(T)t;
-}
-template<typename T> //2022
-static T lerp(const T &a, const T &b, double t)
-{
-	return a+(b-a)*(T)t;
 }
 
 #endif // __GLMATH_H

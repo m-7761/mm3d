@@ -23,9 +23,7 @@
 #include "mm3dtypes.h" //PCH
 
 #include "glheaders.h"
-#include "glmath.h"
 //#include "bsptree.h"
-#include "glmath.h"
 #include "log.h"
 #include "model.h"
 
@@ -55,8 +53,6 @@ struct Model::BspTree::Poly
 
 	void split(int i1, int i2, int i3, Poly*, float t);
 	void split2(int,int,int, Poly*,Poly*, float,float t2);
-
-	void _render(Draw&);
 };
 struct Model::BspTree::Node
 {
@@ -325,56 +321,48 @@ void Model::BspTree::render(double point[3], Draw &context)
 }
 void Model::BspTree::Node::render(float point[3], Draw &context)
 {
-	if(abc_dot_product(point)<d)
+	bool r = abc_dot_product(point)<d;
+
+	if(auto*n=r?right:left) n->render(point,context);
+
+	for(Poly*p=first;p;p=p->next)
 	{
-		if(right) right->render(point,context);
+		auto *t = p->triangle;
 
-		for(Poly*p=first;p;p=p->next) p->_render(context);
+		if(!t->visible(context.layers)) continue;
 
-		if(left) left->render(point,context);
-	}
-	else
-	{
-		if(left) left->render(point,context);
+		if(context.bsp_group!=t->m_group) 
+		{
+			context.bsp_group = t->m_group; //material
 
-		for(Poly*p=first;p;p=p->next) p->_render(context);
+			glEnd();
 
-		if(right) right->render(point,context);
-	}
-}
-void Model::BspTree::Poly::_render(Draw &context)
-{
-	if(!triangle->visible(context.layers)) return;
+			context.bsp->_drawMaterial(context,context.bsp_group);
 
-	if(context.bsp_group!=triangle->m_group) 
-	{
-		context.bsp_group = triangle->m_group; //material
+			if(context.bsp_selected!=t->m_selected)
+			goto selected;
 
-		glEnd();
+			glBegin(GL_TRIANGLES);
+		}
+		if(context.bsp_selected!=t->m_selected)
+		{
+			context.bsp_selected = t->m_selected; //red light
 
-		context.bsp->_drawMaterial(context,context.bsp_group);
+			glEnd(); selected: //OPTIMIZING?
+			glDisable(context.bsp_selected?GL_LIGHT0:GL_LIGHT1);
+			glEnable(context.bsp_selected?GL_LIGHT1:GL_LIGHT0);
+			glBegin(GL_TRIANGLES);
+		}
 
-		if(context.bsp_selected!=triangle->m_selected)
-		goto selected;
-
-		glBegin(GL_TRIANGLES);
-	}
-	if(context.bsp_selected!=triangle->m_selected)
-	{
-		context.bsp_selected = triangle->m_selected; //red light
-
-		glEnd(); selected: //OPTIMIZING?
-		glDisable(context.bsp_selected?GL_LIGHT0:GL_LIGHT1);
-		glEnable(context.bsp_selected?GL_LIGHT1:GL_LIGHT0);
-		glBegin(GL_TRIANGLES);
+		for(auto&v:p->v)
+		{
+			glTexCoord2fv(v.st);
+			glNormal3fv(v.drawNormals);
+			glVertex3fv(v.coord);
+		}
 	}
 
-	for(int i=0;i<3;i++)
-	{
-		glTexCoord2fv(v[i].st);
-		glNormal3fv(v[i].drawNormals);
-		glVertex3fv(v[i].coord);
-	}
+	if(auto*n=r?left:right) n->render(point,context);
 }
 
 std::vector<Model::BspTree::Node*> Model::BspTree::s_recycle;

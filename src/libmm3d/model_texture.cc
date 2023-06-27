@@ -196,7 +196,7 @@ int Model::addTexture(Texture *tex)
 	return -1;
 }
 
-int Model::addColorMaterial(const char *name)
+int Model::addMaterial(const char *name)
 {
 	//LOG_PROFILE(); //???
 

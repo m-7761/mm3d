@@ -35,6 +35,10 @@ name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
 
+#ifdef WIN32
+#include "resource.h" //#define IDD_FINDWINDOW 101
+#endif
+
 #include "win.h"
 #include "viewwin.h"
 #include "model.h"
@@ -150,7 +154,7 @@ const char *ui_translate(const char *ctxt, const char *msg) //transimp.h
 #include "pixmap/zoomout.xpm"
 
 int pics[pic_N] = {}; //extern
-int ui_prep(int &argc, char *argv[]) //extern
+bool ui_prep(int &argc, char *argv[]) //extern
 {	
 	Widgets95::glut::set_wxWidgets_enabled();
 	glutInit(&argc,argv);
@@ -185,7 +189,7 @@ int ui_prep(int &argc, char *argv[]) //extern
 	s_app->installTranslator(s_mm3dXlat);
 	*/
 
-	return 0;
+	return true;
 }
 
 extern int ui_init(int &argc, char *argv[])
@@ -307,6 +311,36 @@ TextureFilter *ui_texfilter(){ return new StdTexFilter; }
 
 //Console "assert" always terminates :(
 #ifdef _WIN32
+static INT_PTR CALLBACK ui_findwindowproc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch(uMsg)
+	{		
+	case WM_DROPFILES:
+			
+		HDROP &drop = (HDROP&)wParam;
+		UINT n = DragQueryFileW(drop,-1,0,0);
+		
+		char **u = new char*[n+1];
+		auto *w = new wchar_t[MAX_PATH];
+
+		for(UINT i=0;i<n;i++)
+		{
+			DragQueryFileW(drop,i,w,MAX_PATH);
+
+			int len = WideCharToMultiByte(CP_UTF8,0,w,-1,0,0,0,0);
+			u[i] = new char[len+1];
+			WideCharToMultiByte(CP_UTF8,0,w,-1,u[i],len,0,0);
+			u[i][len] = '\0';
+		}	
+		u[n] = nullptr; ui_drop(u,n);
+
+		while(n-->0) delete[] u[n]; delete[] u; delete[] w;
+
+		DragFinish(drop); return 1;
+	}	
+
+	return 0;
+}
 BOOL WINAPI wWinMain_CONSOLE_HandlerRoutine(DWORD dwCtrlType)
 {
 	switch(dwCtrlType)
@@ -344,6 +378,49 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 		WideCharToMultiByte(CP_UTF8,0,argw[i],-1,argv[i],len,0,0);
 		argv[i][len] = '\0';
 	}
+	if(HWND fw=FindWindowA(0,"Hidden - FindWindow(Mulimedia3D)"))
+	{
+		wchar_t cd[MAX_PATH];
+		DWORD cd_s = GetCurrentDirectory(MAX_PATH,cd);
+		cd[cd_s++] = '\\';
+
+		size_t sz = sizeof(DROPFILES);
+		for(int i=1;i<argc;i++) if('-'!=argw[i][0])
+		{
+			if(PathIsRelative(argw[i]))
+			sz+=cd_s;
+			sz+=sizeof(WCHAR)*(wcslen(argw[i])+1);
+		}
+		if(sz>sizeof(DROPFILES))
+		{
+			sz+=sizeof(WCHAR);
+
+			HANDLE h = GlobalAlloc(GMEM_MOVEABLE|GMEM_ZEROINIT,sz);	
+			DROPFILES *hd = (DROPFILES*)GlobalLock(h);
+			hd->fWide = 1;
+			hd->pFiles = sizeof(DROPFILES);
+			wchar_t *p = (wchar_t*)((char*)hd+hd->pFiles);
+			for(int i=1;i<argc;i++) if('-'!=argw[i][0])
+			{
+				size_t len = wcslen(argw[i])+1;
+
+				if(PathIsRelative(argw[i]))				
+				{
+					wmemcpy(p,cd,cd_s); p+=cd_s;
+				}				
+				wmemcpy(p,argw[i],len); p+=len;
+			}
+			*p = '\0';
+			GlobalUnlock(h);
+			PostMessage(fw,WM_DROPFILES,(WPARAM)hd,0);
+		//	GlobalFree(h);
+
+		//	Sleep(1000);
+
+			return 0; //!
+		}
+	}	
+	CreateDialogW(0,MAKEINTRESOURCEW(IDD_FINDWINDOW),0,ui_findwindowproc); 
 	 
 	#ifdef _CONSOLE
 	//This is not necessary for CONSOLE applications, but it's better

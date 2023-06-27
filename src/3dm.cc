@@ -114,10 +114,8 @@ extern int main(int argc, char *argv[])
 	//Wrong file!
 	//Q_INIT_RESOURCE(qtuiResources);
 
-	extern int ui_prep(int&,char*[]);
-	ui_prep(argc,argv);
-
-	//???
+	extern bool ui_prep(int&,char*[]);
+	if(ui_prep(argc,argv))
 	{
 		//LOG_PROFILE(); //???
 

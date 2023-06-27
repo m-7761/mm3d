@@ -1039,11 +1039,11 @@ bool Model::moveAnimation(unsigned oldIndex, unsigned newIndex)
 		m_changeBits|=AnimationSet;
 	}
 
-	Undo<MU_MoveAnimation>(this,oldIndex,newIndex);
+	Undo<MU_IndexAnimation>(this,oldIndex,newIndex);
 
 	return true;
 }
-void Model::_moveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff)
+int Model::_moveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff)
 {
 	if(oldIndex<m_anims.size()&&newIndex<m_anims.size())
 	{
@@ -1054,7 +1054,10 @@ void Model::_moveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff)
 			m_anims.insert(m_anims.begin()+newIndex,p);
 		}
 	}
-	else assert(0);
+	else
+	{
+		assert(0); return oldIndex;
+	}
 			
 	m_changeBits|=AddAnimation; //2020
 		
@@ -1064,6 +1067,8 @@ void Model::_moveAnimation(unsigned oldIndex, unsigned newIndex, int typeDiff)
 
 		m_changeBits|=AnimationSet;
 	}
+
+	return newIndex;
 }
 
 template<int I> struct model_cmp_t //convertAnimToFrame
@@ -1207,9 +1212,9 @@ int Model::convertAnimToType(AnimationModeE e, unsigned anim)
 
 	if(to>anim) to--; //Complicated :(
 
-	_moveAnimation(anim,to,td);
+	anim = _moveAnimation(anim,to,td);
 
-	Undo<MU_MoveAnimation>(this,anim,to,td);
+	Undo<MU_IndexAnimation>(this,anim,to,td);
 	
 	m_changeBits|=AddAnimation;
 	
@@ -2530,7 +2535,7 @@ Model::Interpolate2020E Model::hasKeyframe(unsigned anim, unsigned frame,
 	//Keyframe *kf = Keyframe::get(); //STUPID
 	Keyframe kf;
 
-	kf.m_frame		  = frame;
+	kf.m_frame = frame;
 	kf.m_isRotation	= isRotation;
 
 	unsigned index;

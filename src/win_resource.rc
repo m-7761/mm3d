@@ -1,82 +1,141 @@
-/*  MM3D Misfit/Maverick Model 3D
- *
- * Copyright (c)2004-2007 Kevin Worcester
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place-Suite 330, Boston, MA 02111-1307,
- * USA.
- *
- * See the COPYING file for full license text.
- */
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
 
-#include <winresrc.h>
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
 
-#include "copyright.h" //MM3D_PRODUCT/COPYRIGHT
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
 
-A ICON "mm3d.ico"
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+A                       ICON                    "mm3d.ico"
 
-/*CVTRES : fatal error CVT1100: duplicate resource.  
-//type:MANIFEST, name:1, language:0x0409
-CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "win_manifest.xml"
-*/
 
-#define VER_PRODUCTVERSION			 1,3,11,0
-#define VER_PRODUCTVERSION_STR		"1.3.11\0"
-
-#ifndef DEBUG
-#define VER_DEBUG						 0
-#else
-#define VER_DEBUG						 VS_FF_DEBUG
-#endif
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION	  VER_PRODUCTVERSION
-PRODUCTVERSION  VER_PRODUCTVERSION
-FILEFLAGSMASK	VS_FFI_FILEFLAGSMASK
-FILEFLAGS		 (VER_DEBUG)
-FILEOS			 VOS__WINDOWS32
-FILETYPE		  VFT_APP
-FILESUBTYPE	  VFT2_UNKNOWN
-BEGIN
-	 BLOCK "StringFileInfo"
-	 BEGIN
-		  BLOCK "040904E4"
-		  BEGIN
-				//VALUE "ProductName",	  "Maverick Model 3D"
-				VALUE "ProductName",	  MM3D_PRODUCT
-				VALUE "ProductVersion",  VER_PRODUCTVERSION_STR
-				VALUE "FileVersion",	  VER_PRODUCTVERSION_STR
-#ifdef _WIN64
-				//VALUE "FileDescription", "Maverick Model 3D (x86_64)"
-				VALUE "FileDescription",	MM3D_PRODUCT " (x86_64)"
-				VALUE "OriginalFilename","mm3d.x86_64.exe"
-				VALUE "InternalName",	 "mm3d.x86_64"
+ FILEVERSION 1,3,11,0
+ PRODUCTVERSION 1,3,11,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
 #else
-				//VALUE "FileDescription", "Maverick Model 3D (x86)"
-				VALUE "FileDescription",	MM3D_PRODUCT " (x86)"
-				VALUE "OriginalFilename","mm3d.x86.exe"
-				VALUE "InternalName",	 "mm3d.x86"
+ FILEFLAGS 0x0L
 #endif
-				// Copyright symbol (c) in Windows codepage 1252 is \xA9
-				//VALUE "LegalCopyright",  "Copyright \xA9 2004-2008 Kevin Worcester,Copyright \xA9 2009-2019 Zack Middleton."
-				VALUE "LegalCopyright",  MM3D_COPYRIGHT
-		  END
-	 END
-
-	 BLOCK "VarFileInfo"
-	 BEGIN
-		  /* English language (0x409)in the Windows ANSI codepage (1252). */
-		  VALUE "Translation",0x409,1252
-	 END
+ FILEOS 0x4L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "ProductName", "Multimedia 3D"
+            VALUE "ProductVersion", "1.3.11"
+            VALUE "FileVersion", "1.3.11"
+            VALUE "FileDescription", "Multimedia 3D (x86)"
+            VALUE "OriginalFilename", "mm3d.x86.exe"
+            VALUE "InternalName", "mm3d.x86"
+            VALUE "LegalCopyright", "(C) 2019-2022 github.com/mick-p1982/mm3d, 2009-2019 Zack Middleton, 2004-2008 Kevin Worcester."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
 END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_FINDWINDOW DIALOGEX 0, 0, 175, 102
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "Hidden - FindWindow(Mulimedia3D)"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_FindWindow, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 168
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 95
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_FindWindow AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

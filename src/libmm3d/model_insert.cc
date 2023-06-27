@@ -298,12 +298,27 @@ void Model::insertBoneJoint(unsigned index, Joint *joint)
 		// Adjust joint indices of keyframes after this joint
 		for(auto*sa:m_anims) if(1&sa->_type)
 		{
+			typedef ObjectKeyframeList::value_type v_t; //2023
+			std::vector<v_t> v;
+
 			for(auto&ea:sa->m_keyframes)			
 			if(ea.first.type==PT_Joint)
 			if(ea.first.index<=index)
-			for(auto*kf:ea.second)
 			{
-				kf->m_objectIndex++;
+				for(auto*kf:ea.second) kf->m_objectIndex++;
+
+				//TODO? vector might do ea.first.index++;
+				v.push_back(v_t(ea.first,std::move(ea.second)));
+			}
+			for(auto&ea:v) 
+			{
+				sa->m_keyframes.erase(ea.first);
+			}
+			for(auto&ea:v) 
+			{
+				const_cast<Position&>(ea.first)++;
+				v_t e(ea.first,std::move(ea.second));
+				sa->m_keyframes.insert(e);
 			}
 		}
 	
@@ -383,12 +398,27 @@ void Model::removeBoneJoint(unsigned index)
 
 		// Adjust joint indices of keyframes after this joint
 		{
+			typedef ObjectKeyframeList::value_type v_t; //2023
+			std::vector<v_t> v;
+
 			for(auto&ea:sa->m_keyframes)			
 			if(ea.first.type==PT_Joint)
-			if(ea.first.index<=index)
-			for(auto*kf:ea.second)
+			if(ea.first.index>index)
 			{
-				kf->m_objectIndex--;
+				for(auto*kf:ea.second) kf->m_objectIndex--;
+
+				//TODO? vector might do ea.first.index--;
+				v.push_back(v_t(ea.first,std::move(ea.second)));				
+			}
+			for(auto&ea:v) 
+			{
+				sa->m_keyframes.erase(ea.first);
+			}
+			for(auto&ea:v) 
+			{
+				const_cast<Position&>(ea.first)--;				
+				v_t e(ea.first,std::move(ea.second));
+				sa->m_keyframes.insert(e);
 			}
 		}
 	}
@@ -573,12 +603,27 @@ void Model::removePoint(unsigned index)
 
 		// Adjust joint indices of keyframes after this joint
 		{
+			typedef ObjectKeyframeList::value_type v_t; //2023
+			std::vector<v_t> v;
+
 			for(auto&ea:fa->m_keyframes)			
-			if(ea.first.type==PT_Point)
-			if(ea.first.index<=index)
-			for(auto*kf:ea.second)
+			if(ea.first.type==PT_Joint)
+			if(ea.first.index>index)
 			{
-				kf->m_objectIndex--;
+				for(auto*kf:ea.second) kf->m_objectIndex--;
+
+				//TODO? vector might do ea.first.index--;
+				v.push_back(v_t(ea.first,std::move(ea.second)));
+			}
+			for(auto&ea:v) 
+			{
+				fa->m_keyframes.erase(ea.first);
+			}
+			for(auto&ea:v) 
+			{
+				const_cast<Position&>(ea.first)--;
+				v_t e(ea.first,std::move(ea.second));
+				fa->m_keyframes.insert(e);
 			}
 		}
 	}

@@ -788,6 +788,8 @@ bool AnimWin::Impl::copy()
 
 	double t = model->getCurrentAnimationFrameTime();
 
+	bool sel2 = false;
+
 	if(mode&Model::ANIMMODE_JOINT)
 	{	
 		//2022: This matches copycmd.cc semantics and 
@@ -795,13 +797,15 @@ bool AnimWin::Impl::copy()
 		//making paste to filter according to selection.
 		size_t sel = win.model.nselection[Model::PT_Joint];
 
+		if(sel) sel2 = true;
+
 		auto &jl = model->getJointList();
 		copy1.reserve(sel?sel:jl.size());
 
 		Model::Position jt{Model::PT_Joint,jl.size()};
 
 		KeyframeCopy cp;
-		while(jt-->0) if(!sel||jl[jt]->m_selected)
+		while(jt-->0) if(!sel2||jl[jt]->m_selected)
 		{
 			//https://github.com/zturtleman/mm3d/issues/127
 			//if(cp.e=model->getKeyframe(anim,frame,jt,rot,cp.x,cp.y,cp.z)) //???
@@ -831,12 +835,14 @@ bool AnimWin::Impl::copy()
 	{
 		size_t sel = win.model.nselection[Model::PT_Vertex];		
 
+		if(sel) sel2 = true;
+
 		auto &vl = model->getVertexList();
 		size_t v = vl.size();
 		copy2.reserve(sel?sel:v);
 
 		VertexFrameCopy cp;
-		while(v-->0) if(!sel||vl[v]->m_selected)
+		while(v-->0) if(!sel2||vl[v]->m_selected)
 		{
 			//https://github.com/zturtleman/mm3d/issues/127
 			//if(model->getFrameAnimVertexCoords(anim,frame,v,cp.x,cp.y,cp.z))
@@ -851,6 +857,8 @@ bool AnimWin::Impl::copy()
 		}
 
 		sel = win.model.nselection[Model::PT_Point];
+
+		if(sel) sel2 = true;
 
 		auto &pl = model->getJointList();
 		copy3.reserve(sel?sel:pl.size());
@@ -929,6 +937,9 @@ void AnimWin::Impl::paste(bool values)
 			}
 		}
 	}
+
+	bool sel2 = false;
+
 	if(mode==Model::ANIMMODE_FRAME
 	||mode&Model::ANIMMODE_FRAME&&!(copy2.empty()&&copy3.empty()))
 	{
@@ -937,11 +948,13 @@ void AnimWin::Impl::paste(bool values)
 
 		size_t sel = win.model.nselection[Model::PT_Vertex];
 
+		if(sel) sel2 = true;
+
 		auto &vl = model->getVertexList();
 		for(VertexFrameCopy*p=copy2.data(),*d=p+copy2.size();p<d;p++)
 		{
 			auto *vp = vl[p->vertex];			
-			if(sel&&!vp->m_selected) continue; //2022
+			if(sel2&&!vp->m_selected) continue; //2022
 
 			attempts++; if(vp!=p->vertex2) continue;			
 			if(!made++) frame = model->makeCurrentAnimationFrame();
@@ -952,21 +965,22 @@ void AnimWin::Impl::paste(bool values)
 
 		sel = win.model.nselection[Model::PT_Point];
 
+		if(sel) sel2 = true;
+
 		auto &pl = model->getPointList();
 		for(KeyframeCopy*p=copy3.data(),*d=p+copy3.size();p<d;p++)
 		{
-			Model::Position pt{Model::PT_Point,p->object};
-			
-			if(sel&&!pl[pt]->m_selected) continue;
+			auto *pt = pl[p->object];
+			if(sel2&&!pt->m_selected) continue;
 
-			attempts++; if(pl[pt]!=p->object2) continue;
+			attempts++; if(pt!=p->object2) continue;
 			if(!made++) frame = model->makeCurrentAnimationFrame();
 
 			for(int i=0;i<3;i++)			
 			{
 				auto &cd = p->data[i];
 				auto kt = Model::KeyType2020E(1<<i);
-				model->setKeyframe(anim,frame,pt,kt,cd.x,cd.y,cd.z,
+				model->setKeyframe(anim,frame,{Model::PT_Point,p->object},kt,cd.x,cd.y,cd.z,
 				values&&cd.e<Model::InterpolateStep?Model::InterpolateLerp:cd.e);
 			}
 		}	

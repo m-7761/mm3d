@@ -598,6 +598,11 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			glPolygonOffset(1,1);
 		}
 
+		//TESTING SOMETHING
+	//	glDisable(GL_LIGHTING);
+		//model->draw_bspTree(opt|Model::DO_WIREFRAME,nullptr,bspEye);
+	//	glEnable(GL_LIGHTING);
+
 		//there are some grid artifacts but this
 		//doesn't seem to help
 		glDepthRange(0.00001,1);
