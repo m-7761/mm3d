@@ -12,8 +12,7 @@ typedef const char *utf8;
 /* Qt supplemental */
 static const char *tr(utf8 str,...){ return str; }
 
-extern Widgets95::configure config;
-extern Widgets95::configure keycfg;
+extern Widgets95::configure *config,*keycfg;
 
 enum
 {

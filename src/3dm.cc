@@ -106,7 +106,7 @@ extern int main(int argc, char *argv[])
 	extern const char *ui_translate(const char*,const char*);
 	transll_install_handler(ui_translate);
 
-	//Might do config.get("anything",0) here?
+	//Might do config->get("anything",0) here?
 	//init_prefs(); 
 
 	init_cmdline(argc,argv);
@@ -182,7 +182,7 @@ extern int main(int argc, char *argv[])
 				//log_debug("\n");
 			}
 
-			//Might do config.flush() here?
+			//Might do config->flush() here?
 			//prefs_save();
 		}
 	}

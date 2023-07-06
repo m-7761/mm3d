@@ -21,7 +21,7 @@
  */
 
 #include "mm3dtypes.h" //PCH
-#include "win.h"
+#include "viewwin.h"
 #include "model.h"
 #include "modelstatus.h"
 
@@ -29,68 +29,88 @@ struct ViewportSettings : Win
 {	
 	void submit(int);
 
-	ViewportSettings(Model *model)
+	ViewportSettings(MainWin &model)
 		:
 	//Win("Viewport Settings"),model(model),
 	Win("Grid Settings"),model(model),
-	ortho(main),persp(main),
-	uvmap(main),f1_ok_cancel(main)
+	vu(model->getViewportUnits()),
+	ortho(main,vu),persp(main,vu),
+	uvmap(main,vu),f1_ok_cancel(main),
+	x_close(main,"",id_close)
 	{
+		x_close.set_hidden(); //win_close?
+		f1_ok_cancel.ok_cancel.cancel.id(id_no);
+
 		active_callback = &ViewportSettings::submit;
 
 		submit(id_init);
 	}
 
-	Model *model;
+	MainWin &model;
+
+	Model::ViewportUnits &vu, defaults;
 
 	struct ortho_group
 	{	
-		ortho_group(node *main)
+		ortho_group(node *main, Model::ViewportUnits &vu)
 			:
 		nav(main,"2D View"),
-		unit(nav,"Default Grid Unit"),
-		mult(nav)
+		unit(nav,"Grid Unit",&vu.inc),
+		mult(nav,"",&vu.grid)
 		{
-			//unit.edit(4.0);
-			//mult
-			//.add_item("Binary Grid")
-			//.add_item("Decimal Grid")
-			//.add_item("Fixed Grid");
+			mult.add_item("Binary Zoom");
+			mult.add_item("Decimal Zoom");
+			mult.add_item("Fixed Zoom");
 		}
 
 		panel nav;
-		textbox unit; multiple mult;
+		spinbox unit; multiple mult;
 	};
 	struct persp_group
 	{
-		persp_group(node *main)
+		persp_group(node *main, Model::ViewportUnits &vu)
 			:
 		nav(main,"3D View"),
-		unit(nav,"Default Grid Unit"),
-		lines(nav,"Grid Lines"),
-		points(nav,"Point Size"),
-		xy(nav,"X/Y Plane"),
-		xz(nav,"X/Z Plane"),
-		yz(nav,"Y/Z Plane")
+		unit(nav,"Grid Unit",&vu.inc3d),
+		lines(nav,"Grid Lines",&vu.lines3d),
+		points(nav,"Point Size",&vu.ptsz3d),
+		xy(nav,"X/Y Plane",'xyz'),
+		xz(nav,"X/Z Plane",'xyz'),
+		yz(nav,"Y/Z Plane",'xyz'),
+		col(nav),
+		nav2(nav,""),
+		fov(nav2,"FOV Angle",&vu.fov),
+		cam(nav2,"Unzoomed:"),
+		znear(nav2,"Near Plane",&vu.znear),
+		zfar(nav2,"Far Plane",&vu.zfar),
+		reset(nav2,"Default Settings",id_reset)
 		{
-			//unit.edit(4.0); lines.edit(6);
-			//xz.set();
+			nav.ralign_all(); col.align(); 
+
+			reset.expand();
 		}
 
 		panel nav;
-		textbox unit,lines,points;
+		spinbox unit,lines;
+		spinbox points;
 		boolean xy,xz,yz;
+		column col;
+		panel nav2;
+		spinbox fov;
+		titlebar cam;
+		spinbox znear,zfar;
+		button reset;
 	};
 	struct uvmap_group
 	{
-		uvmap_group(node *main)
+		uvmap_group(node *main, Model::ViewportUnits &vu)
 			:
 		nav(main,"UV View"),
 		zin(nav,"Zooming In:"),
-		units(nav,"Maximum Units",'2'),
+		units(nav,"Maximum Units",'2'), //&vu.unitsUv
 		zout(nav,"Zooming Out:"),
-		u(nav,"U Snap"),
-		v(nav,"V Snap")
+		u(nav,"U Snap",&vu.snapUv[0]),
+		v(nav,"V Snap",&vu.snapUv[1])
 		{
 			//units.edit(1,2,8);
 
@@ -100,50 +120,50 @@ struct ViewportSettings : Win
 
 		panel nav;
 		titlebar zin;
-		textbox units;
+		spinbox units;
 		titlebar zout;
-		textbox u,v;
+		spinbox u,v;
 	};
 	ortho_group ortho;
 	persp_group persp;
 	uvmap_group uvmap;
 	f1_ok_cancel_panel f1_ok_cancel;	
+	button x_close;
 };
 void ViewportSettings::submit(int i)
 {
-	Model::ViewportUnits &vu = model->getViewportUnits();
-
 	switch(i)
 	{
-	case id_init:
+	case id_reset:
 
-		/*
-		ortho.unit.edit(config.get("ui_grid_inc",4.0));
-		ortho.mult.select_id(config.get("ui_grid_mode",0))
-		.add_item("Binary Grid")
-		.add_item("Decimal Grid")
-		.add_item("Fixed Grid");
-		persp.unit.edit(config.get("ui_3dgrid_inc",4.0));
-		persp.lines.edit(config.get("ui_3dgrid_count",6));
-		persp.xy.set(config.get("ui_3dgrid_xy",false));
-		persp.xz.set(config.get("ui_3dgrid_xz",true));
-		persp.yz.set(config.get("ui_3dgrid_yz",false));*/		
+		vu = defaults; goto def; //break;
+
+	case id_init: defaults = vu; def:
+
 		ortho.unit.edit(0.00001,vu.inc,100000.0);
-		ortho.mult.select_id(vu.grid)
-		.add_item("Binary Grid")
-		.add_item("Decimal Grid")
-		.add_item("Fixed Grid");
+		ortho.mult.select_id(vu.grid);
 		persp.unit.edit(0.00001,vu.inc3d,100000.0);
 		persp.lines.edit(1,vu.lines3d,1000);
 		persp.points.edit(0.01,vu.ptsz3d,1.0);
 		persp.xy.set(vu.xyz3d&4);
 		persp.xz.set(vu.xyz3d&2);
 		persp.yz.set(vu.xyz3d&1);
-		persp.lines.sspace<left>({persp.points});
+		persp.fov.edit(25,45,65);
+		persp.znear.spinner.set_speed(0.01);
+		persp.znear.edit(0.001,0.1,100.0); //0.001 fits
+		persp.zfar.edit(100,1000,100000);
 		uvmap.units.edit(1,vu.unitsUv?vu.unitsUv:2,8); 
 		uvmap.u.edit(0.0,vu.snapUv[0],1.0);
 		uvmap.v.edit(0.0,vu.snapUv[1],1.0);
 		uvmap.u.sspace<left>({uvmap.v});
+		//persp.lines.sspace<left>({persp.points});
+		persp.points.compact(60);
+		{
+			int c = persp.points.box_span(0,false);
+			persp.lines.compact(c);
+			persp.unit.compact(c);		
+			ortho.unit.compact(c);
+		}
 		break;
 
 	case '2': //uvmap.units
@@ -156,42 +176,63 @@ void ViewportSettings::submit(int i)
 		default: i = 8; break;
 		}
 		uvmap.units.set_int_val(i);
+		vu.unitsUv = i;
 		model_status(model,StatusError,STATUSTIME_LONG,
 		"Maximum Units rounded up to nearest power-of-two (%d)",i);
-		return; //break;
+		break;
 
-	case id_ok:
+	case 'xyz':
 
-		config.set("ui_grid_inc",(double)ortho.unit);
-		config.set("ui_grid_mode",(int)ortho.mult);
-		config.set("ui_3dgrid_inc",(float)persp.unit);
-		config.set("ui_3dgrid_count",(int)persp.lines);
-		config.set("ui_point_size",(double)persp.points);
-		config.set("ui_3dgrid_xy",(bool)persp.xy);
-		config.set("ui_3dgrid_xz",(bool)persp.xz);
-		config.set("ui_3dgrid_yz",(bool)persp.yz);
-		config.set("uv_grid_subpixels",(int)uvmap.units);
-		config.set("uv_grid_default_u",(double)uvmap.u);
-		config.set("uv_grid_default_v",(double)uvmap.v);
-		vu.inc = ortho.unit;
-		vu.grid = ortho.mult;
-		vu.inc3d = persp.unit;
-		vu.lines3d = persp.lines;
-		vu.ptsz3d = persp.points;
 		vu.xyz3d = 0;
 		if(persp.xy) vu.xyz3d|=4;
 		if(persp.xz) vu.xyz3d|=2;
 		if(persp.yz) vu.xyz3d|=1;
-		vu.unitsUv = uvmap.units;
-		vu.snapUv[0] = uvmap.u;
-		vu.snapUv[1] = uvmap.v;
 		break;
-	}
 
-	basic_submit(i);
+	case id_ok:
+
+		config->set("ui_grid_inc",(double)ortho.unit);
+		config->set("ui_grid_mode",(int)ortho.mult);
+		config->set("ui_3dgrid_inc",(float)persp.unit);
+		config->set("ui_3dgrid_count",(int)persp.lines);
+		config->set("ui_point_size",(double)persp.points);
+		config->set("ui_3dgrid_xy",(bool)persp.xy);
+		config->set("ui_3dgrid_xz",(bool)persp.xz);
+		config->set("ui_3dgrid_yz",(bool)persp.yz);
+		config->set("ui_3d_cam_fov",(double)persp.fov);
+		config->set("ui_3d_cam_znear",(double)persp.znear);
+		config->set("ui_3d_cam_zfar",(double)persp.zfar);
+		config->set("uv_grid_subpixels",(int)uvmap.units);
+		config->set("uv_grid_default_u",(double)uvmap.u);
+		config->set("uv_grid_default_v",(double)uvmap.v);
+	
+		model.close_viewport_window();
+		break;
+
+	case id_close: //x_close
+
+		extern bool viewwin_confirm_close(int,bool);
+		if(!viewwin_confirm_close(glut_window_id(),false))
+		return;
+		//break;
+
+	case id_cancel: case id_no:
+
+		vu = defaults;
+
+		model.close_viewport_window();
+		break;
+
+	case id_f1: return basic_submit(i);
+	}
+	model->updateObservers();
 }
-extern void viewportsettings(Model *model)
+extern void viewportsettings(MainWin &model)
 {
-	ViewportSettings(model).return_on_close(); 
+	//ViewportSettings(model).return_on_close(); 
+	if(!model._vpsettings_win)
+	model._vpsettings_win = new ViewportSettings(model);
+	else 
+	model.close_viewport_window(); //toggle?
 }
 

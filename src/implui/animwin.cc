@@ -298,7 +298,7 @@ void AnimWin::_menubarfunc(int id)
 	case id_aw_view_snap:
 
 		animwin_auto_scroll = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("aw_view_snap",animwin_auto_scroll);
+		config->set("aw_view_snap",animwin_auto_scroll);
 		break;
 
 	case id_aw_hide_delete:
@@ -325,7 +325,7 @@ void AnimWin::_toggle_button(int id)
 	bt.set_hidden(!bt.hidden());
 	int bts = del.hidden();
 	bts|=close.hidden()<<1;			
-	config.set("aw_buttons_mask",bts);
+	config->set("aw_buttons_mask",bts);
 	if(id==1)
 	close.id(bts&2?id_ok:id_close);
 
@@ -358,7 +358,7 @@ void AnimWin::Impl::_init_menu_toolbar()
 		view_menu = glutCreateMenu(_menubarfunc);
 		glutAddMenuEntry(E(aw_view_init,"Reset","","Home"));
 		glutAddMenuEntry();
-		bool x = config.get("aw_view_snap",true);
+		bool x = config->get("aw_view_snap",true);
 		animwin_auto_scroll = x;
 		//REMINDER: F12 breaks in MSVC debug mode
 		glutAddMenuEntry(X(x,aw_view_snap,"Auto-Scroll","","Shift+F12")); //F12
@@ -395,7 +395,7 @@ void AnimWin::Impl::_init_menu_toolbar()
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(animate_window,"Close","","A"));
 	}
-	int bts = config.get("aw_buttons_mask",0);
+	int bts = config->get("aw_buttons_mask",0);
 	if(bts&1) win.del.set_hidden();
 	if(bts&2) win.close.set_hidden().id(id_ok);
 
@@ -594,14 +594,14 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	if(item>=new_animation)
 	{
 		std::string name;
-		int type = config.get("ui_new_anim_type",3);
+		int type = config->get("ui_new_anim_type",3);
 		if(!type||type>3) type = 3;
 		if(!event.wheel_event
 		&&id_ok==NewAnim(&name,&type).return_on_close())
 		{
 			stop();
 
-			config.set("ui_new_anim_type",type);
+			config->set("ui_new_anim_type",type);
 
 			//mode = type?Model::ANIMMODE_FRAME:Model::ANIMMODE_JOINT;
 			anim = model->addAnimation((Model::AnimationModeE)type,name.c_str());

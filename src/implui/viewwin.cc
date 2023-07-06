@@ -95,7 +95,13 @@ extern MainWin* &viewwin(int id=glutGetWindow())
 		//if(c>0) glutSetWindow(c);
 		if(c>0) return viewwin(c);
 	}
-	assert(o); return *o;
+	if(!o) //assert(o); //ui_drop2?
+	{
+		assert(!viewwin_list.empty());
+
+		o = &viewwin_list[0]; 
+	}
+	return *o;
 }
 
 static int viewwin_status_active = 0;
@@ -251,7 +257,7 @@ static void viewwin_mru(int id, char *add=nullptr)
 
 	utf8 cfg = "script_mru"+(id==100?0:7);
 
-	std::string &mru = config.get(cfg);
+	std::string &mru = config->get(cfg);
 
 	int lines = std::count(mru.begin(),mru.end(),'\n');
 
@@ -309,7 +315,7 @@ static void viewwin_mru(int id, char *add=nullptr)
 	}
 	while(iN>i) glutRemoveMenuItem(iN--);
 
-	if(add) config.set(cfg,mru);
+	if(add) config->set(cfg,mru);
 }
 extern void viewwin_mru_drop(char *add)
 {
@@ -412,8 +418,8 @@ static utf8 viewwin_key_sequence(utf8 pf, utf8 name, utf8 def="")
 	default: buf[j++] = tolower(buf[i]);
 	}
 	buf[j] = '\0'; 
-	//return keycfg.get(buf,*def?TRANSLATE("KeyConfig",def,name):def);
-	return keycfg.get(buf,def);
+	//return keycfg->get(buf,*def?TRANSLATE("KeyConfig",def,name):def);
+	return keycfg->get(buf,def);
 }
 static void viewwin_toolbar_title(std::string &s, Tool *tool, int i)
 {
@@ -436,8 +442,8 @@ static void viewwin_synthetic_hotkey(std::string &s, Command *cmd, int i)
 }
 extern utf8 viewwin_menu_entry(std::string &s, utf8 key, utf8 n, utf8 t="", utf8 def="", bool clr=true)
 {
-	//utf8 ks = keycfg.get(key,*def?TRANSLATE("KeyConfig",def,t):def);
-	utf8 ks = keycfg.get(key,def);
+	//utf8 ks = keycfg->get(key,*def?TRANSLATE("KeyConfig",def,t):def);
+	utf8 ks = keycfg->get(key,def);
 	if(clr) s.clear(); s+=::tr(n,t);
 	if(*ks) s.append(1,'\t').append(ks); return s.c_str();
 }
@@ -476,8 +482,8 @@ void MainWin::_init_menu_toolbar() //2019
 
 			viewwin_face_menu = glutCreateMenu(viewwin_menubarfunc);
 
-			bool r = config.get("ui_face_view",true);
-			bool s = config.get("ui_prefs_face_ccw",true);
+			bool r = config->get("ui_face_view",true);
+			bool s = config->get("ui_prefs_face_ccw",true);
 			viewwin_face_view = r;
 			views.status._face_view.name(s?"Ccw":"Cw");
 			views.status._face_view.indicate(!r);
@@ -512,7 +518,7 @@ void MainWin::_init_menu_toolbar() //2019
 	if(viewwin_face_menu) //EXPERIMENTAL
 	glutAddSubMenu(::tr("New Face Normal",""),viewwin_face_menu);
 	//I'm making this true so it appears as a checkbox on Windows.
-	viewwin_rmb = config.get("ui_prefs_rmb",false);
+	viewwin_rmb = config->get("ui_prefs_rmb",false);
 	glutAddMenuEntry(X(!viewwin_rmb,file_prefs_rmb,"LMB Rotates View","",""));
 	glutAddMenuEntry();
 	//Unlike Scroll_lock removing the underscore doesn't work.
@@ -546,7 +552,7 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(E(view_overlay_3,"Overlay 3","","Ctrl+F3"));
 		glutAddMenuEntry(E(view_overlay_4,"Overlay 4","","Ctrl+F4"));
 		glutAddMenuEntry();
-		viewwin_snap_overlay = config.get("ui_snap_overlay",true);
+		viewwin_snap_overlay = config->get("ui_snap_overlay",true);
 		glutAddMenuEntry(X(viewwin_snap_overlay,view_overlay_snap,"Snap to Overlay","","Shift+O"));		
 		
 		//_view_menu is pretty long compared to the others. The
@@ -591,20 +597,20 @@ void MainWin::_init_menu_toolbar() //2019
 		//* SUB MENU */ //View->Render Options		
 		_rops_menu = glutCreateMenu(viewwin_menubarfunc);	
 		{	
-			r = config.get("ui_render_bones",true);
+			r = config->get("ui_render_bones",true);
 			glutAddMenuEntry(X(r,rops_draw_bones,"Draw Joint Bones","View|Draw Joint Bones"));
 			glutAddMenuEntry();
-			//r = !config.get("ui_render_joints",true);
+			//r = !config->get("ui_render_joints",true);
 			glutAddMenuEntry(X(false,rops_hide_joints,"Hide Bone Joints","View|Hide Joints","Shift+B"));			
 			glutAddMenuEntry(X(false,rops_hide_projections,"Hide Texture Projections","View|Hide Texture Projections","Shift+P"));
-			r = !config.get("ui_render_3d_selections",false);
+			r = !config->get("ui_render_3d_selections",false);
 			glutAddMenuEntry(X(r,rops_hide_lines,"Hide Lines from 3D Views","View|Hide 3D Lines","Shift+W"));		
-			r = !config.get("ui_render_backfaces",false);
+			r = !config->get("ui_render_backfaces",false);
 			glutAddMenuEntry(X(r,rops_hide_backs,"Hide Back-facing Triangles","View|Hide Back-facing Triangles","Shift+F")); 
 			glutAddMenuEntry();		
-			r = config.get("ui_render_bad_textures",true);			
+			r = config->get("ui_render_bad_textures",true);			
 			glutAddMenuEntry(X(r,rops_draw_badtex,"Use Red X Error Texture","View|Use Blank Error Texture"));			
-			r = !config.get("ui_no_overlay_option",false);
+			r = !config->get("ui_no_overlay_option",false);
 			glutAddMenuEntry(X(r,rops_draw_buttons,"Use Corner Button Sets","",""));
 		}
 
@@ -618,8 +624,8 @@ void MainWin::_init_menu_toolbar() //2019
 	/* SUB MENU */ //Tools->Snap To		
 	//_snap_menu = glutCreateMenu(viewwin_menubarfunc);	
 	{	
-		r = config.get("ui_snap_vertex",false);
-		s = config.get("ui_snap_grid",false);
+		r = config->get("ui_snap_vertex",false);
+		s = config->get("ui_snap_grid",false);
 		//glutAddMenuEntry(X(r,snap_vert,"Vertex","View|Snap to Vertex","Shift+V"));
 		glutAddMenuEntry(X(r,snap_vert,"Snap to Vertex","View|Snap to Vertex","Shift+V"));
 		//glutAddMenuEntry(X(s,snap_grid,"Grid","View|Snap to Grid","Shift+G"));
@@ -633,7 +639,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry();	
 	glutAddSubMenu(::tr("Render Options","View|Render Options"),_rops_menu);	
 	glutAddMenuEntry();
-		int conf = config.get("ui_ortho_drawing",0);
+		int conf = config->get("ui_ortho_drawing",0);
 		if(conf<0||conf>4) conf = 0;
 	glutAddMenuEntry(O(conf==0,ortho_wireframe,"2D Wireframe","View|Canvas","W"));		
 	//2021: 2 for 2D, 4 for 2D+2D UV Map (mnemonic system)
@@ -642,7 +648,7 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(O(conf==3,ortho_texture,"2D Texture","View|Canvas","Alt+4"));
 	glutAddMenuEntry(O(conf==4,ortho_blend,"2D Alpha Blend","View|Canvas","Shift+Alt+4"));
 	glutAddMenuEntry();
-		conf = config.get("ui_persp_drawing",3);
+		conf = config->get("ui_persp_drawing",3);
 		if(conf<0||conf>4) conf = 3;
 	//2021: 3 for 3D, 5 for 3D+2D UV Map (mnemonic system)
 	glutAddMenuEntry(O(conf==0,persp_wireframe,"3D Wireframe","View|3D","Alt+1"));
@@ -652,10 +658,10 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(O(conf==4,persp_blend,"3D Alpha Blend","View|3D","Shift+Alt+5"));
 	glutAddMenuEntry();		
 		r = s = t = u = v = false;
-		switch(config.get("ui_viewport_count",0))
+		switch(config->get("ui_viewport_count",0))
 		{
 		case 1: r = true; break;
-		case 2: (config.get("ui_viewport_tall",0)?t:s) = true; break;
+		case 2: (config->get("ui_viewport_tall",0)?t:s) = true; break;
 		case 4: default: u = true; break;
 		case 6: v = true;
 		}			
@@ -766,7 +772,7 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(E(toolparams,"Tooling Parameters","","F2"));
 		glutAddMenuEntry();
 		viewwin_shlk_menu = glutCreateMenu(viewwin_menubarfunc);
-		r = config.get("ui_tool_shift_hold",false);
+		r = config->get("ui_tool_shift_hold",false);
 		if(r) views.status._shifthold.indicate(true);
 		glutAddMenuEntry(E(tool_shift_lock,"Sticky Shift Key (Emulation)","","L"));
 		glutAddMenuEntry(X(!r,tool_shift_hold,"Unlock when Selecting Tool","","Shift+L"));
@@ -872,7 +878,7 @@ void MainWin::_init_menu_toolbar() //2019
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
 	glutAddMenuEntry(E(joint_settings,"Edit Joints...","Joints|Edit Joints","J")); 
-		r = config.get("ui_joint_100",true);
+		r = config->get("ui_joint_100",true);
 	glutAddMenuEntry(X(r,joint_100,"Assign 100","","I"));
 		views.status._100.indicate(!r); //inverting sense
 		
@@ -904,7 +910,7 @@ void MainWin::_init_menu_toolbar() //2019
 
 	_anim_menu2 = glutCreateMenu(viewwin_menubarfunc);
 	{
-		r = config.get("ui_snap_keyframe",true);
+		r = config->get("ui_snap_keyframe",true);
 		views.status._keys_snap.indicate(!r); //inverting sense
 		//Fix me: Need to use wxTRANSLATE somehow to translate Scroll_lock?
 		//https://forums.wxwidgets.org/viewtopic.php?f=1&t=46722
@@ -927,7 +933,7 @@ void MainWin::_init_menu_toolbar() //2019
 
 	glutAddSubMenu(::tr("Scroll Lock"),_anim_menu2);	
 	glutAddMenuEntry();
-		r = config.get("ui_anim_insert",false);
+		r = config->get("ui_anim_insert",false);
 		const_cast<int&>(animate_insert) = r;
 		views.status._clipboard.indicate(r);
 	glutAddMenuEntry(X(r,animate_insert,"Clipboard Mode","","Insert"));
@@ -1045,8 +1051,8 @@ bool MainWin::reshape(int x, int y)
 	}
 	else if(!glutGet(glutext::GLUT_WINDOW_MANAGED))
 	{
-		config.set("ui_viewwin_width",x);
-		config.set("ui_viewwin_height",y);
+		config->set("ui_viewwin_width",x);
+		config->set("ui_viewwin_height",y);
 	}
 
 	//Inform the central drawing area of its size.
@@ -1080,7 +1086,7 @@ static int viewwin_init()
 	//The width needs to be established to get correct number of rows in 
 	//toolbar so the height setting is correct.
 	glutInitWindowSize 
-	(config.get("ui_viewwin_width",640),config.get("ui_viewwin_height",520));
+	(config->get("ui_viewwin_width",640),config->get("ui_viewwin_height",520));
 	glutInitDisplayMode(GLUT_RGB|GLUT_DOUBLE|GLUT_DEPTH);
 	return glutCreateWindow(viewwin_title);
 }
@@ -1099,12 +1105,15 @@ _animation_win(),
 _transform_win(),
 _projection_win(),
 _texturecoord_win(),
+_vpsettings_win(),
 _sync_tool(0),_sync_sel2(-1),
 _prev_tool(3),_curr_tool(1),
 _prev_shift(),_curr_shift(),_none_shift(),
 _prev_ortho(3),_prev_persp(0),
 _prev_view(),_curr_view()
 {
+	assert(config&&keycfg);
+
 	if(!model) model = new Model;
 	
 	model->setUndoEnabled(false);
@@ -1149,7 +1158,7 @@ _prev_view(),_curr_view()
 	(false,sidebar.anim_panel.media_nav.drop()+1).drop()+1);
 	views.params.nav.space<Win::top>(2);
 	views.params.nav.lock(false,views.bar1.exterior_row.drop());
-	//reshape(config.get("ui_viewwin_width",0),config.get("ui_viewwin_height",0));
+	//reshape(config->get("ui_viewwin_width",0),config->get("ui_viewwin_height",0));
 	reshape(glutGet(GLUT_INIT_WINDOW_WIDTH),glutGet(GLUT_INIT_WINDOW_HEIGHT));
 }
 MainWin::~MainWin()
@@ -1169,10 +1178,10 @@ MainWin::~MainWin()
 	if(viewwin_list.empty())
 	{
 		#ifdef _DEBUG
-		config.flush(); //keycfg.flush();
 		#ifdef _WIN32
 		//wxFileConfig and Model::Background sometimes crash
 		//deallocating std::string.
+		config->flush(); keycfg->flush();
 		TerminateProcess(GetModuleHandle(nullptr),0); //Fast. 
 		#endif	
 		#endif
@@ -1193,6 +1202,7 @@ MainWin::~MainWin()
 	//delete _transform_win;
 	//delete _projection_win;
 	//delete _texturecoord_win;
+	//delete _vp_settings_win;
 }
 
 Model *MainWin::_swap_models(Model *swap)
@@ -1221,42 +1231,45 @@ Model *MainWin::_swap_models(Model *swap)
 	if(model)
 	if(!swap) 
 	{
-		int cmp = config.get("ui_ortho_drawing",0);
+		int cmp = config->get("ui_ortho_drawing",0);
 		if(cmp==_prev_ortho) _prev_ortho = 0;
 		model->setCanvasDrawMode((ModelViewport::ViewOptionsE)cmp);
-		cmp = config.get("ui_persp_drawing",3);
+		cmp = config->get("ui_persp_drawing",3);
 		if(cmp==_prev_persp) _prev_persp = 3;
 		model->setPerspectiveDrawMode((ModelViewport::ViewOptionsE)cmp);
 
-		if(config.get("ui_render_bad_textures",true))
+		if(config->get("ui_render_bad_textures",true))
 		model->setDrawOption(Model::DO_BADTEX,true);
-		if(!config.get("ui_render_backfaces",false))
+		if(!config->get("ui_render_backfaces",false))
 		model->setDrawOption(Model::DO_BACKFACECULL,true);
-		if(config.get("ui_render_3d_selections",false))
+		if(config->get("ui_render_3d_selections",false))
 		model->setDrawSelection(true);	
-		if(!config.get("ui_render_bones",true))
+		if(!config->get("ui_render_bones",true))
 		model->setDrawOption(Model::DO_BONES,false);
-		if(config.get("uv_animations",true))
+		if(config->get("uv_animations",true))
 		model->setDrawOption(Model::DO_TEXTURE_MATRIX,true);
 
 		Model::ViewportUnits &vu = model->getViewportUnits();
-		vu.inc = config.get("ui_grid_inc",1.0); //4.0?
-		vu.grid = config.get("ui_grid_mode",0);
-		vu.inc3d = config.get("ui_3dgrid_inc",1.0); //4.0?
-		vu.ptsz3d = config.get("ui_point_size",0.1); //0.25
-		vu.lines3d = config.get("ui_3dgrid_count",6);
+		vu.inc = config->get("ui_grid_inc",1.0); //4.0?
+		vu.grid = config->get("ui_grid_mode",0);
+		vu.inc3d = config->get("ui_3dgrid_inc",1.0); //4.0?
+		vu.ptsz3d = config->get("ui_point_size",0.1); //0.25
+		vu.lines3d = config->get("ui_3dgrid_count",6);
 		vu.xyz3d = 0; //NEW		
-		if(config.get("ui_3dgrid_xy",false)) vu.xyz3d|=4;
-		if(config.get("ui_3dgrid_xz",true)) vu.xyz3d|=2;
-		if(config.get("ui_3dgrid_yz",false)) vu.xyz3d|=1;		
-		if(config.get("ui_snap_grid",false)) vu.snap|=vu.UnitSnap;
-		if(config.get("ui_snap_vertex",false)) vu.snap|=vu.VertexSnap;
-		if(config.get("uv_snap_grid",false)) vu.snap|=vu.SubpixelSnap;
-		if(config.get("uv_snap_vertex",false)) vu.snap|=vu.UvSnap;
-		vu.unitsUv = config.get("uv_grid_subpixels",2);
-		vu.snapUv[0] = config.get("uv_grid_default_u",0.0);
-		vu.snapUv[1] = config.get("uv_grid_default_v",0.0);
-		vu.no_overlay_option = config.get("ui_no_overlay_option",false);
+		if(config->get("ui_3dgrid_xy",false)) vu.xyz3d|=4;
+		if(config->get("ui_3dgrid_xz",true)) vu.xyz3d|=2;
+		if(config->get("ui_3dgrid_yz",false)) vu.xyz3d|=1;
+		vu.fov = config->get("ui_3d_cam_fov",45.0);
+		vu.znear = config->get("ui_3d_cam_znear",0.1);
+		vu.zfar = config->get("ui_3d_cam_zfar",1000);
+		if(config->get("ui_snap_grid",false)) vu.snap|=vu.UnitSnap;
+		if(config->get("ui_snap_vertex",false)) vu.snap|=vu.VertexSnap;
+		if(config->get("uv_snap_grid",false)) vu.snap|=vu.SubpixelSnap;
+		if(config->get("uv_snap_vertex",false)) vu.snap|=vu.UvSnap;
+		vu.unitsUv = config->get("uv_grid_subpixels",2);
+		vu.snapUv[0] = config->get("uv_grid_default_u",0.0);
+		vu.snapUv[1] = config->get("uv_grid_default_v",0.0);
+		vu.no_overlay_option = config->get("ui_no_overlay_option",false);
 	}
 	else
 	{
@@ -1289,6 +1302,12 @@ Model *MainWin::_swap_models(Model *swap)
 	_projection_win->setModel();
 	if(_texturecoord_win)
 	_texturecoord_win->setModel();
+	if(_vpsettings_win)
+	{
+		//HACK: restore model->getViewportUnits() reference?
+		close_viewport_window();
+	//	perform_menu_action(id_view_settings);
+	}
 
 	_rewrite_window_title();
 
@@ -1373,14 +1392,14 @@ bool MainWin::save(Model *model, bool expdir)
 		//title = "Export model";
 		title = "Export";
 		modelFile = model->getFilename();
-		file = config.get("ui_export_dir");
+		file = config->get("ui_export_dir");
 	}
 	else
 	{
 		//title = "Save model file as";
 		title = "Save As";
 		modelFile = model->getExportFile();
-		file = config.get("ui_model_dir");
+		file = config->get("ui_model_dir");
 	}
 	if(*modelFile) //???
 	{
@@ -1416,7 +1435,7 @@ bool MainWin::save(Model *model, bool expdir)
 			
 			viewwin_mru(viewwin_mruf_menu,(char*)file.c_str());
 
-			config.set(cfg,file,file.rfind('/'));			
+			config->set(cfg,file,file.rfind('/'));			
 
 			return true;
 		}
@@ -1437,7 +1456,7 @@ void MainWin::merge(Model *model, bool animations_only_non_interactive)
 	verb+=");; "; //Qt
 	verb+=::tr("All Files(*)");
 
-	std::string file = config.get("ui_model_dir");
+	std::string file = config->get("ui_model_dir");
 	if(file.empty()) file = ".";
 	file = Win::FileBox(file,verb,::tr("Open")); //"Open model file"
 	if(!file.empty())
@@ -1460,7 +1479,7 @@ void MainWin::merge(Model *model, bool animations_only_non_interactive)
 
 			viewwin_mru(viewwin_mruf_menu,(char*)file.c_str());
 
-			config.set("ui_model_dir",file,file.rfind('/'));
+			config->set("ui_model_dir",file,file.rfind('/'));
 		}
 		else if(Model::operationFailed(err))
 		{
@@ -1644,6 +1663,11 @@ void MainWin::open_animation_window()
 	_animation_win->show();
 	_animation_win->_sync_anim_menu();	
 }
+void MainWin::close_viewport_window()
+{
+	if(_vpsettings_win)
+	((Win*)_vpsettings_win)->close(); _vpsettings_win = nullptr;
+}
 
 extern void viewwin_undo(int id, bool undo)
 {
@@ -1704,11 +1728,11 @@ bool MainWin::open(const char *file2, MainWin *window)
 		verb+=");; "; //Qt
 		verb+=::tr("All Files(*)");
 
-		file = config.get("ui_model_dir");
+		file = config->get("ui_model_dir");
 		if(file.empty()) file = ".";
 		file = Win::FileBox(file,verb,::tr("Open model file"));		
 		if(!file.empty())
-		config.set("ui_model_dir",file,file.rfind('/'));
+		config->set("ui_model_dir",file,file.rfind('/'));
 		if(file.empty()) return false;
 	}
 	utf8 file = file2?file2:buf.c_str();
@@ -1991,7 +2015,7 @@ void MainWin::perform_menu_action(int id)
 	#ifdef HAVE_LUALIB
 	{
 		case id_file_run_script:
-		std::string file = config.get("ui_script_dir");
+		std::string file = config->get("ui_script_dir");
 		if(file.empty()) file = ".";	
 		file = Win::FileBox(file,
 		"Lua scripts (*.lua)" ";; " "All Files(*)", //::tr("All Files(*)")
@@ -1999,7 +2023,7 @@ void MainWin::perform_menu_action(int id)
 		if(!file.empty())
 		{			
 			w->run_script(file);
-			config.set("ui_script_dir",file,file.rfind('/'));
+			config->set("ui_script_dir",file,file.rfind('/'));
 		}
 		return;
 	}
@@ -2012,7 +2036,7 @@ void MainWin::perform_menu_action(int id)
 
 	case id_file_prefs_rmb:
 
-		config.set("ui_prefs_rmb",viewwin_rmb=!viewwin_rmb);
+		config->set("ui_prefs_rmb",viewwin_rmb=!viewwin_rmb);
 		return;
 
 	case id_normal_order: //EXPERIMENTAL
@@ -2025,7 +2049,7 @@ void MainWin::perform_menu_action(int id)
 			glutext::glutMenuEnable(id_normal_order+id,glutext::GLUT_MENU_CHECK);
 		}
 		viewwin_face_view = 0!=id;
-		config.set("ui_face_view",id);
+		config->set("ui_face_view",id);
 		for(auto&ea:viewwin_list)
 		ea->views.status._face_view.indicate(!id);
 		return;
@@ -2034,7 +2058,7 @@ void MainWin::perform_menu_action(int id)
 
 		id = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
 		viewwin_face_ccw = 0!=id;
-		config.set("ui_prefs_face_ccw",id);
+		config->set("ui_prefs_face_ccw",id);
 		for(auto&ea:viewwin_list)
 		ea->views.status._face_view.set_name(id?"Ccw":"Cw");
 		return;
@@ -2053,7 +2077,7 @@ void MainWin::perform_menu_action(int id)
 	case id_rops_draw_bones:
 	
 		id = Model::DO_BONES&m->getDrawOptions()?0:1;
-		config.set("ui_render_bones",id);
+		config->set("ui_render_bones",id);
 		m->setDrawOption(Model::DO_BONES,id==1);
 		break;
 
@@ -2070,7 +2094,7 @@ void MainWin::perform_menu_action(int id)
 		//else return;
 
 		//2022: May as well not save since it's ignored.
-		//config.set("ui_render_joints",id);
+		//config->set("ui_render_joints",id);
 		m->setDrawJoints(0!=id,Model::ShowJoints);
 		break;
 
@@ -2086,28 +2110,28 @@ void MainWin::perform_menu_action(int id)
 		//else return; 
 		
 		//2022: May as well not save since it's ignored.
-		//config.set("ui_render_projections",id);
+		//config->set("ui_render_projections",id);
 		m->setDrawProjections(0!=id,Model::ShowProjections);
 		break;
 		
 	case id_rops_hide_lines: 
 
 		id = !m->getDrawSelection();
-		config.set("ui_render_3d_selections",id);
+		config->set("ui_render_3d_selections",id);
 		m->setDrawSelection(0!=id);
 		break;
 
 	case id_rops_hide_backs:
 		
 		id = Model::DO_BACKFACECULL&m->getDrawOptions()?0:1;
-		config.set("ui_render_backfaces",!id);
+		config->set("ui_render_backfaces",!id);
 		m->setDrawOption(Model::DO_BACKFACECULL,0!=id);
 		break;
 
 	case id_rops_draw_badtex: 
 		
 		id = Model::DO_BADTEX&m->getDrawOptions()?0:1;
-		config.set("ui_render_bad_textures",0!=id);
+		config->set("ui_render_bad_textures",0!=id);
 		m->setDrawOption(Model::DO_BADTEX,0!=id);
 		break;
 
@@ -2127,7 +2151,7 @@ void MainWin::perform_menu_action(int id)
 		{
 			_animation_win->main_panel()->redraw();
 		}
-		config.set("ui_no_overlay_option",id!=0);
+		config->set("ui_no_overlay_option",id!=0);
 		break;
 
 	/*View menu*/
@@ -2147,7 +2171,7 @@ void MainWin::perform_menu_action(int id)
 	case id_tool_shift_hold: //2022
 	{
 		id = glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("ui_tool_shift_hold",id==0);
+		config->set("ui_tool_shift_hold",id==0);
 		viewwin_shifthold = id==0;
 		w->views.status._shifthold.indicate(id==0);
 
@@ -2206,7 +2230,7 @@ void MainWin::perform_menu_action(int id)
 			else _prev_ortho = curr;
 			glutext::glutMenuEnable(id_ortho_wireframe+id,glutext::GLUT_MENU_CHECK);
 		}		
-		config.set("ui_ortho_drawing",id);
+		config->set("ui_ortho_drawing",id);
 		m->setCanvasDrawMode((ModelViewport::ViewOptionsE)id);
 		break;
 	
@@ -2223,7 +2247,7 @@ void MainWin::perform_menu_action(int id)
 			else _prev_persp = curr;
 			glutext::glutMenuEnable(id_persp_wireframe+id,glutext::GLUT_MENU_CHECK);
 		}		
-		config.set("ui_persp_drawing",id);
+		config->set("ui_persp_drawing",id);
 		m->setPerspectiveDrawMode((ModelViewport::ViewOptionsE)id);
 		break;
 
@@ -2240,8 +2264,8 @@ void MainWin::perform_menu_action(int id)
 
 	case id_view_settings:
 		
-		extern void viewportsettings(Model*); 
-		viewportsettings(m); break;
+		extern void viewportsettings(MainWin&); 
+		viewportsettings(*w); break;
 
 	case id_view_init: views.reset(); break;
 
@@ -2257,7 +2281,7 @@ void MainWin::perform_menu_action(int id)
 	{
 		bool x = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
 
-		config.set(id==id_snap_grid?"ui_snap_grid":"ui_snap_vertex",x);
+		config->set(id==id_snap_grid?"ui_snap_grid":"ui_snap_vertex",x);
 		
 		Model::ViewportUnits &vu = m->getViewportUnits();
 
@@ -2361,7 +2385,7 @@ void MainWin::perform_menu_action(int id)
 	case id_joint_100:
 		
 		viewwin_joints100 = glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("ui_joint_100",viewwin_joints100);
+		config->set("ui_joint_100",viewwin_joints100);
 		for(auto&ea:viewwin_list) //inverting sense
 		ea->views.status._100.indicate(viewwin_joints100==0);
 		return;
@@ -2445,7 +2469,7 @@ void MainWin::perform_menu_action(int id)
 	case id_animate_snap:
 	
 		id = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("ui_snap_keyframe",id);
+		config->set("ui_snap_keyframe",id);
 		//inverting sense		
 		w->views.status._keys_snap.indicate(!id);		
 		return;
@@ -2478,7 +2502,7 @@ void MainWin::perform_menu_action(int id)
 	case id_animate_insert:
 
 		const_cast<int&>(w->animate_insert) = glutGet(glutext::GLUT_MENU_CHECKED);
-		config.set("ui_anim_insert",w->animate_insert);
+		config->set("ui_anim_insert",w->animate_insert);
 		//I'm assuming this isn't a global state, but it's really hard to follow!!
 		w->views.status._clipboard.indicate(w->animate_insert!=0);
 		extern void animwin_enable_menu(int,int);
@@ -2749,7 +2773,7 @@ static void viewwin_mrumenufunc(int id)
 	utf8 cfg = cmp+(id==100?0:7);
 	if(id>=100) id-=100;
 	
-	std::string &mru = config.get(cfg);
+	std::string &mru = config->get(cfg);
 
 	size_t pos = 0; while(id-->0)
 	{
@@ -2863,16 +2887,17 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 	return i;
 }
 
-bool viewwin_confirm_close(int id)
+extern bool viewwin_confirm_close(int id, bool modal_undo)
 {
 	auto ui = Widgets95::e::find_ui_by_window_id(id);
 
-	if(ui&&ui->modal()) for(auto*ea:viewwin_list)
+	if(ui&&(!modal_undo||ui->modal()))
+	for(auto*ea:viewwin_list)
 	{
 		if(ea->glut_window_id!=ui->glut_create_id())
 		continue;
 
-		if(!ea->model->canUndoCurrent())
+		if(modal_undo&&!ea->model->canUndoCurrent())
 		return true;
 
 		auto c = ui->main->find((int)id_ok);

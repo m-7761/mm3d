@@ -114,6 +114,7 @@ public:
 	void sync_animation_window();
 	void open_transform_window();
 	void open_projection_window();
+	void close_viewport_window();
 	void perform_menu_action(int);
 
 private:
@@ -126,12 +127,14 @@ private:
 	void _rewrite_window_title();
 
 	friend struct AnimWin;
-	friend struct TextureCoordWin;
+	friend struct TextureCoordWin;	
 	friend void viewwin_close_func();
+	friend void viewportsettings(MainWin&);
 	struct AnimWin *_animation_win;
 	struct TransformWin *_transform_win;
 	struct ProjectionWin *_projection_win;
 	struct TextureCoordWin *_texturecoord_win;
+	struct ViewportSettings *_vpsettings_win;
 
 	void _sync_tools(int,int);
 	

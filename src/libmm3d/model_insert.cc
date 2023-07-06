@@ -116,10 +116,10 @@ void Model::insertTriangle(unsigned index, Model::Triangle *triangle)
 
 	if(index<m_triangles.size())
 	{
+		adjustTriangleIndices(index,+1);		
 		//FIX US
 		//https://github.com/zturtleman/mm3d/issues/92
 		m_triangles.insert(m_triangles.begin()+index,triangle);
-		adjustTriangleIndices(index,+1);
 	}
 	else m_triangles.push_back(triangle);
 
@@ -702,38 +702,13 @@ void Model::removeTexture(unsigned index)
 void Model::adjustVertexIndices(unsigned index, int amount)
 {
 	for(auto t=m_triangles.size();t-->0;)	
-	for(auto&i:m_triangles[t]->m_vertexIndices)
-	{
-		if(i>=index) i+=amount;
-	}
+	for(auto&i:m_triangles[t]->m_vertexIndices) if(i>=index) i+=amount;
 }
 
 void Model::adjustTriangleIndices(unsigned index, int amount)
 {
-	for(unsigned g=0;g<m_groups.size();g++)
-	{
-		//Group *grp = m_groups[g];
-		auto &grp = m_groups[g]->m_triangleIndices;
-		
-		/*REMOVE ME
-		//https://github.com/zturtleman/mm3d/issues/92
-		std::unordered_set<int> newSet; //!!!
-
-		for(auto i:grp)
-		{
-			if((unsigned)i>=index)
-			newSet.insert(i+amount);
-			else
-			newSet.insert(i);
-		}
-		grp.swap(newSet);
-		*/		
-		for(size_t i=grp.size();i-->0;)
-		{
-			if((unsigned)grp[i]>index) grp[i]+=amount; 
-			else break;
-		}
-	}
+	for(auto g=m_groups.size();g-->0;)
+	for(auto&i:m_groups[g]->m_triangleIndices) if(i>=index) i+=amount; 
 }
 
 void Model::adjustProjectionIndices(unsigned index, int amount)

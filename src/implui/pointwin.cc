@@ -138,9 +138,9 @@ void PointWin::submit(int id)
 	
 		type.add_item(Model::PartPoints,::tr("Points"));
 		type.add_item(Model::PartJoints,::tr("Bone Joints"));		
-		type.add_item(Model::PartProjections,::tr("Projections"));
 		type.add_item(Model::PartGroups,::tr("Groups"));
 		type.add_item(Model::PartMaterials,::tr("Materials"));
+		type.add_item(Model::PartProjections,::tr("Projections"));
 	//	type.add_item(Model::PartAnims,::tr("Animations")); //UNFINISHED
 
 		switch(model->getSelectionMode())

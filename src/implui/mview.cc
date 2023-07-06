@@ -58,7 +58,7 @@ void ViewBar::submit(control *cc)
 	{
 		model.views.tool->updateParam(cc->live_ptr());
 		if(cc->user)
-		config.set(model.views.param_config_key((utf8)cc->user),cc);
+		config->set(model.views.param_config_key((utf8)cc->user),cc);
 		return;
 	}
 

@@ -110,25 +110,25 @@ utf8 ViewPanel::param_config_key(utf8 p)
 // Tool::Parent methods
 void ViewPanel::addBool(bool cfg, bool *val, utf8 name)
 {
-	if(cfg) *val = config.get(param_config_key(name),*val);	
+	if(cfg) *val = config->get(param_config_key(name),*val);	
 
 	params.new_boolean(val,name)->user = cfg?(void*)name:nullptr;
 }
 void ViewPanel::addInt(bool cfg, int *val, utf8 name, int min, int max)
 {
-	if(cfg) *val = config.get(param_config_key(name),*val);	
+	if(cfg) *val = config->get(param_config_key(name),*val);	
 
 	params.new_spinbox(val,name,min,max)->user = cfg?(void*)name:nullptr;
 }
 void ViewPanel::addDouble(bool cfg, double *val, utf8 name, double min, double max)
 {
-	if(cfg) *val = config.get(param_config_key(name),*val);	
+	if(cfg) *val = config->get(param_config_key(name),*val);	
 
 	params.new_spinbox(val,name,min,max)->user = cfg?(void*)name:nullptr;
 }
 void ViewPanel::addEnum(bool cfg, int *val, utf8 name, const char **items)
 {
-	if(cfg) *val = config.get(param_config_key(name),*val);	
+	if(cfg) *val = config->get(param_config_key(name),*val);	
 
 	params.new_dropdown(val,name,items)->user = cfg?(void*)name:nullptr;
 }
@@ -517,15 +517,15 @@ void ViewPanel::_makeViews(int n)
 	
 	if(!n)
 	{
-		n = config.get("ui_viewport_count",4);
+		n = config->get("ui_viewport_count",4);
 		if(n<1||n>/*9*/6) n = 4;
 	}
-	else config.set("ui_viewport_count",n);
+	else config->set("ui_viewport_count",n);
 		
 	int mem = viewsN;
 	if(n==2&&!views1x2) mem++;
 	viewsN = n; 	
-	views1x2 = n!=2?false:!config.get("ui_viewport_tall",true); 
+	views1x2 = n!=2?false:!config->get("ui_viewport_tall",true); 
 
 	switch(n)
 	{

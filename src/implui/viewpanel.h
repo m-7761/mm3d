@@ -69,8 +69,8 @@ public: //slots:
 	//TODO: Add 3x1, 4x1, and have "tall" mean Nx1.
 	void view1(){ _makeViews(1); }
 	void view2(){ _makeViews(2); }
-	void view1x2(){ config.set("ui_viewport_tall",0); _makeViews(1*2); }
-	void view2x1(){ config.set("ui_viewport_tall",1); _makeViews(2*1); }
+	void view1x2(){ config->set("ui_viewport_tall",0); _makeViews(1*2); }
+	void view2x1(){ config->set("ui_viewport_tall",1); _makeViews(2*1); }
 	void view2x2(){ _makeViews(2*2); } //void view2x3();
 	void view3x2(){ _makeViews(3*2); } //void view3x3();	
 	void rearrange(int),reset();

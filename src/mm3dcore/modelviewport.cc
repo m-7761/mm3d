@@ -41,8 +41,8 @@
 //the view. It must correspond to gluPerspective FOV.
 static const double modelviewport_persp_factor = 2*1.2;
 
-static const double modelviewport_znear_factor = 0.1;
-static const double modelviewport_zfar_factor = 1000;
+//static const double modelviewport_znear_factor = 0.1;
+//static const double modelviewport_zfar_factor = 1000;
 
 static const double modelviewport_ortho_factor = 5000/32;
 
@@ -167,9 +167,13 @@ void ModelViewport::updateMatrix() //NEW
 		m_width = s*2; m_height = t*2;
 
 		//gluPerspective(45,aspect,m_zoom*0.1,m_zoom*1000);
-		const double f = 1/tan(PI/8); //45/2
-		const double znear = m_zoom*modelviewport_znear_factor;
-		const double zfar = m_zoom*modelviewport_zfar_factor;
+		auto &vu = parent->getModel()->getViewportUnits();
+	//	const double f = 1/tan(PI/8); //45/2
+		const double f = 1/tan(PI/(180/(vu.fov/2)));
+	//	const double znear = m_zoom*modelviewport_znear_factor;
+	//	const double zfar = m_zoom*modelviewport_zfar_factor;
+		const double znear = m_zoom*vu.znear;
+		const double zfar = m_zoom*vu.zfar;
 		double proj[4][4] = {};		
 		proj[0][0] = f/aspect;
 		proj[1][1] = f;
@@ -210,9 +214,9 @@ void ModelViewport::updateMatrix() //NEW
 static int modelviewport_opts(int drawMode)
 {		
 	int o = Model::DO_TEXTURE|Model::DO_SMOOTHING;
-	/*if(config.get("ui_render_bad_textures",false))
+	/*if(config->get("ui_render_bad_textures",false))
 	o|=Model::DO_BADTEX;
-	if(config.get("ui_render_backface_cull",false))
+	if(config->get("ui_render_backface_cull",false))
 	o|=Model::DO_BACKFACECULL;*/
 	switch(drawMode)
 	{
@@ -285,13 +289,16 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		}
 		else //gluPerspective(45,aspect,m_zoom*0.002,m_zoom*2000); //GLU
 		{
-			double zn = modelviewport_znear_factor;
-			double zf = modelviewport_zfar_factor;
-			gluPerspective(45,aspect,m_zoom*zn,m_zoom*zf); //GLU
+			auto &vu = parent->getModel()->getViewportUnits();
+			double zn = m_zoom*vu.znear;
+			double zf = m_zoom*vu.zfar;
+			//double zn = modelviewport_znear_factor;
+			//double zf = modelviewport_zfar_factor;			
+			gluPerspective(vu.fov,aspect,m_zoom*zn,m_zoom*zf); //GLU
 		}
 
 		s*=2; t*=2;
-		if(m_width!=s||m_height!=t)
+	//	if(m_width!=s||m_height!=t) //vu.grid???
 		{
 			m_width = s; m_height = t;
 			m_unitWidth = getUnitWidth();
@@ -414,7 +421,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 		drawMode = model->getPerspectiveDrawMode();
 		if(drawMode!=ViewWireframe)
 		{
-			//drawSelections = config.get("ui_render_3d_selections",false);
+			//drawSelections = config->get("ui_render_3d_selections",false);
 			drawSelections = model->getDrawSelection();
 		}
 	}
@@ -755,15 +762,15 @@ void ModelViewport::drawGridLines(float a, bool offset3d)
 			os = x>0.99998f?0:f*0.1+(1.5)*f*sqrt(x);
 		};
 
-		//double inc = config.get("ui_3dgrid_inc",4.0);
+		//double inc = config->get("ui_3dgrid_inc",4.0);
 		double inc = vu.inc3d;
-		//double max = config.get("ui_3dgrid_count",6)*inc;
+		//double max = config->get("ui_3dgrid_count",6)*inc;
 		double max = vu.lines3d*inc;
 		double x,y,z;
 		
 		glBegin(GL_LINES);
 
-		//if(config.get("ui_3dgrid_xy",false))
+		//if(config->get("ui_3dgrid_xy",false))
 		if(vu.xyz3d&4)
 		{
 			if(offset3d) osf(dp[2],eye[2]>0);
@@ -777,7 +784,7 @@ void ModelViewport::drawGridLines(float a, bool offset3d)
 				glVertex3d(-max,y,os); glVertex3d(+max,y,os);
 			}
 		}
-		//if(config.get("ui_3dgrid_xz",true))
+		//if(config->get("ui_3dgrid_xz",true))
 		if(vu.xyz3d&2)
 		{
 			if(offset3d) osf(dp[1],eye[1]>0);
@@ -791,7 +798,7 @@ void ModelViewport::drawGridLines(float a, bool offset3d)
 				glVertex3d(-max,os,z); glVertex3d(+max,os,z);
 			}
 		}
-		//if(config.get("ui_3dgrid_yz",false))
+		//if(config->get("ui_3dgrid_yz",false))
 		if(vu.xyz3d&1)
 		{
 			if(offset3d) osf(dp[0],eye[0]>0);
@@ -898,7 +905,7 @@ void ModelViewport::drawGridLines(float a, bool offset3d)
 		glEnd();
 			
 		/*REMOVE ME
-		if(config.get("ui_render_text",false))
+		if(config->get("ui_render_text",false))
 		{
 			glColor3f(0.35f,0.35f,0.35f);
 			glRasterPos3f(xRangeMin,yRangeMin,0);
@@ -1074,20 +1081,20 @@ double ModelViewport::getUnitWidth()
 	if(m_view>=Tool::ViewOrtho
 	 ||m_view<=Tool::ViewPerspective)
 	{
-		//return config.get("ui_3dgrid_inc",4.0);
+		//return config->get("ui_3dgrid_inc",4.0);
 		return vu.inc3d;
 	}
 
 	//zero divide? infinite loop?
 	//0.00001 is taken from viewportsettings.cc
-	//double unitWidth = config.get("ui_grid_inc",4.0);
+	//double unitWidth = config->get("ui_grid_inc",4.0);
 	double unitWidth = std::max(0.00001,vu.inc); 
 
 	double ratio;
 	int scale_min,scale_max;
 
 	// Note early return for fixed width ('case 2:')
-	//switch(config.get("ui_grid_mode",0))
+	//switch(config->get("ui_grid_mode",0))
 	switch(vu.grid)
 	{
 	default:
@@ -1974,7 +1981,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		}
 	}	
 
-	//if(config.get("ui_snap_grid",false))
+	//if(config->get("ui_snap_grid",false))
 	if(snaps&vu.UnitSnap)
 	if(maxDist)
 	if(m_view<Tool::ViewOrtho)

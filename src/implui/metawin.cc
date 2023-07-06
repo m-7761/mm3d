@@ -499,7 +499,7 @@ void MetaWin::meta_submit(int id)
 
 	both_submit(id);
 }
-extern bool viewwin_confirm_close(int);
+extern bool viewwin_confirm_close(int,bool);
 void MetaWin::util_submit(control *c)
 {
 	int id = c->id();
@@ -511,7 +511,7 @@ void MetaWin::util_submit(control *c)
 		if(id==Utils::id_detach) 
 		{
 			//This is reimplementing glutCloseFunc.
-			if(viewwin_confirm_close(glut_window_id()))
+			if(viewwin_confirm_close(glut_window_id(),true))
 			{
 				auto *p = utils->p; p->main.set_parent();
 				both_submit(id_close);

@@ -808,7 +808,7 @@ void Model::deleteTriangles(const int_list &l, bool asc)
 	for(auto&i:l) if(i<sz)
 	{
 		//2022: Passing false is an optimization to
-		//avoi interleaving undo objects since that
+		//avoid interleaving undo objects since that
 		//prevents MU_Delete from resuming/combining.
 		auto *tp = tl[i];	
 		if(tp->m_group>=0)

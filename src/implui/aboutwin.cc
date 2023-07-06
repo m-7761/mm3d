@@ -69,8 +69,8 @@ extern void aboutwin(int id)
 		auto zm = aboutwin_http("clover.moe/mm3d");
 		auto kw = aboutwin_http("www.misfitcode.com/misfitmodel3d");
 
-		auto cf = aboutwin_file(config.locate().c_str());
-		auto kc = aboutwin_file(keycfg.locate().c_str());
+		auto cf = aboutwin_file(config->locate().c_str());
+		auto kc = aboutwin_file(keycfg->locate().c_str());
 
 		//The Help title is "MM3D Help - Contents".
 		//auto w = new AboutWin(::tr("MM3D-About"));

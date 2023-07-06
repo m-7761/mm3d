@@ -143,20 +143,20 @@ void AnimExportWin::submit(int id)
 		for(int i=0;i<formatsN;i++) 
 		output.format.add_item(i,formats[i]);
 
-		int fmt = config.get("ui_animexport_format",0);
+		int fmt = config->get("ui_animexport_format",0);
 		if(fmt>0&&fmt<formatsN) output.format.select_id(fmt);
 
 		double min = 0.0001;
-		double fps = config.get("ui_animexport_framerate",25.0);
+		double fps = config->get("ui_animexport_framerate",25.0);
 		output.framerate.edit(min,fps>=min?fps:25.0,DBL_MAX);
 
-		double sec = config.get("ui_animexport_seconds",15.0);
+		double sec = config->get("ui_animexport_seconds",15.0);
 		duration.seconds.edit(min,sec>=min?sec:15.0,DBL_MAX);
 
-		double i = config.get("ui_animexport_iterations",1.0);
+		double i = config->get("ui_animexport_iterations",1.0);
 		duration.iterations.edit(min,i>=min?i:1.0,DBL_MAX);
 
-		//i = config.get("ui_animexport_?",1);
+		//i = config->get("ui_animexport_?",1);
 		duration.mult.select_id(1);
 	
 		size_t scount = model->getAnimationCount(Model::ANIMMODE_JOINT);
@@ -186,7 +186,7 @@ void AnimExportWin::submit(int id)
 
 		const char *filename = model->getFilename();
 				
-		output.directory.set_text(config.get("ui_animexport_dir",""));
+		output.directory.set_text(config->get("ui_animexport_dir",""));
 		
 		int persp = -1;
 		for(int i=0;i<vp->viewsN;i++)
@@ -263,11 +263,11 @@ void AnimExportWin::submit(int id)
 			////POINT-OF-NO-RETURN///
 
 
-		config.set("ui_animexport_dir",(utf8)output.directory);
-		config.set("ui_animexport_format",(int)output.format);
-		config.set("ui_animexport_framerate",(double)output.framerate);
-		config.set("ui_animexport_seconds",(double)duration.seconds);
-		config.set("ui_animexport_iterations",(double)duration.iterations);
+		config->set("ui_animexport_dir",(utf8)output.directory);
+		config->set("ui_animexport_format",(int)output.format);
+		config->set("ui_animexport_framerate",(double)output.framerate);
+		config->set("ui_animexport_seconds",(double)duration.seconds);
+		config->set("ui_animexport_iterations",(double)duration.iterations);
 
 		bool enable = 
 		model->setUndoEnabled(false);

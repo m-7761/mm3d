@@ -53,7 +53,7 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "texmgr.h"
 #include "datasource.h"
 
-static void ui_drop(char **f, int n)
+static void ui_drop2(char **f, int n, bool FindWindow)
 {
 	for(int i=0;i<n;i++,f++) 
 	{
@@ -72,12 +72,12 @@ static void ui_drop(char **f, int n)
 			//2022: !i is is needed because subsequent opens will
 			//always replace the first drop since they're !edited
 
-			extern MainWin*&viewwin(int=glutGetWindow());
+			extern MainWin *&viewwin(int=glutGetWindow());
 			MainWin *w = viewwin();
 			//2022: Saving and moving onto a new file is standard
 			//workflow. The file can be reopened as a last resort.
 			//MainWin::open(m,!i&&w&&!w->model->getEdited()?w:nullptr);
-			MainWin::open(m,!i&&w&&w->model->getSaved()?w:nullptr);
+			MainWin::open(m,!FindWindow&&!i&&w&&w->model->getSaved()?w:nullptr);
 
 			//add path to most-recently-used menu?
 			extern void viewwin_mru_drop(char*);
@@ -85,6 +85,7 @@ static void ui_drop(char **f, int n)
 		}
 	}
 }
+static void ui_drop(char **f, int n){ ui_drop2(f,n,false); }
 
 static void ui_info(const char *str)
 {
@@ -192,9 +193,13 @@ bool ui_prep(int &argc, char *argv[]) //extern
 	return true;
 }
 
+static bool ui_quitting = false;
 extern int ui_init(int &argc, char *argv[])
 {
 	int rval = 0;
+
+	config = new Widgets95::configure("daedalus3d-mm3d-config");
+	keycfg = new Widgets95::configure("daedalus3d-mm3d-keycfg");
 
 	if(cmdline_runcommand)
 	{
@@ -215,49 +220,49 @@ extern int ui_init(int &argc, char *argv[])
 			msg_register_prompt(ui_info_prompt,ui_warning_prompt,ui_error_prompt);
 		}
 
-		bool opened = false;
+		if(!ui_quitting)
+		{
+			bool opened = false;
 		
-		if(int openCount=cmdline_getOpenModelCount())
-		{
-			for(int i=0;i<openCount;i++)
+			if(int openCount=cmdline_getOpenModelCount())
 			{
-				new MainWin(cmdline_getOpenModel(i));
-				opened = true;
+				for(int i=0;i<openCount;i++)
+				{
+					new MainWin(cmdline_getOpenModel(i));
+					opened = true;
+				}
+
+				cmdline_clearOpenModelList();
+			}
+			else if(argc>1)
+			{
+				char *pwd = PORT_get_current_dir_name();
+
+				for(int i=1;i<argc;i++)
+				if(MainWin::open(normalizePath(argv[i],pwd).c_str()))
+				{
+					//openCount++;
+					opened = true;
+				}
+
+				free(pwd); //???
 			}
 
-			cmdline_clearOpenModelList();
-		}
-		else if(argc>1)
-		{
-			char *pwd = PORT_get_current_dir_name();
-
-			for(int i=1;i<argc;i++)
-			if(MainWin::open(normalizePath(argv[i],pwd).c_str()))
+			if(!opened)
 			{
-				//openCount++;
-				opened = true;
-			}
+				auto *m = new MainWin;
 
-			free(pwd); //???
-		}
-
-		if(!opened)
-		{
-			auto *m = new MainWin;
-
-			if(cmdline_resume) //2022
-			{
-				m->perform_menu_action(id_file_resume);
+				if(cmdline_resume) //2022
+				{
+					m->perform_menu_action(id_file_resume);
+				}
 			}
 		}
-		
-		//rval = s_app->exec();
+	
 		glutMainLoop();
 	}
-
-	//delete s_mm3dXlat;
-	//delete s_qtXlat;
-	//delete s_app;
+		
+	delete config; delete keycfg; //flush?
 
 	return rval;
 }
@@ -332,7 +337,7 @@ static INT_PTR CALLBACK ui_findwindowproc(HWND hwndDlg, UINT uMsg, WPARAM wParam
 			WideCharToMultiByte(CP_UTF8,0,w,-1,u[i],len,0,0);
 			u[i][len] = '\0';
 		}	
-		u[n] = nullptr; ui_drop(u,n);
+		u[n] = nullptr; ui_drop2(u,n,true);
 
 		while(n-->0) delete[] u[n]; delete[] u; delete[] w;
 
@@ -388,12 +393,14 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 		for(int i=1;i<argc;i++) if('-'!=argw[i][0])
 		{
 			if(PathIsRelative(argw[i]))
-			sz+=cd_s;
+			sz+=sizeof(WCHAR)*cd_s;
 			sz+=sizeof(WCHAR)*(wcslen(argw[i])+1);
 		}
 		if(sz>sizeof(DROPFILES))
 		{
 			sz+=sizeof(WCHAR);
+
+			int argcc = 1;
 
 			HANDLE h = GlobalAlloc(GMEM_MOVEABLE|GMEM_ZEROINIT,sz);	
 			DROPFILES *hd = (DROPFILES*)GlobalLock(h);
@@ -410,54 +417,69 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 				}				
 				wmemcpy(p,argw[i],len); p+=len;
 			}
-			*p = '\0';
+			else argv[argcc++] = argv[i];
+
+			*p++ = '\0'; argc = argcc;
+
+			assert((char*)p-(char*)hd==sz);
+
 			GlobalUnlock(h);
 			PostMessage(fw,WM_DROPFILES,(WPARAM)hd,0);
 		//	GlobalFree(h);
 
-		//	Sleep(1000);
+			if(1) return 0; //!
+			else PostMessage(0,WM_QUIT,0,0);
 
-			return 0; //!
+			ui_quitting = true;
 		}
 	}	
 	CreateDialogW(0,MAKEINTRESOURCEW(IDD_FINDWINDOW),0,ui_findwindowproc); 
 	 
-	#ifdef _CONSOLE
-	//This is not necessary for CONSOLE applications, but it's better
-	//to not be a console application since that seems to close doors.	
-	if(!AttachConsole(ATTACH_PARENT_PROCESS))
+	if(!ui_quitting)
 	{
-		AllocConsole(); 
-//		Windows_cons = GetConsoleWindow();		
-//		PostMessage(Windows_cons,WM_SETICON,ICON_BIG,Windows_main_icon);
-//		PostMessage(Windows_cons,WM_SETICON,ICON_SMALL,Windows_main_icon);
-	}
-	FILE *C2143;
-	freopen_s(&C2143,"CONOUT$","w",stdout);
-	freopen_s(&C2143,"CONOUT$","w",stderr);
-	//BLACK MAGIC: better to clear these together after reopening.
-	clearerr(stdout); clearerr(stderr); 
-	/*REFERENCE
-	//The C-Runtime (CRT) in the DLL doesn't know it's redirected.
-	if(Silence_console_if_DEBUG!=1) //If so it's already been set.
-	daeErrorHandler::setErrorHandler(new daeStandardErrorHandler);				
-	
-	//NEW: Trying to not cut off the console output.	
-	CONSOLE_SCREEN_BUFFER_INFOEX csbi = {sizeof(csbi)};
-	if(GetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE),&csbi))
-	{
-		enum{ min=5000 }; if(csbi.dwSize.Y<min) //10000		
+		#ifdef _CONSOLE
+		//This is not necessary for CONSOLE applications, but it's better
+		//to not be a console application since that seems to close doors.	
+		if(!AttachConsole(ATTACH_PARENT_PROCESS))
 		{
-			csbi.dwSize.Y = min;
-			SetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE),&csbi);
+			AllocConsole(); 
+	//		Windows_cons = GetConsoleWindow();		
+	//		PostMessage(Windows_cons,WM_SETICON,ICON_BIG,Windows_main_icon);
+	//		PostMessage(Windows_cons,WM_SETICON,ICON_SMALL,Windows_main_icon);
 		}
-	}*/
-	#endif
+		FILE *C2143;
+		freopen_s(&C2143,"CONOUT$","w",stdout);
+		freopen_s(&C2143,"CONOUT$","w",stderr);
+		//BLACK MAGIC: better to clear these together after reopening.
+		clearerr(stdout); clearerr(stderr); 
+		/*REFERENCE
+		//The C-Runtime (CRT) in the DLL doesn't know it's redirected.
+		if(Silence_console_if_DEBUG!=1) //If so it's already been set.
+		daeErrorHandler::setErrorHandler(new daeStandardErrorHandler);				
+	
+		//NEW: Trying to not cut off the console output.	
+		CONSOLE_SCREEN_BUFFER_INFOEX csbi = {sizeof(csbi)};
+		if(GetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE),&csbi))
+		{
+			enum{ min=5000 }; if(csbi.dwSize.Y<min) //10000		
+			{
+				csbi.dwSize.Y = min;
+				SetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE),&csbi);
+			}
+		}*/
+		#endif
+	}
 
 	//There are shutdown issues if the CONSOLE is used. Especially if
 	//debugging.
 	SetConsoleCtrlHandler(wWinMain_CONSOLE_HandlerRoutine,1);
 	UINT cp = GetConsoleOutputCP(); SetConsoleOutputCP(65001);	
-	int exit_code = main(argc,argv); SetConsoleOutputCP(cp); return exit_code;
+	int exit_code = main(argc,argv); SetConsoleOutputCP(cp);
+	
+	//wxWidgets is too unstable on exit in debug mode.
+	//Note, MainWin::~MainWin() terminates in release mode.
+	if(ui_quitting) TerminateProcess(GetModuleHandle(nullptr),0);
+
+	return exit_code;
 }
 #endif

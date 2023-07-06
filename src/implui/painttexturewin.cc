@@ -198,7 +198,7 @@ void PaintTextureWin::submit(int id)
 	}
 
 	const char *modelFile = model->getFilename();
-	FileBox file = config.get("ui_model_dir");
+	FileBox file = config->get("ui_model_dir");
 	if(*modelFile) //???
 	{
 		std::string fullname,fullpath,basename; //REMOVE US

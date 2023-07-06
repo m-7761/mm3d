@@ -144,7 +144,7 @@ void TextureWin::submit(int id)
 
 		accumulate.add_item(0,"Alpha Blend").add_item(1,"Accumulate");
 		
-		column1.select_id(config.get("ui_texwin_preview_index",false))
+		column1.select_id(config->get("ui_texwin_preview_index",false))
 		.add_item(false,"Flat Preview")
 		.add_item(true,"3D Preview");
 		texture.set3d((bool)column1); 
@@ -182,7 +182,7 @@ void TextureWin::submit(int id)
 	case '1': 
 		
 		texture.set3d((bool)column1); 
-		config.set("ui_texwin_preview_index",(bool)column1);		
+		config->set("ui_texwin_preview_index",(bool)column1);		
 		break;
 
 	case '2': case id_value: 
@@ -252,14 +252,14 @@ void TextureWin::source_texture(int id)
 		verb+=TextureManager::getInstance()->getAllReadTypes();
 		verb+=')';
 
-		std::string file = config.get("ui_texture_dir");
+		std::string file = config->get("ui_texture_dir");
 		if(file.empty()) file = "."; 
 		file = FileBox(file,verb,::tr("Open texture image"));
 
 		if(file.empty()) return;
 
 		source.set_text(file); 
-		config.set("ui_texture_dir",file,file.rfind('/'));
+		config->set("ui_texture_dir",file,file.rfind('/'));
 	}
 
 	int m = material;

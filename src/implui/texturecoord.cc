@@ -200,7 +200,7 @@ void TextureCoordWin::_menubarfunc(int id)
 	{
 		bool x = 0!=glutGet(glutext::GLUT_MENU_CHECKED);
 
-		config.set(id==id_snap_grid?"uv_snap_grid":"uv_snap_vertex",x);
+		config->set(id==id_snap_grid?"uv_snap_grid":"uv_snap_vertex",x);
 		
 		Model::ViewportUnits &vu = tw->model->getViewportUnits();
 
@@ -216,7 +216,7 @@ void TextureCoordWin::_menubarfunc(int id)
 	}
 	case id_view_settings:		
 		
-		extern void viewportsettings(Model*);
+		extern void viewportsettings(MainWin &model);
 		viewportsettings(tw->model); 
 		break;
 
@@ -353,7 +353,7 @@ void TextureCoordWin::toggle_toolbar(int f)
 	int bts = (int)toolbar3.hidden()<<2|(int)toolbar2.hidden()<<1;
 	map_remap.set_hidden(bts!=0);
 	bts|=(int)f1.hidden();		 	
-	config.set("uv_buttons_mask",bts);	
+	config->set("uv_buttons_mask",bts);	
 
 	if(f==1) close.id(bts&1?id_ok:id_close); //Allow Esc for None tool??
 
@@ -444,8 +444,8 @@ void TextureCoordWin::_init_menu_toolbar()
 	_viewmenu = glutCreateMenu(_menubarfunc);
 	glutAddSubMenu("Reconfigure",conf_menu);
 	glutAddMenuEntry();
-	bool r = config.get("uv_snap_vertex",false);
-	bool s = config.get("uv_snap_grid",false);
+	bool r = config->get("uv_snap_vertex",false);
+	bool s = config->get("uv_snap_grid",false);
 	glutAddMenuEntry(X(r,snap_vert,"Snap to Vertex","View|Snap to Vertex","Shift+V"));
 	glutAddMenuEntry(X(s,snap_grid,"Snap to Grid","View|Snap to Grid","Shift+G"));	
 	texture.setUvSnap(r||s);
@@ -468,7 +468,7 @@ void TextureCoordWin::_init_menu_toolbar()
 
 			//DUPLICATE (viewin.cc)
 			int shlk = glutCreateMenu(viewwin_menubarfunc);
-		//	r = config.get("ui_tool_shift_hold",false);
+		//	r = config->get("ui_tool_shift_hold",false);
 		//	if(r) model.views.status._shifthold.indicate(true);
 			bool r = model.views.status._shifthold;
 			glutAddMenuEntry(E(tool_shift_lock,"Sticky Shift Key (Emulation)","","L"));
@@ -536,7 +536,7 @@ void TextureCoordWin::_init_menu_toolbar()
 		glutAddMenuEntry();
 		glutAddMenuEntry(E(uv_editor,"Close","","M"));
 	}
-	int bts = config.get("uv_buttons_mask",0);
+	int bts = config->get("uv_buttons_mask",0);
 	if(bts&1) toggle_toolbar(1);
 	if(bts&2) toggle_toolbar(2);
 	if(bts&4) toggle_toolbar(3);
@@ -811,8 +811,8 @@ void TextureCoordWin::init()
     .add_item(0xffff00,"Yellow")
     .add_item(id_white,"White"); //0xffffff
 	red.reference(white);
-	int w = config.get("ui_texcoord_lines_color",+id_white);
-	int r = config.get("ui_texcoord_selection_color",+id_red);
+	int w = config->get("ui_texcoord_lines_color",+id_white);
+	int r = config->get("ui_texcoord_selection_color",+id_red);
 	if(w&&w<8) w = id_white; if(r&&r<8) r = id_red; //back-compat
 	white.set_int_val(w); red.set_int_val(r);
 
@@ -829,8 +829,8 @@ void TextureCoordWin::init()
 	.add_item(texture::MouseRotate,"Rotate")
 	.add_item(texture::MouseScale,"Scale");	
 		
-	scale_sfc.set(config.get("ui_texcoord_scale_center",true));
-	scale_kar.set(config.get("ui_texcoord_scale_aspect",false));
+	scale_sfc.set(config->get("ui_texcoord_scale_center",true));
+	scale_kar.set(config->get("ui_texcoord_scale_aspect",false));
 
 	map.add_item(3,"Triangle");
 	map.add_item(4,"Quad");	
@@ -885,12 +885,12 @@ void TextureCoordWin::submit(control *c)
 
 	case id_white: 
 
-		config.set("ui_texcoord_lines_color",(int)white);
+		config->set("ui_texcoord_lines_color",(int)white);
 	    goto init2;
 
 	case id_red:
 
-		config.set("ui_texcoord_selection_color",(int)red);
+		config->set("ui_texcoord_selection_color",(int)red);
 	    goto init2;
 
 	case '+': texture.zoomIn(); break;
@@ -921,12 +921,12 @@ void TextureCoordWin::submit(control *c)
 		}
 		else if(c==scale_sfc)
 		{
-			config.set("ui_texcoord_scale_center",(bool)scale_sfc);
+			config->set("ui_texcoord_scale_center",(bool)scale_sfc);
 			goto init2;
 		}
 		else if(c==scale_kar)
 		{
-			config.set("ui_texcoord_scale_aspect",(bool)scale_kar);
+			config->set("ui_texcoord_scale_aspect",(bool)scale_kar);
 			goto init2;
 		}
 		break;

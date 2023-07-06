@@ -409,7 +409,7 @@ struct AnimCleanupWin : Win
 		pos.tol.edit(eps,100.0); //0.0001 //1/10th millimeter
 		rot.tol.edit(eps,0.0001); //0.00001 //0.0001 is too high for dot4.
 		scl.tol.edit(eps,100.0); //0.0001 //???
-		auto ser = config.get("ui_anim_clean","0.0001,0.00001,0.0001,1,1,1,3,3,1,1");
+		auto ser = config->get("ui_anim_clean","0.0001,0.00001,0.0001,1,1,1,3,3,1,1");
 		{
 			float f[3]; int d[7];
 			sscanf(ser,"%f,%f,%f,%d,%d,%d,%d,%d,%d,%d",f+0,f+1,f+2,d+0,d+1,d+2,d+3,d+4,d+5,d+6);
@@ -563,7 +563,7 @@ struct AnimCleanupWin : Win
 			(double)pos.tol,(double)rot.tol,(double)scl.tol,
 			(int)pos.box,(int)rot.box,(int)scl.box,
 			(int)a.k,(int)a.v,(int)b,(int)c);
-			config.set("ui_anim_clean",buf);
+			config->set("ui_anim_clean",buf);
 		}
 		basic_submit(id);
 	}

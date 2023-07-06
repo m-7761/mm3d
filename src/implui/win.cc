@@ -19,8 +19,10 @@ class Widgets95::e &Win::event = Widgets95::e;
 //These appear directly under APPDATA:
 //%APPDATA%/daedalus3d-mm3d-config.ini
 //%APPDATA%/daedalus3d-mm3d-keycfg.ini
-Widgets95::configure config("daedalus3d-mm3d-config");
-Widgets95::configure keycfg("daedalus3d-mm3d-keycfg");
+//Widgets95::configure config("daedalus3d-mm3d-config");
+//Widgets95::configure keycfg("daedalus3d-mm3d-keycfg");
+Widgets95::configure *config = nullptr;
+Widgets95::configure *keycfg = nullptr;
 
 //REMOVE ME
 Win::f1_titlebar::f1_titlebar(node *p):titlebar(p,msg())
@@ -38,8 +40,8 @@ extern void win_close()
 {	
 	auto w = (Win*)Widgets95::e::find_ui_by_window_id();
 
-	extern bool viewwin_confirm_close(int);
-	if(!viewwin_confirm_close(w->glut_window_id()))
+	extern bool viewwin_confirm_close(int,bool);
+	if(!viewwin_confirm_close(w->glut_window_id(),true))
 	return;
 	
 	auto c = w->main->find([](Win::control *p)

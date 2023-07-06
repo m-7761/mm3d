@@ -69,12 +69,12 @@ void ExtrudeWin::submit(int id)
 		x.edit(0.0); 
 		y.edit(0.0);
 		z.edit(0.0);
-		make_back_faces.set(config.get("ui_extrude_makebackfaces",false));
+		make_back_faces.set(config->get("ui_extrude_makebackfaces",false));
 		break;
 
 	case '?':
 
-		config.set("ui_extrude_makebackfaces",(bool)make_back_faces);
+		config->set("ui_extrude_makebackfaces",(bool)make_back_faces);
 		break;
 
 	case id_apply:

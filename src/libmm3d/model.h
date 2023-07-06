@@ -533,6 +533,8 @@ public:
 
 		int xyz3d; //1|2|4
 
+		double fov,znear,zfar; //45,0.1,1000
+
 		int unitsUv;
 
 		double snapUv[2];

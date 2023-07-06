@@ -75,11 +75,11 @@ bool_panel(model.sidebar,model)
 		ll[i]->lock(ll[i]->span(),false);
 	}		
 
-	anim_panel.nav.set(config.get("ui_anim_sidebar",true));
-	bool_panel.nav.set(config.get("ui_bool_sidebar",true));
-	prop_panel.nav.set(config.get("ui_prop_sidebar",true));
+	anim_panel.nav.set(config->get("ui_anim_sidebar",true));
+	bool_panel.nav.set(config->get("ui_bool_sidebar",true));
+	prop_panel.nav.set(config->get("ui_prop_sidebar",true));
 
-	prop_panel.infl.nav.set(config.get("ui_infl_sidebar",true));
+	prop_panel.infl.nav.set(config->get("ui_infl_sidebar",true));
 
 	active_callback = &SideBar::submit;
 
@@ -93,23 +93,23 @@ void SideBar::submit(control *c)
 	if(v>=&anim_panel&&v<&anim_panel+1)
 	{
 		if(c!=anim_panel.nav) anim_panel.submit(c);
-		else config.set("ui_anim_sidebar",(bool)*c);
+		else config->set("ui_anim_sidebar",(bool)*c);
 	}
 	else if(v>=&bool_panel&&v<&bool_panel+1)
 	{
 		int i = *c;
 		if(c!=bool_panel.nav) bool_panel.submit(c);
-		else config.set("ui_bool_sidebar",(bool)*c);
+		else config->set("ui_bool_sidebar",(bool)*c);
 	}
 	else if(v>=&prop_panel&&v<&prop_panel+1)
 	{
 		if(c!=prop_panel.nav) prop_panel.submit(c);
-		else if(config.set("ui_prop_sidebar",(bool)*c))
+		else if(config->set("ui_prop_sidebar",(bool)*c))
 		{
 			prop_panel.modelChanged(~0); //OPTIMIZATION
 		}
 		if(c==prop_panel.infl.nav)
-		if(config.set("ui_infl_sidebar",(bool)*c))
+		if(config->set("ui_infl_sidebar",(bool)*c))
 		{
 			prop_panel.modelChanged(~0); //OPTIMIZATION
 		}
@@ -151,7 +151,7 @@ void SideBar::AnimPanel::submit(control *c)
 		uv_nav.cspace<center>();
 		uv_nav.expand().space(1);		
 		uv_animate.expand().place(right);
-		uv_animate.set(config.get("uv_animations",true));
+		uv_animate.set(config->get("uv_animations",true));
 
 		//refresh_list(); //Won't do.
 
@@ -159,7 +159,7 @@ void SideBar::AnimPanel::submit(control *c)
 
 	case 'u':
 
-		config.set("uv_animations",(bool)uv_animate);		
+		config->set("uv_animations",(bool)uv_animate);		
 		model->setDrawOption(Model::DO_TEXTURE_MATRIX,uv_animate);
 		break;
 
@@ -246,7 +246,7 @@ void SideBar::BoolPanel::submit(control *c)
 {
 	if(c==op)
 	{
-		config.set("ui_bool_op",op.int_val());
+		config->set("ui_bool_op",op.int_val());
 
 		utf8 str = nullptr; switch(op)
 		{
@@ -347,7 +347,7 @@ void SideBar::BoolPanel::init()
 
 	//init(); submit(op.select_id(1));
 
-	submit(op.select_id(config.get("ui_bool_op",1)));
+	submit(op.select_id(config->get("ui_bool_op",1)));
 
 	//status.set_name(::tr("Select faces to set",
 	//"Select faces to set as 'A' Object in boolean operation"));

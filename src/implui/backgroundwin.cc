@@ -98,13 +98,13 @@ void BackgroundWin::submit(int id)
 		verb+=TextureManager::getInstance()->getAllReadTypes();
 		verb+=')';
 
-		std::string file = config.get("ui_background_dir");
+		std::string file = config->get("ui_background_dir");
 		if(file.empty()) file = ".";
 		file = FileBox(file,verb,::tr("Open texture image"));
 		if(file.empty()) 
 		break;						
 		source.text() = file;
-		config.set("ui_background_dir",file,file.rfind('/'));		
+		config->set("ui_background_dir",file,file.rfind('/'));		
 		}
 		//break;
 
