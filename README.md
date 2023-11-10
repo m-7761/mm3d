@@ -1,5 +1,7 @@
 # mm3d
-Simplified fork of Maverick/Misfit Model 3D meant for improving core data model.
+This is a fork of Maverick/Misfit Model 3D meant for improving core data model. Its code is simplified a great deal. The UX is much improved too.
+
+This editor is packaged with Sword of Moonlight and I can be supportd on Patreon (https://www.patreon.com/swordofmoonlight) (Donations are needed)
 
 # demo for Windows users
 https://github.com/mick-p1982/mm3d/releases/tag/win32-dec-2021
