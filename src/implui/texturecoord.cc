@@ -1127,7 +1127,7 @@ void TextureCoordWin::setTextureCoordsDone()
 {
 	setTextureCoordsEtc(true,true);
 	model->updateObservers();
-	operationComplete(::tr("Set texture coordinates"));
+	operationCompound(::tr("Set texture coordinates"));
 }
 void TextureCoordWin::moveTextureCoordsDone(bool done)
 {
@@ -1138,7 +1138,7 @@ void TextureCoordWin::moveTextureCoordsDone(bool done)
 	//simpler that way.
 	if(done) setTextureCoordsEtc(true);*/
 	setTextureCoordsEtc(!done,done);
-	if(done) operationComplete(::tr("Move texture coordinates"));
+	if(done) operationCompound(::tr("Move texture coordinates"));
 }
 void TextureCoordWin::updateSelectionDone()
 {
@@ -1152,9 +1152,9 @@ void TextureCoordWin::updateSelectionDone()
 
 	setTextureCoordsEtc(false,true); //NEW
 }
-void TextureCoordWin::operationComplete(const char *opname)
+void TextureCoordWin::operationCompound(const char *opname)
 {
-	m_ignoreChange = true; model->operationComplete(opname);
+	m_ignoreChange = true; model->operationCompound(opname);
 	m_ignoreChange = false;
 }
 

@@ -680,7 +680,7 @@ void SideBar::PropPanel::pos_props::change(int changeBits)
 			centerpoint[i] = coords[i];
 		}
 		model->translateSelected(trans);
-		model->operationComplete(::tr("Set Position","operation complete"));
+		model->operationCompound(::tr("Set Position","operation complete"));
 	}
 }
 
@@ -723,7 +723,7 @@ void SideBar::PropPanel::rot_props::change(int changeBits)
 		y.set_float_val(rad[1]);
 		z.set_float_val(rad[2]);
 	}
-	else model->operationComplete(::tr("Set Rotation","operation complete"));
+	else model->operationCompound(::tr("Set Rotation","operation complete"));
 }
 
 void SideBar::PropPanel::scale_props::change(int changeBits, control *c)
@@ -773,7 +773,7 @@ void SideBar::PropPanel::scale_props::change(int changeBits, control *c)
 		y.set_float_val(rad[1]);
 		z.set_float_val(rad[2]);
 	}
-	else model->operationComplete(::tr("Set Scale","operation complete"));
+	else model->operationCompound(::tr("Set Scale","operation complete"));
 }
 
 void SideBar::PropPanel::interp_props::change(int changeBits, control *c)

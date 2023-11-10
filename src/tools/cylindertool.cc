@@ -34,7 +34,7 @@
 
 struct CylinderTool : Tool
 {
-	CylinderTool():Tool(TT_Creator,1,TOOLS_CREATE_MENU),m_inverted()
+	CylinderTool():Tool(TT_Creator,1,TOOLS_CREATE_MENU),m_inverted(),m_created()
 	{	
 		m_segments = 4; m_sides = 8; //config defaults
 		m_width = m_scale = 100;
@@ -67,6 +67,10 @@ struct CylinderTool : Tool
 		ToolCoordList m_vertices;
 		double m_startX,m_startY;
 
+		void create();
+
+		bool m_created;
+
 	void updateVertexCoords
 	(double x, double y, double z, double x2, double y2, double z2); 		
 };
@@ -75,7 +79,18 @@ extern Tool *cylindertool(){ return new CylinderTool; }
 
 void CylinderTool::mouseButtonDown()
 {	
-	m_vertices.clear(); m_inverted = false;
+	m_vertices.clear();
+	
+	m_inverted = m_created = false;
+
+	double pos[2];
+	parent->getParentXYValue(pos[0],pos[1]);	
+	m_startX = pos[0];
+	m_startY = pos[1];
+}
+void CylinderTool::create()
+{
+	m_created = true;
 
 	Model *model = parent->getModel();
 	
@@ -188,16 +203,13 @@ void CylinderTool::mouseButtonDown()
 	for(int i=model->getTriangleCount();i-->select;)
 	model->selectTriangle(i);
 
-	double pos[2];
-	parent->getParentXYValue(pos[0],pos[1],true);	
-	m_startX = pos[0];
-	m_startY = pos[1];
-	updateVertexCoords(pos[0],pos[1],0,0,0,0);
+	//updateVertexCoords(pos[0],pos[1],0,0,0,0);
 
 	parent->updateAllViews();
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,TRANSLATE("Tool","Cylinder created"));
 }
+
 void CylinderTool::mouseButtonMove()
 {
 	Model *model = parent->getModel();
@@ -207,6 +219,13 @@ void CylinderTool::mouseButtonMove()
 	rad[0] = pos[0]-m_startX;
 	rad[1] = //???
 	rad[2] = fabs(m_startY-pos[1])/2;
+
+	if(!rad[1])
+	{
+		return;
+	}
+	else if(!m_created) create();
+
 	pos[0] = m_startX;
 	pos[1] = (m_startY+pos[1])/2;
 
@@ -229,6 +248,7 @@ void CylinderTool::mouseButtonMove()
 
 	parent->updateAllViews();
 }
+
 void CylinderTool::updateVertexCoords
 (double x, double y, double z, double xrad, double yrad, double zrad)
 {

@@ -314,7 +314,6 @@ struct StdTexFilter : TextureFilter
 };
 TextureFilter *ui_texfilter(){ return new StdTexFilter; }
 
-//Console "assert" always terminates :(
 #ifdef _WIN32
 static INT_PTR CALLBACK ui_findwindowproc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -337,15 +336,22 @@ static INT_PTR CALLBACK ui_findwindowproc(HWND hwndDlg, UINT uMsg, WPARAM wParam
 			WideCharToMultiByte(CP_UTF8,0,w,-1,u[i],len,0,0);
 			u[i][len] = '\0';
 		}	
-		u[n] = nullptr; ui_drop2(u,n,true);
+		u[n] = nullptr; 
+		
+		ui_drop2(u,n,n>1||GetAsyncKeyState(VK_SHIFT)>>15);
 
 		while(n-->0) delete[] u[n]; delete[] u; delete[] w;
 
-		DragFinish(drop); return 1;
+		DragFinish(drop); 
+		
+		SetForegroundWindow(hwndDlg);
+
+		return 1;
 	}	
 
 	return 0;
 }
+//Console "assert" always terminates :(
 BOOL WINAPI wWinMain_CONSOLE_HandlerRoutine(DWORD dwCtrlType)
 {
 	switch(dwCtrlType)
@@ -383,7 +389,8 @@ int __stdcall wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int)
 		WideCharToMultiByte(CP_UTF8,0,argw[i],-1,argv[i],len,0,0);
 		argv[i][len] = '\0';
 	}
-	if(HWND fw=FindWindowA(0,"Hidden - FindWindow(Mulimedia3D)"))
+	AllowSetForegroundWindow(GetProcessId(GetCurrentProcess()));
+	if(HWND fw=FindWindowA(0,"Hidden - FindWindow(Multimedia3D)"))
 	{
 		wchar_t cd[MAX_PATH];
 		DWORD cd_s = GetCurrentDirectory(MAX_PATH,cd);

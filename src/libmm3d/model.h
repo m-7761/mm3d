@@ -1071,6 +1071,7 @@ public:
 	bool indexJoint(unsigned oldIndex, unsigned newIndex);
 	bool indexGroup(unsigned oldIndex, unsigned newIndex);
 	bool indexMaterial(unsigned oldIndex, unsigned newIndex);
+	bool indexProjection(unsigned oldIndex, unsigned newIndex);
 
 	// For undo,don't call these directly
 	bool insertKeyframe(unsigned anim, Keyframe *keyframe);
@@ -1564,7 +1565,13 @@ public:
 	// Indicates that a user-specified operation is complete. A single
 	// "operation" may span many function calls and different types of
 	// manipulations.
-	void operationComplete(const char *opname);
+	//
+	// compound_ms: time limit in which to overwrite a same opname
+	void operationComplete(const char *opname, int compound_ms=0);
+	void operationCompound(const char *opname, int compound_ms=3000)
+	{
+		operationComplete(opname,compound_ms);
+	}
 	
 	// Clear undo list
 	void clearUndo();
@@ -2539,7 +2546,7 @@ protected:
 };
 
 // A TextureProjection is used automatically map texture coordinates to a group
-// of vertices. Common projection types are Sphere,Cylinder,and Plane.
+// of vertices. Common projection types are Sphere, Cylinder, and Plane.
 class Model::TextureProjection : public Object2020
 {
 public:

@@ -105,6 +105,7 @@ struct PointWin : Win //pointwin.htm
 		case Model::PartJoints: mv = model->indexJoint(i,j); break;
 		case Model::PartGroups: mv = model->indexGroup(i,j); break;
 		case Model::PartMaterials: mv = model->indexMaterial(i,j); break;
+		case Model::PartProjections: mv = model->indexProjection(i,j); break;
 	//	case Model::PartAnims: mv = model->moveAnimation(i,j); break;
 		}
 		return mv;

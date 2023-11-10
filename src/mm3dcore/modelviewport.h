@@ -116,7 +116,7 @@ public:
 
 	void frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2);
 	
-	bool getParentXYZValue(int bs, int x, int y, double &xval, double &yval, double &zval, bool selected);
+	bool getParentCoords(int bs, int x, int y, double coords[4], bool selected);
 
 	void getRawParentXYValue(int x, int y, double &xval, double &yval)
 	{
@@ -278,9 +278,9 @@ public: //slots:
 	{
 		return ports[m_click].m_view; //m_focus
 	}
-	virtual bool getParentXYZValue(double &xval, double &yval, double &zval, bool selected)
+	virtual bool getParentCoords(double coords[4], bool selected)
 	{
-		return ports[m_click].getParentXYZValue(_bs,_bx,_by,xval,yval,zval,selected);
+		return ports[m_click].getParentCoords(_bs,_bx,_by,coords,selected);
 	}
 	virtual void getRawParentXYValue(double &xval, double &yval)
 	{
@@ -294,17 +294,13 @@ public: //slots:
 	{
 		return ports[m_click].m_viewInverse; 
 	}
-	virtual const Matrix &getParentBestMatrix()const
+	virtual const Matrix &getParentProjMatrix()const
 	{
-		if(tool->isSelectTool()) //REMOVE ME
 		return ports[m_click].m_projMatrix; 
-		return ports[m_click].m_bestMatrix; 
 	}
-	virtual const Matrix &getParentBestInverseMatrix()const
+	virtual const Matrix &getParentProjInverseMatrix()const
 	{
-		if(tool->isSelectTool()) //REMOVE ME
-		return ports[m_click].m_unprojMatrix; 
-		return ports[m_click].m_bestInverse; 
+		return ports[m_click].m_unprojMatrix;
 	}
 	virtual double _getParentZoom()const //TESTING
 	{

@@ -100,7 +100,8 @@ void PolyTool::mouseButtonDown()
 	parent->snap_object.type = m_snap?Model::PT_MAX:Model::PT_Vertex;
 	unsigned &sv = parent->snap_vertex; 
 	double pos[3];
-	parent->getParentXYZValue(pos[0],pos[1],pos[2],bt&BS_Shift?true:false);
+//	parent->getParentXYZValue(pos[0],pos[1],pos[2],bt&BS_Shift?true:false); //???
+	parent->getParentXYZValue(pos[0],pos[1],pos[2],true);
 	if(sv==-1||bt==BS_Right&&~bt&BS_Shift) 
 	{
 		if(bt&BS_Left&&bt&BS_Shift) //starting over?
@@ -136,6 +137,7 @@ void PolyTool::mouseButtonDown()
 		//2022: this wasn't actually working
 		//unless the vertices were brand new.
 		auto &vl = model->getVertexList();
+		if(sel.size()>1);
 		std::sort(sel.begin(),sel.end(),[&](int a, int b)
 		{
 			return vl[a]->getOrderOfSelection()<vl[b]->getOrderOfSelection();
@@ -198,6 +200,7 @@ void PolyTool::mouseButtonMove()
 	m_selecting = false;
 
 	//if(parent->getButtons()==BS_Left)
+	if(parent->getView()>ViewPerspective)
 	{
 		double pos[3];
 		parent->getParentXYZValue(pos[0],pos[1],pos[2],false);
@@ -222,6 +225,8 @@ void PolyTool::mouseButtonMove()
 
 		parent->updateAllViews();
 	}
+	else model_status(parent->getModel(),StatusNotice,STATUSTIME_SHORT,
+	TRANSLATE("Tool","Unable to Move in Perspective view"));
 }
 void PolyTool::mouseButtonUp()
 {

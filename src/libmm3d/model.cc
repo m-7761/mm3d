@@ -70,21 +70,12 @@ const double ATOLERANCE = 0.00000001;
 static int model_pointInPlane(double *coord, double *triCoord, double *triNorm)
 {
 	double btoa[3];
-
-	for(int j = 0; j<3; j++)
-	{
-		btoa[j] = coord[j]-triCoord[j];
-	}
+	for(int j=3;j-->0;)	
+	btoa[j] = coord[j]-triCoord[j];	
 	normalize3(btoa);
 
 	double c = dot3(btoa,triNorm);
-
-	if(c<-ATOLERANCE)
-		return -1;
-	else if(c>ATOLERANCE)
-		return 1;
-	else
-		return 0;
+	return c<-ATOLERANCE?-1:c>ATOLERANCE?1:0;
 }
 
 // NOTE: Assumes coord is in plane of p1,p2,p3
@@ -93,73 +84,38 @@ static int model_pointInPlane(double *coord, double *triCoord, double *triNorm)
 //	 1 = inside triangle
 //	 0 = on triangle edge
 //	-1 = outside triangle
-static int model_pointInTriangle(double *coord,
-		double *p1,
-		double *p2,
-		double *p3)
+static int model_pointInTriangle(double *coord, double *p1, double *p2, double *p3)
 {
 	int vside[3];
+	double avg[3],normal[3];
+	for(int i=3;i-->0;)
+	avg[i] = (p1[i]+p2[i]+p3[i])/3;	
+	calculate_normal(normal,p1,p2,p3);
+	for(int i=3;i-->0;) avg[i]+=normal[i];
 
-	int i;
-
-	double avg[3];
-	double normal[3];
-
-	for(i = 0; i<3; i++)
-	{
-		avg[i] = (p1[i]+p2[i]+p3[i])/3.0;
-	}
-
-	calculate_normal(normal,
-			p1,p2,p3);
-
-	for(i = 0; i<3; i++)
-	{
-		avg[i] += normal[i];
-	}
-
-	calculate_normal(normal,
-			p1,p2,avg);
+	calculate_normal(normal,p1,p2,avg);
 	vside[0] = model_pointInPlane(coord,avg,normal);
-	calculate_normal(normal,
-			p2,p3,avg);
+	calculate_normal(normal,p2,p3,avg);
 	vside[1] = model_pointInPlane(coord,avg,normal);
-	calculate_normal(normal,
-			p3,p1,avg);
+	calculate_normal(normal,p3,p1,avg);
 	vside[2] = model_pointInPlane(coord,avg,normal);
 
 	if(vside[0]<0&&vside[1]<0&&vside[2]<0)
-	{
-		return 1;
-	}
+	return 1;
 	if(vside[0]>0&&vside[1]>0&&vside[2]>0)
-	{
-		return 1;
-	}
+	return 1;
 	if(vside[0]==0&&vside[1]==vside[2])
-	{
-		return 0;
-	}
+	return 0;
 	if(vside[1]==0&&vside[0]==vside[2])
-	{
-		return 0;
-	}
+	return 0;
 	if(vside[2]==0&&vside[0]==vside[1])
-	{
-		return 0;
-	}
+	return 0;
 	if(vside[0]==0&&vside[1]==0)
-	{
-		return 0;
-	}
+	return 0;
 	if(vside[0]==0&&vside[2]==0)
-	{
-		return 0;
-	}
+	return 0;
 	if(vside[1]==0&&vside[2]==0)
-	{
-		return 0;
-	}
+	return 0;
 	return -1;
 }
 
@@ -2238,13 +2194,15 @@ void Model::reverseOrderSelectedTriangle()
 
 unsigned Model::_op = !0;
 bool Model::_op_ccw = !0;
-void Model::operationComplete(const char *opname)
+void Model::operationComplete(const char *opname, int compound_ms)
 {
+	Model::_op++;
+
 	validateSkel();
 	validateAnim();
 	endSelectionDifference();
 
-	m_undoMgr->operationComplete(opname);
+	m_undoMgr->operationComplete(opname,compound_ms);
 	
 	updateObservers();
 }
@@ -4535,16 +4493,14 @@ const double *Model::Object2020::getParamsUnanimated(Interpolant2020E d)const
 
 bool Model::indexPoint(unsigned oldIndex, unsigned newIndex)
 {
-	if(oldIndex==newIndex) return true;
-
 	if(oldIndex<m_points.size()&&newIndex<m_points.size())
 	{
+		if(newIndex==oldIndex) return true;
+
 		auto p = m_points[oldIndex];
 
 		m_points.erase(m_points.begin()+oldIndex);			
 		m_points.insert(m_points.begin()+newIndex,p);
-
-		if(newIndex==oldIndex) return false;
 	}
 	else return false;
 			
@@ -4556,10 +4512,10 @@ bool Model::indexPoint(unsigned oldIndex, unsigned newIndex)
 }
 bool Model::indexJoint(unsigned oldIndex, unsigned newIndex)
 {
-	if(oldIndex==newIndex) return true;
-
 	if(oldIndex<m_joints.size()&&newIndex<m_joints.size())
 	{
+		if(newIndex==oldIndex) return true;
+
 		auto p = m_joints[oldIndex];
 
 		m_joints.erase(m_joints.begin()+oldIndex);			
@@ -4633,8 +4589,6 @@ bool Model::indexJoint(unsigned oldIndex, unsigned newIndex)
 		}
 
 		calculateSkel();
-
-		if(newIndex==oldIndex) return false;
 	}
 	else return false;
 
@@ -4646,16 +4600,14 @@ bool Model::indexJoint(unsigned oldIndex, unsigned newIndex)
 }
 bool Model::indexGroup(unsigned oldIndex, unsigned newIndex)
 {
-	if(oldIndex==newIndex) return true;
-
 	if(oldIndex<m_groups.size()&&newIndex<m_groups.size())
 	{
+		if(newIndex==oldIndex) return true;
+
 		auto p = m_groups[oldIndex];
 
 		m_groups.erase(m_groups.begin()+oldIndex);			
 		m_groups.insert(m_groups.begin()+newIndex,p);
-
-		if(newIndex==oldIndex) return false;
 	}
 	else return false;
 			
@@ -4667,32 +4619,49 @@ bool Model::indexGroup(unsigned oldIndex, unsigned newIndex)
 }
 bool Model::indexMaterial(unsigned oldIndex, unsigned newIndex)
 {
-	if(oldIndex==newIndex) return true;
-
 	if(oldIndex<m_materials.size()&&newIndex<m_materials.size())
 	{
+		if(newIndex==oldIndex) return true;
+
 		auto p = m_materials[oldIndex];
 
 		m_materials.erase(m_materials.begin()+oldIndex);			
 		m_materials.insert(m_materials.begin()+newIndex,p);
 
-		std::vector<size_t> v(m_joints.size());
+		std::vector<size_t> v(m_materials.size());
 		for(size_t i=v.size();i-->0;) v[i] = i;
 		v.erase(v.begin()+oldIndex);
-		v.insert(v.begin()+newIndex,oldIndex); 
+		v.insert(v.begin()+newIndex,oldIndex);
 
 		for(auto*ea:m_groups)
 		{
 			ea->m_materialIndex = v[ea->m_materialIndex];
 		}
-
-		if(newIndex==oldIndex) return false;
 	}
 	else return false;
 			
 	m_changeBits|=AddOther; //2020
 			
 	Undo<MU_Index>(this,PartTextures,oldIndex,newIndex);
+
+	return true;
+}
+bool Model::indexProjection(unsigned oldIndex, unsigned newIndex)
+{
+	if(oldIndex<m_points.size()&&newIndex<m_points.size())
+	{
+		if(newIndex==oldIndex) return true;
+
+		auto p = m_projections[oldIndex];
+
+		m_projections.erase(m_projections.begin()+oldIndex);			
+		m_projections.insert(m_projections.begin()+newIndex,p);
+	}
+	else return false;
+			
+	m_changeBits|=AddOther; //2020
+			
+	Undo<MU_Index>(this,PartProjections,oldIndex,newIndex);
 
 	return true;
 }

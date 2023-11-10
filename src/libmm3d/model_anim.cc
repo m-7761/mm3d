@@ -560,7 +560,7 @@ bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned ver
 	if(frame>=fc||vertex>=m_vertices.size()) return false;
 		
 	//https://github.com/zturtleman/mm3d/issues/90
-	m_changeBits|=MoveGeometry;
+	m_changeBits|=MoveGeometry|AnimationProperty;
 
 	const auto fp = fa->_frame0(this);	
 	
@@ -1258,8 +1258,7 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 	if(isRotation<=0||isRotation>KeyScale) return -1;
 
-	//m_changeBits|=MoveOther; //2020
-	m_changeBits|=AnimationProperty; //2022
+	m_changeBits|=MoveOther|AnimationProperty; //2020
 
 	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",(isRotation ? "rotation" : "translation"),pos.index,x,y,z,frame);
 
@@ -1474,8 +1473,7 @@ bool Model::insertKeyframe(unsigned anim, Keyframe *keyframe)
 
 	//log_debug("inserted keyframe for anim %d frame %d joint %d\n",anim,keyframe->m_frame,keyframe->m_objectIndex); //???
 
-	//m_changeBits |= MoveOther; //2020
-	m_changeBits|=AnimationProperty; //2022
+	m_changeBits|=MoveOther|AnimationProperty; //2020
 
 	for(int j=4;j-->0;)
 	if(keyframe->m_selected[j])
@@ -1503,8 +1501,7 @@ bool Model::removeKeyframe(unsigned anim, Keyframe *kf)
 	auto &list = ab->m_keyframes[kf->m_objectIndex];
 	for(size_t i=list.size();i-->0;) if(list[i]==kf)
 	{
-		//m_changeBits |= MoveOther; //2020
-		m_changeBits|=AnimationProperty; //2022
+		m_changeBits|=MoveOther|AnimationProperty; //2020
 
 		list.erase(list.begin()+i);
 
@@ -1534,8 +1531,7 @@ bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 			auto r = kf->m_isRotation;
 			if(r<=0||r&isRotation)
 			{	
-				//m_changeBits |= MoveOther; //2020
-				m_changeBits|=AnimationProperty; //2022
+				m_changeBits|=MoveOther|AnimationProperty; //2020
 
 				for(int j=4;j-->0;)
 				if(kf->m_selected[j])
@@ -2618,28 +2614,26 @@ void Model::FrameAnimVertex::lerp(const double x[3], const double y[3], double t
 }
 void Model::Keyframe::slerp(const double qx[4], const double qy[4], double t, double qz[4])
 {
-	auto &x = *(const Quaternion*)qx;
-	auto &y = *(const Quaternion*)qy;
-
-	#ifdef NDEBUG
-//				#error Should use slerp algorithm! (maybe?)
-	//https://github.com/zturtleman/mm3d/issues/125
-	#endif				
-
-	// Negate if necessary to get shortest rotation path for
-	// interpolation
-	auto &z = *(Quaternion*)qz; if(x.dot4(y)<-0.00001) 
-	{
-		//NOTE: It's odd to negate all four since that's the
-		//same rotation but represented by different figures.
-		//I couldn't find examples so I checked it to see it
-		//works for the below math.
-		//for(int i=0;i<4;i++) y[i] = -y[i];
-		for(int i=0;i<4;i++) qz[i] = -qy[i];
-
-		z = x*(1-t)+z*t; //Here z is -y.
+	auto *yp = qy;
+	double dot = dot4(qx,qy);
+	bool neg = dot<0;
+	if(neg) dot = -dot;
+		
+	double l_t;
+	if(1-dot>0.0001) //Standard slerp?
+	{		
+		double omega = acos(dot); //Extract theta from dot product's cos theta
+		double sinom = sin(omega);
+		l_t = sin((1-t)*omega)/sinom;
+		t = sin(t*omega)/sinom;
 	}
-	else z = x*(1-t)+y*t; z.normalize();
+	else //Very close, do linear interp (because it's faster)
+	{
+		l_t = 1-t;
+	}
+
+	for(int i=4;i-->0;)
+	qz[i] = l_t*qx[i]+t*(neg?-qy[i]:qy[i]);	
 }
 int Model::interpKeyframe(unsigned anim, unsigned frame,
 	unsigned pos, double trans[3])const

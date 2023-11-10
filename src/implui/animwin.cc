@@ -712,7 +712,7 @@ void AnimWin::Impl::frames_edited(double n)
 {
 	double nn = model->getAnimTimeFrame(anim);
 	if(nn!=n&&model->setAnimTimeFrame(anim,n))
-	model->operationComplete(::tr("Change Frame Count","operation complete"));
+	model->operationCompound(::tr("Change Frame Count","operation complete"));
 	else n = nn;
 
 	win.frames.set_float_val(n);	
@@ -1634,7 +1634,7 @@ void AnimWin::submit(int id)
 
 		//log_debug("changing FPS\n"); //???
 		if(m->setAnimFPS(impl->anim,fps))
-		m->operationComplete(::tr("Set FPS","Frames per second,operation complete"));
+		m->operationCompound(::tr("Set FPS","Frames per second,operation complete"));
 		break;
 
 	case id_check: //id_anim_loop
@@ -1708,7 +1708,7 @@ void AnimWin::updateSelectionDone()
 }
 void AnimWin::updateCoordsDone(bool done)
 {
-	if(done) model->operationComplete(::tr("Animator Position"));
+	if(done) model->operationCompound(::tr("Animator Position"));
 }
 void AnimWin::updateXY(bool update_keys)
 {

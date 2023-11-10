@@ -1779,15 +1779,16 @@ void ModelViewport::viewChangeEvent(Tool::ViewE dir)
 	parent->viewChangeEvent(*this); //NEW
 }
 
-bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, double &yval, double &zval, bool selected)
+bool ModelViewport::getParentCoords(int bs, int bx, int by, double o[4], bool selected)
 {	
 	bool ret = false; //2021: Must signal if z is set to deal with "selected" logic.
-	zval = 0; //2020: Snapping to vertex Z component!
+	o[2] = 0; //2020: Snapping to vertex Z component!
+	o[3] = 1; //2023
 
 	Model *model = parent->getModel();
 	auto &vu = model->getViewportUnits();
 
-	getRawParentXYValue(bx,by,xval,yval);
+	getRawParentXYValue(bx,by,o[0],o[1]);
 
 	//This needs to be larger for selecting vertices
 	//double maxDist = 4.1/m_viewportWidth*m_width;
@@ -1850,15 +1851,10 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 		//2021: Did I miss this? Snap breaks down in perspective view???
 		const Matrix &mat = ss?m_projMatrix:parent->getParentBestMatrix();
 		Vector coord;
-		double saveCoord[3];
+		double saveCoord[4];
 
 		auto f = [&](Model::PositionTypeE pt)
 		{
-			/*REFERENCE
-			mat.apply3(coord);
-			coord[0]+=mat.get(3,0);
-			coord[1]+=mat.get(3,1);
-			coord[2]+=mat.get(3,2);*/
 			coord[3] = 1; mat.apply4(coord);
 			//TESTING
 			//This lets a projection matrix be used to do the selection.
@@ -1872,7 +1868,7 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 			}
 
 			//double dist = distance(coord[0],coord[1],xval,yval);
-			double dist = pow(coord[0]-xval,2)+pow(coord[1]-yval,2);
+			double dist = pow(coord[0]-o[0],2)+pow(coord[1]-o[1],2);
 
 			//NOTE: If all points fall on a plane, just take first
 			//in vertex order
@@ -1883,15 +1879,11 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 				curDepth = coord[2];
 				curIndex = i;
 				curType = pt;
-				//TODO: Tool (tool.h) needs to work in homogeneous
-				//coordinates exclusively but it doesn't right now
-				if(&m_unprojMatrix==&parent->getParentBestInverseMatrix())
+				for(int i=4;i-->0;) 
 				{
-					saveCoord[0] = coord[0]*w;
-					saveCoord[1] = coord[1]*w;
-					saveCoord[2] = coord[2]*w; //saveCoord[3] = w;
+					//TODO: return W?
+					saveCoord[i] = coord[i]*w;
 				}
-				else for(int i=3;i-->0;) saveCoord[i] = coord[i];
 			}
 		};			
 		if(mask&1<<Model::PT_Joint)
@@ -1965,11 +1957,10 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 
 		if(curIndex>=0)
 		{
-			xval = saveCoord[0]; yval = saveCoord[1];
-
-			zval = saveCoord[2]; ret = true;
-
-			maxDist = 0; //???
+			o[0] = saveCoord[0]; o[1] = saveCoord[1];
+			o[2] = saveCoord[2]; o[3] = saveCoord[3]; 
+			
+			ret = true; maxDist = 0; //???
 		}
 
 		//EXPERIMENTAL
@@ -1991,14 +1982,14 @@ bool ModelViewport::getParentXYZValue(int bs, int bx, int by, double &xval, doub
 
 		double cmp[2],val[2]; for(int i=2;i-->0;)
 		{
-			double x = (i?yval:xval)+m_scroll[i];
+			double x = (i?o[1]:o[0])+m_scroll[i];
 			double round = x<0?-0.5:0.5;
 			int mult = (int)(x/m_unitWidth+round);
 			val[i] = mult*m_unitWidth;
 			cmp[i] = fabs(x-val[i]);
 		}
-		if(cmp[0]<maxDist) xval = val[0]-m_scroll[0];
-		if(cmp[1]<maxDist) yval = val[1]-m_scroll[1];
+		if(cmp[0]<maxDist) o[0] = val[0]-m_scroll[0];
+		if(cmp[1]<maxDist) o[1] = val[1]-m_scroll[1];
 	}
 
 	return ret; //zval was set.

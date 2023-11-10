@@ -280,7 +280,7 @@ void SelectTool::mouseButtonUp()
 		test = &ntest;
 		if(parent->getView()<=ViewPerspective) //2020: new way
 		{
-			//NOTE: getParentBestInverseMatrix is a projected matrix.
+		//	const double *eye = parent->getParentProjInverseMatrix().getVector(3);
 			const double *eye = parent->getParentViewInverseMatrix().getVector(3);
 			memcpy(ntest.cmp,eye,sizeof(ntest.cmp));
 
@@ -300,7 +300,7 @@ void SelectTool::mouseButtonUp()
 	&Model::unselectInVolumeMatrix:&Model::selectInVolumeMatrix;
 	
 	parent->getRawParentXYValue(m_x2,m_y2);
-	(model->*mf)(parent->getParentBestMatrix(),m_x1,m_y1,m_x2,m_y2,test);
+	(model->*mf)(parent->getParentProjMatrix(),m_x1,m_y1,m_x2,m_y2,test);
 
 	m_startX = no_draw;
 	
@@ -312,34 +312,21 @@ void SelectTool::draw(bool focused)
 {	
 	if(!focused||m_startX==no_draw) return;
 
-	//TESTING
-	//-0.20/0.25 happen to be nearly pixel
-	//perfect at 1x zoom. But it'd be best
-	//to work in 2D.
-	bool persp_test = true;
-	double w = persp_test?0.25:1;  
-	double z = persp_test?-0.20:0;
 	double p[4][4] = 
 	{
-		{m_x1,m_y1,z,1}, {m_x2,m_y1,z,1},
-		{m_x2,m_y2,z,1}, {m_x1,m_y2,z,1}
+		{m_x1,m_y1,0,1}, {m_x2,m_y1,0,1},
+		{m_x2,m_y2,0,1}, {m_x1,m_y2,0,1}
 	};
-	if(parent->getView()<=Tool::ViewPerspective) 
-	{
-		if(persp_test) 
-		{
-			//This shouldn't be done like this, but
-			//I want to see if it works.
-			w*=parent->_getParentZoom();
-
-			//Homogeneous component?
-			for(double *pt=*p;pt<p[3]+4;pt++) *pt*=w;
-		}
-		else if(0) return;
-	}
 	
-	const Matrix &inv = parent->getParentBestInverseMatrix();
-	for(int i=0;i<4;i++) inv.apply4(p[i]);
+	//BLACK MAGIC for avoiding near clip
+	double zoom = parent->_getParentZoom();
+	if(zoom>1) for(int i=4;i-->0;) 
+	{
+		for(int j=4;j-->0;) p[i][j]*=zoom; p[i][2] = -zoom;
+	}
+
+	const Matrix &inv = parent->getParentProjInverseMatrix();
+	for(int i=4;i-->0;) inv.apply4(p[i]);
 
 	glEnable(GL_COLOR_LOGIC_OP);
 
@@ -348,10 +335,10 @@ void SelectTool::draw(bool focused)
 	glLogicOp(GL_XOR);	
 
 	glBegin(GL_LINES);
-	glVertex3dv(p[0]); glVertex3dv(p[1]);
-	glVertex3dv(p[1]); glVertex3dv(p[2]);
-	glVertex3dv(p[2]); glVertex3dv(p[3]);
-	glVertex3dv(p[3]); glVertex3dv(p[0]);
+	glVertex4dv(p[0]); glVertex4dv(p[1]);
+	glVertex4dv(p[1]); glVertex4dv(p[2]);
+	glVertex4dv(p[2]); glVertex4dv(p[3]);
+	glVertex4dv(p[3]); glVertex4dv(p[0]);
 	glEnd();
 
 	//glLogicOp(GL_COPY); //???

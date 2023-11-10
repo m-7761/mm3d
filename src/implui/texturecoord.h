@@ -184,7 +184,7 @@ protected:
 
 	void mapReset(int id);
 		
-	void operationComplete(const char*);
+	void operationCompound(const char*);
 	void updateSelectionDone();
 	void moveTextureCoordsDone(bool done);
 	void setTextureCoordsDone();

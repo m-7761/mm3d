@@ -77,7 +77,7 @@ void EllipseTool::mouseButtonDown()
 	m_created = false;
 	
 	double pos[3];
-	parent->getParentXYValue(pos[0],pos[1],true);
+	parent->getParentXYValue(pos[0],pos[1]);
 	m_startX = pos[0]; m_startY = pos[1];
 }
 void EllipseTool::mouseButtonMove()

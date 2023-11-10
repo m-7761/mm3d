@@ -172,28 +172,31 @@ public:
 
 	struct ToolCoordT
 	{
+		double coords[3], w; //TESTING
+
+		//TODO: What else uses this? 
+		//atrfartool.cc
+		//atrneartool.cc		
+		double dist;
+
 		//NEW: Help some highly unreadable code.
 		operator unsigned(){ return pos.index; }
 
 		Model::Position pos;
 
-		//UNUSED
-		//These are identical?
-		//Only atrfartool.cc and atrneartool.cc referenced
-		//newCoords[2], but it looked erroneous.
-		//double newCoords[3]; ???
-		//double oldCoords[3];
-		double coords[3];
-
-		union
+		void w_divide()
 		{
-			double w; //TESTING
-
-			//TODO: What else uses this? 
-			//atrfartool.cc
-			//atrneartool.cc 
-			double dist;
-		};
+			if(w==1) return;
+			double l_w = 1/w;
+			coords[0]*=l_w; coords[1]*=l_w; coords[2]*=l_w;
+			//w = 1;
+		}
+		void w_multiply()
+		{
+			if(w==1) return;
+			coords[0]*=w; coords[1]*=w; coords[2]*=w;
+			//w = 1;
+		}
 		
 		Vector &v(){ return *(Vector*)coords; }
 		double &operator[](int i){ return coords[i]; }
@@ -221,6 +224,11 @@ public:
 		//to one of the 6 axial views.
 		ViewOrthoDetect=100, 
 	};
+
+	//return is number of selected positions
+	//minmax returns the center of the square minmax zone
+	//in center and the min-max corners in minmax
+	int getSelectionCenter(double center[3], double minmax[2][3]=nullptr);
 
 protected:
 
@@ -287,6 +295,7 @@ public:
 	// Call this to force an update on all model views
 	virtual void updateAllViews() = 0;
 
+	virtual bool getParentCoords(double coords[4], bool selected=false) = 0;	
 	// The getParentXYValue function returns the mouse coordinates
 	// in viewport space (as opposed to model space), X is left and
 	// right, Y is up and down, and Z is depth (undefined) regardless
@@ -298,7 +307,12 @@ public:
 	// a manipulation operation on selected vertices, for update or all
 	// other start operations you would set this value to false).
 	//
-	virtual bool getParentXYZValue(double &xval, double &yval, double &zval, bool selected=false) = 0;	
+	inline bool getParentXYZValue(double &xval, double &yval, double &zval, bool selected=false)
+	{
+		double c[4]; bool ret = getParentCoords(c,selected);
+		
+		xval = c[0]; yval = c[1]; zval = c[2]; return ret;
+	}
 	//
 	// https://github.com/zturtleman/mm3d/issues/141#issuecomment-651962335
 	// Note, MoveTool uses the new XYZ variant but it should be added to the
@@ -337,6 +351,8 @@ public:
 	// viewport.
 	virtual const Matrix &getParentViewMatrix()const = 0;
 	virtual const Matrix &getParentViewInverseMatrix()const = 0;
+	virtual const Matrix &getParentProjMatrix()const = 0;
+	virtual const Matrix &getParentProjInverseMatrix()const = 0;	
 	virtual double _getParentZoom()const{ return 1; } //TESTING
 
 	//2020: These replace getParentViewMatrix with a better
@@ -344,8 +360,18 @@ public:
 	//type. The old APIs are still the same as before but aren't
 	//used by GetXYZ, etc. and really should not be used except in
 	//very special cases.
-	virtual const Matrix &getParentBestMatrix()const = 0;
-	virtual const Matrix &getParentBestInverseMatrix()const = 0;
+	inline const Matrix &getParentBestMatrix(bool p=false)const
+	{
+		if(p||tool->isSelectTool()) //REMOVE ME
+		return getParentProjMatrix(); 
+		return getParentViewMatrix(); 
+	}
+	inline const Matrix &getParentBestInverseMatrix(bool p=false)const
+	{
+		if(p||tool->isSelectTool()) //REMOVE ME
+		return getParentProjInverseMatrix(); 
+		return getParentViewInverseMatrix(); 
+	}
 
 	// Get the 3d coordinate that corresponds to an x,y mouse event
 	// value (in model space).

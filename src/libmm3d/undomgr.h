@@ -32,7 +32,7 @@ class UndoList : public std::vector<Undo*>
 {
 public:
 		
-	void setOpName(const char *name){ m_name = name; }
+	void setOpName(const char *name);
 
 	const char *getOpName()const{ return m_name.c_str(); };
 
@@ -40,7 +40,11 @@ public:
 
 protected:
 
+	friend class UndoManager;
+
 	std::string m_name;
+
+	time_t m_time; //2023
 };
 
 typedef std::vector<UndoList*> AtomicList;
@@ -60,7 +64,7 @@ public:
 	//See Model::sendUndo note.
 	//void addUndo(Undo *u,bool listCombine = false);
 	void addUndo(Undo *u, bool combine=true);
-	void operationComplete(const char *opname);
+	void operationComplete(const char *opname, int compound=0);
 
 	// Items should be applied in reverse order (back to front)
 	UndoList *undo();

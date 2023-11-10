@@ -100,17 +100,17 @@ struct TransformWin : Win
 		scale_tab(node *frame)
 			:
 		nav(frame),
-		x(nav,"X"),y(nav,"Y"),z(nav,"Z"),
+		x(nav,"X"),y(nav,"Y"),z(nav,"Z"),xyz(nav,"XYZ"),
 		scale(nav,"Scale",id_ok)
 		{
 			nav.calign();
-			for(textbox*c=&x;c<=&z;c++)
+			for(textbox*c=&x;c<=&xyz;c++)
 			c->edit(1.0);
 			scale.ralign();
 		}
 
 		panel nav;
-		textbox x,y,z;
+		textbox x,y,z,xyz;
 		button scale;
 	};
 	struct matrix_tab

@@ -103,7 +103,7 @@ double x, double y, double z, const char *name, int boneId)
 }
 
 void Tool::movePosition
-(const Model::Position &pos,double x, double y, double z)
+(const Model::Position &pos, double x, double y, double z)
 {
 	const Matrix &m = parent->getParentBestInverseMatrix();
 
@@ -118,7 +118,7 @@ void Tool::movePosition
 	parent->getModel()->movePosition(pos,tranVec[0],tranVec[1],tranVec[2]);
 }
 void Tool::movePositionUnanimated
-(const Model::Position &pos,double x, double y, double z)
+(const Model::Position &pos, double x, double y, double z)
 {
 	const Matrix &m = parent->getParentBestInverseMatrix();
 
@@ -131,8 +131,7 @@ void Tool::movePositionUnanimated
 	//log_debug("tran position %f,%f,%f\n",tranVec[0],tranVec[1],tranVec[2]);
 
 	auto model = parent->getModel();
-	model->movePositionUnanimated(pos,
-	tranVec[0],tranVec[1],tranVec[2]);
+	model->movePositionUnanimated(pos,tranVec[0],tranVec[1],tranVec[2]);
 }
 
 void Tool::makeToolCoordList
@@ -158,9 +157,46 @@ bool Tool::makeToolCoord(ToolCoordT &tc, Model::Position pos)
 	if(!model->getPositionCoords(tc.pos,tc.coords))
 	return false;
 
-	mat.apply3(tc.coords);
-	tc.coords[0] += mat.get(3,0);
-	tc.coords[1] += mat.get(3,1);
-	tc.coords[2] += mat.get(3,2); return true;
+	mat.apply3x(tc.coords); return true;
 }
 
+int Tool::getSelectionCenter(double center[3], double minmax[2][3])
+{	
+	Model *model = parent->getModel();
+
+	pos_list l; model->getSelectedPositions(l);
+
+	if(minmax)
+	{
+		auto &min = minmax[0];
+		auto &max = minmax[0];
+		min[0] = min[1] = min[2] = +DBL_MAX; 
+		max[0] = max[1] = max[2] = -DBL_MAX;
+		for(auto& i:l) 
+		{
+			double coords[3];
+			model->getPositionCoords(i,coords);
+			for(int j=3;j-->0;)
+			{
+				min[j] = std::min(min[j],coords[j]);
+				max[j] = std::max(max[j],coords[j]);
+			}
+		}
+		for(int i=0;i<3;i++)
+		center[i] = (min[i]+max[i])/2;
+	}
+	else
+	{
+		double sum = 1.0/(int)l.size();
+		center[0] = center[1] = center[2] = 0;
+		for(auto i:l)
+		{
+			double coords[3];
+			model->getPositionCoords(i,coords);
+			for(int j=3;j-->0;)
+			center[j]+=sum*coords[j];
+		}		
+	}
+
+	return (int)l.size();
+}

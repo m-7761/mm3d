@@ -133,9 +133,9 @@ void TransformWin::rotateEvent(control *c)
 void TransformWin::scaleEvent()
 {
 	Matrix m;
-	m.set(0,0,scale.x);
-	m.set(1,1,scale.y);
-	m.set(2,2,scale.z);
+	m.set(0,0,(double)scale.x*(double)scale.xyz);
+	m.set(1,1,(double)scale.y*(double)scale.xyz);
+	m.set(2,2,(double)scale.z*(double)scale.xyz);
 	applyMatrix(m,::tr("Matrix Scale"));
 }
 void TransformWin::matrixEvent()

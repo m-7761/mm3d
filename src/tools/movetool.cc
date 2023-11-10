@@ -64,9 +64,9 @@ struct MoveTool : Tool
 
 		bool m_selecting,m_left;
 
-		double m_x,m_y,m_z;
+		double m_c[4]; //m_x/y/z
 
-		bool m_allowX,m_allowY; double m_xx,m_yy,m_zz;
+		bool m_allowX,m_allowY; double m_xx,m_yy,m_zz,m_ww;
 };
 
 extern Tool *movetool(){ return new MoveTool; }
@@ -81,11 +81,36 @@ void MoveTool::mouseButtonDown()
 
 	//EXPERIMENTAL
 	//parent->getParentXYValue(m_x,m_y,true);
-	parent->getParentXYZValue(m_x,m_y,m_z,true);
+	parent->snap_select = true;
+	parent->snap_object.type = Model::PT_MAX; //2023
+	bool snap = parent->getParentCoords(m_c,true);	
 
-	m_allowX = m_allowY = 0!=(parent->getButtonsLocked()&BS_Shift);
+	if(BS_Alt&parent->getButtons()?m_snap3d:!m_snap3d)
+	{
+		m_zz = m_c[2] = 0; m_ww = m_c[3] = 1;
+	}
+	else
+	{
+		if(parent->getView()<=Tool::ViewPerspective) //2023
+		{
+			double avg[4] = {0,0,0,1};
+			getSelectionCenter(avg);		
+			parent->getParentProjMatrix().apply4(avg);
 
-	m_xx = m_x; m_yy = m_y; m_zz = m_z;
+			m_zz = avg[2]; if(!snap) m_c[2] = avg[2];
+			m_ww = avg[3]; if(!snap) m_c[3] = avg[3];
+		}
+		else
+		{
+			m_zz = m_c[2]; m_ww = m_c[3];
+		}
+	}
+
+	m_xx = m_c[0]; m_yy = m_c[1]; 
+
+	parent->getParentBestInverseMatrix(true).apply4(m_c);
+
+	m_allowX = m_allowY = 0!=(parent->getButtonsLocked()&BS_Shift);	
 }
 void MoveTool::mouseButtonMove()
 {	
@@ -99,17 +124,26 @@ void MoveTool::mouseButtonMove()
 	//2021: Reserving BS_Right
 	if(!m_left) return;
 
-	double pos[3];
-	if(!parent->getParentXYZValue(pos[0],pos[1],pos[2],false))
+	double pos[4];
+	parent->snap_select = true; 
+	parent->snap_object.type = Model::PT_MAX; //2023 //EXPERIMENTAL
+	if(!parent->getParentCoords(pos,true))
 	{
 		//DICEY: m_z snapped to the selected vertex
 		//in mouseButtonDown but now that vertex is 
 		//ineligible.
-		pos[2] = m_zz; //m_z
+		pos[2] = m_zz; pos[3] = m_ww; //m_z
 	}
-	if(BS_Alt&parent->getButtons()?m_snap3d:!m_snap3d)
+	else if(BS_Alt&parent->getButtons()?m_snap3d:!m_snap3d)
 	{
-		pos[2] = m_z = 0;
+		if(parent->getView()<=Tool::ViewPerspective) //2023
+		{
+			pos[2] = m_zz; pos[3] = m_ww; //HACK?
+		}
+		else
+		{
+			pos[2] = 0; pos[3] = 1;
+		}
 	}
 
 	//TODO: STANDARDIZE AND REQUIRE MINIMUM PIXELS
@@ -128,11 +162,11 @@ void MoveTool::mouseButtonMove()
 		if(!m_allowY) pos[1] = m_yy; //m_y
 	}
 
-	double v[3] = { pos[0]-m_x,pos[1]-m_y,pos[2]-m_z };
+	parent->getParentBestInverseMatrix(true).apply4(pos); //apply3
 
-	m_x = pos[0]; m_y = pos[1]; m_z = pos[2];
+	double v[4] = { pos[0]-m_c[0],pos[1]-m_c[1],pos[2]-m_c[2],pos[3]-m_c[3] };
 
-	parent->getParentBestInverseMatrix().apply3(v);
+	for(int i=4;i-->0;){ m_c[i] = pos[i]; }
 
 	/*Matrix m; //???
 	m.set(3,0,v[0]);

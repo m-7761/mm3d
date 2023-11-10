@@ -1748,6 +1748,7 @@ void MU_Index::undo(Model *model)
 	case Model::PartJoints: model->indexJoint(m_newIndex,m_oldIndex); break;
 	case Model::PartGroups: model->indexGroup(m_newIndex,m_oldIndex); break;
 	case Model::PartMaterials: model->indexMaterial(m_newIndex,m_oldIndex); break;
+	case Model::PartProjections: model->indexProjection(m_newIndex,m_oldIndex); break;
 	}
 }
 void MU_Index::redo(Model *model)
@@ -1758,6 +1759,7 @@ void MU_Index::redo(Model *model)
 	case Model::PartJoints: model->indexJoint(m_oldIndex,m_newIndex); break;
 	case Model::PartGroups: model->indexGroup(m_oldIndex,m_newIndex); break;
 	case Model::PartMaterials: model->indexMaterial(m_oldIndex,m_newIndex); break;
+	case Model::PartProjections: model->indexProjection(m_oldIndex,m_newIndex); break;
 	}
 }
 int MU_Index::combine(Undo *u)

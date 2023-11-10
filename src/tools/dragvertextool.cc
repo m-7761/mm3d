@@ -136,7 +136,9 @@ void DragVertexTool::mouseButtonDown()
 	m_coords.setAll(vl[vid]->m_absSource);
 	if(multi>1)
 	{
-		m_multi.push_back({{Model::PT_Vertex,(unsigned)vid}}); 
+		ToolCoordT tc = {};
+		tc.pos = {Model::PT_Vertex,(unsigned)vid};
+		m_multi.push_back(tc); 
 		m_coords.getVector3(m_multi.back().coords);
 	}
 	mat.apply3x(m_coords); m_coords[3] = 0;
@@ -194,7 +196,9 @@ void DragVertexTool::mouseButtonDown()
 	for(int i=0,n=(int)vl.size();i<n;i++)
 	if(vl[i]->m_selected&&i!=vid)
 	{
-		m_multi.push_back({{Model::PT_Vertex,(unsigned)i}}); 
+		ToolCoordT tc = {};
+		tc.pos = {Model::PT_Vertex,(unsigned)i};
+		m_multi.push_back(tc); 
 		auto &v = *(Vector*)vl[i]->m_absSource;
 		v.getVector3(m_multi.back().coords);
 	}

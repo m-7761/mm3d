@@ -22,11 +22,17 @@
 
 #include "mm3dtypes.h" //PCH
 
+#include "time.h"
+
 #include "undomgr.h"
 
 #include "log.h"
 #include "undo.h"
 
+void UndoList::setOpName(const char *name)
+{
+	m_name = name; m_time = time(0);
+}
 bool UndoList::isEdit()const
 {
 	for(Undo*ea:*this)
@@ -128,7 +134,7 @@ void UndoManager::addUndo(Undo *u, bool combine)
 	pushUndoToList(u); m_currentUndo = u;
 }
 
-void UndoManager::operationComplete(const char *opname)
+void UndoManager::operationComplete(const char *opname, int compound_ms)
 {
 	// if we have anything to undo
 	if(m_currentUndo)
@@ -151,11 +157,44 @@ void UndoManager::operationComplete(const char *opname)
 		//This old code waited to form the list for some reason???
 		//pushUndoToList(m_currentUndo);
 		m_currentList->setOpName(opname);
-		m_atomic.push_back(m_currentList);
 
-		//NEW: Don't pester users for things like
-		//playing animations.
-		if(m_currentList->isEdit()) m_saveLevel++; 
+		bool keep = true;
+		if(compound_ms&&!m_atomic.empty()) //2023		
+		{
+			auto *a = m_atomic.back();
+			auto *b = m_currentList;
+
+			if(a->m_name==b->m_name)
+			{
+				double ms = 1000*difftime(b->m_time,a->m_time);
+				if(ms<=(double)compound_ms)
+				{
+					keep = false;
+
+					m_currentList = a; //HACK#1 (combineWithList)
+
+					size_t i = 0, sz = b->size();
+					for(;i<sz;i++)
+					if(!combineWithList((*b)[i]))
+					break;						
+					a->insert(a->end(),b->begin()+i,b->end());
+
+					a->m_time = b->m_time; //!
+
+					b->clear(); delete b;
+
+					m_currentList = nullptr; //HACK#2
+				}
+			}
+		}
+		if(keep)
+		{
+			m_atomic.push_back(m_currentList);
+
+			//NEW: Don't pester users for things like
+			//playing animations.
+			if(m_currentList->isEdit()) m_saveLevel++; 
+		}
 			
 		checkSize(); //???
 

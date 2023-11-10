@@ -196,26 +196,10 @@ void RotateTool::activated2()
 	}
 	else empty3:
 	{
-		//FIX ME
-		//Min/max/scale the pivot accordingly.
-		//https://github.com/zturtleman/mm3d/issues/89
-		pos_list l; model->getSelectedPositions(l);
-		if(l.empty()) goto empty1; //NEW
-		double min[3] = {+DBL_MAX,+DBL_MAX,+DBL_MAX}; 
-		double max[3] = {-DBL_MAX,-DBL_MAX,-DBL_MAX}; 
-		for(auto&ea:l) 
-		{
-			double coords[3];
-			model->getPositionCoords(ea,coords);
-			for(int i=0;i<3;i++)
-			{
-				min[i] = std::min(min[i],coords[i]);
-				max[i] = std::max(max[i],coords[i]);
-			}
-		}
-		for(int i=0;i<3;i++)
-		m_rotatePoint[i] = (min[i]+max[i])/2;
-		double dist = distance(min,max);
+		double minmax[2][3];
+		int n = getSelectionCenter(&m_rotatePoint.x,minmax);
+		if(n==0) goto empty1;
+		double dist = distance(minmax[0],minmax[1]);
 		if(!dist) goto empty2; //NEW
 		m_rotatePoint.scale = dist/6;
 	}

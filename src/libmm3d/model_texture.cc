@@ -336,6 +336,9 @@ bool Model::setTextureDiffuse(unsigned textureId, const float *diffuse)
 		undo->setLightProperties(textureId,undo->LightDiffuse,
 		diffuse,m_materials[textureId]->m_diffuse);
 
+		if(diffuse[3]!=m_materials[textureId]->m_diffuse[3])
+		invalidateBspTree(); 
+
 		for(int t=0;t<4;t++)
 		m_materials[textureId]->m_diffuse[t] = diffuse[t];		
 		return true;
@@ -475,6 +478,8 @@ bool Model::setTextureBlendMode(unsigned textureId, bool accumulate)
 		Undo<MU_SetMaterialBool>(this,textureId,'A',accumulate,m_materials[textureId]->m_accumulate);
 		
 		m_materials[textureId]->m_accumulate = accumulate;
+
+		invalidateBspTree();
 
 		return true;
 	}

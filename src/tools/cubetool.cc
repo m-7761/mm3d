@@ -33,7 +33,7 @@
 
 struct CubeTool : Tool
 {
-	CubeTool():Tool(TT_Creator,1,TOOLS_CREATE_MENU),m_tracking()
+	CubeTool():Tool(TT_Creator,1,TOOLS_CREATE_MENU),m_tracking(),m_created()
 	{
 		m_isCube = false; m_segments = 1; //config defaults
 	}
@@ -66,7 +66,11 @@ struct CubeTool : Tool
 		ToolCoordList m_vertices;
 		int_list m_triangles;
 
-		double m_x1,m_y1;
+		double m_x1,m_y1,m_z1;
+
+		void create();
+
+		bool m_created;
 
 	void updateVertexCoords
 	(double x1, double y1, double z1, double x2, double y2, double z2);
@@ -87,33 +91,39 @@ static void cubetool_cubify(bool isCube, double &coord, double &diff_d, double &
 		else diff_s1 = cond?-diff_s2:diff_s2;
 	}
 
-	coord = fabs(diff_s1/2); diff_d = -fabs(diff_s1); //???
+	if(!diff_d||isCube) 
+	{
+		coord = fabs(diff_s1/2); diff_d = -fabs(diff_s1); //???
+	}	
 }
 
 void CubeTool::mouseButtonDown()
 {
 	if(m_tracking) return; //???
 
+	m_created = false;
 	m_tracking = true;
 	m_invertedNormals = false;
 
-	m_x1 = 0; m_y1 = 0;
-
-	parent->getParentXYValue(m_x1,m_y1,true);
+	parent->getParentXYZValue(m_x1,m_y1,m_z1,true);
 
 	Model *model = parent->getModel();
 
 	model->unselectAll();
+}
+void CubeTool::create()
+{
+	m_created = true;
 
-	double x1 = 0, x2 = 0;
-	double y1 = 0, y2 = 0;
-	double z  = 0;
+	Model *model = parent->getModel();
+
+	double x1,x2,y1,y2,z;
 
 	int xindex = 0;
 	int yindex = 1;
 	int zindex = 2;
 
-	for(unsigned side = 0; side<6; side++)
+	for(unsigned side=0;side<6;side++)
 	{
 		if(side&1)
 		{
@@ -126,32 +136,26 @@ void CubeTool::mouseButtonDown()
 			y1 = 1; y2 = 0; z  = 0;
 		}
 
-		switch (side)
+		switch(side)
 		{
 		case 0: case 1:
-			xindex = 0;
-			yindex = 1;
-			zindex = 2;
+			xindex = 0; yindex = 1; zindex = 2;
 			break;
 		case 2: case 3:
-			xindex = 2;
-			yindex = 1;
-			zindex = 0;
+			xindex = 2; yindex = 1; zindex = 0;
 			break;
 		case 4: case 5:
-			xindex = 0;
-			yindex = 2;
-			zindex = 1;
+			xindex = 0; yindex = 2; zindex = 1;
 			break;
 		}
 
 		double coord[3];
-		for(int y = 0; y<=m_segments; y++)
+		for(int y=0;y<=m_segments;y++)
 		{
-			for(int x = 0; x<=m_segments; x++)
+			for(int x=0;x<=m_segments;x++)
 			{
-				coord[xindex] = x1+((x2-x1)*(double)x/(double)m_segments);
-				coord[yindex] = y1+((y2-y1)*(double)y/(double)m_segments);
+				coord[xindex] = x1+(x2-x1)*(double)x/(double)m_segments;
+				coord[yindex] = y1+(y2-y1)*(double)y/(double)m_segments;
 				coord[zindex] = z;
 				ToolCoordT tc = addPosition(Model::PT_Vertex,coord[0],coord[1],coord[2]);
 						
@@ -164,7 +168,7 @@ void CubeTool::mouseButtonDown()
 			{
 				int row1 = m_vertices.size()-(m_segments+1)*2;
 				int row2 = m_vertices.size()-(m_segments+1);
-				for(int x = 0; x<m_segments; x++)
+				for(int x=0;x<m_segments;x++)
 				{
 					//log_debug("%d,%d,%d,%d\n",row1+x,row1+x+1,row2+x,row2+x+1);
 
@@ -184,13 +188,12 @@ void CubeTool::mouseButtonDown()
 		}
 	}
 
-	unsigned count = m_vertices.size();
-	for(unsigned sv = 0; sv<count; sv++)
+	for(auto&ea:m_vertices)
 	{
-		model->selectVertex(m_vertices[sv].pos.index);
+		model->selectVertex(ea.pos.index);
 	}
 
-	updateVertexCoords(m_x1,m_y1,0,m_x1,m_y1,0);
+	//updateVertexCoords(m_x1,m_y1,m_z1,m_x1,m_y1,m_z1);
 
 	parent->updateAllViews();
 
@@ -200,14 +203,10 @@ void CubeTool::mouseButtonDown()
 
 void CubeTool::mouseButtonUp()
 {
-	if(!m_tracking) return; //???
+	if(!m_tracking||!m_created) return; //???
 
 	m_tracking = false;
 
-	double x2 = 0, y2 = 0;
-
-	parent->getParentXYValue(x2,y2);
-	updateVertexCoords(m_x1,m_y1,0,x2,y2,0);
 	weldSelectedVertices(parent->getModel());
 	parent->updateAllViews();
 
@@ -218,9 +217,16 @@ void CubeTool::mouseButtonMove()
 {
 	if(!m_tracking) return; //???
 	
-	double x2 = 0, y2 = 0;
-	parent->getParentXYValue(x2,y2);
-	updateVertexCoords(m_x1,m_y1,0,x2,y2,0);
+	double x2,y2,z2;
+	parent->getParentXYZValue(x2,y2,z2);
+
+	if(x2==m_x1||y2==m_y1)
+	{
+		return;
+	}
+	else if(!m_created) create(); 
+
+	updateVertexCoords(m_x1,m_y1,m_z1,x2,y2,z2);
 	parent->updateAllViews();
 }
 
@@ -232,16 +238,15 @@ void CubeTool::updateVertexCoords
 
 	double xdiff = x2-x1;
 	double ydiff = y2-y1;
-	double zdiff = 0; //z2-z1;
+	double zdiff = z2-z1;
 
 	cubetool_cubify(m_isCube,z1,zdiff,xdiff,ydiff);
 
 	if(y1<y2) invert = !invert;
 	if(x2>x1) invert = !invert;
+//	if(z2>z1) invert = !invert;
 
-	ToolCoordList::iterator it;
-
-	for(it = m_vertices.begin(); it!=m_vertices.end(); it++)
+	for(auto it=m_vertices.begin();it!=m_vertices.end();it++)
 	{
 		movePositionUnanimated(it->pos,
 				it->coords[0]*xdiff+x1,

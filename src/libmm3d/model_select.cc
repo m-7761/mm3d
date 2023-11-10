@@ -494,7 +494,7 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 
 		for(int v=3;v-->0;)			
 		if(tCords[v][0]>=x1&&tCords[v][0]<=x2 
-			&&tCords[v][1]>=y1&&tCords[v][1]<=y2)
+		 &&tCords[v][1]>=y1&&tCords[v][1]<=y2)
 		{
 			// A vertex of the triangle is within the selection area
 			tri->m_selected = select;
@@ -524,9 +524,9 @@ bool Model::selectTrianglesInVolumeMatrix(bool select, const Matrix &viewMat, do
 		coord[2][0] = tCords[1];
 		coord[2][1] = tCords[2];
 
-		b[0] = tCords[0][1]-(m[0] *tCords[0][0]);
-		b[1] = tCords[2][1]-(m[1] *tCords[2][0]);
-		b[2] = tCords[2][1]-(m[2] *tCords[2][0]);
+		b[0] = tCords[0][1]-(m[0]*tCords[0][0]);
+		b[1] = tCords[2][1]-(m[1]*tCords[2][0]);
+		b[2] = tCords[2][1]-(m[2]*tCords[2][0]);
 
 		for(int line = 0;line<3;line++)
 		{
