@@ -132,7 +132,7 @@ struct AnimWin::Impl
 	bool step();
 
 	void anim_selected(int, bool local=false);
-	void anim_deleted(int);
+	void anim_deleted(int=-1);
 
 	void frames_edited(double);	
 	void set_frame(double);
@@ -204,6 +204,7 @@ enum
 {
 	//REMINDER: These names go in keycfg.ini!
 
+	id_aw_frame_delete=id_delete,
 	id_aw_view_init=id_view_init,
 	id_aw_view_snap=id_view_persp, //init+1
 
@@ -235,10 +236,10 @@ void AnimWin::_menubarfunc(int id)
 		aw->impl->anim_selected(id-id_aw_anims-1);
 	}
 	else switch(id) //Tool?
-	{
-	case id_help:
+	{	
+	case id_aw_frame_delete:
 
-		aw->submit(id_help);
+		aw->impl->anim_deleted();
 		break;
 
 	case id_animate_window:
@@ -288,6 +289,9 @@ void AnimWin::_menubarfunc(int id)
 		
 		aw->scene.redraw();
 		aw->model._sync_tools(id,0); //Note: 0 is tool_connected.
+
+		aw->key.set_hidden(!aw->graphic.highlightColor());
+
 		return; //break;
 
 	case id_aw_view_init:
@@ -305,6 +309,11 @@ void AnimWin::_menubarfunc(int id)
 	case id_aw_hide_cancel:
 
 		aw->_toggle_button(id-id_aw_hide_delete);
+		break;
+
+	case id_help:
+
+		aw->submit(id_help);
 		break;
 	}
 }
@@ -351,7 +360,7 @@ void AnimWin::Impl::_init_menu_toolbar()
 	static int frame_menu=0; if(!frame_menu)
 	{
 		frame_menu = glutCreateMenu(_menubarfunc);
-		//NEED SOMETHING HERE
+		glutAddMenuEntry(E(aw_frame_delete,"Delete Key Frames","","Ctrl+X"));
 	}
 	static int view_menu=0; if(!view_menu)
 	{
@@ -429,12 +438,13 @@ extern void animwin_enable_menu(int menu, int ins)
 	glutext::glutMenuEnable(id_animate_copy,on);
 	glutext::glutMenuEnable(id_animate_paste,0); // Disabled until copy occurs
 	glutext::glutMenuEnable(id_animate_paste_v,0); // Disabled until copy occurs
+	glutext::glutMenuEnable(id_animate_insert,on); 
 	glutext::glutMenuEnable(id_animate_delete,on); 
 }
 
 void AnimWin::open(bool undo)
 {	
-	//animwin_enable_menu(menu,win.model.animate_insert);
+	//animwin_enable_menu(menu,win.model.clipboard_mode);
 
 	impl->open2(undo);
 
@@ -508,7 +518,7 @@ void AnimWin::Impl::open2(bool undo)
 
 	//Not disabling on model swapping???
 	//if(mode) animwin_enable_menu(win.menu);
-	animwin_enable_menu(mode?win.menu:-win.menu,win.model.animate_insert);
+	animwin_enable_menu(mode?win.menu:-win.menu,win.model.clipboard_mode);
 
 	win.animation.select_id(anim_item());
 	sidebar.animation.select_id(anim_item());
@@ -527,33 +537,6 @@ void AnimWin::Impl::open2(bool undo)
 	refresh_item();
 }
 
-void AnimWin::Impl::anim_deleted(int item)
-{
-	if(id_ok!=WarningBox
-	(::tr("Delete Animation?","window title"),
-	 ::tr("Are you sure you want to delete this animation?"),id_ok|id_cancel))
-	return;
-
-	if(playing) stop(); //NEW
-		
-	//FIX ME
-	//NOTE: removeSkelAnim/deleteAnimation select the
-	//previous animation always. Seems like bad policy.
-	//item = std::min(0,item-1);
-	if(item&&item>=new_animation-1)
-	{
-		item--;
-	}
-
-	auto swap = anim;
-	mode = item_mode(item);
-	anim = item_anim(item);
-	model->deleteAnimation(swap);
-	model->setCurrentAnimation(anim,mode);
-	open2(true);
-
-	model->operationComplete(::tr("Delete Animation","Delete animation,operation complete"));
-}
 void AnimWin::Impl::anim_selected(int item, bool local)
 {
 	//log_debug("anim name selected: %d\n",item); //???
@@ -588,7 +571,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	}
 	else if(was<0&&item>=0)
 	{
-		animwin_enable_menu(win.menu,win.model.animate_insert);
+		animwin_enable_menu(win.menu,win.model.clipboard_mode);
 	}
 
 	if(item>=new_animation)
@@ -629,10 +612,7 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 	
 		model->setCurrentAnimation(anim,mode);
 
-		//FIX ME
-		//NEW: Note setCurrentAnimation seems to ignore this unless the animation
-		//mode was previously ANIMMODE_NONE?!
-		//if(!undo) 
+		//2024: Must be same as below!
 		model->operationComplete(::tr("Set current animation","operation complete"));
 	
 		frame = 0;
@@ -653,11 +633,45 @@ void AnimWin::Impl::anim_selected(int item, bool local)
 		refresh_item(); 
 	}
 }
+void AnimWin::Impl::anim_deleted(int item)
+{
+	if(win.graphic.animation_delete(item!=-1)||item==-1) return;
+
+	if(id_ok!=WarningBox(::tr("Delete Animation?","window title"),
+	::tr("Are you sure you want to delete this animation?"),id_ok|id_cancel))
+	return;
+
+	if(playing) stop(); //NEW
+		
+	//FIX ME
+	//NOTE: removeSkelAnim/deleteAnimation select the
+	//previous animation always. Seems like bad policy.
+	//item = std::min(0,item-1);
+	if(item&&item>=new_animation-1)
+	{
+		item--;
+	}
+
+	auto swap = anim;
+	mode = item_mode(item);
+	anim = item_anim(item);
+	model->deleteAnimation(swap);
+	model->setCurrentAnimation(anim,mode);
+	open2(true);
+
+	model->operationComplete(::tr("Delete Animation","Delete animation,operation complete"));
+}
 
 void AnimWin::modelChanged(int changeBits)
 {
 	if(changeBits&(Model::AnimationMode|Model::AnimationSet))
-	impl->refresh_undo();
+	{
+		impl->refresh_undo();
+	}
+	else if(changeBits&Model::AnimationFrame) //2024
+	{
+		impl->set_frame(model->getCurrentAnimationFrameTime());
+	}
 	if(changeBits&Model::AnimationProperty&&impl->mode)
 	{
 		impl->frames_edited(model->getAnimTimeFrame(impl->anim));
@@ -702,7 +716,8 @@ void AnimWin::modelChanged(int changeBits)
 		glutSetWindowTitle(nm?nm:"<None>");
 	}
 
-	if(changeBits&Model::AnimationSelection)
+	if(changeBits&(Model::AnimationChange
+	|Model::SelectionJoints|Model::SelectionPoints))
 	{
 		updateXY();
 	}
@@ -734,16 +749,14 @@ void AnimWin::Impl::set_frame(double i)
 	//refresh rate. Guessing it's just the mouse speed.
 
 	//if(model->setCurrentAnimationFrame(i,Model::Model::AT_invalidateAnim))
-	if(ok=model->setCurrentAnimationFrameTime(i,Model::Model::AT_invalidateAnim))
+	if(ok=model->setCurrentAnimationFrameTime(i,Model::Model::AT_invalidateNormals))
 	{
 		//2021: I can't recall why I did this but it seems like it
 		//can probably be removed. The API does it but only for BSP
 		//insurance.
-
-		//REMOVE ME?
-		//HACK: The slider can be manually dragged faster than the
-		//animation can be displayed right now.
-		model->invalidateAnimNormals();
+		
+		//2024: Must be same as above!
+		model->operationCompound(::tr("Set current animation","operation complete"));
 	}
 	else i = 0; 
 
@@ -1229,7 +1242,7 @@ void AnimWin::Impl::close()
 
 		//editEnableEvent(); //UNUSED?
 
-		animwin_enable_menu(-win.menu,win.model.animate_insert);	
+		animwin_enable_menu(-win.menu,win.model.clipboard_mode);	
 	}
 }
 
@@ -1398,8 +1411,11 @@ void AnimWin::init()
 	select.row_pack().place(mi::right).space(0,0,-5,-1,0);
 	//1 is compensating for cspace and -4 is closing the
 	//gap to the X box to meet the Select tool's spacing.
-	scale_sfc.space<bottom>(1).space<right>()-=4;
 	move_snap.space<bottom>(1).space<right>()-=4;
+	scale_sfc.space<bottom>(1).space<right>()-=4;
+	scale_sfc.add_item(0,"Center");
+	scale_sfc.add_item(1,"Origin");
+	scale_sfc.add_item(2,"Far Corner");	
 	
 	fps.edit<double>(0,0).compact();		
 	frames.edit<double>(0,INT_MAX).compact();		
@@ -1448,16 +1464,17 @@ void AnimWin::init()
 	x.edit(0.0,0.0,0.0).compact();
 	x.space<bottom>(4); //cspace
 	x.space<left>()+=3;
-	x.spinner.set_speed();		
+	x.spinner.set_speed();
 	x.set_hidden(); 
 	y.edit(0.0).compact();
 	y.space<bottom>(4); //cspace
+	y.spinner.set_speed();
 	//Don't need this without "Y" the label.
 	//y.space<left>()+=3;
 	//NOTE: If compact() is used this will have to overcome
 	//a 7 pixel margin that update_area erases.
-	y.span() = 79; //1 more digit?
-	y.update_area(); //TESTING
+//	y.span() = 79; //1 more digit?
+//	y.update_area(); //TESTING
 	y.set_hidden(); 
 
 	select.set_hidden();
@@ -1534,10 +1551,8 @@ void AnimWin::submit(int id)
 	case 'Y':
 	{
 		int k = key;
-		double c = y; switch(k)
-		{
-		case 3: case 4: case 5: c*=PIOVER180; break;
-		}		
+		double c = y; if(k/3==1) c*=PIOVER180;
+
 		//graphic doesn't know about the key filter.
 		//graphic.moveSelectedVertex(c-centerpoint[1]); 
 		{
@@ -1556,7 +1571,8 @@ void AnimWin::submit(int id)
 				p[dim]+=c;
 				m->setKeyframe(impl->anim,kp,p);
 			}
-		}		
+		}
+
 		updateCoordsDone();
 		break;
 	}
@@ -1579,7 +1595,7 @@ void AnimWin::submit(int id)
 
 	case id_sfc:
 
-		graphic.setScaleFromCenter(scale_sfc);
+		graphic.setScaleFromCenter((graphic::ScalePtE)scale_sfc.int_val());
 		break;
 
 	case '+': graphic.zoomIn(); break;
@@ -1610,10 +1626,19 @@ void AnimWin::submit(int id)
 		==m->getAnimFrameTime(impl->anim,impl->frame))
 		m->deleteAnimFrame(impl->anim,impl->frame);
 		else 
-		return model_status(m,StatusError,STATUSTIME_LONG,"The current time isn't an animation frame.");
-		m->operationComplete(::tr("Clear frame","Remove animation data from frame,operation complete"));
+		return model_status(m,StatusError,STATUSTIME_LONG,"The current time isn't an animation frame");
+		m->operationComplete(::tr("Clear frame","Removed animation data from frame","operation complete"));
 		break;	
 
+	case id_animate_insert:
+	{
+		auto c = m->getAnimFrameCount(impl->anim);		
+		auto f = m->insertAnimFrame(impl->anim,m->getCurrentAnimationFrameTime());
+		if(c==m->getAnimFrameCount(impl->anim))
+		return model_status(m,StatusError,STATUSTIME_LONG,"The current time already has a key frame");
+		m->operationComplete(::tr("Insert frame","Inserted interpolation frame","operation complete"));
+		break;
+	}
 	case id_item:
 
 		impl->anim_selected(animation,true);
@@ -1626,8 +1651,7 @@ void AnimWin::submit(int id)
 
 	case id_delete:
 
-		if(!del.hidden())
-		impl->anim_deleted(animation);
+		impl->anim_deleted(del.hidden()||!del.enabled()?-1:(int)animation);
 		break;		
 		
 	case id_anim_fps:
@@ -1680,6 +1704,11 @@ void AnimWin::submit(int id)
 	case id_animate_stop: //This is now pseudo.
 
 		impl->play(id);
+		break;
+
+	case id_animate_loop: 
+
+		model.perform_menu_action(id);
 		break;
 
 	case id_anim_frames:
@@ -1737,28 +1766,20 @@ void AnimWin::updateXY(bool update_keys)
 	{
 		int k = key;
 
-		constexpr bool cmp[4] = {};
-
 		if(update_keys)
 		{
 			int mask = 0x1ff;
 			for(auto&ea:a->m_keyframes)
 			for(auto*kp:ea.second)
-			if(memcmp(kp->m_selected,cmp,sizeof(cmp)))
 			{
 				int e = kp->m_isRotation>>1;
 				for(int i=3;i-->0;)
 				if(kp->m_selected[i]) mask&=~(1<<(e*3+i));
 			}
-			rx.set_hidden(mask&(1<<3));
-			ry.set_hidden(mask&(1<<4));
-			rz.set_hidden(mask&(1<<5));
-			sx.set_hidden(mask&(1<<6));
-			sy.set_hidden(mask&(1<<7));
-			sz.set_hidden(mask&(1<<8));
-			tx.set_hidden(mask&(1<<0));
-			ty.set_hidden(mask&(1<<1));
-			tz.set_hidden(mask&(1<<2));
+			for(auto*p=&rx;p<=&tz;p++)
+			{
+				p->set_hidden(mask&(1<<p->id()));
+			}
 
 			if(mask==0x1ff) //key.clear();
 			{
@@ -1775,13 +1796,13 @@ void AnimWin::updateXY(bool update_keys)
 				}
 			}
 		}
+
 		if(k!=-1) //!key.empty()
 		{		
 			int dim = k%3;
 			int e = 1<<k/3;
 			for(auto&ea:a->m_keyframes)
-			for(auto*kp:ea.second)
-			if(memcmp(kp->m_selected,cmp,sizeof(cmp)))		
+			for(auto*kp:ea.second)		
 			if(e==kp->m_isRotation)
 			if(kp->m_selected[dim])
 			{
@@ -1797,10 +1818,18 @@ void AnimWin::updateXY(bool update_keys)
 
 			y.set_float_val(c);
 		}
+		
+		int hc = 0; 
+		for(auto*p=&rx;p<=&tz;p++)
+		{
+			if(!p->hidden()) hc++;
+		}
+		hc = hc<=1?0:k+1;
+		graphic.highlightColor(hc);
 
 		//NOTE: _show_tool reproduces this logic.
 		hid = k==-1||graphic.m_operation!=graphic::MouseSelect;
-		key.set_hidden(hid); y.set_hidden(hid);
+		key.set_hidden(!hc&&hid); y.set_hidden(hid);
 	}
 
 	shrinkSelect();

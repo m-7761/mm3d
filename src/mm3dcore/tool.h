@@ -123,9 +123,9 @@ public:
 	virtual const char *getKeymap(int arg){ return ""; }
 
 	virtual void activated(int arg){}
+	virtual void deactivated(int arg){}
 	virtual void updateParam(void*){}
 	virtual void modelChanged(int changeBits){}
-	virtual void deactivated(){} //REMOVE ME (RotateTool)
 	
 	// NOTE: You will never receive a middle button event
 	enum ButtonState
@@ -261,25 +261,22 @@ public:
 	
 	int tool_index;
 
-	void resetCurrentTool()
+	bool resetCurrentTool(bool force)
 	{
-		setCurrentTool(tool,tool_index);
+		return setCurrentTool(tool,tool_index,force);
 	}
-	void setCurrentTool(Tool *p, int index)
+	bool setCurrentTool(Tool *p, int index, bool force)
 	{
+		if(mouseIsPressed(force))
+		return false;
+		if(p&&p->parent) p->deactivated(tool_index);
+		removeParams();
 		if(tool)
-		{
-			tool->deactivated(); //REMOVE ME
-			removeParams();
-			const_cast<Parent*&>(tool->parent) = nullptr;
-			const_cast<Tool*&>(tool) = nullptr;
-		}
-		tool_index = index; if(p)
-		{
-			const_cast<Parent*&>(p->parent) = this;
-			const_cast<Tool*&>(tool) = p;
-			p->activated(index);
-		}
+		const_cast<Parent*&>(tool->parent) = nullptr;
+		if(const_cast<Tool*&>(tool)=p)
+		const_cast<Parent*&>(tool->parent) = this;
+		tool_index = index;
+		if(p&&p->parent) p->activated(index); return true;
 	}
 
 	// Get the model that the parent is viewing. This function 
@@ -294,6 +291,8 @@ public:
 
 	// Call this to force an update on all model views
 	virtual void updateAllViews() = 0;
+
+	virtual bool mouseIsPressed(bool force_quit) = 0; //2024
 
 	virtual bool getParentCoords(double coords[4], bool selected=false) = 0;	
 	// The getParentXYValue function returns the mouse coordinates

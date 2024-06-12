@@ -100,6 +100,18 @@ public:
 		SelectFrame=1,
 		SelectVertex=2,
 	};
+	enum ScalePtE
+	{
+		ScalePtCenter=0,
+		ScalePtOrigin,		
+		ScalePtFarCorner
+	};
+	enum FreezeE
+	{
+		FreezeNone=0,
+		FreezeOther,
+		FreezeSize,
+	};
 
 	GraphicWidget(Parent*),~GraphicWidget();
 
@@ -116,12 +128,16 @@ public:
 	void setMouseSelection(SelectE op){ m_selection = op; }
 
 	void setMoveToFrame(bool o){ m_moveToFrame = o; }
-	void setScaleFromCenter(bool o){ m_scaleFromCenter = o; }
+	void setScaleFromCenter(ScalePtE e){ m_scalePoint = e; }
 
 	//WARNING: This can't be used if the mouse is dragging.
 	void moveSelectedFrames(double time);
 
+	int highlightColor(int i=-1); //0 to turn off (1-9)	
+
 	Model::Animation *animation();
+
+	bool animation_delete(bool protect); //Delete keys/frames
 		
 	struct SplinePT
 	{
@@ -133,15 +149,23 @@ public:
 	{
 		unsigned index; double time;
 	};
+	struct ScaleParamT
+	{
+		double y, center, start;
+		
+		unsigned short index, div;
+
+		operator int()const{ return (int)index+(div<<16); }
+	};
 
 protected:
 	
 	void moveSelectedVertices(double x, double y);
 	void updateSelectRegion(double x, double y);
 	void startScale(double x, double y);
-	void scaleSelectedVertices(double x, double y);
+	void scaleSelectedVertices(double x, double y, double dx, double dy);
 	void selectDone(int snap_select=0);
-	void clearSelected();
+	void clearSelected(bool graph=false);
 	void dragRange(int x, int y, int bt);
 
 	double getWindowSCoord(int x){ return x/m_width*m_zoom+m_xMin; }
@@ -189,30 +213,24 @@ protected:
 
 	std::vector<SplinePT> m_graph_splines;	
 	std::vector<TransFrameT> m_trans_frames;
+	std::vector<ScaleParamT> m_scale_params;
 		
 	struct Div
 	{
-		Model::Position pos;
-
 		const Model::Object2020 *obj;
 
 		double div;
+		double size;
+		double scale_factors[3*3]; //translate/rotate/scale 
 
-		Div(double d):div(d),obj(){}
-
-		Model::KeyframeGraph &ref()
-		{
-			if(pos.type==Model::PT_Joint)
-			return ((Model::Joint*)obj)->_reference;
-			return ((Model::Point*)obj)->_reference;
-		}
+		Div(const Model::Object2020 *o):obj(o){}
 	};
 
 	double m_autoSize;
 	std::vector<Div> m_divs;
 	double m_divsPadding;
 	size_t m_div;	
-	double m_divDragSize;
+	float m_divDragStart;
 	int m_divDragY;
 
 	MouseE m_operation;
@@ -220,11 +238,12 @@ protected:
 
 	bool m_moveToFrame;
 
-	bool m_scaleKeepAspect; //???
-	bool m_scaleFromCenter;
+	//bool m_scaleKeepAspect; //???
+	ScalePtE m_scalePoint;
 
 	bool m_selecting;
-	bool m_drawBounding;
+	FreezeE m_freezing;
+	int m_highlightColor;
 
 	int m_buttons;
 	
@@ -251,8 +270,6 @@ protected:
 	double m_xSel2;
 	double m_ySel2;
 
-	double m_farX;
-	double m_farY;
 	double m_centerX;
 	double m_centerY;
 	double m_startLengthX;

@@ -41,7 +41,7 @@ void ViewPanel::setModel()
 {
 	status.setModel(model);
 
-	resetCurrentTool(); //NEW
+	resetCurrentTool(true); //NEW
 
 	m_model = model; //REMOVE ME
 
@@ -411,6 +411,9 @@ void ViewPanel::draw()
 	int l = m!=n&&y*2!=hh;
 	if(l) y++; 
 
+	//2024: Prevent undo objects for frame?
+	bool ue = model->setUndoEnabled(false);
+
 	double swap; int swap2;
 
 	if(playing1) //EXPERIMENTAL
@@ -439,6 +442,8 @@ void ViewPanel::draw()
 		model->unsetChangeBits(swap2);
 		model->setCurrentAnimationFrameTime(swap,Model::AT_invalidateAnim);
 	}
+
+	model->setUndoEnabled(true);
 
 	Widgets95::window::set_ortho_projection(ww,hh);	
 	glScissor(0,0,ww,hh);

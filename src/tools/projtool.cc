@@ -178,7 +178,7 @@ void ProjTool::mouseButtonMove()
 		//2022: Better for undo to avoid calling setProjectionScale.
 		//There's a serious bottleneck when undos are interleaved 
 		//that needs attention.
-		float scl = mag3(pos);
+		double scl = mag3(pos);
 		po->m_xyz[0] = scl; po->m_xyz[1] = scl; po->m_xyz[2] = scl;
 		model->applyProjection(m_proj);
 	}

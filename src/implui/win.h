@@ -186,6 +186,7 @@ enum
 	id_animate_paste,
 	id_animate_paste_v,
 	id_animate_copy,
+	id_animate_insert,
 	id_animate_delete,
 	//Additional
 	id_animate_window,
@@ -194,7 +195,7 @@ enum
 	id_animate_loop,
 	id_animate_mode,
 	id_animate_snap,
-	id_animate_insert,
+	id_clipboard_mode, //clipboard_mode
 	id_animate_mode_1,
 	id_animate_mode_2,
 	id_animate_mode_3,

@@ -86,13 +86,10 @@ extern MainWin* &viewwin(int id=glutGetWindow())
 	o = &ea; //return ea;
 	if(!o) //HACK: Assume id is a subwindow?
 	{
-		//Reminder: viewwin_menu_state_func is global.
+		int w = glutGetWindow();
+		glutSetWindow(id);
 		int c = glutGet(glutext::GLUT_WINDOW_CREATOR);
-		//2022: Why was this here? it's changing the
-		//current window (why?) which is foiling the
-		//detection of the UV editor's shift lock in
-		//perform_menu_action
-		//if(c>0) glutSetWindow(c);
+		glutSetWindow(w);
 		if(c>0) return viewwin(c);
 	}
 	if(!o) //assert(o); //ui_drop2?
@@ -124,7 +121,7 @@ extern void viewwin_status_func(int st=0)
 
 	glutSetMenu(viewwin_edit_menu);
 	
-	int ins = w->animate_insert;
+	int ins = w->clipboard_mode;
 	if(ins&&!w->model->inAnimationMode())
 	{
 		ins = false;
@@ -899,8 +896,8 @@ void MainWin::_init_menu_toolbar() //2019
 
 	glutAddMenuEntry();	
 	glutAddMenuEntry(E(joint_simplify,"Convert Multi-Influenced to Single","Joints|Convert Multiple Influences to Single","Shift+I"));		
-	glutAddMenuEntry(E(joint_remove_bones,"Remove All Influences from Selected","Joints|Remove All Influences from Selected","Shift+Alt+I")); 
-	glutAddMenuEntry(E(joint_remove_selection,"Remove Selected Joint from Influenced","Joints|Remove Selected Joint from Influencing","Shift+Alt+J")); 
+	glutAddMenuEntry(E(joint_remove_bones,"Removed All Influences from Selected","Joints|Remove All Influences from Selected","Shift+Alt+I")); 
+	glutAddMenuEntry(E(joint_remove_selection,"Removed Selected Joint from Influenced","Joints|Remove Selected Joint from Influencing","Shift+Alt+J")); 
 	glutAddMenuEntry();	
 	glutAddMenuEntry(E(joint_draw_bone,"Apply Alternative Appearance to Bones","","Shift+Alt+B")); 
 	//IMPLEMENT ME
@@ -933,14 +930,15 @@ void MainWin::_init_menu_toolbar() //2019
 
 	glutAddSubMenu(::tr("Scroll Lock"),_anim_menu2);	
 	glutAddMenuEntry();
-		r = config->get("ui_anim_insert",false);
-		const_cast<int&>(animate_insert) = r;
+		r = config->get("ui_clipboard_mode",false);
+		const_cast<int&>(clipboard_mode) = r;
 		views.status._clipboard.indicate(r);
-	glutAddMenuEntry(X(r,animate_insert,"Clipboard Mode","","Insert"));
+	glutAddMenuEntry(E(animate_insert,"Insert Key Frame","Insert")); //2024
+	glutAddMenuEntry(X(r,clipboard_mode,"Clipboard Mode","","Shift+Insert"));
 	glutAddMenuEntry(E(animate_copy,"Copy Frame","","Ctrl+C"));
 	glutAddMenuEntry(E(animate_paste,"Paste Key Frames","","Ctrl+V"));
 	glutAddMenuEntry(E(animate_paste_v,"Paste Inter Frames","","Shift+Ctrl+V"));
-	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+X")); //2022
+	glutAddMenuEntry(E(animate_delete,"Delete Frame","","Ctrl+X")); //2022	
 	glutAddMenuEntry();	
 	glutAddMenuEntry(X(false,animate_play,"Play Animation","","Pause"));
 	//REMINDER: wxWidgets doesn't support Ctrl+Pause. Windows generates a Cancel code in response.
@@ -1094,7 +1092,7 @@ MainWin::MainWin(Model *model):
 _deferredModelChanged(Model::ChangeAll),
 model(/*model*/),		
 glut_window_id(viewwin_init()),
-animate_insert(),
+clipboard_mode(),
 animation_mode(3),
 animation_bind(1),
 //NOTE: Compilers (MSVC) may not like "this".
@@ -1126,7 +1124,7 @@ _prev_view(),_curr_view()
 		_swap_models(model);
 
 
-	views.setCurrentTool(toolbox.getCurrentTool(),0);
+	views.setCurrentTool(toolbox.getCurrentTool(),0,false);
 	//views.status.setText(::tr("Press F1 for help using any window"));
 	views.status.setText(::tr(Win::f1_titlebar::msg()));
 		
@@ -1583,7 +1581,11 @@ void MainWin::open_texture_window()
 		model_status(model,StatusError,STATUSTIME_LONG,TRANSLATE("Command","Select faces to edit"));
 	}
 	if(!_texturecoord_win)
-	_texturecoord_win = new TextureCoordWin(*this);
+	{
+		glutSetWindow(glut_window_id); //2024
+		glutPopWindow();
+		_texturecoord_win = new TextureCoordWin(*this);
+	}
 	_texturecoord_win->open();
 }
 void MainWin::open_projection_window()
@@ -1600,7 +1602,11 @@ void MainWin::open_projection_window()
 	}
 
 	if(!_projection_win)
-	_projection_win = new ProjectionWin(*this);
+	{
+		glutSetWindow(glut_window_id); //2024
+		glutPopWindow();
+		_projection_win = new ProjectionWin(*this);
+	}
 	_projection_win->open();
 }
 void MainWin::open_transform_window()
@@ -1616,8 +1622,12 @@ void MainWin::open_transform_window()
 		}
 	}
 
-	if(!_transform_win)	
-	_transform_win = new TransformWin(*this);	
+	if(!_transform_win)
+	{
+		glutSetWindow(glut_window_id); //2024
+		glutPopWindow();
+		_transform_win = new TransformWin(*this);	
+	}
 	_transform_win->open();
 }
 void MainWin::open_animation_system()
@@ -1627,6 +1637,8 @@ void MainWin::open_animation_system()
 		extern bool viewwin_menu_origin; //YUCK
 		viewwin_menu_origin = true;
 
+		glutSetWindow(glut_window_id); //2024
+		glutPopWindow();
 		_animation_win = new AnimWin(*this,_anim_menu);
 				
 		int tt = _sync_tool;
@@ -1857,7 +1869,7 @@ void MainWin::perform_menu_action(int id)
 
 		//REMOVE ME
 		//Note: The default key combo is Ctrl+Shift+D.
-		if(animate_insert&&m->inAnimationMode())
+		if(clipboard_mode&&m->inAnimationMode())
 		{
 			id = id_animate_delete; goto delete2; 
 		}
@@ -2437,6 +2449,7 @@ void MainWin::perform_menu_action(int id)
 	case id_animate_paste:
 	case id_animate_paste_v:
 	case id_animate_delete: delete2:	
+	case id_animate_insert:
 
 	case id_animate_mode:
 	case id_animate_play:
@@ -2499,14 +2512,14 @@ void MainWin::perform_menu_action(int id)
 		}
 		return;
 	
-	case id_animate_insert:
+	case id_clipboard_mode:
 
-		const_cast<int&>(w->animate_insert) = glutGet(glutext::GLUT_MENU_CHECKED);
-		config->set("ui_anim_insert",w->animate_insert);
+		const_cast<int&>(w->clipboard_mode) = glutGet(glutext::GLUT_MENU_CHECKED);
+		config->set("ui_clipboard_mode",w->clipboard_mode);
 		//I'm assuming this isn't a global state, but it's really hard to follow!!
-		w->views.status._clipboard.indicate(w->animate_insert!=0);
+		w->views.status._clipboard.indicate(w->clipboard_mode!=0);
 		extern void animwin_enable_menu(int,int);
-		animwin_enable_menu(m->inAnimationMode()?w->_anim_menu:-w->_anim_menu,w->animate_insert);		
+		animwin_enable_menu(m->inAnimationMode()?w->_anim_menu:-w->_anim_menu,w->clipboard_mode);		
 		//animwin_enable_menu calls this immediately (guess best not to do twice?)
 		//viewwin_status_func();		
 		return;
@@ -2661,7 +2674,7 @@ void viewwin_toolboxfunc(int id) //extern
 	w->toolbox.setCurrentTool(tool);
 	
 	//tool->activated(id);
-	w->views.setCurrentTool(tool,id); //NEW
+	w->views.setCurrentTool(tool,id,true); //NEW
 
 	//2022: Make the texture and animation
 	//windows match the tools to hopefully

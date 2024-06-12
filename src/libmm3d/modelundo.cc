@@ -957,12 +957,41 @@ void MU_ChangeAnimState::redo(Model *model)
 	model->setCurrentAnimation(m_new);
 }
 int MU_ChangeAnimState::combine(Undo *u)
-{
+{		
+	//NOTE! this NOT MU_ChangeAnimState... 
+	if(auto*undo=dynamic_cast<MU_ChangeAnimFrame*>(u))
+	{
+		if(m_new.anim==undo->m_anim)
+		{
+			m_new.time = undo->m_new; return true;
+		}
+	}
 	return CC_Stop; //???
 }
 unsigned MU_ChangeAnimState::size()
 {
 	return sizeof(MU_ChangeAnimState);
+}
+
+void MU_ChangeAnimFrame::undo(Model *model)
+{
+	model->setCurrentAnimationFrameTime(m_old);
+}
+void MU_ChangeAnimFrame::redo(Model *model)
+{
+	model->setCurrentAnimationFrameTime(m_new);
+}
+int MU_ChangeAnimFrame::combine(Undo *u)
+{
+	if(auto*undo=dynamic_cast<MU_ChangeAnimFrame*>(u))
+	{
+		m_new = undo->m_new; return true;	
+	}
+	return false;
+}
+unsigned MU_ChangeAnimFrame::size()
+{
+	return sizeof(MU_ChangeAnimFrame);
 }
 
 void MU_ChangeSkeletalMode::undo(Model *model)
@@ -1192,6 +1221,8 @@ void MU_SetObjectKeyframe::addKeyframe(Model::Position j,
 	unsigned index = 0;
 	//SetKeyFrameT mv = j;
 	SetKeyFrameT mv; mv = j; //C++
+	mv.frame = frame;
+	mv.isRotation = isRotation;
 
 	// Modify a joint we already have
 	if(m_list.find_sorted(mv,index))

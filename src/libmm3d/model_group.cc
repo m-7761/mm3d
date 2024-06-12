@@ -200,7 +200,7 @@ bool Model::addTriangleToGroup(unsigned groupNum, unsigned triangleNum, bool und
 		else assert(og==groupNum);
 		
 		auto &c = m_groups[groupNum]->m_triangleIndices;
-		if(!c.empty()&&(unsigned)c.back()>t)
+		if(!c.empty()&&c.back()>t)
 		{
 			auto it = std::lower_bound(c.begin(),c.end(),t);
 			if(it==c.end()||*it!=t)

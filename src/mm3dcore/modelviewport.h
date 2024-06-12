@@ -213,6 +213,17 @@ protected:
 
 	static void initializeGL(Model*),checkGlErrors(Model*);
 
+	virtual bool mouseIsPressed(bool force)
+	{
+		for(int i=0;i<portsN;i++) if(ports[i].m_activeButton)
+		{
+			if(!force) return true;
+
+			ports[i].mouseReleaseEvent(ports[i].m_activeButton,_bs,_bx,_by);
+		}		
+		return false;
+	}
+
 public:
 
 	//NOTE: lock is new

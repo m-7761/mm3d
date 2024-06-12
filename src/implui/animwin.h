@@ -78,8 +78,9 @@ struct AnimWin : Win
 		move_snap(tool_nav,"Snap to Frame",id_stf),
 		//MouseScale
 		scale(tool_nav),
-		scale_sfc(scale,"Scale from center",id_sfc),
+	//	scale_sfc(scale,"Scale from center",id_sfc),
 	//	scale_kar(scale,"Keep aspect ratio",id_kar), //???
+		scale_sfc(scale,"Point",id_sfc),
 		x(tool_nav,"X",'X'),
 		key(tool_nav,"",id_key),
 		rx(key,"Rx",3),ry(key,"Ry",4),rz(key,"Rz",5),
@@ -124,12 +125,13 @@ struct AnimWin : Win
 		multiple::item select_complex;
 		boolean move_snap;
 		row scale;
-		boolean scale_sfc;
+	//	boolean scale_sfc;
 	//	boolean scale_kar; //???
+		dropdown scale_sfc;
 		spinbox x;
 		multiple key;
 		multiple::item rx,ry,rz,sx,sy,sz,tx,ty,tz;
-		textbox y;
+		spinbox y;
 	Win::zoom_set zoom;
 	bar timeline;
 	panel status;

@@ -56,7 +56,7 @@ struct HelpWin : Win
 	backward(nav,"Back",'<'),
 	forward(nav,"Forward",'>'),
 	contents(nav,"Contents",'^'),
-	ok(nav,"OK",id_ok)
+	ok(nav,"OK",id_close)
 	{
 		ok.ralign(); //html_special_button
 

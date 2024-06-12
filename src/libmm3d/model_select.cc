@@ -59,19 +59,21 @@ bool Model::selectVertex(unsigned v, unsigned how)
 
 		//2022: PolyTool uses this to sort by selection order.
 		auto &s_op = vp->m_selected._select_op;
+
+		auto new_op = how==1?_op:how;
 		
 		if(!m_selecting) //2020: make foolproof?
 		{
 			//m_changeBits |= SelectionChange;
 			m_changeBits |= SelectionVertices; //2019
 		
-			Undo<MU_Select> undo(this,SelectVertices,v,how,s_op);
+			Undo<MU_Select> undo(this,SelectVertices,v,new_op,s_op);
 
 			assert(!undo||how<=1); //Only Undo should exceed 1.
 		}
 
 		//m_vertices[v]->m_selected = how;
-		s_op = how==1?_op:how;
+		s_op = new_op;
 
 		return true;
 	}
@@ -1992,9 +1994,15 @@ bool Model::selectAllVertices(bool how)
 
 	for(unsigned v=0;v<m_vertices.size();v++)
 	{
-		if(how==m_vertices[v]->m_selected) continue; //2020
+		auto *vp = m_vertices[v];
+
+		if(how==vp->m_selected) continue; //2020
 
 		ret = true;
+
+		auto &s_op = vp->m_selected._select_op;
+
+		auto new_op = how==1?_op:how;
 
 		if(!m_selecting) //2020: making fullproof?
 		{
@@ -2002,11 +2010,12 @@ bool Model::selectAllVertices(bool how)
 			{
 				if(!undo)
 				undo = Undo<MU_Select>(this,SelectVertices);
-				undo->setSelectionDifference(v,how,!how);
+				undo->setSelectionDifference(v,new_op,s_op);
 			}
 		}
 
-		m_vertices[v]->m_selected = how;
+		//m_vertices[v]->m_selected = how;
+		s_op = new_op;
 	}
 
 	if(ret&&!m_selecting) m_changeBits|=SelectionVertices; //2020

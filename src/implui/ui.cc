@@ -319,6 +319,13 @@ static INT_PTR CALLBACK ui_findwindowproc(HWND hwndDlg, UINT uMsg, WPARAM wParam
 {
 	switch(uMsg)
 	{		
+	case WM_ACTIVATEAPP: //BLACK MAGIC
+
+		//wxWidgets fix for _OUT_TO_MSGBOX
+		//I just traced it to here. this is an invisible window
+		SetWindowLong(hwndDlg,DWL_MSGRESULT,0);
+		return 1;
+
 	case WM_DROPFILES:
 			
 		HDROP &drop = (HDROP&)wParam;

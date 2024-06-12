@@ -474,7 +474,7 @@ void Model::removeBoneJoint(unsigned index)
 
 void Model::insertInfluence(const Position &pos, unsigned index, const InfluenceT &influence)
 {
-	m_changeBits |= SetInfluence; //AddOther
+	m_changeBits |= MoveGeometry|SetInfluence; //AddOther
 
 	infl_list *l = nullptr;
 	if(pos.type==PT_Vertex)
@@ -504,7 +504,7 @@ void Model::insertInfluence(const Position &pos, unsigned index, const Influence
 
 void Model::removeInfluence(const Position &pos, unsigned index)
 {
-	m_changeBits |= SetInfluence; //AddOther
+	m_changeBits |= MoveGeometry|SetInfluence; //AddOther
 
 	infl_list *l = nullptr;
 	if(pos.type==PT_Vertex)
@@ -594,7 +594,7 @@ void Model::removePoint(unsigned index)
 				
 			// Remove joint from keyframe list
 			{
-				//log_debug("removed keyframe list for joint %d\n",index); //???
+				//log_debug("removed keyframe list for point %d\n",index); //???
 						
 				//NOTE: This is no longer strictly required.
 				fa->m_keyframes.erase(pos);
@@ -607,7 +607,7 @@ void Model::removePoint(unsigned index)
 			std::vector<v_t> v;
 
 			for(auto&ea:fa->m_keyframes)			
-			if(ea.first.type==PT_Joint)
+			if(ea.first.type==PT_Point)
 			if(ea.first.index>index)
 			{
 				for(auto*kf:ea.second) kf->m_objectIndex--;

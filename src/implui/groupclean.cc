@@ -37,9 +37,9 @@ struct GroupCleanWin : Win
 		:
 	Win("Clean Up"),model(model),
 	a(main,"Merge identical materials"),
-	b(main,"Remove unused materials"),
+	b(main,"Removed unused materials"),
 	c(main,"Merge identical groups"),
-	d(main,"Remove unused groups"),
+	d(main,"Removed unused groups"),
 	ok_cancel(main)
 	{
 		ok_cancel.ok.activate();

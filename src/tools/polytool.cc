@@ -137,7 +137,7 @@ void PolyTool::mouseButtonDown()
 		//2022: this wasn't actually working
 		//unless the vertices were brand new.
 		auto &vl = model->getVertexList();
-		if(sel.size()>1);
+		if(sel.size()>1)
 		std::sort(sel.begin(),sel.end(),[&](int a, int b)
 		{
 			return vl[a]->getOrderOfSelection()<vl[b]->getOrderOfSelection();

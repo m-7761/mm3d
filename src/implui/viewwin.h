@@ -97,7 +97,7 @@ public:
 	Model *const model;
 		
 	const int glut_window_id;
-	const int animate_insert; //Ctrl+C and Ctrl+V
+	const int clipboard_mode; //Ctrl+C and Ctrl+V
 	const int animation_mode;
 	const int animation_bind;
 	

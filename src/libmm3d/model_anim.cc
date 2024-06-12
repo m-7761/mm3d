@@ -452,12 +452,14 @@ unsigned Model::moveAnimFrame(unsigned anim, unsigned frame, double time)
 
 	auto &tt = ab->m_timetable2020;
 
-	if(time==tt[frame]) return frame;
+	unsigned i = frame;
+
+	if(i>=tt.size()){ assert(0); return frame; } //2024
+
+	if(time==tt[i]) return i;
 
 	//if(ab->m_frame2020!=-1)
-	if(frame>=ab->m_frame2020){ assert(0); return frame; } //2022
-
-	unsigned i = frame;
+	if(time>=ab->m_frame2020){ assert(time==ab->m_frame2020); return frame; } //2022	
 
 	while(i&&time<tt[i-1]) i--;
 
@@ -477,6 +479,8 @@ unsigned Model::moveAnimFrame(unsigned anim, unsigned frame, double time)
 }
 void Model::moveAnimFrame_undo(unsigned anim, unsigned frame, unsigned i)
 {
+	m_changeBits|=AnimationProperty;
+
 	auto ab = m_anims[anim];
 
 	auto min = std::min(frame,i);
@@ -560,7 +564,7 @@ bool Model::setFrameAnimVertexCoords(unsigned anim, unsigned frame, unsigned ver
 	if(frame>=fc||vertex>=m_vertices.size()) return false;
 		
 	//https://github.com/zturtleman/mm3d/issues/90
-	m_changeBits|=MoveGeometry|AnimationProperty;
+	m_changeBits|=AnimationProperty;
 
 	const auto fp = fa->_frame0(this);	
 	
@@ -1258,7 +1262,7 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 	if(isRotation<=0||isRotation>KeyScale) return -1;
 
-	m_changeBits|=MoveOther|AnimationProperty; //2020
+	m_changeBits|=AnimationProperty; //2020
 
 	//log_debug("set %s of %d (%f,%f,%f)at frame %d\n",(isRotation ? "rotation" : "translation"),pos.index,x,y,z,frame);
 
@@ -1282,7 +1286,7 @@ int Model::setKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2020E
 
 		memcpy(old,kf->m_parameter,sizeof(old));
 
-		for(int j=4;j-->0;)
+		for(int j=3;j-->0;)
 		if(kf->m_selected[j])
 		m_changeBits|=AnimationSelection;
 
@@ -1473,9 +1477,9 @@ bool Model::insertKeyframe(unsigned anim, Keyframe *keyframe)
 
 	//log_debug("inserted keyframe for anim %d frame %d joint %d\n",anim,keyframe->m_frame,keyframe->m_objectIndex); //???
 
-	m_changeBits|=MoveOther|AnimationProperty; //2020
+	m_changeBits|=AnimationProperty; //2020
 
-	for(int j=4;j-->0;)
+	for(int j=3;j-->0;)
 	if(keyframe->m_selected[j])
 	m_changeBits|=AnimationSelection;
 
@@ -1501,7 +1505,7 @@ bool Model::removeKeyframe(unsigned anim, Keyframe *kf)
 	auto &list = ab->m_keyframes[kf->m_objectIndex];
 	for(size_t i=list.size();i-->0;) if(list[i]==kf)
 	{
-		m_changeBits|=MoveOther|AnimationProperty; //2020
+		m_changeBits|=AnimationProperty; //2020
 
 		list.erase(list.begin()+i);
 
@@ -1531,9 +1535,9 @@ bool Model::removeKeyframe(unsigned anim, unsigned frame, Position pos, KeyType2
 			auto r = kf->m_isRotation;
 			if(r<=0||r&isRotation)
 			{	
-				m_changeBits|=MoveOther|AnimationProperty; //2020
+				m_changeBits|=AnimationProperty; //2020
 
-				for(int j=4;j-->0;)
+				for(int j=3;j-->0;)
 				if(kf->m_selected[j])
 				m_changeBits|=AnimationSelection;
 
@@ -1994,6 +1998,8 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	}
 	else assert(len);
 	
+	double undo = m_currentTime;
+
 	m_changeBits |= AnimationFrame; 
 
 	invalidateBspTree();
@@ -2020,11 +2026,13 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 	{
 		calculateNormals(); 
 	}
-	else //Concerned about BSP pathway.
+	else if(calc==AT_invalidateNormals) //Concerned about BSP pathway.
 	{
 		//TODO: Maybe only invalidate flat normals for BSP pathway.
 		invalidateAnimNormals();
 	}
+
+	Undo<MU_ChangeAnimFrame>(this,m_currentAnim,time,undo);
 
 	//2019: Inappropriate/unexpected???
 	//updateObservers();
@@ -2032,16 +2040,24 @@ bool Model::setCurrentAnimationFrameTime(double time, AnimationTimeE calc)
 }
 void Model::invalidateSkel()
 {
+	if(inJointAnimMode())
+	m_changeBits |= MoveOther; //speculative
+
 	//2021: movePositionUnanimated may be in animation
 	//mode, plus there's no longer a clean split
 	//between animation off or on.
-	//if(inJointAnimMode()) 
+	//if(inJointAnimMode())
 	m_validAnimJoints = false;
 
 	m_validJoints = false; 
 }
 void Model::invalidateAnim()
 {
+	if(inJointAnimMode())
+	m_changeBits |= MoveOther|MoveGeometry; //speculative
+	if(inFrameAnimMode())
+	m_changeBits |= MoveGeometry; //speculative
+
 	m_validAnim = m_validAnimJoints = false;
 }
 void Model::invalidateAnim(unsigned b, unsigned c)
@@ -2210,6 +2226,11 @@ void Model::calculateAnim()
 			m_points[p]->_resample(*this,p);
 		}
 	}
+
+	if(!m_vertices.empty())
+	m_changeBits|=MoveGeometry|MoveOther;
+	if(!m_points.empty())
+	m_changeBits|=MoveOther;
 }
 void Model::Vertex::_resample(Model &model, unsigned v)
 {		

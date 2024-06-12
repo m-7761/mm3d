@@ -39,7 +39,8 @@ enum ScaleProportionE
 
 enum ScalePointE
 {
-	ST_ScalePointCoords=0,
+	ST_ScalePointCenter=0,
+	ST_ScalePointOrigin,
 	ST_ScalePointFar,
 };
 
@@ -77,9 +78,10 @@ struct ScaleTool : Tool
 		};
 		parent->addEnum(true,&m_proportion,TRANSLATE_NOOP("Param","Proportion"),e);
 
-		const char *f[2+1] = 
+		const char *f[4+1] = 
 		{
 		TRANSLATE("Param","Center","Scale from center"),
+		TRANSLATE("Param","Origin","Scale from origin"),		
 		TRANSLATE("Param","Far Corner","Scale from far corner"),
 		};
 		parent->addEnum(true,&m_point,TRANSLATE_NOOP("Param","Point"),f);
@@ -170,11 +172,23 @@ void ScaleTool::mouseButtonDown()
 		}
 	}
 
-	double pos[2];
-	parent->getParentXYValue(pos[0],pos[1],true);
+	double pos[3];
+	parent->getParentXYZValue(pos[0],pos[1],pos[2],true);
 	m_xx = pos[0];
 	m_yy = pos[1];
-	if(m_point==ST_ScalePointFar)
+	if(m_point==ST_ScalePointOrigin)
+	{
+		m_pointX = 0.0;
+		m_pointY = 0.0;
+		m_pointZ = 0.0;
+	}
+	else if(m_point==ST_ScalePointCenter)
+	{
+		m_pointX = (max[0]+min[0])/2;
+		m_pointY = (max[1]+min[1])/2;
+		m_pointZ = (max[2]+min[2])/2;
+	}
+	else if(m_point==ST_ScalePointFar)
 	{
 		//NOTE: This looks wrong, but seems to not matter.
 		m_pointZ = min[2];
@@ -229,15 +243,9 @@ void ScaleTool::mouseButtonDown()
 			else goto same; // maxmin>minmax
 		}
 	}
-	else
-	{
-		m_pointX = (max[0]-min[0])/2+min[0];
-		m_pointY = (max[1]-min[1])/2+min[1];
-		m_pointZ = (max[2]-min[2])/2+min[2];
-	}
 
-	m_startLengthX = fabs(m_pointX-pos[0]);
-	m_startLengthY = fabs(m_pointY-pos[1]);
+	m_startLengthX = fabs(pos[0]-m_pointX);
+	m_startLengthY = fabs(pos[1]-m_pointY);
 	m_startLength = magnitude(m_startLengthX,m_startLengthY);
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT,
@@ -271,13 +279,9 @@ void ScaleTool::mouseButtonMove()
 		if(!m_allowY) pos[1] = m_yy;
 	}
 
-	const double &spX = m_pointX;
-	const double &spY = m_pointY;
-	const double &spZ = m_pointZ;
-
-	const double lengthX = fabs(spX-pos[0]);
-	const double lengthY = fabs(spY-pos[1]);
-	const double length = magnitude(lengthX,lengthY);
+	double lengthX = fabs(pos[0]-m_pointX);
+	double lengthY = fabs(pos[1]-m_pointY);
+	double length = magnitude(lengthX,lengthY);
 	
 	bool free = m_proportion==ST_ScaleFree;
 	bool sp3d = m_proportion==ST_ScaleProportion3D;
@@ -294,20 +298,17 @@ void ScaleTool::mouseButtonMove()
 	}
 	else xper = yper = uniform;
 
-	if(m_translate)
-	for(auto&ea:m_positionCoords)
+	if(m_translate) for(auto&ea:m_positionCoords)
 	{
-		double x = ea.coords[0]-spX;
-		double y = ea.coords[1]-spY;
-		double z = ea.coords[2]-spZ;
+		double x = ea.coords[0]-m_pointX;
+		double y = ea.coords[1]-m_pointY;
+		double z = ea.coords[2]-m_pointZ;
 
 		x*=xper; y*=yper; if(sp3d) z*=xper;
 
 		//2020: Don't generate keyframe/undo data?
 		if(magnitude(x,y,z)>cmp)
-		{
-			movePosition(ea.pos,x+spX,y+spY,z+spZ);
-		}
+		movePosition(ea.pos,x+m_pointX,y+m_pointY,z+m_pointZ);
 	}
 
 	if(!m_objList.empty())

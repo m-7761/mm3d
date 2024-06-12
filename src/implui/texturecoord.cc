@@ -848,9 +848,15 @@ void TextureCoordWin::submit(control *c)
 		//HACK: one pixel increment
 		u.spinner.set_speed(); 
 		v.spinner.set_speed();
-		init2:
-		texture.setLinesColor((int)white);
-		texture.setSelectionColor((int)red);
+
+	init2: //HACK
+
+		//2024: Same colors are invisible :(
+		{
+			int w = white, r = red;
+			texture.setLinesColor(w);
+			texture.setSelectionColor(w==r?~r:r);
+		}
 		texture.setScaleFromCenter(scale_sfc);
 		texture.setScaleKeepAspect(scale_kar);
 		break;

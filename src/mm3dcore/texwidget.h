@@ -382,9 +382,7 @@ protected:
 	bool m_dragBottom;
 	bool m_dragLeft;
 	bool m_dragRight;
-		
-	double m_farX;
-	double m_farY;
+
 	double m_centerX;
 	double m_centerY;
 	double m_startLengthX;

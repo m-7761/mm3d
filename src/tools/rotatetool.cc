@@ -116,7 +116,7 @@ struct RotateTool : Tool
 		//DecalManager::getInstance()->modelUpdated(parent->getModel());
 		parent->updateAllViews();
 	}
-	virtual void deactivated()
+	virtual void deactivated(int)
 	{
 		parent->updateAllViews();
 	}

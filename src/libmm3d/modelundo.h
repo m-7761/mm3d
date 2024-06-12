@@ -76,7 +76,7 @@ struct Model::Undo //2022
 
 	Undo &operator=(Undo&& mv)
 	{
-		model = mv.model; assert(!ptr&&mv.ptr);		
+		model = mv.model; assert(!ptr);		
 		
 		ptr = mv.ptr; mv.ptr = nullptr; //for good measure
 		
@@ -664,7 +664,7 @@ class MU_ChangeAnimState : public ModelUndo
 {
 public:
 
-	enum{ resume=false };
+	//enum{ resume=false }; //combine?
 
 	virtual bool nonEdit(){ return true; }
 
@@ -677,9 +677,44 @@ public:
 	MU_ChangeAnimState(Model *newInfo, const Model::RestorePoint &old)
 	:m_new(newInfo->makeRestorePoint()),m_old(old){}
 
+	bool resume2(Model *newInfo, const Model::RestorePoint &old)
+	{
+		return false; //combine?
+	}
+
 protected:
 
+	friend class MU_ChangeAnimFrame;
+
 	Model::RestorePoint m_new,m_old;
+};
+class MU_ChangeAnimFrame : public ModelUndo
+{
+public:
+
+	virtual bool nonEdit(){ return true; }
+
+	void undo(Model *);
+	void redo(Model *);
+	int combine(Undo *);
+
+	unsigned size();
+
+	MU_ChangeAnimFrame(int anim, double newTime, double old)
+	:m_anim(anim),m_new(newTime),m_old(old){}
+	
+	bool resume2(int anim, double newTime, double oldTime)
+	{
+		if(anim!=m_anim) return false; (void)oldTime;
+
+		m_new = newTime; return true;
+	}
+
+protected:
+
+	friend MU_ChangeAnimState;
+
+	unsigned m_anim; double m_new,m_old;
 };
 
 class MU_ChangeSkeletalMode : public ModelUndo
@@ -885,7 +920,7 @@ public:
 		
 	bool resume2(unsigned anim, unsigned frame)
 	{
-		return anim==m_anim; (void)frame;
+		return anim==m_anim; (void)m_frame;
 	}
 
 private:
@@ -894,9 +929,13 @@ private:
 	{
 		using Position::operator=; //C++
 
-		bool operator<(const SetKeyFrameT &b) //2022
+		bool operator<(const SetKeyFrameT &b)const //2022
 		{
 			return memcmp(this,&b,(char*)&isNew-(char*)this)<0;
+		}
+		bool operator==(const SetKeyFrameT &b)const //2022
+		{
+			return !memcmp(this,&b,(char*)&isNew-(char*)this);
 		}
 		unsigned frame; //2022
 		Model::KeyType2020E isRotation; //2022
@@ -1398,7 +1437,7 @@ public:
 	{
 		if(material!=m_material) return false; (void)old;
 
-		m_newTexture = old; return true;
+		m_newTexture = newTex; return true;
 	}
 
 private:

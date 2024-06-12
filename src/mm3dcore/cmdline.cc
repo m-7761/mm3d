@@ -162,7 +162,8 @@ enum cmdline_Mm3dOptionsE
 	OptTestTextureCompare,
 
 	OptVerbose, //NEW
-	OptResume, //2022
+	OptResume,	//2022
+	OptResume2, //2024
 	OptMAX
 };
 
@@ -173,7 +174,8 @@ int init_cmdline(int &argc,char *argv[])
 	clm.addOption(OptHelp,'h',"help");
 	clm.addOption(OptVersion,'v',"version");
 	clm.addOption(OptVerbose,0,"verbose"); //NEW
-	clm.addOption(OptResume,0,"resume"); //2022
+	clm.addOption(OptResume,0,"resume");
+	clm.addOption(OptResume2,0,"recent");
 	clm.addOption(OptBatch,'b',"batch");
 
 	clm.addOption(OptNoPlugins,0,"no-plugins");
@@ -196,26 +198,28 @@ int init_cmdline(int &argc,char *argv[])
 	{
 		const char *opt = argv[clm.errorArgument()];
 
-		switch (clm.error())
+		switch(clm.error())
 		{
-			case CommandLineManager::MissingArgument:
-				fprintf(stderr,"Option '%s' requires an argument. "
-									  "See --help for details.\n",opt);
-				break;
-			case CommandLineManager::UnknownOption:
-				fprintf(stderr,"Unknown option '%s'. "
-									  "See --help for details.\n",opt);
-				break;
-			case CommandLineManager::NoError:
-				fprintf(stderr,"BUG: CommandLineManager::parse returned false but "
-									  "error code was not set.\n");
-				break;
-			default:
-				fprintf(stderr,"BUG: CommandLineManager::error returned an "
-									  "unknown error code.\n");
-				break;
+		case CommandLineManager::MissingArgument:
+			fprintf(stderr,"Option '%s' requires an argument. "
+									"See --help for details.\n",opt);
+			break;
+		case CommandLineManager::UnknownOption:
+			fprintf(stderr,"Unknown option '%s'. "
+									"See --help for details.\n",opt);
+			break;
+		case CommandLineManager::NoError:
+			fprintf(stderr,"BUG: CommandLineManager::parse returned false but "
+									"error code was not set.\n");
+			break;
+		default:
+			fprintf(stderr,"BUG: CommandLineManager::error returned an "
+									"unknown error code.\n");
+			break;
 		}
-		exit(-1);
+		//2024: Exiting here will mystify users!
+		assert(!"command-line option problem");
+		//exit(-1);
 	}
 
 	if(clm.isSpecified(OptHelp))
@@ -224,7 +228,8 @@ int init_cmdline(int &argc,char *argv[])
 	if(clm.isSpecified(OptVersion))
 	{
 		cmdline_print_version();
-		exit(0);
+		//2024: Exiting here will mystify users!
+		//exit(0);
 	}
 
 	if(clm.isSpecified(OptBatch))
@@ -262,7 +267,8 @@ int init_cmdline(int &argc,char *argv[])
 	if(clm.isSpecified(OptSysinfo))
 	{
 		cmdline_print_sysinfo();
-		exit(0);
+		//2024: Exiting here will mystify users!
+		//exit(0);
 	}
 		
 	bool verbose = //2021
@@ -272,7 +278,7 @@ int init_cmdline(int &argc,char *argv[])
 	if(verbose)
 		cmdline_print_sysinfo();
 
-	cmdline_resume = clm.isSpecified(OptResume);
+	cmdline_resume = clm.isSpecified(OptResume)||clm.isSpecified(OptResume2);
 
 	if(clm.isSpecified(OptDebug))
 		log_enable_debug(true);
@@ -305,9 +311,7 @@ int init_cmdline(int &argc,char *argv[])
 		++offset;
 	}
 
-	argc = offset;
-
-	return 0;
+	argc = offset; return 0;
 }
 
 void shutdown_cmdline()

@@ -83,7 +83,7 @@ extern void aboutwin(int id)
 		"<br>" //NEW
 		"<h1>Multimedia 3D</h1><br>"
 		"%s<br>"
-		"Copyright &copy; 2019-2023 Mick Pearson<br><br>"
+		"Copyright &copy; 2019-2024 Mick Pearson<br><br>"
 		"<h1>Maverick Model 3D</h1>"
 		"<h2>" VERSION_STRING "</h2><br>"
 		"%s<br>"

@@ -54,7 +54,7 @@ int free_memory()
 void segfault_handler(int sig) //FIX ME
 {
 	//Why override default behavior just to print a message?
-	fprintf(stderr,"Segfault.  Exiting...\n");
+	fprintf(stderr,"3dm.cc segfault_handler: Exiting...\n");
 	exit(0);
 }
 

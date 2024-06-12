@@ -26,13 +26,14 @@ parent(parent),
 m_scrollTextures(),
 m_model(),
 m_autoSize(),
-m_divDragSize(),
+m_divDragStart(),
 m_operation(),m_selection(),
 m_moveToFrame(),
-m_scaleKeepAspect(),
-m_scaleFromCenter(),
+//m_scaleKeepAspect(),
+m_scalePoint(),
 m_selecting(),
-m_drawBounding(),
+m_freezing(),
+m_highlightColor(),
 m_buttons(),
 m_xMin(0),
 m_xMax(1), //???
@@ -75,27 +76,31 @@ void GraphicWidget::setModel(Model *model)
 	m_viewportWidth = m_viewportHeight = 0;
 
 	if(m_model) m_model->addObserver(this);
+
+	modelChanged(Model::ChangeAll);
 }
 void GraphicWidget::modelChanged(int cb)
 {
 	int mode = m_model->getAnimationMode();
 
+	bool clr = false;
+
 	if(mode&1&&cb&Model::SelectionJoints
 	 ||mode&2&&cb&Model::SelectionPoints)
 	{
-		m_autoSize = 0;
+		clr = true;
 	}
 	if(cb&Model::AnimationSet) //SKETCHY
 	{
-		m_autoSize = 0;
-
-		for(auto*p:m_model->getJointList())
-		p->_reference.keys.clear();
-		for(auto*p:m_model->getPointList())
-		p->_reference.keys.clear();
+		clr = true;
 
 		//Should reset scroll but not zoom.
 		GraphicWidget::keyPressEvent('0',0,0,0);
+	}
+
+	if(clr)
+	{
+		m_autoSize = 0; clearSelected(true);
 	}
 }
 
@@ -172,10 +177,9 @@ bool GraphicWidget::mousePressEvent(int bt, int bs, int x, int y)
 		bool b = bt!=Tool::BS_Left;
 		if(i==0||b&&p<&m_divs.back()) 
 		p++;
-		m_divDragSize = p->ref().size;
+		m_freezing = FreezeSize;
 		m_divDragY = y;
-
-		assert(m_divDragSize>0);
+		m_divDragStart = p->obj->m_graph_range;
 
 		return true;
 	}
@@ -213,7 +217,6 @@ bool GraphicWidget::mousePressEvent(int bt, int bs, int x, int y)
 		m_xSel2 = s; m_ySel2 = t; //NEW:
 		//m_selecting = e->button()&Qt::RightButton?false:true;
 		m_selecting = bt&Tool::BS_Right?false:true;
-		m_drawBounding = true;
 		break;
 	
 	case MouseScale:
@@ -238,7 +241,7 @@ void GraphicWidget::mouseMoveEvent(int bs, int x, int y)
 
 	int bt = m_activeButton; //NEW
 
-	if(m_divDragSize)
+	if(m_freezing==FreezeSize)
 	return dragRange(x,y,bt);
 	
 	double s,t,ds,dt;
@@ -274,8 +277,6 @@ void GraphicWidget::mouseMoveEvent(int bs, int x, int y)
 	}
 	else if(!bt) //!m_buttons
 	{
-		assert(!m_divDragSize);
-
 		int cur = 0;
 		if(m_divs.size()>1&&s>0&&s<1)
 		{	
@@ -352,7 +353,7 @@ void GraphicWidget::mouseMoveEvent(int bs, int x, int y)
 
 	case MouseScale:
 
-		scaleSelectedVertices(s,t);							
+		scaleSelectedVertices(s,t,ds,dt);							
 		parent->updateCoordinatesSignal();
 		break;
 	}
@@ -367,14 +368,16 @@ void GraphicWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 		
 	m_activeButton = 0;
 
-	if(m_divDragSize)
+	if(auto e=m_freezing)
 	{
-		m_divDragSize = false;
+		m_freezing = FreezeNone;
 
-		//HACK: Update m_divs?
-		parent->updateWidget();
+		if(e==FreezeSize)
+		{
+			parent->updateWidget();
 
-		return;
+			return; //!
+		}
 	}
 
 	if(m_overlayButton!=ScrollButtonMAX)
@@ -383,7 +386,7 @@ void GraphicWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 
 		cancelOverlayButtonTimer(); //HACK
 
-		return;
+		return; //!
 	}		
 	
 	if(bt==Tool::BS_Middle
@@ -407,8 +410,6 @@ void GraphicWidget::mouseReleaseEvent(int bt, int bs, int x, int y)
 	{
 	case MouseSelect:
 		
-		m_drawBounding = false;
-
 		selectDone();
 						
 		parent->updateSelectionDoneSignal();
@@ -484,15 +485,12 @@ void GraphicWidget::updateSelectRegion(double x, double y)
 	parent->updateWidget(); //updateGL();
 }
 
-void GraphicWidget::clearSelected()
+void GraphicWidget::clearSelected(bool graph)
 {	
 	auto *a = animation(); if(!a) return;
 
-	#ifdef NDEBUG
-//	#error model->clearAnimationSelection()
-	#endif
 	auto &st = a->m_selected_frames;
-	if(!st.empty())
+	if(!st.empty()&&!graph)
 	{
 		Model::Undo<MU_SelectAnimFrame> undo;
 		bool sel = false;
@@ -518,15 +516,20 @@ void GraphicWidget::clearSelected()
 	{
 		Model::Undo<MU_SwapStableMem> undo;
 		bool sel = false;
-		bool cmp[4] = {};
-		for(auto&ea:a->m_keyframes) 
+		for(auto&ea:a->m_keyframes)
 		for(auto*kp:ea.second)
 		{
 			auto &s = kp->m_selected;
 
-			static_assert(sizeof(s)==sizeof(cmp));
-
-			if(!memcmp(cmp,s,sizeof(s))) continue;
+			auto cmp = s; if(graph)
+			{
+				auto *o = m_model->getPositionObject(kp->m_objectIndex);				
+				if(s==o->m_selected)
+				continue;
+				s = o->m_selected;
+			}
+			else if(s) s.x = s.y = s.z = false; 
+			if(cmp==s) continue;
 
 			if(!sel)
 			{	
@@ -540,9 +543,8 @@ void GraphicWidget::clearSelected()
 					undo->addChange(Model::AnimationSelection);
 				}
 			}
-			if(undo) undo->addMemory(&s,&s,&cmp);
-
-			memset(s,0x00,sizeof(s));
+			if(undo) if(!graph) undo->addMemory(&s,&cmp,&s);
+			else undo->addMemory(&s.graphed,&cmp.graphed,&s.graphed);
 		}
 	}
 }
@@ -553,10 +555,11 @@ void GraphicWidget::selectDone(int snap_select)
 	double x1 = m_xSel1, y1 = m_ySel1;
 	double x2 = m_xSel2, y2 = m_ySel2;
 
-	if(x1==x2) //2020
+	double epsx = 6.1/m_width*m_zoom;
+
+	bool snapx; if(snapx=x1==x2) //2020
 	{
-		double x = 6.1/m_width*m_zoom;
-		x2 = x1+x; x1-=x;
+		x2 = x1+epsx; x1-=epsx;
 	}
 	if(y1==y2) //2020
 	{
@@ -570,7 +573,8 @@ void GraphicWidget::selectDone(int snap_select)
 	int lh = parent->label_height;
 	auto &tt = a->m_timetable2020;
 	auto &st = a->m_selected_frames;
-	double l_tf = 1/a->_time_frame();
+	double l_tf = a->_time_frame();
+	if(l_tf) l_tf = 1/l_tf; //zero divide
 
 	double t = getWindowTCoord(m_viewportHeight-lh);
 
@@ -635,6 +639,12 @@ void GraphicWidget::selectDone(int snap_select)
 
 				st[i] = !st[i]; 
 				
+				//YUCK: only select 1 when knotted
+				if(snapx&&i&&tt[i]*l_tf-tt[i-1]*l_tf<epsx&&st[i]&&st[i-1])
+				{
+					st[i] = false;
+				}
+
 				if(!sel)
 				{
 					sel = sel2 = true;
@@ -659,11 +669,11 @@ void GraphicWidget::selectDone(int snap_select)
 				auto jt = iit, jtt = jt+1;
 				while(jtt<itt&&jtt->s>0.0) jtt++;
 
-				if(jt+1!=jtt) for(;jt<jtt;jt++)
+				if(jt+1!=jtt) for(;jt<jtt;jt++)				
 				{
-					if(!jt->key) continue;
+					if(!jt->key) continue; //terminator
 
-					bool &s = jt->key->m_selected[i%3];
+					bool &s = (&jt->key->m_selected.x)[i%3];
 
 					if(jt->s>x1&&jt->s<x2
 					 &&jt->t>y1&&jt->t<y2)
@@ -712,6 +722,8 @@ void GraphicWidget::selectDone(int snap_select)
 		}
 	}
 
+	m_selecting = false; //2024
+
 	parent->updateWidget(); //updateGL();
 }
 
@@ -719,20 +731,21 @@ void GraphicWidget::moveSelectedVertices(double x, double y)
 {
 	auto *a = animation(); if(!a) return;
 
-	auto &tt = a->m_timetable2020;
+	auto anim = m_model->getCurrentAnimation();
+
 	auto &st = a->m_selected_frames;
-	double tf = a->_time_frame(); 
+	if(x&&!st.empty())
+	{		
+		auto &tt = a->m_timetable2020;	
+		double tf = a->_time_frame(); 
 
-	x = m_accum+=x*tf;
+		x = m_accum+=x*tf;
 
-	if(!st.empty())
-	{
 		if(m_trans_frames.empty())
 		for(auto i=tt.size();i-->0;) if(st[i])
 		{
 			m_trans_frames.push_back({i,tt[i]});
 		}
-		auto anim = m_model->getCurrentAnimation();
 		for(auto&ea:m_trans_frames)
 		{
 			double time = ea.time+x;
@@ -760,6 +773,45 @@ void GraphicWidget::moveSelectedVertices(double x, double y)
 			}
 		}
 	}
+	if(y)
+	{	
+		int hc = m_highlightColor;
+
+		for(auto&ea:a->m_keyframes)
+		{
+			auto o = m_model->getPositionObject(ea.first);
+			auto &d = m_divs[o->m_graph_div];
+
+			double scl = y/(d.size*0.5);
+
+			for(auto*kp:ea.second) if(kp->m_selected)		
+			{
+				double p[3];
+				memcpy(p,kp->m_parameter,sizeof(p));
+
+				bool set = false;
+				for(int dim=3;dim-->0;)		
+				if(kp->m_selected[dim])
+				{				
+					unsigned i = dim+(kp->m_isRotation>>1)*3;
+
+					if(hc&&hc-1!=i) continue;
+
+					if(i<9)
+					{
+						set = true; 
+
+						p[dim]+=scl*d.scale_factors[i];
+					}
+					else assert(0);
+				}
+				if(set) 
+				{
+					m_model->setKeyframe(anim,kp,p);
+				}
+			}
+		}
+	}
 
 	parent->updateWidget(); //updateGL();
 }
@@ -770,49 +822,186 @@ void GraphicWidget::moveSelectedFrames(double time)
 	//ASSUMING NOT MID OPERATION!
 	m_accum = 0; m_trans_frames.clear();
 
-	moveSelectedVertices(time/a->_time_frame(),0);
+	double x = a->_time_frame();
+	if(x) x = time/x; //zero divide
+
+	moveSelectedVertices(x,0);
 
 	parent->updateWidget(); //updateGL();
 }
 
 void GraphicWidget::startScale(double x, double y)
 {	
+	auto *a = animation(); if(!a) return;
+
 	double xMin = +DBL_MAX, xMax = -DBL_MAX;
-	//double yMin = +DBL_MAX, yMax = -DBL_MAX;
-	double yMin = 0, yMax = 0;
-
-	if(1) //animation?
-	{
-		auto *a = animation(); if(!a) return;
-
+	double yMin = +DBL_MAX, yMax = -DBL_MAX;
+		
+	//frames
+	{		
 		auto &tt = a->m_timetable2020;
 		auto &st = a->m_selected_frames;
-		double l_tf = 1/a->_time_frame();
+		double l_tf = a->_time_frame();
+		if(l_tf) l_tf = 1/l_tf;  //zero divide
 
-		if(!st.empty())		
-		for(auto i=tt.size();i-->0;) if(st[i])
+		m_trans_frames.clear(); if(!st.empty())
 		{
-			m_trans_frames.push_back({i,tt[i]*l_tf});
+			for(size_t i=0;i<tt.size();i++) if(st[i])
+			{
+				m_trans_frames.push_back({i,tt[i]*l_tf});
 
-			double t = m_trans_frames.back().time;
-			xMin = std::min(xMin,t);
-			xMax = std::max(xMax,t);
+				double t = m_trans_frames.back().time;
+				xMin = std::min(xMin,t);
+				xMax = std::max(xMax,t);			
+			}
+		}
+	}
+	//paramaters
+	{
+		int mid = 0;
+		for(size_t i=m_divs.size();i-->1;)		
+		{
+			auto &d = m_divs[i];
+
+			if(y<=m_divs[i-1].div&&y>=d.div)
+			{
+				mid = (int)i; break;
+			}
 		}
 
-		if(m_trans_frames.empty()) return;
-	}	
+		m_scale_params.clear();
 
-	if(m_scaleFromCenter)
-	{
-		m_centerX = (xMax-xMin)/2+xMin;
-	//	m_centerY = (yMax-yMin)/2+yMin;
-		m_centerY = 0;
+		int hc = m_highlightColor;
 
-		m_startLengthX = fabs(m_centerX-x);
-	//	m_startLengthY = fabs(m_centerY-y);
-		m_startLengthY = 0;
+		for(auto&ea:a->m_keyframes)
+		{
+			auto o = m_model->getPositionObject(ea.first);
+			auto &d = m_divs[o->m_graph_div];
+
+			double scl = d.size*0.5;
+
+			for(auto*kp:ea.second) if(kp->m_selected)	
+			{		
+				double p[3];
+				memcpy(p,kp->m_parameter,sizeof(p));
+
+				for(int dim=3;dim-->0;)		
+				if(kp->m_selected[dim])
+				{				
+					unsigned i = dim+(kp->m_isRotation>>1)*3;
+
+					if(hc&&hc-1!=i) continue;
+
+					if(i<9) //DUPLICATE
+					{
+						double val = kp->m_parameter[dim];
+						val/=scl*d.scale_factors[i];
+
+						ScaleParamT sp;
+						sp.div = (unsigned short)o->m_graph_div;
+						sp.index = (unsigned short)i;
+						sp.y = val;						
+						m_scale_params.push_back(sp);
+
+						if(mid==o->m_graph_div)
+						{
+							yMin = std::min(yMin,val);
+							yMax = std::max(yMax,val);
+						}
+					}
+					else assert(0);
+				}
+			}
+		}
+		//NOTE: Can't be sorted without rewriting scaleSelectedVertices.
+		assert(std::is_sorted(m_scale_params.begin(),m_scale_params.end()));
+		auto *p = m_scale_params.data();
+		auto *d = m_scale_params.size()+p;
+		while(p!=d)
+		{
+			auto *pp = p;
+
+			double yMax = p->y, yMin = p->y; //SHADOWING
+
+			int cmp = (int)*p;
+
+			for(;p!=d&&*p==cmp;p++)
+			{
+				yMin = std::min(yMin,p->y);
+				yMax = std::max(yMax,p->y);
+			}
+
+			double centerY,startLengthY;
+
+			if(ScalePtOrigin==m_scalePoint)
+			{
+				centerY = 0.0;
+
+				startLengthY = y; //fabs
+			}
+			else if(ScalePtCenter==m_scalePoint)
+			{
+				centerY = (yMax+yMin)/2;
+
+				startLengthY = y-centerY; //fabs
+			}
+			else if(ScalePtFarCorner==m_scalePoint)
+			{
+				double minmin = fabs(y-yMin), minmax = fabs(y-yMax); //SAME
+				double maxmin = fabs(y-yMin), maxmax = fabs(y-yMax); //SAME
+				
+				//Can this be simplified?
+				if(minmin>minmax)
+				{
+					if(minmin>maxmin)
+					{
+						centerY = minmin>maxmax?yMin:yMax;
+					}
+					else same: // maxmin>minmin
+					{
+						centerY = maxmin>maxmax?yMin:yMax;
+					}
+				}
+				else // minmax>minmin
+				{
+					if(minmax>maxmin)
+					{
+						centerY = yMax;
+					}
+					else goto same; // maxmin>minmax			
+				}
+								
+				startLengthY = y-centerY; //fabs
+			}
+			startLengthY = fabs(startLengthY);
+			for(p=pp;p!=d&&*p==cmp;p++)
+			{
+				p->center = centerY;
+				p->start = startLengthY;
+			}
+		}
 	}
-	else //From corner?
+
+	if(xMax==-DBL_MAX) xMax = xMin = 0.0;
+	if(yMax==-DBL_MAX) yMax = yMin = 0.0;
+
+	if(ScalePtOrigin==m_scalePoint)
+	{
+		m_centerX = 0.0;
+		m_centerY = 0.0;
+
+		m_startLengthX = x; //fabs
+		m_startLengthY = y; //fabs
+	}
+	else if(ScalePtCenter==m_scalePoint)
+	{
+		m_centerX = (xMax+xMin)/2;
+		m_centerY = (yMax+yMin)/2;
+
+		m_startLengthX = x-m_centerX; //fabs
+		m_startLengthY = y-m_centerY; //fabs
+	}
+	else if(ScalePtFarCorner==m_scalePoint)
 	{
 		//DUPLICATES scaletool.cc.
 
@@ -829,22 +1018,22 @@ void GraphicWidget::startScale(double x, double y)
 			{
 				if(minmin>maxmax)
 				{
-					m_farX = xMin; m_farY = yMin;
+					m_centerX = xMin; m_centerY = yMin;
 				}
 				else
 				{
-					m_farX = xMax; m_farY = yMax;
+					m_centerX = xMax; m_centerY = yMax;
 				}
 			}
-			else same: // maxmin>minmin
+			else same2: // maxmin>minmin
 			{
 				if(maxmin>maxmax)
 				{
-					m_farX = xMax; m_farY = yMin;
+					m_centerX = xMax; m_centerY = yMin;
 				}
 				else
 				{
-					m_farX = xMax; m_farY = yMax;
+					m_centerX = xMax; m_centerY = yMax;
 				}
 			}
 		}
@@ -854,51 +1043,180 @@ void GraphicWidget::startScale(double x, double y)
 			{
 				if(minmax>maxmax)
 				{
-					m_farX = xMin; m_farY = yMax;
+					m_centerX = xMin; m_centerY = yMax;
 				}
 				else
 				{
-					m_farX = xMax; m_farY = yMax;
+					m_centerX = xMax; m_centerY = yMax;
 				}
 			}
-			else goto same; // maxmin>minmax			
+			else goto same2; // maxmin>minmax			
 		}
 
-		m_startLengthX = fabs(x-m_farX);
-		m_startLengthY = fabs(y-m_farY);
+		m_startLengthX = x-m_centerX; //fabs
+		m_startLengthY = y-m_centerY; //fabs
 	}
+	m_startLengthX = fabs(m_startLengthX);
+	m_startLengthY = fabs(m_startLengthY);
 }
-void GraphicWidget::scaleSelectedVertices(double x, double y)
+void GraphicWidget::scaleSelectedVertices(double xx, double yy, double dx, double dy)
 {
-	double xx = m_scaleFromCenter?m_centerX:m_farX;
-	double yy = m_scaleFromCenter?m_centerY:m_farY;
+	auto *a = animation(); if(!a) return;
 
-	double s = m_startLengthX<0.00006?1:fabs(x-xx)/m_startLengthX;
-	double t = m_startLengthY<0.00006?1:fabs(y-yy)/m_startLengthY;
+	auto anim = m_model->getCurrentAnimation();
 
-	if(m_scaleKeepAspect) s = t = std::max(s,t);
+//	if(m_scaleKeepAspect) s = t = std::max(s,t);
 
-	if(!m_trans_frames.empty())
+	if(dx&&!m_trans_frames.empty())
 	{
-		auto *a = animation(); if(!a) return;
+		double x = m_centerX;
+
+		double s = m_startLengthX<0.00006?1:fabs(x-xx)/m_startLengthX;
 
 		auto &tt = a->m_timetable2020;
 		auto &st = a->m_selected_frames;
 		double tf = a->_time_frame(); 
+		
+		bool rev = xx<x?dx>0:dx<0;
+		int len = (int)m_trans_frames.size();
 
-		auto anim = m_model->getCurrentAnimation();
-		for(auto&ea:m_trans_frames) 
+		//moveAnimFrame will get things out of order
+		//without this logic
+		int i,mid = len-1;
+		for(i=0;i<len;i++)
+		if(m_trans_frames[i].time>x)
 		{
-			double tx = ea.time;
+			mid = i; break;
+		}
+		for(int pass=1;pass<=2;pass++)
+		{
+			int dir = pass==1?1:-1;
+			int beg = pass==1?0:len-1;
+			int end = pass==1?mid-1:mid;
 
-			tx = (tx-xx)*s+xx; //lerp
+			if(rev) dir = -dir;
+			if(rev) std::swap(beg,end);
+							
+			for(i=beg;i!=end+dir;i+=dir) 
+			{
+				auto &ea = m_trans_frames[i];
 
-			ea.index = m_model->moveAnimFrame
-			(anim,ea.index,tf*std::max(0.0,std::min(1.0,tx)));
+				double tx = ea.time;
+
+				tx = (tx-x)*s+x; //lerp
+
+				//tx = std::max(0.0,std::min(1.0,tx));
+				if(pass==1) tx = std::max(0.0,std::min(x,tx));
+				if(pass==2) tx = std::max(x,std::min(1.0,tx));
+
+				double swap = tt[ea.index];
+				int id = m_model->moveAnimFrame(anim,ea.index,tf*tx);
+
+				if(id!=ea.index)
+				for(int j=len;j-->0;) if(id==m_trans_frames[j].index)
+				{
+					id = m_model->moveAnimFrame(anim,id,swap);
+					assert(id==ea.index);
+					parent->updateWidget(); 
+					return;
+				}
+				ea.index = id;
+			}
+		}
+	}
+	if(dy)
+	{	
+		double y = m_centerY, rel_y = fabs(y-yy);
+		double t = m_startLengthY<0.00006?1:rel_y/m_startLengthY;
+
+		int k = 0;
+
+		int hc = m_highlightColor;
+
+		for(auto&ea:a->m_keyframes)
+		for(auto*kp:ea.second) if(kp->m_selected)		
+		{
+			double p[3];
+			memcpy(p,kp->m_parameter,sizeof(p));
+
+			bool set = false;
+			for(int dim=3;dim-->0;)		
+			if(kp->m_selected[dim])
+			{				
+				unsigned i = dim+(kp->m_isRotation>>1)*3;
+
+				if(hc&&hc-1!=i) continue;
+
+				if(i<9) //DUPLICATE
+				{
+					set = true; 
+
+					auto &sp = m_scale_params[k++];						
+					double val = sp.y;
+					double t = sp.start<0.00006?1:rel_y/sp.start;					
+					val = (val-sp.center)*t+sp.center; //lerp
+
+					auto &d = m_divs[sp.div];
+					p[dim] = val*d.size*0.5*d.scale_factors[i];
+				}
+				else assert(0);
+			}
+			if(set) m_model->setKeyframe(anim,kp,p);
 		}
 	}
 
 	parent->updateWidget(); //updateGL();
+}
+
+bool GraphicWidget::animation_delete(bool protect)
+{
+	auto *a = animation(); if(!a) return false;
+
+	auto anim = m_model->getCurrentAnimation();
+
+	auto &st = a->m_selected_frames;
+	double l_tf = a->_time_frame();
+	if(l_tf) l_tf = 1/l_tf;  //zero divide
+
+	int did = 0;
+
+	if(!st.empty()) //frames
+	{	
+		for(size_t i=0;i<st.size();) if(st[i])
+		{
+			did|=1; m_model->deleteAnimFrame(anim,i);	
+		}
+		else i++;
+	}
+	else //paramaters
+	{
+		std::vector<Model::Keyframe*> v;
+
+		for(auto&ea:a->m_keyframes)
+		for(auto*kp:ea.second)
+		for(int dim=3;dim-->0;)		
+		if(kp->m_selected[dim])
+		{	
+			did|=2; v.push_back(kp); break;
+		}
+
+		for(auto*kp:v)
+		m_model->deleteKeyframe(anim,kp);
+	}
+	if(!did&&!protect)
+	{
+		int frame = m_model->getCurrentAnimationFrame();
+		if(m_model->getCurrentAnimationFrameTime()
+		==m_model->getAnimFrameTime(anim,frame)
+		&&m_model->deleteAnimFrame(anim,frame))
+		{
+			did|=4;
+		}
+		else model_status(m_model,StatusError,STATUSTIME_LONG,
+		"The current time isn't an animation frame");
+	}
+
+	if(did) parent->updateWidget(); return did!=0;
 }
 
 void GraphicWidget::dragRange(int x, int y, int bt)
@@ -922,11 +1240,9 @@ void GraphicWidget::dragRange(int x, int y, int bt)
 
 	//NOTE: m_divs isn't updated while dragging
 	//to keep things simple.
-	double sz = p[-1].div-p->div-m_divsPadding;
-
-	double scl = m_divDragSize;
-
-	float &ref_size = p->ref().size;
+	double sz = p->size;
+	double scl = m_divDragStart;
+	float &ref_size = p->obj->m_graph_range;
 
 	sz = scl+dt/sz*scl;
 
@@ -988,7 +1304,8 @@ static void graphs_make_2d
 graphs_spline_t &spline, const Model::KeyframeList &kl)
 {
 	auto &tt = a->m_timetable2020;
-	double l_tf = 1/a->_time_frame();
+	double l_tf = a->_time_frame();
+	if(l_tf) l_tf = 1/l_tf; //zero divide 
 
 	//Reversed seems to make more sense to me
 	//because the blending favors later lines.
@@ -1025,6 +1342,15 @@ graphs_spline_t &spline, const Model::KeyframeList &kl)
 			spline.push_back({time,kp->m_parameter[l]});
 			spline.back().key = kp;
 		}
+		bool keep = false;
+		for(size_t i=nz+sz;i<spline.size();i++)
+		{
+			if(fabs(spline[i].t)>0.0000001)
+			{
+				keep = true; break;
+			}
+		}
+		if(!keep) spline.resize(sz);
 		for(nz+=sz;nz<spline.size();nz++)
 		{
 			if(spline[nz].t!=0.0) break;
@@ -1032,7 +1358,7 @@ graphs_spline_t &spline, const Model::KeyframeList &kl)
 		if(nz>=spline.size()) 
 		{
 			spline.resize(sz);
-			spline.push_back({0,0}); continue;
+			spline.push_back({0,0});
 		}
 		else if(spline.back().t<1.0)
 		{
@@ -1041,12 +1367,16 @@ graphs_spline_t &spline, const Model::KeyframeList &kl)
 		}
 	}
 }
-static void graphs_normalize(graphs_spline_t &spline, size_t b, size_t e, double tx, double ty)
+static void graphs_normalize(double scale_factors[9], graphs_spline_t &spline, size_t b, size_t e, double tx, double ty)
 {
 	auto iit = spline.begin()+b;
 	auto itt = spline.begin()+e;
-	while(iit<itt)
+	for(int ii=9-1;iit<itt;ii--)
 	{	
+		int i = ii; //Reverse? Rotation first?
+		if(i<3) i+=3; 
+		else if(i<6) i-=3;
+
 		auto jt = iit, jtt = jt+1;
 		while(jtt<itt&&jtt->s>0.0) jtt++;
 
@@ -1056,13 +1386,19 @@ static void graphs_normalize(graphs_spline_t &spline, size_t b, size_t e, double
 
 			double max = 0;
 			for(jt=jjt;jt<jtt;jt++)
-			max = std::max(max,fabs(jt->t));	
-			max = ty/max;
+			max = std::max(max,fabs(jt->t));			
+
+			if(max<0.0000003) //0.0000001 is zero
+			max = 0.0;
+			
+			if(scale_factors) scale_factors[i] = max;
+
+			if(max) max = ty/max; //zero divide
 
 			for(jt=jjt;jt<jtt;jt++)
 			{
 				jt->t = tx+max*jt->t;
-			}
+			}			
 		}
 		else jt++; iit = jt;
 	}
@@ -1078,7 +1414,7 @@ static unsigned char graphs_colors[9][4] =
 	//background. It's usually constant
 	//for posing prior to an animation.
 	{255,0,0}, //red
-	{0,255,0}, //green
+	{0,225,0}, //green
 	{0,0,255}, //blue
 	{255,0,255}, //magenta
 	{255,255,0}, //yellow
@@ -1086,46 +1422,186 @@ static unsigned char graphs_colors[9][4] =
 	//I have no clue what colors for this?
 	{255,192,203}, //pink
 	{255,128,0}, //orange
-	{128,64,0}, //brown
+	//{128,64,0}, //brown
+	{98,0,219}, //dark indigo
 };
-static void graphs_draw_2d(graphs_spline_t &spline, int how)
+int GraphicWidget::highlightColor(int i)
 {
-	unsigned char ca = how==2?64:128; //48
+	int o = m_highlightColor; if(i>=0&&i<=9&&i!=o) 
+	{
+		m_highlightColor = i; parent->updateWidget();
+	}
+	return o;
+}
+static void graphs_draw_2d(graphs_spline_t &spline, int how, int hc, float zoom)
+{
+	float lw = how==1?25.0f*std::min(1.0f,zoom):how==0?3.0f:1.5f;
+	glLineWidth(sqrtf((lw)/zoom)); 
+	
+	float hide = std::max(1.0f,sqrtf(zoom)); //Less if zoomed out.
+	glEnable(GL_BLEND);
 
-	auto iit = spline.begin(), itt = spline.end();			
-	//for(int i=0;iit<itt;i++)
-	for(int i=9998;iit<itt;i--)
-	{	
-		auto jt = iit, jtt = jt+1;
-		while(jtt<itt&&jtt->s>0.0) jtt++;
-
-		if(jt+1!=jtt)
+	for(int pass=1;pass<=2;pass++)
+	{
+		if(0==hc)
 		{
-			jt++; jtt--; //InterpolateStep?
+			if(pass==2) return;
 
-			auto &c = graphs_colors[i%9];
-			c[3] = ca;
-			if(how==1) glColor4ubv(c);
-		
-			//Strips may improve GL_LINE_SMOOTH miters.
-			glBegin(GL_LINE_STRIP);
-			for(;jt<=jtt;jt++)
-			{
-				glVertex2i(jt[-1].x,jt[-1].y);
-
-				int e = jt->key?jt->key->m_interp2020:0;				
-				if(e==Model::InterpolateStep)
-				{
-					glVertex2i(jt[0].x,jt[-1].y);
-
-					glEnd(); glBegin(GL_LINE_STRIP);
-				}				
-			}
-			glVertex2i(jt[-1].x,jt[-1].y);
-			glEnd();
+			if(how==0) glColor4ub(0,0,0,160);
+			if(how==255) glColor3ub(255,255,255);
 		}
-		else jt++; iit = jt;
-	}			
+
+		auto iit = spline.begin(), itt = spline.end();			
+		//for(int i=0;iit<itt;i++)
+		for(int i=9998;iit<itt;i--)
+		{	
+			auto jt = iit, jtt = jt+1;
+			while(jtt<itt&&jtt->s>0.0) jtt++;
+
+			if(jt+1!=jtt)
+			{
+				jt++; jtt--; //InterpolateStep?
+
+				int i9 = i%9, bypass = 0;
+
+				if(how==1)
+				{
+					auto &c = graphs_colors[i9];
+					c[3] = 128;
+					if(hc) if(hc-1!=i9)
+					{
+						c[3]-=72*hide; bypass = 2;
+					}
+					else 
+					{
+						bypass = 1; //c[3]+=64;
+					}
+					if(bypass!=pass) glColor4ubv(c);
+				}
+				else if(hc)
+				{
+					unsigned char c[4];
+					for(int k=3;k-->0;)
+					c[k] = (unsigned char)how;
+					c[3] = how==0?160:255;
+					if(hc-1!=i9)
+					{
+						c[3]-=128; bypass = 2;
+					}
+					else bypass = 1;
+					if(bypass!=pass) glColor4ubv(c);
+				}
+
+				if(bypass==pass)
+				{
+					while(jt<=jtt) jt++; iit = jt;
+						
+					continue;
+				}
+		
+				//Strips may improve GL_LINE_SMOOTH miters.
+				glBegin(GL_LINE_STRIP);
+				for(;jt<=jtt;jt++)
+				{
+					glVertex2i(jt[-1].x,jt[-1].y);
+
+					int e = jt->key?jt->key->m_interp2020:0;				
+					if(e==Model::InterpolateStep)
+					{
+						glVertex2i(jt[0].x,jt[-1].y);
+
+						glEnd(); glBegin(GL_LINE_STRIP);
+					}				
+				}
+				glVertex2i(jt[-1].x,jt[-1].y);
+				glEnd();
+			}
+			else jt++; iit = jt;
+		}			
+	}
+
+	glLineWidth(1); glDisable(GL_BLEND);
+}
+static void graphs_draw_vs(graphs_spline_t &spline, int how, int hc, double scl, float zoom)
+{
+	glLineWidth(2/zoom); glEnable(GL_BLEND); scl*=zoom;
+	
+	glBegin(GL_LINES);		
+	for(int pass=1;pass<=2;pass++)
+	{
+		if(pass==2&&!hc) continue;
+
+		auto iit = spline.begin(), itt = spline.end();
+
+		for(int i=9998;iit<itt;i--)
+		{	
+			int i9 = i%9, bypass = 0;
+
+			int sc = 255; if(hc)
+			{
+				if(hc-1!=i9)
+				{
+					bypass = 2;
+				}
+				else
+				{
+					//bypass = 1;
+						
+					switch(i9)
+					{
+				//	case 1:
+				//	case 2:
+					case 0: sc-=40; //red
+					}
+				}
+			}
+
+			auto jt = iit, jtt = jt+1;
+			while(jtt<itt&&jtt->s>0.0) jtt++;
+				
+			if(jt+1!=jtt)
+			{
+				auto &c = graphs_colors[i9];
+					c[3] = 4;							
+				if(bypass!=pass) glColor4ubv(c);
+
+				for(;jt<jtt;jt++)
+				{	
+					if(!jt->key) continue; //terminator
+					
+					int sel = jt->key->m_selected[i%3];
+
+					if(how!=sel) continue;
+
+					if(bypass!=pass) if(pass!=2||sel)
+					{
+						double vs = jt->s;
+						double vt = jt->t;
+						double vh = sel?pass==1?!hc?1.2:1.4:0.8:1.0;
+						vh*=scl;
+						glVertex2d(vs,vt+vh);
+							//58 was good with lots of key frames
+							//but is hard to see with very few. I
+							//guess an option would be helpful.
+							//c[3] = 58;
+							c[3] = sel?sc:!hc?85:65;
+						glColor4ubv(c);
+					//	if(sel) glLineWidth(4); //Doesn't work.
+						glVertex2d(vs,vt);
+						glVertex2d(vs,vt);
+					//	if(sel) glLineWidth(2); //(Nvidia)
+							c[3] = 4;
+						glColor4ubv(c); 
+						glVertex2d(vs,vt-vh);
+					}					
+				}
+			}
+			else jt++; iit = jt;
+		}
+	}
+	glEnd();
+
+	glLineWidth(1); glDisable(GL_BLEND);
 }
 
 void GraphicWidget::Parent::_color3ub(unsigned char c)
@@ -1138,6 +1614,10 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 
 	int mode = m->getAnimationMode();
 	int anim = m->getCurrentAnimation();
+
+	int hc = m_highlightColor;
+
+	if(hc) if(hc-1<3) hc+=3; else if(hc-1<6) hc-=3;
 
 	if(PAD_SIZE) //updateSize()
 	{
@@ -1256,37 +1736,52 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		cx = cw/w; cy = ch/h;
 	}
 
-	//setViewportDraw(); //DUPLICATE
+	auto ortho = [=](bool on)
 	{
-		//glScissor(x,y,w,h);		
-		glViewport(x,y,w,h); 
+		if(on) //setViewportDraw(); //DUPLICATE
+		{
+			//glScissor(x,y,w,h);		
+			glViewport(x,y,w,h); 
 
-		glMatrixMode(GL_PROJECTION);		
-		glPushMatrix();
-		glLoadIdentity();
+			glMatrixMode(GL_PROJECTION);		
+			glPushMatrix();
+			glLoadIdentity();
 
-		//HACK: I'm adding cx/cy just because 
-		//Nvidia drivers are drawing the selection
-		//rectangle with fully disconnected lines
-		//(I thought Nvidia OpenGL was good?)
-		//NOTE: Nvida works fine with glRectd but
-		//AMD Adrenalin draws nothing with glRectd
-		//NOTE: texwidget.cc does the same thing for a
-		//different reason
-		//glOrtho(sMin,sMax,tMin,tMax,-1,1);
-		glOrtho(sMin-cx,sMax-cx,tMin+cy,tMax+cy,-1,1);
-	
-		glMatrixMode(GL_MODELVIEW);		
-		glPushMatrix(); 
-		glLoadIdentity();
-	}
+			//HACK: I'm adding cx/cy just because 
+			//Nvidia drivers are drawing the selection
+			//rectangle with fully disconnected lines
+			//(I thought Nvidia OpenGL was good?)
+			//NOTE: Nvida works fine with glRectd but
+			//AMD Adrenalin draws nothing with glRectd
+			//NOTE: texwidget.cc does the same thing for a
+			//different reason
+			//glOrtho(sMin,sMax,tMin,tMax,-1,1);
+			glOrtho(sMin-cx,sMax-cx,tMin+cy,tMax+cy,-1,1);
+
+			glMatrixMode(GL_MODELVIEW);		
+			glPushMatrix(); 
+			glLoadIdentity();
+		}
+		else
+		{
+			glMatrixMode(GL_PROJECTION); 
+			glPopMatrix();
+			glMatrixMode(GL_MODELVIEW); 
+			glPopMatrix();
+		}
+	};
+	ortho(true);	
 
 	auto *a = animation();
 	auto &tt = a->m_timetable2020;
 	double l_tf = a->_time_frame();
-	int nn = n+(n!=l_tf); l_tf = 1/l_tf; //!
+	int nn = n+(n!=l_tf);
+	if(l_tf) l_tf = 1/l_tf; //zero divide
 
-	//margins?
+	double epsx = 2.1/m_width*m_zoom/l_tf; //2024
+	float zoom = sqrtf(std::min<float>(1,m_zoom));
+
+	//margins and frames?
 	{
 		parent->_color3ub(96);
 
@@ -1302,11 +1797,19 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		//glColor3ub(180,180,180);
 		glColor3ub(lt,lt,lt);
 
-		glLineWidth(2);
+		glLineWidth(2/zoom);
 		glBegin(GL_LINES);
-		for(double f:tt)
+		auto *tpp = tt.data();
+		auto *tp = tpp, *td = tp+tt.size(); while(tp!=td) 
 		{
-			f*=l_tf;
+			bool knot = tp!=tpp&&*tp-tp[-1]<epsx;
+
+			if(knot)
+			{
+				glLineWidth(3/zoom); glColor3ub(lt-50,lt-50,lt-50);
+			}
+
+			double f = *tp++*l_tf; 
 						
 			glVertex2d(f,tMin); glVertex2d(f,tMax);
 			
@@ -1315,9 +1818,14 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 			//visible behind the frame marker.
 			/*Need to use glLineWidth to match vertices.
 			glVertex2d(f+px,tMin); glVertex2d(f+px,tMax);*/
+
+			if(knot)
+			{
+				glLineWidth(2/zoom); glColor3ub(lt,lt,lt);
+			}
 		}
 		glEnd();
-		glLineWidth(1);
+	//	glLineWidth(1);
 	}
 				
 	int lh = parent->label_height;
@@ -1345,23 +1853,38 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 
 			i = j;
 		}
-		
+
+		glLineWidth(1/zoom);
+
 		glColor4ub(255,0,0,128);
 
-		glBegin(GL_LINES);			
+		glBegin(GL_LINES);
+		int knot,prev = 0;
 		auto *tp = tt.data()-1; for(int sel:sf) 
 		{
 			tp++; if(sel)			
 			{
-				double f = l_tf**tp;
+				if(knot=prev&&*tp-tp[-1]<epsx)
+				{
+					glLineWidth(5/zoom); glColor4ub(222,0,0,255);
+				}
+
+				double f = *tp*l_tf;
 
 				//The current frame marker is on the left
 				//side of the double line.
 				glVertex2d(f,tMin); glVertex2d(f,tMax);
+
+				if(knot)
+				{
+					glLineWidth(1/zoom); glColor4ub(255,0,0,128);
+				}
 			}
+			prev = sel;
 		}		
 		glEnd();
 	}
+	glLineWidth(1);
 
 	//graphs_spline_t spline;
 	auto &spline = m_graph_splines; spline.clear(); 
@@ -1375,12 +1898,15 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 	//double pad = cy*-epad*2;
 	double pad = dt*0.15, epad = -pad*m_height*l_z;
 	
-	if(!m_divDragSize)
+	if(!m_freezing)
 	{
 		m_divsPadding = -2*pad;
 		m_divs.clear();
-		m_divs.push_back(t+pad);
+		m_divs.push_back(nullptr);
+		m_divs.back().div = t+pad;
+		m_divs.back().size = t;
 	}
+	unsigned char divs = 1;
 
 	auto &jl = m->getJointList();
 	auto &pl = m->getJointList();
@@ -1388,16 +1914,19 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 	{
 		//NOTE: This can't change when dragging
 		//a divider to resize or it cancels out.
-		assert(!m_divDragSize);
+		assert(!m_freezing);
+
+		for(auto&ea:jl) ea->m_graph_div = 0;
+		for(auto&ea:pl) ea->m_graph_div = 0;
 
 		double scl = 0; int sel = 0;
 		if(mode&1) for(auto*jp:jl) if(jp->m_selected)
 		{
-			sel++; scl+=jp->_reference.size;
+			sel++; scl+=jp->m_graph_range;
 		}
 		if(mode&2) for(auto*jp:pl) if(jp->m_selected)
 		{
-			sel++; scl+=jp->_reference.size;
+			sel++; scl+=jp->m_graph_range;
 		}
 		scl =-std::min(t+pad*2*sel,300/(m_height/sel))/dt/scl;
 		scl = std::max(1.0,scl);	
@@ -1411,7 +1940,7 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 	{
 		for(;j<jl.size();j++) if(jl[j]->m_selected)
 		{
-			tx = t+dt*jl[j]->_reference.size*scl;
+			tx = t+dt*jl[j]->m_graph_range*scl;
 			ty = (t-tx)*0.5; 
 			
 			glBegin(GL_LINES);
@@ -1426,25 +1955,24 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 			glVertex2d(0,rx); glVertex2d(1,rx);
 			glEnd();			
 
-			if(!m_divDragSize)
-			{
-				m_divs.push_back(t+pad);
-				m_divs.back().pos = j;
-				m_divs.back().obj = jl[j];
-			}
+			auto drag = m_freezing;
+			if(!drag) m_divs.push_back(jl[j]);			
+			auto &div = m_divs[jl[j]->m_graph_div=divs++];
+			if(!drag) div.div = t+pad;
+			if(!drag) div.size = ty*2;
 
 			auto it = a->m_keyframes.find(j);
 
 			if(it==a->m_keyframes.end()) return;
 
 			size_t sz = spline.size();
+			auto *sf = drag?nullptr:div.scale_factors;
 			graphs_make_2d(a,jl[j]->_sources(),spline,it->second);			
-			graphs_normalize(spline,sz,spline.size(),tx,ty);
+			graphs_normalize(sf,spline,sz,spline.size(),tx,ty);
 		}
 	};	
 	if(mode&1) graph_keys({Model::PT_Joint,0},jl);
-	if(mode&2) graph_keys({Model::PT_Point,0},pl);
-	
+	if(mode&2) graph_keys({Model::PT_Point,0},pl);	
 	if(ty)
 	{
 		glBegin(GL_LINES);
@@ -1453,69 +1981,34 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		glVertex2d(0,r); glVertex2d(1,r);
 		glEnd();
 	}
-
-	//glDisable(GL_BLEND);
 		
 	//client/pixel space (labels and lines)
 	{
-		//HACK: Draw vertices and transform to
-		//client/pixel space in the same loop?		
-		glLineWidth(2);
-		glBegin(GL_LINES);
-		double vh = dt*0.80;
+		float star = dt*sqrtf(1);
+
 		auto iit = spline.begin(), itt = spline.end();
-		for(int i=9998;iit<itt;i--)
+		while(iit<itt)
 		{	
 			auto jt = iit, jtt = jt+1;
 			while(jtt<itt&&jtt->s>0.0) jtt++;
+				
+			if(jt+1!=jtt) for(;jt<jtt;jt++)
+			{						
+				//HACK: GL_LINE_SMOOTH needs to be drawn
+				//in pixel space.
+				int vx = m_x+(int)round(getWindowX(jt->s));
+				int vy = m_y+(int)round(getWindowY(jt->t));
+				parent->getLabel(vx,vy);
 
-			if(jt+1!=jtt)
-			{
-				auto &c = graphs_colors[i%9];
-							c[3] = 4;
-						glColor4ubv(c);
-
-				auto jjt = jt;
-				for(;jt<jtt;jt++)
-				{	
-					double vs = jt->s;
-					double vt = jt->t;
-
-					if(jt->key) //Vertices?
-					{
-						glVertex2d(vs,vt+vh);
-							//58 was good with lots of key frames
-							//but is hard to see with very few. I
-							//guess an option would be helpful.
-							//c[3] = 58;
-							c[3] = jt->key->m_selected[i%3]?255:75;
-						glColor4ubv(c);
-						glVertex2d(vs,vt);
-						glVertex2d(vs,vt);
-							c[3] = 4;
-						glColor4ubv(c); 
-						glVertex2d(vs,vt-vh);
-					}
-
-					//HACK: GL_LINE_SMOOTH needs to be drawn
-					//in pixel space.
-					int vx = m_x+(int)round(getWindowX(vs));
-					int vy = m_y+(int)round(getWindowY(vt));
-					parent->getLabel(vx,vy);
-
-					jt->x = vx; jt->y = vy;
-				}
+				jt->x = vx; jt->y = vy;
 			}
 			else jt++; iit = jt;
 		}
-		glEnd();
+		graphs_draw_vs(spline,0,hc,star,zoom);
 
 		//glPushAttrib doesn't cover
 		//these states.
-		glMatrixMode(GL_PROJECTION); 
-		glPopMatrix();
-		glMatrixMode(GL_MODELVIEW); 
-		glPopMatrix();
+		ortho(false);
 		glPopAttrib(); //attribs2
 
 		//NOTE: GL_LINE_SMOOTH needs to be in
@@ -1526,21 +2019,8 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 
 		//base layer?
 		{
-			glEnable(GL_BLEND);
-			
-			for(int pass=1;pass<=2;pass++)
-			{
-				//Decouple background color?
-				if(pass==1)	glLineWidth(2.5);
-				if(pass==1) glColor4ub(0,0,0,160);
-				if(pass==2) glLineWidth(1);
-				if(pass==2) glColor3ub(255,255,255);
-			//	if(pass==3) glLineWidth(3.0f);
-
-			//	graphs_draw_2d(spline,pass==3);
-				graphs_draw_2d(spline,0);
-			}
-			glDisable(GL_BLEND);
+			graphs_draw_2d(spline,0,hc,m_zoom); //zoom
+			graphs_draw_2d(spline,255,hc,m_zoom);		
 		}
 
 		//labels?
@@ -1564,9 +2044,9 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 			{	
 				float sz;
 				if(jp->m_type==Model::PT_Joint)				
-				sz = ((Model::Joint*)jp)->_reference.size;
+				sz = ((Model::Joint*)jp)->m_graph_range;
 				else
-				sz = ((Model::Point*)jp)->_reference.size;				
+				sz = ((Model::Point*)jp)->m_graph_range;				
 				double ln = lh*3*l_z*sz*scl+epad*2;
 				l-=ln; ln = l+ln*0.5-compact;
 				if(ln<ll&&ln>-lh)				
@@ -1576,10 +2056,12 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 
 		//color layer?
 		{
-			glLineWidth(3);
-			glEnable(GL_BLEND);			
-			graphs_draw_2d(spline,1);
-			glDisable(GL_BLEND);
+			graphs_draw_2d(spline,1,hc,m_zoom); //zoom
+			glPushAttrib(attribs2);
+			ortho(true);
+			graphs_draw_vs(spline,1,hc,star,zoom);
+			glPopAttrib(); //attribs2
+			ortho(false);
 		}
 
 		glLineWidth(1);
@@ -1593,7 +2075,7 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 			int l0x = lx*10;
 			double w_z = w*l_z-(w-ww);				
 			double dx = w_z*l_tf;
-			int tick = lh*2/(int)dx;
+			int tick = dx?lh*2/(int)dx:0; //zero divide
 			if(tick>1)
 			if(tick>2)
 			if(tick>5)
@@ -1638,24 +2120,7 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		}
 
 		glPushAttrib(attribs2);
-
-		//setViewportDraw(); //DUPLICATE
-		{
-			//glScissor(x,y,w,h);		
-			glViewport(x,y,w,h); 
-
-			glMatrixMode(GL_PROJECTION);		
-			glPushMatrix();
-			glLoadIdentity();
-
-			//HACK: see comment above (DUPLICATE)
-			//glOrtho(sMin,sMax,tMin,tMax,-1,1);
-			glOrtho(sMin-cx,sMax-cx,tMin+cy,tMax+cy,-1,1);
-	
-			glMatrixMode(GL_MODELVIEW);		
-			glPushMatrix(); 
-			glLoadIdentity();
-		}
+		ortho(true);
 	}
 	
 	//frame marker?
@@ -1674,7 +2139,7 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 		glDisable(GL_BLEND);
 	}
 
-	if(m_drawBounding) //drawSelectBox()
+	if(m_selecting) //drawSelectBox()
 	{
 		glPolygonMode(GL_FRONT_AND_BACK,GL_LINE); 
 
@@ -1707,10 +2172,7 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 
 	//glPushAttrib doesn't cover
 	//these states.
-	glMatrixMode(GL_PROJECTION); 
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW); 
-	glPopMatrix();
+	ortho(false);
 	glPopAttrib(); //attribs2
 	glPopAttrib(); //attribs1
 }

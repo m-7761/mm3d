@@ -116,7 +116,7 @@ bool Model::setPositionInfluence(const Position &pos, unsigned joint, InfluenceT
 
 	for(auto&ea:*il) if(ea.m_boneId==(int)joint)
 	{
-		m_changeBits |= SetInfluence; //AddOther
+		m_changeBits |= MoveGeometry|SetInfluence; //AddOther
 
 		InfluenceT oldInf = ea;
 
@@ -251,7 +251,7 @@ bool Model::setPositionInfluenceType(const Position &pos, unsigned int joint, In
 
 	auto *il = getPositionInfluences(pos); if(!il) return false;
 	
-	m_changeBits |= SetInfluence; //AddOther
+	m_changeBits |= MoveGeometry|SetInfluence; //AddOther
 
 	for(auto&ea:*il) if(ea.m_boneId==(int)joint)
 	{
@@ -289,7 +289,7 @@ bool Model::setPositionInfluenceWeight(const Position &pos, unsigned int joint, 
 	{
 		if(weight==ea.m_weight) return true; //2020
 
-		m_changeBits |= SetInfluence; //AddOther
+		m_changeBits |= MoveGeometry|SetInfluence; //AddOther
 
 		InfluenceT oldInf = ea; ea.m_weight = weight;
 		InfluenceT newInf = ea;

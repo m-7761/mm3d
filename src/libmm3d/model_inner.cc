@@ -630,7 +630,8 @@ void Model::Keyframe::init()
 
 	m_interp2020 = InterpolateLerp; //NEW
 
-	memset(m_selected,false,sizeof(m_selected)); //graph.cc
+	//m_selected.clear(); //graph.cc
+	memset(&m_selected,0x00,sizeof(m_selected));
 }
 
 int Model::Keyframe::flush()
@@ -720,6 +721,8 @@ void Model::Object2020::init(PositionTypeE t)
 	m_xyzSource = m_xyz;
 
 	m_selected = false;
+	m_graph_range = 1.0;
+	m_graph_div = 0;
 
 	m_type = t;
 }

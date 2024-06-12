@@ -42,7 +42,7 @@ struct ProjectionWin : Win
 	name(nav1,"Rename",id_name), 	
 	nav2(main),
 	add(nav2,"Add Faces",id_append),
-	remove(nav2,"Remove Faces",id_remove),
+	remove(nav2,"Removed Faces",id_remove),
 	zoom(nav2,texture::zoom_min,texture::zoom_max),
 	scene(main,id_scene),	
 	nav3(main),

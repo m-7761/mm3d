@@ -1125,8 +1125,8 @@ bool TextureWidget::keyPressEvent(int bt, int bs, int, int)
 		}
 		else if(m_operation==MouseRange)
 		{
-			m_scroll[0] = (m_xRangeMax-m_xRangeMin)/2+m_xRangeMin;
-			m_scroll[1] = (m_yRangeMax-m_yRangeMin)/2+m_yRangeMin;
+			m_scroll[0] = (m_xRangeMax+m_xRangeMin)/2;
+			m_scroll[1] = (m_yRangeMax+m_yRangeMin)/2;
 
 			double xzoom = m_xRangeMax-m_xRangeMin;
 			double yzoom = m_yRangeMax-m_yRangeMin;
@@ -1501,8 +1501,8 @@ void TextureWidget::startScale(double x, double y)
 
 	if(m_scaleFromCenter)
 	{
-		m_centerX = (xMax-xMin)/2+xMin;
-		m_centerY = (yMax-yMin)/2+yMin;
+		m_centerX = (xMax+xMin)/2;
+		m_centerY = (yMax+yMin)/2;
 
 		m_startLengthX = fabs(m_centerX-x);
 		m_startLengthY = fabs(m_centerY-y);
@@ -1524,22 +1524,22 @@ void TextureWidget::startScale(double x, double y)
 			{
 				if(minmin>maxmax)
 				{
-					m_farX = xMin; m_farY = yMin;
+					m_centerX = xMin; m_centerY = yMin;
 				}
 				else
 				{
-					m_farX = xMax; m_farY = yMax;
+					m_centerX = xMax; m_centerY = yMax;
 				}
 			}
 			else same: // maxmin>minmin
 			{
 				if(maxmin>maxmax)
 				{
-					m_farX = xMax; m_farY = yMin;
+					m_centerX = xMax; m_centerY = yMin;
 				}
 				else
 				{
-					m_farX = xMax; m_farY = yMax;
+					m_centerX = xMax; m_centerY = yMax;
 				}
 			}
 		}
@@ -1549,18 +1549,18 @@ void TextureWidget::startScale(double x, double y)
 			{
 				if(minmax>maxmax)
 				{
-					m_farX = xMin; m_farY = yMax;
+					m_centerX = xMin; m_centerY = yMax;
 				}
 				else
 				{
-					m_farX = xMax; m_farY = yMax;
+					m_centerX = xMax; m_centerY = yMax;
 				}
 			}
 			else goto same; // maxmin>minmax			
 		}
 
-		m_startLengthX = fabs(x-m_farX);
-		m_startLengthY = fabs(y-m_farY);
+		m_startLengthX = fabs(x-m_centerX);
+		m_startLengthY = fabs(y-m_centerY);
 	}
 }
 
@@ -1583,8 +1583,7 @@ void TextureWidget::rotateSelectedVertices(double angle)
 
 void TextureWidget::scaleSelectedVertices(double x, double y)
 {
-	double xx = m_scaleFromCenter?m_centerX:m_farX;
-	double yy = m_scaleFromCenter?m_centerY:m_farY;
+	double xx = m_centerX, yy = m_centerY;
 
 	double s = m_startLengthX<0.00006?1:fabs(x-xx)/m_startLengthX;
 	double t = m_startLengthY<0.00006?1:fabs(y-yy)/m_startLengthY;

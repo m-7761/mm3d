@@ -135,8 +135,12 @@ void ViewportSettings::submit(int i)
 	switch(i)
 	{
 	case id_reset:
-
-		vu = defaults; goto def; //break;
+		
+		vu.fov = 45;
+		vu.znear = 0.1;
+		vu.zfar = 1000;
+		
+		goto def; //break;
 
 	case id_init: defaults = vu; def:
 
@@ -148,10 +152,10 @@ void ViewportSettings::submit(int i)
 		persp.xy.set(vu.xyz3d&4);
 		persp.xz.set(vu.xyz3d&2);
 		persp.yz.set(vu.xyz3d&1);
-		persp.fov.edit(25,45,65);
-		persp.znear.spinner.set_speed(0.01);
-		persp.znear.edit(0.001,0.1,100.0); //0.001 fits
-		persp.zfar.edit(100,1000,100000);
+		persp.fov.edit(25.0,vu.fov,65.0); //45
+		persp.znear.spinner.set_speed(0.01); 
+		persp.znear.edit(0.001,vu.znear,100.0); //0.001 fits
+		persp.zfar.edit(100.0,vu.zfar,100000.0);
 		uvmap.units.edit(1,vu.unitsUv?vu.unitsUv:2,8); 
 		uvmap.u.edit(0.0,vu.snapUv[0],1.0);
 		uvmap.v.edit(0.0,vu.snapUv[1],1.0);

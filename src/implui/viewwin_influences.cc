@@ -121,7 +121,7 @@ static void viewwin_influences_jointRemoveInfluencesFromSelected(MainWin &model)
 {
 	for(auto&i:model.selection) model->removeAllPositionInfluences(i);
 
-	model->operationComplete(::tr("Remove All Influences from Selected"));
+	model->operationComplete(::tr("Removed All Influences from Selected"));
 
 	model_status(model,StatusNormal,STATUSTIME_SHORT, //2022
 	::tr("Removed all influences from selected vertices and points"));
@@ -160,7 +160,7 @@ static void viewwin_influences_jointRemoveInfluenceJoint(MainWin &model)
 		::tr("Removed all influence of bone joint"));
 	}
 
-	model->operationComplete(::tr("Remove Joint from Influencing"));
+	model->operationComplete(::tr("Removed Joint from Influencing"));
 }
 
 static void viewwin_influences_jointMakeSingleInfluence(MainWin &model)

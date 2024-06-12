@@ -480,16 +480,7 @@ public:
 	typedef sorted_ptr_list<Keyframe*> KeyframeList;		
 	//typedef std::vector<KeyframeList> ObjectKeyframeList;
 	typedef std::unordered_map<Position,KeyframeList,Position::hash> ObjectKeyframeList;
-
-	struct KeyframeGraph //graphs.cc
-	{
-		float size;
-
-		KeyframeList keys; 
-
-		KeyframeGraph():size(1){}
-	};
-		
+	
 	struct RestorePoint //2021
 	{
 		unsigned anim; AnimationModeE mode; double time; 
@@ -2387,6 +2378,8 @@ struct Model::Object2020 : public Visible2022 //RENAME ME
 	Matrix getMatrixUnanimated()const;
 
 	mutable bool m_selected;
+	mutable unsigned char m_graph_div;
+	mutable float m_graph_range;
 
 	PositionTypeE m_type; //getParams
 
@@ -2475,8 +2468,6 @@ public:
 		return _dirty_mats[2];
 	}
 
-	mutable KeyframeGraph _reference; //graphs.cc
-
 	bool propEqual(const Joint &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 	bool operator==(const Joint &rhs)const{ return propEqual(rhs); }
 
@@ -2526,8 +2517,6 @@ public:
 		
 	// List of bone joints that move the point in skeletal animations.
 	infl_list m_influences;
-
-	mutable KeyframeGraph _reference; //graphs.cc
 
 	void _resample(Model&,unsigned); //2020
 
@@ -2736,7 +2725,15 @@ public:
 
 	Interpolate2020E m_interp2020;
 
-	mutable bool m_selected[4]; //graph.cc
+	mutable struct GraphSelection //graphs.cc
+	{
+		bool x,y,z,graphed;
+		operator bool&(){ return graphed; }
+		bool &operator=(bool cp){ return graphed = cp; } //C++
+	//	void clear(){ memset(this,0x00,sizeof(*this)); }
+		bool operator[](unsigned c)const{ assert(c<3); return graphed&&(&x)[c]; }
+
+	}m_selected;
 
 	//CAREFUL: This doesn't work with bitwise combinations of KeyType2020E.
 	bool operator<(const Keyframe &rhs)const

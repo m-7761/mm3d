@@ -374,8 +374,8 @@ struct AnimCleanupWin : Win
 		:
 	Win("Clean Up"),model(m),owner(o),
 	a(main),
-	b(main,"Remove identical keys"),
-	c(main,"Remove unused frames"),
+	b(main,"Removed identical keys"),
+	c(main,"Removed unused frames"),
 	ok_cancel(main),
 	ops(main.inl,"Checklist"),
 	sel(ops,"Select"),
