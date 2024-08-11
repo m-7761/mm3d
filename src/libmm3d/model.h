@@ -136,7 +136,7 @@ public:
 		AnimationSelection   = 0x01000000, // graph.cc selection/selected keys changed
 		ShowJoints           = 0x02000000, // Joints forced visible
 		ShowProjections      = 0x04000000, // Projections forced visible
-		RedrawAll		     = 0x80000000, // Hide/unhide
+		RedrawAll		     = 0x80000000, // Hide/unhide/colors
 		ChangeAll			 = 0xFFFFFFFF, // All of the above
 
 		AnimationChange = AnimationMode|AnimationSet|AnimationFrame|AnimationProperty|AnimationSelection,
@@ -249,6 +249,10 @@ public:
 		DO_ALPHA_DEFER_BSP = 0x80, //2021: Use draw_bspTree to manually draw transparency
 
 		DO_TEXTURE_MATRIX = 0x100, //2022: UvAnimation mode
+
+		DO_VERTEXCOLOR = 0x200, DO_INFLUENCE = 0x400, //2024: Draw with GL_COLOR_MATERIAL
+
+		DO_INFLUENCE_VIEWPORT = 0x7000, //3 bits encoding the viewport that's being drawn
 	};
 
 	enum SelectionModeE
@@ -535,6 +539,12 @@ public:
 		ViewportUnits(){ memset(this,0x00,sizeof(*this)); }
 	};
 
+	struct ViewportColors
+	{
+		unsigned colors[4];
+		unsigned joints[4];
+	};
+
 	class BspTree //bsptree.h
 	{
 	public:
@@ -776,7 +786,7 @@ public:
 	void drawLines(float alpha=1);
 	void drawVertices(float alpha=1);
 	void _drawPolygons(int); //2019
-	void drawPoints();
+	void drawPoints(float axis=0);
 	void drawProjections();
 	void drawJoints(float alpha=1, float axis=0);
 
@@ -1795,6 +1805,10 @@ public:
 	ViewportUnits &getViewportUnits(){ return m_viewportUnits; }
 	//#endif
 
+	//2024: colorwin.cc & colortool.cc setup
+	int &getViewportColorsMode(){ return m_viewportColorsMode; }
+	std::vector<ViewportColors> &getViewportColors(){ return m_viewportColors; }
+
 	// ------------------------------------------------------------------
 	// Hide functions
 	// ------------------------------------------------------------------
@@ -2030,6 +2044,9 @@ protected:
 	//https://github.com/zturtleman/mm3d/issues/56
 	ViewportUnits m_viewportUnits;
 
+	int m_viewportColorsMode; 
+	std::vector<ViewportColors> m_viewportColors; //2024
+
 #endif // MM3D_EDIT
 
 	// Base position for skeletal animations (safe to ignore in MM3D).
@@ -2220,6 +2237,13 @@ public:
 
 	int m_group; //2022
 
+	mutable float m_colors[3][4];
+
+	inline bool _is_colored()const
+	{
+		for(int i=12;i-->0;) if(m_colors[0][i]!=1.0f) return true; return false;
+	}
+
 	bool propEqual(const Triangle &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 	bool operator==(const Triangle &rhs)const{ return propEqual(rhs); }
 
@@ -2383,6 +2407,8 @@ struct Model::Object2020 : public Visible2022 //RENAME ME
 
 	PositionTypeE m_type; //getParams
 
+	mutable float m_color[4]; //2024
+
 	//WARNING: Return relative values for keyframes
 	const double *getParams(Interpolant2020E)const;
 	const double *getParamsUnanimated(Interpolant2020E)const;
@@ -2468,6 +2494,14 @@ public:
 		return _dirty_mats[2];
 	}
 
+	inline bool _is_colored() const
+	{
+		if(m_color[0]) return true;
+		if(m_color[1]) return true;
+		if(m_color[2]) return true;
+		if(m_color[3]!=1.0f) return true; return false;
+	}
+
 	bool propEqual(const Joint &rhs, int propBits=PropAllSuitable, double tolerance=0.00001)const;
 	bool operator==(const Joint &rhs)const{ return propEqual(rhs); }
 
@@ -2524,6 +2558,14 @@ public:
 	bool operator==(const Point &rhs)const{ return propEqual(rhs); }
 
 	void _source(AnimationModeE);
+
+	inline bool _is_colored() const
+	{
+		if(m_color[0]!=0.0f) return true;
+		if(m_color[1]!=0.5f) return true;
+		if(m_color[2]!=0.0f) return true;
+		if(m_color[3]!=1.0f) return true; return false;
+	}
 
 protected:
 

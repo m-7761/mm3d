@@ -22,17 +22,16 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "tool.h"
-
 #include "pixmap/sheartool.xpm"
+#include "menuconf.h" //TOOLS_CREATE_MENU
 
+#include "tool.h"
 #include "model.h"
 #include "modelstatus.h"
-#include "log.h"
 
 struct ShearTool : Tool
 {
-	ShearTool():Tool(TT_Other){}
+	ShearTool():Tool(TT_Other,1,TOOLS_TRANSFORM_MENU){}
 
 	virtual const char *getName(int)
 	{

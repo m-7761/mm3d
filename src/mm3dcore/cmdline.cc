@@ -339,11 +339,11 @@ int cmdline_command()
 	FilterManager *mgr = FilterManager::getInstance();
 
 	StringList::iterator it = cmdline_argList.begin();
-	for(; it!=cmdline_argList.end(); it++)
+	for(;it!=cmdline_argList.end(); it++)
 	{
 		Model::ModelErrorE err = Model::ERROR_NONE;
 		Model *m = new Model;
-		if((err = mgr->readFile(m,it->c_str()))==Model::ERROR_NONE)
+		if((err=mgr->readFile(m,it->c_str()))==Model::ERROR_NONE)
 		{
 			m->loadTextures(0); //??? FIX ME (Doesn't belong here.)
 			cmdline_models.push_back(m);
@@ -364,7 +364,7 @@ int cmdline_command()
 		cmdline_models.push_back(m);
 	}
 
-	for(unsigned n = 0; n<cmdline_models.size(); n++)
+	for(unsigned n=0;n<cmdline_models.size();n++)
 	{
 		Model *m = cmdline_models[n];
 		if(cmdline_doScripts)
@@ -374,12 +374,9 @@ int cmdline_command()
 			LuaContext lc(m);
 			luaif_registerfunctions(&lua,&lc);
 			StringList::iterator it;
-			for(it = cmdline_scripts.begin(); it!=cmdline_scripts.end(); it++)
+			for(it=cmdline_scripts.begin();it!=cmdline_scripts.end();it++)
 			{
-				if(lua.runFile((*it).c_str())!=0)
-				{
-					errors++;
-				}
+				if(lua.runFile((*it).c_str())) errors++;
 			}
 #else
 			fprintf(stderr,"scripts disabled at compile time\n");

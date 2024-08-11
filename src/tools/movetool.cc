@@ -22,17 +22,16 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "tool.h"
-
 #include "pixmap/movetool.xpm"
+#include "menuconf.h" //TOOLS_TRANSFORM_MENU
 
+#include "tool.h"
 #include "model.h"
 #include "modelstatus.h"
-#include "log.h"
 
 struct MoveTool : Tool
 {
-	MoveTool():Tool(TT_MoveTool)
+	MoveTool():Tool(TT_MoveTool,1,TOOLS_TRANSFORM_MENU)
 	{
 		m_snap3d = false; //config defaults
 	}
@@ -89,21 +88,18 @@ void MoveTool::mouseButtonDown()
 	{
 		m_zz = m_c[2] = 0; m_ww = m_c[3] = 1;
 	}
+	else if(parent->getView()<=Tool::ViewPerspective) //2023
+	{
+		double avg[4] = {0,0,0,1};
+		getSelectionCenter(avg);		
+		parent->getParentProjMatrix().apply4(avg);
+
+		m_zz = avg[2]; if(!snap) m_c[2] = avg[2];
+		m_ww = avg[3]; if(!snap) m_c[3] = avg[3];
+	}
 	else
 	{
-		if(parent->getView()<=Tool::ViewPerspective) //2023
-		{
-			double avg[4] = {0,0,0,1};
-			getSelectionCenter(avg);		
-			parent->getParentProjMatrix().apply4(avg);
-
-			m_zz = avg[2]; if(!snap) m_c[2] = avg[2];
-			m_ww = avg[3]; if(!snap) m_c[3] = avg[3];
-		}
-		else
-		{
-			m_zz = m_c[2]; m_ww = m_c[3];
-		}
+		m_zz = m_c[2]; m_ww = m_c[3];
 	}
 
 	m_xx = m_c[0]; m_yy = m_c[1]; 

@@ -192,7 +192,9 @@ Model::Model()
 	  //m_changeBits(ChangeAll),
 	m_changeBits(0),
 	  m_undoEnabled(false),
-	  m_undoEnacted(false)
+	  m_undoEnacted(false),
+	m_viewportColorsMode(0),
+	m_viewportColors(6)
 
 #endif // MM3D_EDIT
 {

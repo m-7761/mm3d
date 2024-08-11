@@ -249,6 +249,9 @@ bool Win::basic_keyboard(ui *w, int k, int m)
 
 static bool win_widget_keyboard(Widgets95::ui *ui, int kb, int cm)
 {
+	if(Widgets95::e.keyboard_command&&kb!=27) //2024
+	return true;
+
 	int x = Widgets95::e.curr_x;
 	int y = Widgets95::e.curr_y;
 	if(((Win*)ui)->widget()->keyPressEventUI(+kb,cm,x,y))
@@ -260,6 +263,9 @@ static bool win_widget_keyboard(Widgets95::ui *ui, int kb, int cm)
 }
 static bool win_widget_special(Widgets95::ui *ui, int kb, int cm)
 {
+	if(Widgets95::e.keyboard_command) //2024
+	return true;
+
 	return win_widget_keyboard(ui,-kb,cm);
 }
 static bool win_widget_mouse(Widgets95::ui *ui, int bt, int st, int x, int y)

@@ -304,6 +304,7 @@ namespace //???
 		MDT_Vertices,
 		MDT_Triangles,
 		MDT_TriangleNormals, //IGNORED
+		MDT_TriangleColors, //2024
 		MDT_Joints,
 		MDT_JointVertices, //LEGACY
 		MDT_Points,
@@ -317,6 +318,7 @@ namespace //???
 		MDT_TexProjections,
 		MDT_ProjectionTriangles,
 		MDT_ScaleFactors, //2021
+		MDT_ObjectColors, //2024
 		MDT_CanvasBackgrounds,
 		MDT_SkelAnims,
 		MDT_FrameAnims,
@@ -344,6 +346,7 @@ namespace //???
 	{	0x0001, /*U*/ "Vertices" }, 
 	{	0x0021, /*U*/ "Triangles" }, 
 	{	0x0026, /*U*/ "Triangle Normals" }, 
+	{	0x0029, /*U*/ "Triangle Colors" }, 
 	{	0x0041, /*U*/ "Joints" }, 
 	{	0x0046, /*U*/ "Joint Vertices" }, //LEGACY
 	{	0x0061, /*U*/ "Points" }, 
@@ -357,6 +360,7 @@ namespace //???
 	{	0x0168, /*U*/ "Texture Projections" }, 
 	{	0x016c,       "Texture Projection Triangles" }, 
 	{	0x0180, /*U*/ "Scale Factors" }, //2021
+	{	0x0181,       "Object Colors" }, 
 	{	0x0191,       "Canvas Background Images" }, 
 	{	0x0301,       "Skeletal Animations" }, //LEGACY
 	{	0x0321,       "Frame Animations" },  //LEGACY
@@ -467,6 +471,14 @@ namespace //???
 
 	const size_t FILE_TRIANGLE_NORMAL_SIZE = 42;
 
+	struct MM3DFILE_TriangleColorsT
+	{
+		uint32_t	index;
+		float32_t  color[3][4];
+	};
+
+	const size_t FILE_TRIANGLE_COLOR_SIZE = 52;
+
 	struct MM3DFILE_JointT
 	{
 		uint16_t  flags;
@@ -560,6 +572,8 @@ namespace //???
 	};
 
 	const size_t FILE_SCALE_FACTOR_SIZE = 16;
+
+	const size_t FILE_OBJECT_COLOR_SIZE = 20;
 
 	struct UnknownDataT
 	{
@@ -982,6 +996,53 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 	}
 	#endif // 0*/
 
+	//2024: Triangle Colors
+	if(auto*os=seekOffset(MDT_TriangleColors))
+	{
+		// Just for debugging... we don't actually use any of this
+
+		uint16_t flags = 0;
+		uint32_t count = 0;
+		m_src->read(flags);
+		m_src->read(count);
+
+		uint32_t size = 0;
+		if(os->uniform())
+		{
+			m_src->read(size);
+		}
+
+		for(unsigned t = 0; t<count; t++)
+		{
+			if(os->variable())
+			{
+				m_src->read(size);
+			}
+
+			MM3DFILE_TriangleColorsT fileTri;
+			m_src->read(fileTri.index);
+			m_src->read(fileTri.color[0][0]);
+			m_src->read(fileTri.color[0][1]);
+			m_src->read(fileTri.color[0][2]);
+			m_src->read(fileTri.color[0][3]);
+			m_src->read(fileTri.color[1][0]);
+			m_src->read(fileTri.color[1][1]);
+			m_src->read(fileTri.color[1][2]);
+			m_src->read(fileTri.color[1][3]);
+			m_src->read(fileTri.color[2][0]);
+			m_src->read(fileTri.color[2][1]);
+			m_src->read(fileTri.color[2][2]);
+			m_src->read(fileTri.color[2][3]);
+
+			//log_debug("triangle %d colors:\n",fileTri.index);
+
+			//for(unsigned v=0;v<3;v++)			
+			//log_debug("  v %d:  %f %f %f\n",v,fileTri.color[v][0],fileTri.color[v][1],fileTri.color[v][2]);
+
+			memcpy(modelTris[fileTri.index]->m_colors,fileTri.color,sizeof(fileTri.color));
+		}
+	}
+
 	/*https://github.com/zturtleman/mm3d/issues/130)
 	// Groups
 	if(auto*os=seekOffset(MDT_Groups))*/
@@ -1268,7 +1329,7 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 			m_src->read(size);
 		}
 
-		for(unsigned g = 0; g<count; g++)
+		for(unsigned g=0;g<count;g++)
 		{
 			//log_debug("reading canvas background %d/%d\n",g,count);
 			if(os->variable())
@@ -1769,6 +1830,48 @@ Model::ModelErrorE MisfitFilter::readFile(Model *model, const char *const filena
 				scale[i] = tmpf;
 			}
 			model->setPositionScale(pos,scale);
+		}
+	}
+
+	//2024: Color
+	if(mm3d2021)
+	if(auto*os=seekOffset(MDT_ObjectColors))
+	{
+		uint16_t flags = 0;
+		uint32_t count = 0;
+		m_src->read(flags);
+		m_src->read(count);
+
+		uint32_t size = 0;
+		if(os->uniform())
+		{
+			m_src->read(size);
+		}
+
+		for(unsigned i=0;i<count;i++)
+		{
+			//log_debug("reading Scale Factor %d/%d\n",i,count);
+			if(os->variable())
+			{
+				m_src->read(size);
+			}
+
+			Model::Position pos;
+			uint16_t tmp16;
+			m_src->read(tmp16);
+			pos.type = (Model::PositionTypeE)tmp16;
+			m_src->read(tmp16); 
+			pos.index = tmp16;
+			 
+			float color[4]; 
+			float32_t tmpf;
+			for(unsigned i=0;i<4;i++)			
+			{
+				m_src->read(tmpf); 
+				color[i] = tmpf;
+			}
+			auto *obj = model->getPositionObject(pos);
+			memcpy(obj->m_color,color,sizeof(color));
 		}
 	}
 
@@ -2616,6 +2719,16 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	if(1!=ea->m_xyz[0]||1!=ea->m_xyz[1]||1!=ea->m_xyz[2])
 	basescaled++; 
 
+	int objcolored = 0;
+	for(auto*ea:modelJoints) if(ea->_is_colored())
+	objcolored++; 
+	for(auto*ea:modelPoints) if(ea->_is_colored())
+	objcolored++; 
+
+	int tricolored = 0;
+	for(auto*ea:modelTris) if(ea->_is_colored())
+	tricolored++;
+
 	int influenced = 0;		
 	for(auto*ea:modelVerts) influenced+=ea->m_influences.size();
 	for(auto*ea:modelPoints) influenced+=ea->m_influences.size();
@@ -2628,6 +2741,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	addOffset(MDT_Vertices			  , !modelVerts.empty());
 	addOffset(MDT_Triangles			  , !modelTris.empty());
 	addOffset(MDT_TriangleNormals	  , !modelTris.empty());
+	addOffset(MDT_TriangleColors	  , 0!=tricolored);
 	addOffset(MDT_Materials			  , !modelMats.empty());
 	addOffset(MDT_Groups			  , !modelGroups.empty());
 	addOffset(MDT_SmoothAngles		  , !modelGroups.empty());
@@ -2645,6 +2759,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 	//addOffset(MDT_FrameAnims		  , !modelFrameAnims.empty());
 	//addOffset(MDT_FrameAnimPoints	  , !modelFrameAnims.empty()&&!modelPoints.empty());
 	addOffset(MDT_ScaleFactors        , 0!=basescaled);
+	addOffset(MDT_ObjectColors        , 0!=objcolored);
 	addOffset(MDT_Animations		  , !modelAnims.empty());
 	addOffset(MDT_Utilities			  , !modelUtils.empty());
 	addOffset(MDT_UvAnimations		  , 0!=uvAnims);	
@@ -2795,6 +2910,23 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 			m_dst->write((float32_t)modelTris[t]->m_finalNormals[v][i]);
 		}
 		//log_debug("wrote %d triangle normals\n",count);
+	}
+
+	// Triangle Normals
+	if(setOffset(MDT_TriangleColors,true))
+	{
+		unsigned count = modelTris.size();
+
+		writeHeaderB(0x0000,tricolored,FILE_TRIANGLE_COLOR_SIZE);
+
+		for(unsigned t=0;t<count;t++) if(modelTris[t]->_is_colored())
+		{
+			m_dst->write((uint32_t)t);
+			for(unsigned v=0;v<3;v++)
+			for(unsigned i=0;i<4;i++)
+			m_dst->write((float32_t)modelTris[t]->m_colors[v][i]);
+		}
+		//log_debug("wrote %d triangle colors\n",tricolored);
 	}
 
 	/*https://github.com/zturtleman/mm3d/issues/130
@@ -3064,7 +3196,7 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 
 		unsigned baseSize = FILE_CANVAS_BACKGROUND_SIZE;
 
-		for(unsigned b = 0; b<6; b++)
+		for(unsigned b=0;b<6;b++)
 		{
 			const char *file = model->getBackgroundImage(b);
 			if(!*file) continue;
@@ -3285,6 +3417,29 @@ Model::ModelErrorE MisfitFilter::writeFile(Model *model, const char *const filen
 		};
 		pos = {Model::PT_Joint,0}; for(auto*ea:modelJoints) f(ea);
 		pos = {Model::PT_Point,0}; for(auto*ea:modelPoints) f(ea);
+	}
+
+	//2024: Colors
+	if(setOffset(MDT_ObjectColors,true))
+	{
+		writeHeaderB(0x0000,objcolored,FILE_OBJECT_COLOR_SIZE);
+
+		Model::Position pos;
+		auto f = [&](const Model::Object2020 *ea, bool colored)
+		{
+			if(colored)
+			{
+				m_dst->write((uint16_t)pos.type);
+				m_dst->write((uint16_t)pos.index);
+				for(unsigned i=0;i<4;i++)
+				m_dst->write((float32_t)ea->m_color[i]);
+			}
+			pos.index++;
+		};
+		pos = {Model::PT_Joint,0}; 
+		for(auto*ea:modelJoints) f(ea,ea->_is_colored());
+		pos = {Model::PT_Point,0}; 
+		for(auto*ea:modelPoints) f(ea,ea->_is_colored());
 	}
 
 	//2021: Animations

@@ -22,13 +22,13 @@
 
 #include "mm3dtypes.h" //PCH
 
+#include "pixmap/scaletool.xpm"
+#include "menuconf.h" //TOOLS_CREATE_MENU
+
 #include "tool.h"
 #include "glmath.h" //distance
-
 #include "model.h"
-#include "log.h"
 #include "modelstatus.h"
-#include "pixmap/scaletool.xpm"
 
 enum ScaleProportionE
 {
@@ -46,7 +46,7 @@ enum ScalePointE
 
 struct ScaleTool : Tool
 {
-	ScaleTool():Tool(TT_ScaleTool)
+	ScaleTool():Tool(TT_ScaleTool,1,TOOLS_TRANSFORM_MENU)
 	{
 		m_proportion = m_point = 0; //config details		
 		m_translate = true;		

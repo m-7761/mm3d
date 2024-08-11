@@ -77,6 +77,7 @@ public: //slots:
 	void modelview(Tool::ViewE v) //2022
 	{
 		auto *mv = views[m_focus];
+		if(!mv) mv = views[m_click];
 		int cmp = mv->port.getView();
 		if(cmp==v) switch(v) //Alternate double inputs?
 		{
@@ -113,13 +114,13 @@ public: //slots:
 	//bool views1x2;
 	//size_t viewsM;
 	//size_t viewsN;
-	ViewBar::ModelView *views[portsN];	
+	ViewBar::ModelView *views[portsN_1];	
 
 	ViewBar::ModelView *operator->()
 	{
 		//2022: assuming this won't break anything
 		//return views[0];
-		return views[m_focus];
+		return views[views[m_focus]?m_focus:0];
 	}
 	operator ViewBar::ModelView**() //2022
 	{
@@ -152,12 +153,18 @@ public: //slots:
 	virtual void addInt(bool,int*,utf8,int,int);
 	virtual void addDouble(bool,double*,utf8,double,double);
 	virtual void addEnum(bool,int*,utf8,const char**);
+	virtual void addButton(int,Tool*,void(*)(Tool*,int),utf8);
 	virtual void groupParam();
 	virtual void updateParams();
 	virtual void removeParams();
 	virtual void hideParam(void *p, int how);
 	virtual void updateView();
 	virtual void updateAllViews();
+
+	virtual void command(Command cmd, int arg1, int arg2);
+
+	float backColor[3] = {130/255.0f,200/255.0f,200/255.0f};
+	virtual void setBackgroundColor(float press);
 
 	utf8 param_config_key(utf8);
 

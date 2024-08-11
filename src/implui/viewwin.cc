@@ -45,6 +45,7 @@
 #include "projectionwin.h"
 #include "transformwin.h"
 #include "texturecoord.h"
+#include "colorwin.h"
 
 #include "luascript.h"
 #include "luaif.h"
@@ -238,6 +239,12 @@ void MainWin::_drawingModelChanged()
 		//updateAllViews(); //Overkill?
 	}
 	sidebar.modelChanged(changeBits);
+	//...
+	//depends on sidebar.parent_joint
+	if(changeBits&Model::AddOther)
+	{
+		if(_colormixer_win) _colormixer_win->jointsChanged();
+	}
 
 	/*Can't defer these because of m_ignoreChange pattern???
 	if(_projection_win) _projection_win->modelChanged(changeBits);
@@ -875,10 +882,13 @@ void MainWin::_init_menu_toolbar() //2019
 		viewwin_infl_menu = glutCreateMenu(viewwin_menubarfunc);	
 
 	glutAddMenuEntry(E(joint_settings,"Edit Joints...","Joints|Edit Joints","J")); 
-		r = config->get("ui_joint_100",true);
-	glutAddMenuEntry(X(r,joint_100,"Assign 100","","I"));
+		r = config->get("ui_joint_100",true);	
 		views.status._100.indicate(!r); //inverting sense
-		
+	glutAddMenuEntry(E(joint_color_weights,"Color Influence Weight","","I"));
+	glutAddMenuEntry();
+	glutAddMenuEntry(X(r,joint_100,"Assign 100","","Ctrl+I"));
+	glutAddMenuEntry(X(false,joint_break_all,"Break All Influences","","Ctrl+Alt+B"));
+	glutAddMenuEntry();
 	glutAddMenuEntry(E(joint_attach_verts,"Assign Selected to Joint","Joints|Assign Selected to Joint","Ctrl+B"));
 	glutAddMenuEntry(E(joint_weight_verts,"Auto-Assign Selected...","Joints|Auto-Assign Selected","Shift+Ctrl+B"));
 	glutAddMenuEntry();	
@@ -924,7 +934,16 @@ void MainWin::_init_menu_toolbar() //2019
 		glutAddMenuEntry(O(false,animate_mode_1,"Skeletal Animation Mode","","Shift+Scroll_Lock"));
 		glutAddMenuEntry(O(true,animate_mode_3,"Unlocked (Complex Mode)","","Shift+Alt+Scroll_Lock"));
 		glutAddMenuEntry();
-		glutAddMenuEntry(X(true,animate_bind,"Bind Influences to Skeleton","","Ctrl+Alt+Scroll_Lock"));
+		glutAddMenuEntry(E(animate_rew,"Rewind","","Ctrl+Alt+Left"));
+		glutAddMenuEntry(E(animate_ffwd,"Fast-Forward","","Ctrl+Alt+Right"));
+		glutAddMenuEntry(E(animate_back,"Select Prior Key Frame","","Ctrl+Alt+PgUp"));
+		glutAddMenuEntry(E(animate_fwd,"Select Next Key Frame","","Ctrl+Alt+PgDn"));
+		glutAddMenuEntry(E(animate_top,"Select First Frame","","Ctrl+Alt+Home"));
+		glutAddMenuEntry(E(animate_end,"Select Last Frame","","Ctrl+Alt+End"));
+		glutAddMenuEntry();
+		glutAddMenuEntry(X(true,animate_auto,"Auto-Play","","Shift+Alt+Pause"));
+		glutAddMenuEntry(E(animate_prev,"Select Prior Animation ","","Ctrl+Alt+Up"));
+		glutAddMenuEntry(E(animate_next,"Select Next Animation","","Ctrl+Alt+Down"));
 	}
 		_anim_menu = glutCreateMenu(viewwin_menubarfunc);	
 
@@ -953,6 +972,11 @@ void MainWin::_init_menu_toolbar() //2019
 
 	if(!viewwin_help_menu) //static menu
 	{
+		int emu_menu = glutCreateMenu(viewwin_menubarfunc);
+		glutAddMenuEntry(E(mouse_4,"Mouse 4 (4MB)","","Ctrl+F6"));
+		glutAddMenuEntry(E(mouse_5,"Mouse 5 (5MB)","","Ctrl+F7"));
+		glutAddMenuEntry(E(mouse_6,"Mouse 6 (6MB)","","Ctrl+F8"));
+
 		//TODO: According to wxOSX Apple moves Help and About menu items
 		//to be in the first menu or a special menu of some kind. In that
 		//case this menu may duplicate tha functionality or may degenerate 
@@ -963,7 +987,8 @@ void MainWin::_init_menu_toolbar() //2019
 	glutAddMenuEntry(E(help,"Contents","Help|Contents","F1"));	
 	glutAddMenuEntry(::tr("License","Help|License"),id_license);		
 	glutAddMenuEntry(::tr("About","Help|About"),id_about);
-	glutAddMenuEntry();
+	glutAddMenuEntry();	
+	glutAddSubMenu(::tr("Emulate",""),emu_menu);
 	glutAddMenuEntry(E(reorder,"Reorder","",","));
 	glutAddMenuEntry(E(unscale,"Unscale","","Shift+Alt+1"));
 	}
@@ -1095,20 +1120,21 @@ glut_window_id(viewwin_init()),
 clipboard_mode(),
 animation_mode(3),
 animation_bind(1),
-//NOTE: Compilers (MSVC) may not like "this".
-//Makes parent/child relationships headaches.
-views(*this),sidebar(*this),
 nselection(),fselection(),
 _animation_win(),
 _transform_win(),
 _projection_win(),
 _texturecoord_win(),
 _vpsettings_win(),
+_colormixer_win(),
 _sync_tool(0),_sync_sel2(-1),
 _prev_tool(3),_curr_tool(1),
 _prev_shift(),_curr_shift(),_none_shift(),
 _prev_ortho(3),_prev_persp(0),
-_prev_view(),_curr_view()
+_prev_view(),_curr_view(),
+//NOTE: Compilers (MSVC) may not like "this".
+//Makes parent/child relationships headaches.
+views(*this),sidebar(*this)
 {
 	assert(config&&keycfg);
 
@@ -1306,6 +1332,8 @@ Model *MainWin::_swap_models(Model *swap)
 		close_viewport_window();
 	//	perform_menu_action(id_view_settings);
 	}
+	if(_colormixer_win)
+	_colormixer_win->setModel();
 
 	_rewrite_window_title();
 
@@ -1630,6 +1658,33 @@ void MainWin::open_transform_window()
 	}
 	_transform_win->open();
 }
+void MainWin::open_colormixer_window()
+{
+	if(_colormixer_win) //NEW: Toggle?
+	{
+		if(!_colormixer_win->hidden())
+		{
+			//TODO? Probably can just hide?
+			//return _colormixer_win->hide();
+			glutSetWindow(_colormixer_win->glut_window_id());
+			return _colormixer_win->submit(_colormixer_win->close);
+		}
+	}
+
+	if(!_colormixer_win)
+	{
+		glutSetWindow(glut_window_id); //2024
+		glutPopWindow();
+		_colormixer_win = new ColorWin(*this);	
+	}
+	_colormixer_win->open();
+}
+void MainWin::sync_colormixer_joint(int bt, int jt)
+{
+	if(_colormixer_win->hidden()) _colormixer_win->open();
+
+	_colormixer_win->setJoint(bt,jt);
+}
 void MainWin::open_animation_system()
 {
 	if(!_animation_win)
@@ -1825,6 +1880,7 @@ void MainWin::_rewrite_window_title()
 	model->m_filename.pop_back(); //*
 }
 
+static int viewwin_media_controls = 0; 
 extern bool viewwin_menu_origin = false;
 struct viewin_menu
 {
@@ -2431,6 +2487,10 @@ void MainWin::perform_menu_action(int id)
 		::tr("Changed appearance of selected bone joints"));
 		break;
 
+	case id_tool_colormixer: 
+		
+		w->open_colormixer_window(); return;
+
 	case id_animate_settings: 
 		
 		extern void animsetwin(MainWin&);
@@ -2454,13 +2514,7 @@ void MainWin::perform_menu_action(int id)
 	case id_animate_mode:
 	case id_animate_play:
 	case id_animate_stop:
-	//case id_animate_loop:
-	//case id_animate_snap:
-	//case id_animate_bind:
-	//case id_animate_mode_1:
-	//case id_animate_mode_2:
-	//case id_animate_mode_3:
-	//case id_animate_insert:
+	case id_animate_auto:
 		
 		if(!_animation_win)
 		open_animation_system();
@@ -2487,13 +2541,21 @@ void MainWin::perform_menu_action(int id)
 		w->views.status._keys_snap.indicate(!id);		
 		return;
 
-	case id_animate_bind:
+	case id_joint_break_all: //id_animate_bind
 
-		id = glutGet(glutext::GLUT_MENU_CHECKED);
+		id = !glutGet(glutext::GLUT_MENU_CHECKED);
 		const_cast<int&>(w->animation_bind) = id;
-		w->views.status._anim_bind.indicate(id==0);
+		w->views.status._infl_break.indicate(id==0);
 		if(m->setSkeletalModeEnabled(id!=0))
 		m->operationComplete(::tr("Set skeletal mode","operation complete"));
+		return;
+
+	case id_joint_color_weights:
+
+		m->getViewportColorsMode() = 3; //infl
+		if(!_colormixer_win||_colormixer_win->hidden())
+		w->open_colormixer_window();
+		w->_sync_tools(Tool::TT_ColorTool,0);
 		return;
 
 	case id_animate_mode_1: case id_animate_mode_2: case id_animate_mode_3:	
@@ -2522,6 +2584,32 @@ void MainWin::perform_menu_action(int id)
 		animwin_enable_menu(m->inAnimationMode()?w->_anim_menu:-w->_anim_menu,w->clipboard_mode);		
 		//animwin_enable_menu calls this immediately (guess best not to do twice?)
 		//viewwin_status_func();		
+		return;
+
+		//media controls
+	case id_animate_rew:		
+		w->views.timeline.special_handler(GLUT_KEY_LEFT,viewwin_media_controls=~GLUT_ACTIVE_SHIFT);
+		viewwin_media_controls = 0; return;
+	case id_animate_ffwd: 		
+		w->views.timeline.special_handler(GLUT_KEY_RIGHT,viewwin_media_controls=~GLUT_ACTIVE_SHIFT);
+		viewwin_media_controls = 0; return;
+	case id_animate_back: 
+		w->views.timeline.special_handler(GLUT_KEY_PAGE_UP,viewwin_media_controls=~0);
+		viewwin_media_controls = 0; return;
+	case id_animate_fwd: 
+		w->views.timeline.special_handler(GLUT_KEY_PAGE_DOWN,viewwin_media_controls=~0);
+		viewwin_media_controls = 0; return;
+	case id_animate_top: 
+		w->views.timeline.special_handler(GLUT_KEY_HOME,viewwin_media_controls=~0);
+		viewwin_media_controls = 0; return;
+	case id_animate_end: 
+		w->views.timeline.special_handler(GLUT_KEY_END,viewwin_media_controls=~0);
+		viewwin_media_controls = 0; return;
+	case id_animate_prev:
+		w->sidebar.anim_panel.animation.special_handler(GLUT_KEY_UP,0);
+		return;
+	case id_animate_next:		
+		w->sidebar.anim_panel.animation.special_handler(GLUT_KEY_DOWN,0);
 		return;
 	
 	/*Help menu*/
@@ -2657,7 +2745,7 @@ void viewwin_toolboxfunc(int id) //extern
 	case id_properties:
 		return viewpanel_special_func(GLUT_KEY_F3,0,0);
 	}
-	if(!tool)
+	auto *swap = tool; if(!tool)
 	{
 		tool = w->toolbox.getFirstTool();
 		for(;tool;tool=w->toolbox.getNextTool())
@@ -2668,6 +2756,24 @@ void viewwin_toolboxfunc(int id) //extern
 		}
 	}
 	if(!tool){ assert(0); return; } //???
+
+	//HACK: switch DO_VERTEX_COLORS mode?
+	if(tool->isColorTool()&&!w->_colormixer_win) //HACK
+	{
+		//colorwin.cc establishes brush colors
+		w->open_colormixer_window();
+	//	w->_colormixer_win->hide();
+	}
+	if(!swap||swap->isColorTool()!=tool->isColorTool())
+	{
+		if(tool->isColorTool())
+		{
+			glutSetCursor(GLUT_CURSOR_NONE);
+		}
+		else glutSetCursor(GLUT_CURSOR_LEFT_ARROW);
+
+		w->views.updateAllViews();
+	}
 			
 	//REMOVE ME
 	//w->toolbox.getCurrentTool()->deactivated();
@@ -2819,7 +2925,8 @@ static void viewwin_mrumenufunc(int id)
 
 extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 {
-	int cm = glutGetModifiers();
+	int cm = viewwin_media_controls;
+	if(!cm) cm = glutGetModifiers(); else cm = ~cm;
 	bool shift = false;
 
 	MainWin *w; switch(c->id())
@@ -2900,6 +3007,11 @@ extern int viewwin_tick(Win::si *c, int i, double &t, int e)
 	return i;
 }
 
+bool MainWin::modal_locked()
+{
+	auto *ui = Widgets95::e::find_ui_modal_window(glut_window_id);
+	return ui!=nullptr;
+}
 extern bool viewwin_confirm_close(int id, bool modal_undo)
 {
 	auto ui = Widgets95::e::find_ui_by_window_id(id);

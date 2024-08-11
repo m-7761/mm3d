@@ -33,14 +33,15 @@ static void stdtools_func(Toolbox *tb)
 
 	#define _(x) \
 	extern Tool *x##tool(); tb->addTool(x##tool());
-
+	
 	_(select) //C V B F G cluster (O P)
+	_(color) //1
 
 	tb->addSeparator();
 
 	_(scale)_(shear) //S Shift+S
-	_(rotate)_(move)_(dragvertex) //R T Shift+T
-
+	_(rotate)_(move) //R T Shift+T
+	_(dragvertex)
 	_(attract)
 
 	tb->addSeparator();
@@ -53,7 +54,7 @@ static void stdtools_func(Toolbox *tb)
 	_(extrude) //X? E? Extrude makes geometry, like poly.
 	_(rectangle)_(cube)_(ellipse)_(cylinder)_(torus) //Shapes
 	_(joint)_(point)_(proj)
- 
+			
 	tb->addSeparator();
 
 	_(background)

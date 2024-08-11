@@ -297,6 +297,8 @@ void Model::Triangle::init()
 	m_normalSource[1] = m_finalNormals[1];
 	m_normalSource[2] = m_finalNormals[2];
 	m_angleSource = m_vertAngles;
+
+	for(int i=3*4;i-->0;) m_colors[0][i] = 1.0f;
 }
 
 int Model::Triangle::flush()
@@ -725,6 +727,12 @@ void Model::Object2020::init(PositionTypeE t)
 	m_graph_div = 0;
 
 	m_type = t;
+
+	//match glColor4ubv on big endian systems?
+	m_color[0] = 0;
+	m_color[1] = 0;
+	m_color[2] = 0;
+	m_color[3] = 1;
 }
 
 Model::Joint::Joint()
@@ -861,6 +869,7 @@ Model::Point::~Point()
 void Model::Point::init()
 {
 	Object2020::init(PT_Point); //2022
+	m_color[1] = 0.5f;
 
 	//m_visible = true;
 	Visible2022::init();

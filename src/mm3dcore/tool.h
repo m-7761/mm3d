@@ -64,6 +64,7 @@ public:
 		TT_Other, //TT_Manipulator,
 		TT_Creator,
 		TT_SelectTool,
+		TT_ColorTool,
 
 		//HACK: These are for synchronizing tools 
 		//with the texture and animation systems.
@@ -100,6 +101,9 @@ public:
 	//This is just to use a projection matrix for with a
 	//perspective view port.
 	bool isSelectTool(){ return m_tooltype==TT_SelectTool; }
+
+	//This enables vertex colors or influence visualization.
+	bool isColorTool(){ return m_tooltype==TT_ColorTool; }
 
 	//UNUSED
 	// Does this tool create new primitives?
@@ -167,6 +171,8 @@ public:
 	
 	//2019: Replaces DecalManager.
 	virtual void draw(bool focused){}
+
+	virtual void sizeNib(int delta){} //2024
 
 	static int s_allocated;
 
@@ -257,7 +263,7 @@ public:
 		snap_select = snap_overlay = false;
 	}
 
-	Tool *const tool = nullptr; 
+	Tool *const tool = nullptr, *prev_tool; 
 	
 	int tool_index;
 
@@ -267,6 +273,7 @@ public:
 	}
 	bool setCurrentTool(Tool *p, int index, bool force)
 	{
+		prev_tool = tool; //2024
 		if(mouseIsPressed(force))
 		return false;
 		if(p&&p->parent) p->deactivated(tool_index);
@@ -451,10 +458,18 @@ public:
 	virtual void addInt(bool cfg, int *p, const char *name, int min=INT_MIN, int max=INT_MAX) = 0;
 	virtual void addDouble(bool cfg, double *p, const char *name, double min=-DBL_MAX, double max=DBL_MAX) = 0;
 	virtual void addEnum(bool cfg, int *p, const char *name, const char **enum_0_terminated) = 0;
+	virtual void addButton(int bt, Tool *p, void(*f)(Tool *t, int bt), const char *name) = 0;
 	virtual void groupParam(){}
 	virtual void updateParams() = 0;
 	virtual void removeParams() = 0;
 	virtual void hideParam(void *p, int disable=-1) = 0;
+
+	enum Command
+	{
+		cmd_open_color_window,
+		cmd_open_color_window_select_joint,
+	};
+	virtual void command(Command, int arg1=0, int arg2=0) = 0; //addButton
 	
 	//EXPERIMENTAL
 	//polytool.cc and selecttool.cc
@@ -492,6 +507,10 @@ public:
 		}
 		return false;
 	}
+
+	//2024: implements colortool.cc
+	virtual bool applyColor(double radius, double press, int vmode, int &iomode) = 0;
+	virtual void setBackgroundColor(float press) = 0;
 };
 inline void Tool::mouseButtonDown(int buttonState, int x, int y)
 {

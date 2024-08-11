@@ -23,6 +23,7 @@
 #include "mm3dtypes.h" //PCH
 
 #include "model.h"
+#include "modelundo.h"
 #include "toolbox.h"
 #include "tool.h"
 #include "glmath.h"
@@ -213,21 +214,29 @@ void ModelViewport::updateMatrix() //NEW
 
 static int modelviewport_opts(int drawMode)
 {		
-	int o = Model::DO_TEXTURE|Model::DO_SMOOTHING;
+	int o = Model::DO_SMOOTHING;
 	/*if(config->get("ui_render_bad_textures",false))
 	o|=Model::DO_BADTEX;
 	if(config->get("ui_render_backface_cull",false))
 	o|=Model::DO_BACKFACECULL;*/
-	switch(drawMode)
+	switch(drawMode&7)
 	{
 	case ModelViewport::ViewFlat: o = 0; break; //Model::DO_NONE;
 	case ModelViewport::ViewSmooth: o = Model::DO_SMOOTHING; break;
-	case ModelViewport::ViewAlpha: o|=Model::DO_ALPHA; break;
+	case ModelViewport::ViewTexture: o|=Model::DO_TEXTURE; break;
+	case ModelViewport::ViewAlpha: o|=Model::DO_ALPHA|Model::DO_TEXTURE; break;
+	}
+	if(drawMode>ModelViewport::ViewAlpha)
+	{
+		if(drawMode&ModelViewport::ViewInflColors)
+		o|=Model::DO_INFLUENCE;
+		if(drawMode&ModelViewport::ViewVColors)
+		o|=Model::DO_VERTEXCOLOR;
 	}
 	return o;
 }
 
-void ModelViewport::draw(int x, int y, int w, int h)
+void ModelViewport::draw(int x, int y, int w, int h, int vc)
 {	
 	if(1) //Parent::initializeGL(parent->getModel());
 	{
@@ -451,6 +460,10 @@ void ModelViewport::draw(int x, int y, int w, int h)
 			opt|=Model::DO_ALPHA_DEFER_BSP;
 			bspEye = m_viewInverse.getVector(3);
 		}
+		if(opt&Model::DO_INFLUENCE) 
+		{
+			opt|=vc<<12; //DO_INFLUENCE_VIEWPORT
+		}
 
 		if(poffset)
 		if(int off=(bspEye?1:0)+drawSelections)
@@ -635,7 +648,7 @@ void ModelViewport::draw(int x, int y, int w, int h)
 
 	glDisable(GL_DEPTH_TEST);
 	
-	model->drawPoints();
+	model->drawPoints(axis);
 	model->drawProjections();	
 
 	if(!m_rendering) //animexportwin?
@@ -657,8 +670,8 @@ void ModelViewport::draw(int x, int y, int w, int h)
 	//stages, one in model space, one in screen space.
 	//The SelectTool should draw in screen space, so
 	//it can not use _getParentZoom.
-	if(m_view>Tool::ViewPerspective
-	 ||model->getDrawSelection()) //TESTING
+//	if(m_view>Tool::ViewPerspective
+//	 ||model->getDrawSelection()) //TESTING	//need to see colortool.cc cursor
 	{
 		parent->drawTool(this);
 
@@ -1340,6 +1353,10 @@ bool ModelViewport::mousePressEvent(int bt, int bs, int x, int y)
 }
 void ModelViewport::mouseMoveEvent(int bs, int x, int y)
 {
+	//2024: Update these for drawTool.
+	parent->getButtonX() = x-m_viewportX;
+	parent->getButtonY() = y-m_viewportY;
+
 	int w = m_viewportWidth;
 	int h = m_viewportHeight;
 
@@ -1841,7 +1858,7 @@ bool ModelViewport::getParentCoords(int bs, int bx, int by, double o[4], bool se
 		//I'm rewriting this to consider depth the most important
 		//criteria. I'm not sure how to formulate a mixed metric?
 		//double curDist = maxDist;
-		double minDist = maxDist*maxDist;
+		double maxSquared = maxDist*maxDist;
 		double curDepth = -DBL_MAX;
 		int i,curIndex = -1;
 		Model::PositionTypeE curType = Model::PT_MAX;
@@ -1873,7 +1890,7 @@ bool ModelViewport::getParentCoords(int bs, int bx, int by, double o[4], bool se
 			//NOTE: If all points fall on a plane, just take first
 			//in vertex order
 			//if(dist<curDist)
-			if(dist<minDist&&coord[2]>curDepth) 
+			if(dist<maxSquared&&coord[2]>curDepth) 
 			{
 				//curDist = dist;
 				curDepth = coord[2];
@@ -1994,6 +2011,251 @@ bool ModelViewport::getParentCoords(int bs, int bx, int by, double o[4], bool se
 
 	return ret; //zval was set.
 }
+bool ModelViewport::applyColor(int v, int bs, int bx, int by, double radius, double press, int vmode, int &iomode)
+{
+	if(v<0||v>5){ assert(0); return false; }
+
+	double radius2 = 1.0/32*parent->_getParentZoom();
+	radius2 = radius2*radius2;
+
+	Model *model = parent->getModel();
+
+	auto &vc = model->getViewportColors()[v];
+
+	int ret = 0, joint = -1;
+
+	double o[2];
+	getRawParentXYValue(bx,by,o[0],o[1]);
+
+	//double maxDist = radius/m_viewportWidth*m_width;
+	//double maxDist = radius;
+
+	bool l = (bs&Tool::BS_Left)!=0;
+	bool r = (bs&Tool::BS_Right)!=0;
+	bool shift = (bs&Tool::BS_Shift)!=0;
+	
+	int lv = model->getPrimaryLayers();
+
+	//I'm rewriting this to consider depth the most important
+	//criteria. I'm not sure how to formulate a mixed metric?
+	//double curDist = maxDist;
+	double maxSquared = radius*radius;
+	
+	//HACK: I'm trying to add a click model to selecttool.cc
+	//(I got the idea from polytool.cc)
+	//const Matrix &mat = m_viewMatrix;
+	//2021: Did I miss this? Snap breaks down in perspective view???
+	const Matrix &mat = 1?m_projMatrix:parent->getParentBestMatrix();
+	Vector coord;
+
+	bool ue = model->getUndoEnabled();
+	Model::Undo<MU_SwapStableMem> undo;
+
+	double dist;
+
+	auto press2 = [&]()->double
+	{
+		double p = sqrt(dist);
+		p = (0.1+(1-p/radius)*0.9)*press;
+		return p; //breakpoint
+	};
+	auto lerp = [&](float *cc, unsigned c)
+	{
+		if(ue&&!undo)
+		{
+			undo = Model::Undo<MU_SwapStableMem>(model);	
+			undo->addChange(Model::RedrawAll);
+		}
+
+		float newColor[4] = 
+		{c&0xff,c>>8&0xff,c>>16&0xff,c>>24&0xff};
+		for(int i=4;i-->0;)
+		newColor[i]*=1/255.0f;
+		for(int i=4;i-->0;) //lerp?
+		newColor[i] = (newColor[i]-cc[i])*press2()+cc[i];
+
+		if(undo) undo->addMemory(cc,cc,newColor,sizeof(newColor));
+		memcpy(cc,newColor,sizeof(newColor));
+	};
+
+	auto miss = [&]()->bool
+	{
+		coord[3] = 1; mat.apply4(coord);
+		//TESTING
+		//This lets a projection matrix be used to do the selection.
+		//I guess it should be a permanent feature
+		double w = coord[3]; if(1!=w) 
+		{
+			//HACK: Reject if behind Z plane
+			if(w<=0) return true;
+
+			coord.scale(1/w);
+		}
+
+		//dist = distance(coord[0],coord[1],xval,yval);
+		dist = pow(coord[0]-o[0],2)+pow(coord[1]-o[1],2);
+
+		if(dist>=maxSquared) return true;
+
+		ret++; return false;
+	};			
+	int i;
+	if(iomode&1||vmode==3) //mask&1<<Model::PT_Joint
+	{
+		i = -1; for(auto*ea:model->getJointList())
+		{
+			i++; //if(selected||!ea->m_selected)
+			{
+				if(!ea->visible(lv)) continue;
+				
+				coord.setAll(ea->m_absSource);
+
+				if(miss()) continue;
+
+				if(dist<radius2) //vmode==3
+				{
+					if(joint==-1) joint =  i;
+					else joint = -2;
+				}
+
+				if(iomode&1) if(l||r)
+				{
+					DWORD c = vc.colors[l?0:r?1:0];
+
+					if(shift) c = 0xff000000;
+
+					lerp(ea->m_color,c);
+				}
+			}
+		}
+	}
+	if(iomode&2) //mask&1<<Model::PT_Point
+	{
+		i = -1; for(auto*ea:model->getPointList())
+		{
+			i++; //if(selected||!ea->m_selected)
+			{
+				if(!ea->visible(lv)) continue;
+				
+				coord.setAll(ea->m_absSource);
+
+				if(miss()) continue;
+
+				if(l||r)
+				{
+					DWORD c = vc.colors[l?0:r?1:0];
+
+					if(shift) c = 0xff008000;
+
+					lerp(ea->m_color,c);
+				}
+			}
+		}
+	}			
+
+	if(vmode==3) 
+	iomode = -1;		
+	if(vmode==3&&joint!=-1)
+	{
+		if(joint==-2)
+		model_status(model,StatusError,STATUSTIME_LONG,
+		TRANSLATE("Tool","Tried to assign more than 1 joint"));
+		else model_status(model,StatusNotice,STATUSTIME_SHORT,
+		TRANSLATE("Tool","Trying to assign joint to button..."));
+
+		iomode = joint==-2?-1:joint; 
+	}
+	else if(vmode) //mask&1<<Model::PT_Vertex
+	{
+		auto input = l?0:r?1:0; //good enough?
+		DWORD color = vc.colors[input];
+		DWORD joint = vc.joints[input];
+
+		double cmp[3];
+		memcpy(cmp,parent->getParentViewInverseMatrix().getVector(2),sizeof(cmp));
+
+		i = -1; for(auto*ea:model->getVertexList())
+		{
+			i++; //if(selected||!ea->m_selected)
+			{
+				if(!ea->visible(lv)) continue;
+				
+				coord.setAll(ea->m_absSource);
+
+				if(miss()) continue;
+
+				if(vmode==1||vmode==2) //polygon?
+				{
+					DWORD c = color;
+
+					if(shift) c = 0xffffffff;
+
+					for(auto&f:ea->m_faces)
+					{
+						Model::Triangle *t = f.first;
+
+						if(vmode==2) //back-side test?
+						{							
+							if(!t->visible(lv)) continue;
+							
+							double dp = 0; 
+							for(int i=0;i<3;i++) 
+							dp+=cmp[i]*t->m_flatSource[i];
+							if(dp<0.0) continue;
+						}
+
+						lerp(t->m_colors[f.second],c);
+					}
+				}
+				else if(vmode==3&&~0u!=joint) //influence?
+				{
+					Model::Position p;
+					p.type = Model::PT_Vertex;
+					p.index = i;
+
+					int found = -1;					
+					auto &il = ea->m_influences;
+					for(auto&ea:il)
+					if(ea.m_boneId==joint)
+					{
+						found = &ea-il.data();
+						if(ea.m_type!=Model::IT_Auto)
+						model->setPositionInfluenceType(p,joint,Model::IT_Auto);
+						break;
+					}
+					if(found==-1) //insert it?					
+					if(!model->setPositionInfluence(p,joint,Model::IT_Auto,0.0))
+					{
+						assert(0); break;
+					}
+					double sum = 0;
+					for(auto&ea:il)
+					{
+						if(ea.m_boneId==joint)						
+						model->setPositionInfluenceWeight(p,joint,ea.m_weight+press2());						
+						if(ea.m_type!=Model::IT_Remainder)
+						sum+=ea.m_weight;
+					}
+					bool rem = false;
+					if(sum>1)
+					{
+						double x = 1-(sum-1)/sum;
+						sum = 0;
+						for(auto&ea:il)
+						if(ea.m_type!=Model::IT_Remainder)						
+						{
+							model->setPositionInfluenceWeight(p,ea.m_boneId,ea.m_weight*x);
+							sum+=ea.m_weight;
+						}
+						assert(fabs(sum-1)<0.00001);
+					}
+				}
+			}
+		}
+	}
+	
+	return ret!=0;
+}
 
 void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double x2, double y2, double z2)
 {
@@ -2070,10 +2332,10 @@ void ModelViewport::frameArea(bool lock, double x1, double y1, double z1, double
 ModelViewport::Parent::Parent()
 	:
 	background_grid(),
-	ports{this,this,this,this,this,this}, //C++11
+	ports{this,this,this,this,this,this,this}, //C++11
 	views1x2(),viewsM(),viewsN(),
 	m_scrollTextures(),
-	m_focus(),m_click()
+	m_entry(),m_focus(),m_click(),colors()
 {	
 	ports[0].initOverlay(m_scrollTextures);
 

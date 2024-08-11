@@ -438,7 +438,7 @@ void TextureCoordWin::_init_menu_toolbar()
 		conf_menu = glutCreateMenu(_menubarfunc);
 		//NOTE: viewwini.cc uses "Restore to Normal" but it
 		//doesn't use Home (Home comes from Misfit Model 3D.)
-		glutAddMenuEntry(E(uv_view_init,"Reset","","Home"));
+		glutAddMenuEntry(E(uv_view_init,"Reset","","Ctrl+Home"));
 	}
 
 	_viewmenu = glutCreateMenu(_menubarfunc);

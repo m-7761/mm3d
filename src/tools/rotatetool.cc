@@ -22,19 +22,19 @@
 
 #include "mm3dtypes.h" //PCH
 
-#include "tool.h"
-
-#include "model.h"
 #include "pixmap/rotatetool.xpm"
+#include "menuconf.h" //TOOLS_CREATE_MENU
+
+#include "tool.h"
+#include "model.h"
 #include "glmath.h"
 
 #include "rotatepoint.h"
-#include "log.h"
 #include "modelstatus.h"
 
 struct RotateTool : Tool
 {
-	RotateTool():Tool(TT_RotateTool)
+	RotateTool():Tool(TT_RotateTool,1,TOOLS_TRANSFORM_MENU)
 	{
 		m_mode = 0; 
 

@@ -29,7 +29,6 @@
 #include "model.h"
 #include "weld.h"
 #include "modelstatus.h"
-#include "log.h"
 
 struct CubeTool : Tool
 {

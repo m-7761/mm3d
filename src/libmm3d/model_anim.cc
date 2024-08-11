@@ -419,7 +419,7 @@ bool Model::setAnimFrameTime(unsigned anim, unsigned frame, double time)
 	if(time==tt[frame]) return true;
 
 	//if(ab->m_frame2020!=-1)
-	if(frame>=ab->m_frame2020){ assert(0); return false; }  //2022
+	if(frame>ab->m_frame2020){ assert(0); return false; }  //2022
 
 	if(frame>0) //2022
 	{
@@ -2177,8 +2177,6 @@ void Model::calculateAnimSkel()
 			transform.scale(scale);
 			if(ch&KeyTranslate)
 			transform.setTranslation(trans);
-
-			//FIX ME: What if a parent is later in the joint list?
 
 			auto jt = ea.second;
 			int jp = jt->m_parent;			

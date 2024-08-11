@@ -479,6 +479,47 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 		drawOptions&~DO_ALPHA,-1,drawContext,m_drawingLayers 
 	};
 
+	auto vl = getVertexList();
+	bool infl = (drawOptions&DO_INFLUENCE)!=0;
+	auto &infl_vp = m_viewportColors[(drawOptions&DO_INFLUENCE_VIEWPORT)>>12];
+	float infl_wt[4] = {1,1,1,1}, infl_wh[4] = {1,1,1,1};
+	auto wt = [&](int v)->float*
+	{
+		float sum = 0;
+		auto &il = vl[v]->m_influences;
+		for(auto&ea:il)		
+		for(int i=4;i-->0;)
+		if(ea.m_boneId==infl_vp.joints[i])
+		{
+			unsigned c = infl_vp.colors[i];
+			float w = (float)ea.m_weight;
+
+			if(sum==0)			
+			infl_wt[0] = infl_wt[1] = infl_wt[2] = 0;
+			sum+=w;
+			infl_wt[0]+=(c&0xff)/255.0f*w;
+			infl_wt[1]+=(c>>8&0xff)/255.0f*w;
+			infl_wt[2]+=(c>>16&0xff)/255.0f*w;
+		}
+		if(sum==0) return infl_wh;
+		else if(sum>1)
+		{
+			float x = 1-(sum-1)/sum;
+			for(int i=3;i-->0;)
+			infl_wt[i]*=x;
+		}
+		else for(int i=3;i-->0;)
+		{ 
+			infl_wt[i]+=(1-sum);
+		}		
+		return infl_wt;
+	};
+
+	if(drawOptions&(DO_VERTEXCOLOR|DO_INFLUENCE)) //2024
+	{
+		glEnable(GL_COLOR_MATERIAL);
+	}
+
 	//https://github.com/zturtleman/mm3d/issues/98
 	//bool colorSelected = false;
 	int colorSelected;	
@@ -546,11 +587,16 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 
 			for(int v=0;v<3;v++)
 			{
+				if(drawOptions&(DO_VERTEXCOLOR|DO_INFLUENCE))
+				{
+					float *f = infl?wt(tp->m_vertexIndices[v]):tp->m_colors[v];
+					glColor4fv(f);
+				}
 				glTexCoord2f(tp->m_s[v],tp->m_t[v]);
 				if(drawOptions&DO_SMOOTHING)
 				glNormal3dv(tp->m_normalSource[v]);
 				else glNormal3dv(tp->m_flatSource);
-				glVertex3dv(m_vertices[tp->m_vertexIndices[v]]->m_absSource);
+				glVertex3dv(vl[tp->m_vertexIndices[v]]->m_absSource);
 			}
 		}
 		glEnd();
@@ -608,11 +654,16 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 
 			for(int v=0;v<3;v++)
 			{
+				if(drawOptions&(DO_VERTEXCOLOR|DO_INFLUENCE))
+				{
+					float *f = infl?wt(tp->m_vertexIndices[v]):tp->m_colors[v];
+					glColor4fv(f);
+				}
 				glTexCoord2f(tp->m_s[v],tp->m_t[v]);
 				if(drawOptions&DO_SMOOTHING)
 				glNormal3dv(tp->m_normalSource[v]);
 				else glNormal3dv(tp->m_flatSource);
-				glVertex3dv(m_vertices[tp->m_vertexIndices[v]]->m_absSource);
+				glVertex3dv(vl[tp->m_vertexIndices[v]]->m_absSource);
 			}
 		}
 		glEnd();
@@ -634,6 +685,11 @@ void Model::draw(unsigned drawOptions, ContextT context, double viewPoint[3])
 
 			glDisable(GL_TEXTURE_2D);
 		}
+	}
+
+	if(drawOptions&(DO_VERTEXCOLOR|DO_INFLUENCE)) //2024
+	{
+		glDisable(GL_COLOR_MATERIAL);
 	}
 
 	if(0!=(drawOptions&DO_WIREFRAME))
@@ -968,6 +1024,7 @@ void Model::drawJoints(float a, float axis)
 	//https://github.com/zturtleman/mm3d/issues/118
 	float l = (float)(alpha?0:1);
 
+	//TODO: falsify in coloring mode
 	bool skel = inJointAnimMode();
 	bool skel2 = false;
 
@@ -1005,10 +1062,13 @@ void Model::drawJoints(float a, float axis)
 		}
 		if(sel+marks!=(int)m_joints.size())
 		{
-			glColor3f(0,0,l);
+			if(skel) glColor3f(0,0,l); //legacy
+						
 			for(auto*ea:m_joints)
 			if(!ea->m_marked&&ea->visible(lv))
 			{
+				if(!skel)
+				glColor4fv(ea->m_color);
 				glVertex3dv(ea->m_absSource);
 			}	
 		}
@@ -1177,7 +1237,7 @@ void Model::drawJoints(float a, float axis)
 	glDepthFunc(GL_LEQUAL);	
 }
 
-void Model::drawPoints()
+void Model::drawPoints(float axis)
 {
 	validateAnim();
 
@@ -1189,29 +1249,62 @@ void Model::drawPoints()
 	scale*=m_viewportUnits.inc3d;
 	if(!scale) scale = 2;
 	
-	glPointSize(3);
-	for(unsigned p = 0; p<m_points.size(); p++)
+	for(auto*ea:m_points) if(ea->visible(lv))
 	{
-		if(m_points[p]->visible(lv))
+		model_draw_drawPointOrientation(ea->m_selected,scale,ea->getMatrix());
+
+		float ptsz = 5;
+	
+		if(ea->m_selected)
 		{
-			Point *pt = m_points[p];
+			glColor3f(0.7f,1,0);
+		}
+		else
+		{
+			//glColor3f(0,0.5f,0);
+			glColor4fv(ea->m_color);
 
-			model_draw_drawPointOrientation(pt->m_selected,scale,pt->getMatrix());
-
-			if(pt->m_selected)
+			//Use old size if default colored? 
+			if(!ea->m_color[0]&&ea->m_color[1]==0.5f&&!ea->m_color[2])
 			{
-				glColor3f(0.7f,1,0);
+				ptsz = 3;
 			}
-			else
-			{
-				glColor3f(0,0.5f,0);
-			}
+		}
 
-			glBegin(GL_POINTS);
-			glVertex3dv(pt->m_absSource);
+		glPointSize(ptsz);
+
+		glBegin(GL_POINTS);
+		glVertex3dv(ea->m_absSource);
+		glEnd();
+	}	
+
+	if(axis) for(auto*ea:m_points)
+	{
+		if(!ea->m_selected) continue;
+
+		Matrix m = ea->getMatrix();
+
+		double *pos = m.getVector(3); //m.scale(axis)
+		{
+			for(int i=0;i<3;i++) 
+			for(int j=0;j<3;j++) 
+			{
+				(m.getVector(i)[j]*=axis)+=pos[j];
+			}
+		}
+
+		//drawOrigin();
+		{
+			glBegin(GL_LINES);
+			glColor3f(1,0,0);
+			glVertex3dv(pos); glVertex3dv(m.getVector(0));
+			glColor3f(0,1,0);
+			glVertex3dv(pos); glVertex3dv(m.getVector(1));
+			glColor3f(0,0,1);
+			glVertex3dv(pos); glVertex3dv(m.getVector(2));
 			glEnd();
 		}
-	}	
+	}
 }
 
 void Model::drawProjections()

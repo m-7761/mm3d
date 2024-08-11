@@ -77,7 +77,7 @@ static void ui_drop2(char **f, int n, bool FindWindow)
 			//2022: Saving and moving onto a new file is standard
 			//workflow. The file can be reopened as a last resort.
 			//MainWin::open(m,!i&&w&&!w->model->getEdited()?w:nullptr);
-			MainWin::open(m,!FindWindow&&!i&&w&&w->model->getSaved()?w:nullptr);
+			MainWin::open(m,!FindWindow&&!i&&w&&w->model->getSaved()&&!w->modal_locked()?w:nullptr);
 
 			//add path to most-recently-used menu?
 			extern void viewwin_mru_drop(char*);

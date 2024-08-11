@@ -673,6 +673,11 @@ void GraphicWidget::selectDone(int snap_select)
 				{
 					if(!jt->key) continue; //terminator
 
+					//QUICK FIX
+					//graphed prevents seeing selection 
+					//when the key is created!
+					jt->key->m_selected.graphed = true;
+
 					bool &s = (&jt->key->m_selected.x)[i%3];
 
 					if(jt->s>x1&&jt->s<x2
@@ -1909,7 +1914,7 @@ void GraphicWidget::draw(int x, int y, int w, int h)
 	unsigned char divs = 1;
 
 	auto &jl = m->getJointList();
-	auto &pl = m->getJointList();
+	auto &pl = m->getPointList();
 	if(m_autoSize==0)
 	{
 		//NOTE: This can't change when dragging

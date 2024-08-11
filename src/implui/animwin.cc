@@ -77,7 +77,7 @@ struct AnimWin::Impl
 	//sep_animation(sidebar.sep_animation),
 	model(win.model),
 	mode(),soft_mode(-1),anim(),soft_anim(~0),frame(),
-	playing(),autoplay()
+	playing(),autoplay(),autoplay_x()
 	{
 		//See AnimPanel::refresh_list.
 		//It's easier to let the animation window manage this since
@@ -117,7 +117,7 @@ struct AnimWin::Impl
 	unsigned soft_anim;
 	unsigned frame;	
 	double soft_frame;
-	bool playing,autoplay;
+	bool playing,autoplay,autoplay_x;
 	int step_t0;
 	int step_ms;
 	
@@ -365,7 +365,7 @@ void AnimWin::Impl::_init_menu_toolbar()
 	static int view_menu=0; if(!view_menu)
 	{
 		view_menu = glutCreateMenu(_menubarfunc);
-		glutAddMenuEntry(E(aw_view_init,"Reset","","Home"));
+		glutAddMenuEntry(E(aw_view_init,"Reset","","Ctrl+Home"));
 		glutAddMenuEntry();
 		bool x = config->get("aw_view_snap",true);
 		animwin_auto_scroll = x;
@@ -873,7 +873,7 @@ bool AnimWin::Impl::copy()
 
 		if(sel) sel2 = true;
 
-		auto &pl = model->getJointList();
+		auto &pl = model->getPointList();
 		copy3.reserve(sel?sel:pl.size());
 
 		Model::Position pt{Model::PT_Point,pl.size()};
@@ -1022,6 +1022,8 @@ static void animwin_step(int id) //TEMPORARY
 }
 void AnimWin::Impl::play(int id)
 {
+	if(!id&&autoplay_x) return;
+
 	bool stopping = id==id_animate_stop;
 
 	if(playing&&id) stopping = true;
@@ -1376,7 +1378,7 @@ void AnimWin::_sync_anim_menu()
 			if(i+seps>=iN) glutAddMenuEntry();
 			else glutChangeToMenuEntry(i+1,"",-1);
 		}
-		if(i<=10)
+		if(i<10)
 		{
 			s = str; s.append("\t0").back()+=i; str = s.c_str();
 		}
@@ -1711,6 +1713,13 @@ void AnimWin::submit(int id)
 		model.perform_menu_action(id);
 		break;
 
+	case id_animate_auto:
+	{
+		bool x = impl->autoplay_x = !impl->autoplay_x;
+		glutext::glutMenuEnable(id_animate_auto,x?glutext::GLUT_MENU_UNCHECK:glutext::GLUT_MENU_CHECK);
+		model_status(model,StatusNormal,STATUSTIME_SHORT,"Automatic animation playback is %s",x?"OFF":"ON");
+		break;
+	}
 	case id_anim_frames:
 
 		impl->frames_edited(frames);

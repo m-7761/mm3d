@@ -44,9 +44,8 @@ public:
 	SelectTool()
 	:Tool(TT_SelectTool,7,TOOLS_SELECT_MENU)	
 	{
-		//m_boundingBox.tool = this;
-
-		m_includeBackfacing = true; //config defaults
+		m_Frontfacing = true;
+		m_Backfacing = true; //config defaults
 	}
 
 	enum
@@ -116,8 +115,8 @@ public:
 		{
 		case Faces: case Groups: case Meshes:
 
-			parent->addBool(true,&m_includeBackfacing,
-			TRANSLATE_NOOP("Param","Include Back-facing"));
+			parent->addBool(true,&m_Frontfacing,TRANSLATE_NOOP("Param","Front-faces"));
+			parent->addBool(true,&m_Backfacing,TRANSLATE_NOOP("Param","Back-faces"));
 			break;
 		}
 
@@ -143,7 +142,8 @@ public:
 	
 		int m_op;
 
-		bool m_includeBackfacing;
+		bool m_Frontfacing;
+		bool m_Backfacing;
    
 		bool m_unselect;		
 
@@ -258,37 +258,47 @@ void SelectTool::mouseButtonUp()
 	struct BackFaceTest : Model::SelectionTest
 	{	
 		double cmp[3];
-		const Model::Vertex *const *vl;
+		bool front,back;
+		//const Model::Vertex *const *vl;
 		virtual bool shouldSelect(void *element)
 		{			
 			auto tri = (Model::Triangle*)element;			
-			double dp = 0; if(vl) //Perspective accurate?
+			double dp = 0; if(/*vl&&*/0) //Perspective accurate???
 			{
-				double *v = vl[tri->m_vertexIndices[0]]->m_absSource;
-				for(int i=0;i<3;i++) dp+=(cmp[i]-v[i])*tri->m_flatSource[i];
+		//		double *v = vl[tri->m_vertexIndices[0]]->m_absSource;
+		//		for(int i=3;i-->0;) dp+=(cmp[i]-v[i])*tri->m_flatSource[i];
 			}
-			else for(int i=0;i<3;i++) dp+=cmp[i]*tri->m_flatSource[i];			
-			return dp>0;
+			else //getVector(2)
+			{
+				for(int i=3;i-->0;) dp+=cmp[i]*tri->m_flatSource[i];
+			}
+			return dp>0?front:back;
+			
 		}
 
 	}ntest;
+
+	bool both = m_Frontfacing==m_Backfacing;
 	Model::SelectionTest *test = nullptr;	
-	if(!m_includeBackfacing) switch(m_op)
+	if(!both) switch(m_op)
 	{
 	case Faces: case Groups: case Meshes:
 
 		test = &ntest;
+		ntest.front = m_Frontfacing;
+		ntest.back = m_Backfacing;
 		if(parent->getView()<=ViewPerspective) //2020: new way
 		{
 		//	const double *eye = parent->getParentProjInverseMatrix().getVector(3);
-			const double *eye = parent->getParentViewInverseMatrix().getVector(3);
+		//	const double *eye = parent->getParentViewInverseMatrix().getVector(3);
+			const double *eye = parent->getParentViewInverseMatrix().getVector(2);
 			memcpy(ntest.cmp,eye,sizeof(ntest.cmp));
 
-			ntest.vl = model->getVertexList().data();			
+		//	ntest.vl = model->getVertexList().data();			
 		}
 		else //old way (fewer operations in orthographic modes)
 		{
-			ntest.vl = nullptr; //HACK: Use orthographic mode.
+		//	ntest.vl = nullptr; //HACK: Use orthographic mode.
 			ntest.cmp[0] = 0;
 			ntest.cmp[1] = 0;
 			ntest.cmp[2] = 1;

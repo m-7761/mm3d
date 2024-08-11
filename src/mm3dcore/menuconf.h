@@ -36,9 +36,9 @@
 */
 
 #define TOOLS_SELECT_MENU		TRANSLATE_NOOP("Tool","Select")//;
+#define TOOLS_TRANSFORM_MENU	TRANSLATE_NOOP("Tool","Transform")//;
 #define TOOLS_ATTRACT_MENU	  TRANSLATE_NOOP("Tool","Attract")//;
 #define TOOLS_BACKGROUND_MENU  TRANSLATE_NOOP("Tool","Background Image")//;
-//#define TOOLS_CREATE_MENU		TRANSLATE_NOOP("Tool","Create Other")//;
 #define TOOLS_CREATE_MENU		TRANSLATE_NOOP("Tool","Create Shape")//;
 
 #define GEOM_VERTICES_MENU  TRANSLATE_NOOP("Command","Vertices")//;

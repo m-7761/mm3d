@@ -31,6 +31,7 @@
 
 #include "win.h"
 #include "viewwin.h"
+#include "colorwin.h"
 #include "model.h"
 #include "log.h"
 #include "msg.h"
@@ -132,6 +133,11 @@ void ViewPanel::addEnum(bool cfg, int *val, utf8 name, const char **items)
 
 	params.new_dropdown(val,name,items)->user = cfg?(void*)name:nullptr;
 }
+void ViewPanel::addButton(int bt, Tool *val, void(*f)(Tool*,int), utf8 name)
+{
+	params.new_button(bt,val,f,name)->user = nullptr;
+}
+
 void ViewPanel::groupParam()
 {
 	if(auto*c=params.nav.last_child())
@@ -149,6 +155,19 @@ void ViewPanel::hideParam(void *cmp, int how)
 	{
 		return ch->live_ptr()==cmp;
 	})) c->enable(how==0).set_hidden(how==1);
+}
+
+void ViewPanel::command(Command cmd, int arg1, int arg2)
+{
+	if(cmd==cmd_open_color_window)	
+	{
+		model.perform_menu_action(id_tool_colormixer);
+	}
+	else if(cmd==cmd_open_color_window_select_joint)
+	{
+		model.sync_colormixer_joint(arg1,arg2);
+	}
+	else assert(0);
 }
 
 extern MainWin* &viewwin(int=glutGetWindow());
@@ -271,6 +290,17 @@ static void viewpanel_keyboard_func(unsigned char kb, int x, int y)
 	//_ctrl removes glutKeyboardFunc C^ codes so 13 becomes 's'.
 	viewpanel_special_func(-Win::ui::_ctrl(kb),x,y);
 }
+static void viewpanel_entry_func(int e)
+{
+	ViewPanel &vp = viewwin()->views;
+	vp.m_entry = e;
+	vp.m_focus = vp.portsN_1-1; //dummy?
+
+	if(vp.tool->isColorTool())
+	{
+		vp.updateAllViews(); //TODO? can see if same kind or not
+	}
+}
 static void viewpanel_mouse_func(int bt, int st, int x, int y)
 {
 	int cm = glutGetModifiers();
@@ -300,6 +330,22 @@ static void viewpanel_mouse_func(int bt, int st, int x, int y)
 	vp.getXY(xx=x,yy=y);
 	for(int i=vp.viewsN;i-->0;) if(vp.ports[i].over(xx,yy))
 	{
+		if(i!=vp.m_focus) if(vp.tool->isColorTool())
+		{
+			vp.updateAllViews(); //TODO? can see if same kind or not
+
+			glutSetCursor(GLUT_CURSOR_NONE);
+		}
+		else glutSetCursor(GLUT_CURSOR_LEFT_ARROW);
+
+		if(vp.tool->isColorTool())
+		{
+			//YUCK: update for ColorTool cursor
+			vp._bx = xx-vp.ports[i].m_viewportX;
+			vp._by = yy-vp.ports[i].m_viewportY;
+		}
+
+		vp.m_entry = 1; //2024
 		vp.m_focus = i; 
 		vp.m_click = i; //2022
 		if(st==GLUT_DOWN) vp.ports[i].mousePressEventUI(bt,cm,x,y);
@@ -319,9 +365,34 @@ static void viewpanel_motion_func(int x, int y)
 		//NOTE: MM3D had updated the status bar with the mouse's
 		//coordinates, but that seems excessive.
 
-		vp.getXY(x,y);
+		int xx,yy; 
+		vp.getXY(xx=x,yy=y);
 		for(int i=vp.viewsN;i-->0;) 
-		if(vp.ports[i].over(x,y)) vp.m_focus = i; 
+		if(vp.ports[i].over(xx,yy))
+		{
+			if(i!=vp.m_focus) if(vp.tool->isColorTool())
+			{
+				vp.updateAllViews(); //TODO? can see if same kind or not
+
+				glutSetCursor(GLUT_CURSOR_NONE);
+			}
+			else glutSetCursor(GLUT_CURSOR_LEFT_ARROW);
+
+			vp.m_entry = 1; //2024
+			vp.m_focus = i; 
+
+			if(vp.tool->isColorTool())
+			{
+				//YUCK: update for ColorTool cursor
+				vp._bx = xx-vp.ports[i].m_viewportX;
+				vp._by = yy-vp.ports[i].m_viewportY;
+
+				vp.m_click = i; vp.updateView();
+			}
+		}
+
+		//2024: Update x/y for drawTool?
+		vp.ports[vp.m_focus].mouseMoveEventUI(cm,x,y);
 	}
 	else
 	{
@@ -336,13 +407,24 @@ static void viewpanel_motion_func(int x, int y)
 			return;
 		}
 		
-		vp.ports[vp.m_focus].mouseMoveEventUI(cm,x,y);	
+		vp.ports[vp.m_click].mouseMoveEventUI(cm,x,y);	
 	}
 }
 static void viewpanel_wheel_func(int wheel, int delta, int x, int y)
 {
+	if(wheel!=0) return;
+
 	int cm = glutGetModifiers();
+
 	ViewPanel &vp = viewwin()->views;
+
+	//NOTE: Ctrl+Alt doesn't break mouse capture
+	if(cm&GLUT_ACTIVE_ALT&&vp.tool->isColorTool())
+	if(cm&GLUT_ACTIVE_CTRL) 
+	{
+		vp.updateView(); return vp.tool->sizeNib(delta);
+	}
+
 	for(int i=vp.viewsN;i-->0;) if(vp.ports[i].wheelEventUI(delta,cm,x,y))
 	{
 		vp.m_focus = i; return;
@@ -429,11 +511,43 @@ void ViewPanel::draw()
 		}	
 	}
 
-	for(int i=0;i<m;i++,x+=w)
+	auto *cm = model._colormixer_win;
+	int mode1 = model->getCanvasDrawMode();
+	int mode2 = model->getPerspectiveDrawMode();
+	for(int i=0;i<m;i++,x+=w)		
+	for(int pass=1;pass<=2;pass++)
 	{
-		if(m!=n)
-		ports[viewsM-1-i].draw(x,/*h*/y,w,h);
-		ports[viewsN-1-i].draw(x,/*0*/l,w,h);
+		if(pass==1&&m==n) continue;
+
+		int j = (pass==2?viewsN:viewsM)-1-i;
+		
+		int mod = 0, k = colors[j]; if(cm)
+		{
+			bool view = (&cm->v1)[k].tool;
+			bool pair = (&cm->v1)[k].pair&&(&cm->v1)[k].pair.enabled();
+			if(pair)
+			{
+				assert(!view);
+				k = colors[(&cm->v1)[k].pair.name()[0]-'1'];
+			}
+			if(view||pair) goto permaview;
+
+			if(tool->isColorTool()
+			 ||tool->isNullTool()&&prev_tool->isColorTool())
+			{			
+				if(j==m_click||j==m_focus) permaview:
+				{
+					int vc = model->getViewportColorsMode(); 
+					if(vc<3) mod = ModelViewport::ViewVColors;
+					if(vc==3) mod = ModelViewport::ViewInflColors;
+					model->setCanvasDrawMode(mode1|mod);
+					model->setPerspectiveDrawMode(mode2|mod);
+				}
+			}
+		}
+		ports[j].draw(x,pass==1?y:l,w,h,k);
+		model->setCanvasDrawMode(mode1);
+		model->setPerspectiveDrawMode(mode2);
 	}
 
 	if(playing1)
@@ -448,7 +562,19 @@ void ViewPanel::draw()
 	Widgets95::window::set_ortho_projection(ww,hh);	
 	glScissor(0,0,ww,hh);
 	glViewport(0,0,ww,hh);
-	glColor3ub(100,150,150);
+	//130,200,200 //~1.3f
+	//glColor3ub(100,150,150); 
+	{
+		float r = backColor[0];
+		float g = backColor[1];
+		float b = backColor[2];
+		float f = 
+		r>0.3||b>0.3||g>0.3?1/1.3f:1.5f;
+		r*=f;
+		g*=f;
+		b*=f;
+		glColor3f(r,g,b);
+	}
 	for(int i=0;i<n;i++)
 	{
 		ports[i].getGeometry(x,y,w,h);
@@ -495,6 +621,7 @@ status(bar2)
 	Widgets95::glut::set_glutMouseFunc(viewpanel_mouse_func);
 	Widgets95::glut::set_glutMotionFunc(viewpanel_motion_func);
 	Widgets95::glut::set_glutPassiveMotionFunc(viewpanel_motion_func);
+	Widgets95::glut::set_glutEntryFunc(viewpanel_entry_func);
 	//EXPERIMENTAL
 	glutext::glutMouseWheelFunc(viewpanel_wheel_func);
 
@@ -548,6 +675,8 @@ void ViewPanel::_makeViews(int n)
 	views[i] = new ViewBar::ModelView(bar1,ports[i],ref);
 	for(int i=viewsN;i-->viewsM;)
 	views[i] = new ViewBar::ModelView(bar2,ports[i],ref);
+	for(int i=viewsN;i<portsN_1;i++)
+	views[i] = nullptr;
 
 	//Not required, but eliminates some padding.
 	bar2.portside_row.set_hidden(viewsM==viewsN);
@@ -569,6 +698,11 @@ void ViewPanel::_makeViews(int n)
 
 		//Update viewports/locks.
 		model.reshape();
+	}
+
+	if(model._colormixer_win)
+	{
+		model._colormixer_win->layoutChanged();
 	}
 }
 void ViewPanel::_save(int a, int b)
@@ -623,6 +757,7 @@ void ViewPanel::_defaultViews(int mem, bool save)
 		if(rc=_recall(c=0,0))
 		break;
 		views[0]->setView(Tool::ViewPerspective);
+		colors[0] = 0;
 		break;
 
 	case 2:
@@ -635,6 +770,8 @@ void ViewPanel::_defaultViews(int mem, bool save)
 		//be used to swap.
 		views[0]->setView(Tool::ViewPerspective);		
 		views[1]->setView(Tool::ViewOrtho);
+		colors[0] = 0;
+		colors[1] = 1;
 		break;
 
 	case 4:
@@ -650,6 +787,10 @@ void ViewPanel::_defaultViews(int mem, bool save)
 		views[1]->setView(Tool::ViewTop); //ViewFront		
 		views[2]->setView(Tool::ViewRight); //ViewPerspective
 		views[3]->setView(Tool::ViewFront); //ViewTop
+		colors[0] = 0;
+		colors[1] = 1;
+		colors[2] = 2;
+		colors[3] = 3;
 		break;
 
 	case 6:
@@ -677,6 +818,12 @@ void ViewPanel::_defaultViews(int mem, bool save)
 			views[4]->setView(Tool::ViewFront); //ViewRight
 			views[5]->setView(Tool::ViewPerspective); //ViewLeft
 		}
+		colors[0] = 0;
+		colors[1] = 1;
+		colors[2] = 4;
+		colors[3] = 2;
+		colors[4] = 3;
+		colors[5] = 5;
 		break;
 
 	/*2019: Can't be implemented as multipane window->
@@ -794,3 +941,36 @@ void ViewPanel::reset()
 {
 	memset(memory,0x00,sizeof(memory)); _defaultViews(viewsN,false); 
 }
+
+void ViewPanel::setBackgroundColor(float press)
+{
+	int bs = getButtons();
+
+	float newColor[3]; if(bs&Tool::BS_Shift)
+	{
+		newColor[0] = 130/255.0f;
+		newColor[1] = 200/255.0f;
+		newColor[2] = 200/255.0f;
+	}
+	else
+	{
+		auto &vc = model->getViewportColors()[colors[m_click]];
+
+		unsigned c = bs&Tool::BS_Left?0:bs&Tool::BS_Right?1:0;
+
+		c = vc.colors[c];
+
+		newColor[0] = (c&0xff)/255.0f;
+		newColor[1] = (c>>8&0xff)/255.0f;
+		newColor[2] = (c>>16&0xff)/255.0f;
+	}
+
+	for(int i=3;i-->0;) //lerp?
+	backColor[i] = (newColor[i]-backColor[i])*press+backColor[i];
+	
+	int old = glutGetWindow();
+	glutSetWindow(model.glut_window_id);
+	glClearColor(backColor[0],backColor[1],backColor[2],1);
+	glutSetWindow(old);
+}
+

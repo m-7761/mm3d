@@ -142,6 +142,7 @@ enum
 	id_tool_back,
 	id_tool_shift_lock, //EXPERIMENTAL
 	id_tool_shift_hold,
+	id_tool_colormixer,
 
 	/*Model menu*/
 	id_edit_undo,
@@ -167,6 +168,8 @@ enum
 	id_joint_settings,
 	id_joint_attach_verts,
 	id_joint_100,
+	id_joint_break_all,
+	id_joint_color_weights,
 	id_joint_weight_verts,
 	id_joint_remove_bones,
 	id_joint_remove_selection,
@@ -199,7 +202,16 @@ enum
 	id_animate_mode_1,
 	id_animate_mode_2,
 	id_animate_mode_3,
-	id_animate_bind,
+	//media controls
+	id_animate_rew,
+	id_animate_ffwd,
+	id_animate_back,
+	id_animate_fwd,
+	id_animate_top,
+	id_animate_end,
+	id_animate_auto,
+	id_animate_prev,
+	id_animate_next,
 	
 	/*Help menu*/
 	id_help,  //wxOSX needs to be Help.
@@ -207,6 +219,7 @@ enum
 	id_config,
 	id_keycfg,
 	id_license,
+	id_mouse_4,id_mouse_5,id_mouse_6,
 	id_unscale,
 	id_reorder,
 

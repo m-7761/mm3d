@@ -40,7 +40,7 @@ public:
 
 	ModelViewport(Parent*);
 
-	void draw(int frameX, int frameY, int width, int height);  //NEW	
+	void draw(int frameX, int frameY, int width, int height, int vc=0);  //NEW	
 
 	void render() //animexportwin
 	{
@@ -87,7 +87,12 @@ public:
 		ViewFlat,
 		ViewSmooth,
 		ViewTexture,
-		ViewAlpha
+		ViewAlpha,	
+	};
+	enum ViewColorsModE
+	{
+		ViewVColors=16,
+		ViewInflColors=32,		
 	};
 
 	enum MouseE
@@ -160,6 +165,8 @@ protected:
 	}
 
 	double getUnitWidth();
+
+	bool applyColor(int v, int bs, int x, int y, double r, double press, int vmode, int &iomode);
 
 	MouseE m_operation;
 
@@ -248,13 +255,13 @@ public: //slots:
 		
 	//NOTE: Misfit has 3x3 but for good
 	//grief that's impractical
-	enum{ portsN=3*2 };
-	ModelViewport ports[portsN];
+	enum{ portsN=3*2, portsN_1=portsN+1 };
+	ModelViewport ports[portsN_1];
 
 	bool views1x2;
 	int viewsM;
 	int viewsN;
-	//ViewBar::ModelView *views[portsN];	
+	//ViewBar::ModelView *views[portsN_1];	
 
 	GLuint m_scrollTextures[2]; //REMOVE ME	
 	void freeOverlay() //UNUSED
@@ -268,7 +275,7 @@ public: //slots:
 	//2022: m_click is added for determining new face normals.
 	//It means last clicked, so that moving the mouse up to the
 	//system menu to choose a command doesn't switch mouse focus.
-	int m_focus,m_click; 
+	int m_entry,m_focus,m_click; 
 	
 	//NOTE: This is used with Ctrl+1 through 9 to save/recall
 	//states by viewportSaveStateEvent/viewportRecallStateEvent.
@@ -322,6 +329,13 @@ public: //slots:
 	virtual unsigned getPrimaryLayer()
 	{
 		return ports[m_focus].m_layer; 
+	}
+
+	int colors[portsN_1];
+
+	virtual bool applyColor(double r, double x, int vmode, int &iomode)
+	{
+		return ports[m_click].applyColor(colors[m_click],_bs,_bx,_by,r,x,vmode,iomode);
 	}
 };
 

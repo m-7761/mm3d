@@ -101,9 +101,6 @@ public:
 	const int animation_mode;
 	const int animation_bind;
 	
-	Toolbox toolbox;	
-	ViewPanel views; SideBar sidebar; //IN Z-ORDER
-	
 	pos_list selection;
 	unsigned nselection[Model::PT_MAX];
 	int_list fselection;
@@ -114,10 +111,14 @@ public:
 	void sync_animation_window();
 	void open_transform_window();
 	void open_projection_window();
+	void open_colormixer_window();
+	void sync_colormixer_joint(int,int);
 	void close_viewport_window();
 	void perform_menu_action(int);
 
-private:
+	bool modal_locked();
+
+//private:
 	
 	void _init_menu_toolbar();	
 
@@ -126,8 +127,9 @@ private:
 	bool _window_title_asterisk;
 	void _rewrite_window_title();
 
-	friend struct AnimWin;
-	friend struct TextureCoordWin;	
+//	friend struct AnimWin;
+//	friend struct ViewPanel;
+//	friend struct TextureCoordWin;	
 	friend void viewwin_close_func();
 	friend void viewportsettings(MainWin&);
 	struct AnimWin *_animation_win;
@@ -135,6 +137,7 @@ private:
 	struct ProjectionWin *_projection_win;
 	struct TextureCoordWin *_texturecoord_win;
 	struct ViewportSettings *_vpsettings_win;
+	struct ColorWin *_colormixer_win;
 
 	void _sync_tools(int,int);
 	
@@ -151,6 +154,11 @@ private:
 	int _prev_ortho,_prev_persp;
 	int _prev_view,_curr_view;
 	void _view(int i, void (ViewPanel::*mf)());
+
+public:
+
+	Toolbox toolbox;	
+	ViewPanel views; SideBar sidebar; //IN Z-ORDER	
 };
 
 #endif // __VIEWWIN_H__

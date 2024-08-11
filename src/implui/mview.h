@@ -76,6 +76,7 @@ struct ViewBar::ParamsBar
 	control *new_spinbox(T *lv, utf8 name, T min, T max)
 	{
 		auto *c = new spinbox(nav,name,lv);
+		if(max-min>1)
 		c->spinner.set_speed(); //2022: Increments by 1.
 		return &c->limit(min,max).compact().sspace(0,8);
 	}
@@ -86,6 +87,23 @@ struct ViewBar::ParamsBar
 		*lv = std::min(i-1,std::max(0,*lv));
 		return &c->compact().sspace(0,8);
 	}
+	struct button2 : button
+	{
+		using button::button;
+
+		Tool *tool;
+		void (*f)(Tool *t, int bt);
+		static void cb(button2 *c){ c->f(c->tool,c->id()); }
+	};
+	control *new_button(int bt, Tool *val, void(*f)(Tool*,int), utf8 name)
+	{
+		auto *c = new button2(nav,name,bt,button2::cb);
+		c->tool = val;
+		c->f = f;
+		c->space<top>(-2);
+		return &c->span(10);
+	}
+
 	void clear()
 	{
 		for(node*q,*p=nav.first_child();p;)
@@ -184,11 +202,11 @@ struct ViewBar::StatusBar : StatusObject
 	_shifthold(flags,"Lk"), //id_tool_shift_hold
 	_face_view(flags,"Ccw"), //id_normal_order
 		//right-to-left reading (priority)
-	_100(flags,"Wt"), //id_joint_100
 	_clipboard(flags,"Ins"), //id_animate_insert
 	_keys_snap(flags,"Scr"), //id_animate_snap
 	_anim_mode(flags,""), //id_animate_mode
-	_anim_bind(flags,"X"), //id_animate_bind
+	_100(flags,"Wt"), //id_joint_100
+	_infl_break(flags,"X"), //id_animate_bind
 	stats(nav,"")
 	{
 		nav.expand();
@@ -269,11 +287,11 @@ struct ViewBar::StatusBar : StatusObject
 	_texshlock, //Uv 
 	_shifthold, //Lk (inverted)
 	_face_view, //Cw/Ccw (inverted)
-	_100, //1 //Wt (inverted)
 	_clipboard, //Ins
 	_keys_snap, //Scr (inverted)
 	_anim_mode, //Sam/Fam
-	_anim_bind; //X (inverted) (final)
+	_100, //1 //Wt (inverted)
+	_infl_break; //X (final)
 	titlebar stats;
 
 	// StatusObject methods
