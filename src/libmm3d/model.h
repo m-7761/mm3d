@@ -1053,6 +1053,8 @@ public:
 	// Animation set operations
 	unsigned _dup(Animation *copy, bool keyframes=true);
 	int copyAnimation(unsigned anim, const char *newName=nullptr);
+	int mirrorRotation(unsigned anim, bool x, bool y, bool z, const char *newName=nullptr);
+	int mirrorTranslation(unsigned anim, bool x, bool y, bool z, const char *newName=nullptr);
 	int splitAnimation(unsigned anim, const char *newName, unsigned frame);
 	bool joinAnimations(unsigned anim1, unsigned anim2);
 	bool mergeAnimations(unsigned anim1, unsigned anim2);

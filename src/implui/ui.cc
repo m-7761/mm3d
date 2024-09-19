@@ -77,7 +77,11 @@ static void ui_drop2(char **f, int n, bool FindWindow)
 			//2022: Saving and moving onto a new file is standard
 			//workflow. The file can be reopened as a last resort.
 			//MainWin::open(m,!i&&w&&!w->model->getEdited()?w:nullptr);
-			MainWin::open(m,!FindWindow&&!i&&w&&w->model->getSaved()&&!w->modal_locked()?w:nullptr);
+			w = !FindWindow&&!i&&w&&w->model->getSaved()&&!w->modal_locked()?w:nullptr;
+			//2024: Windows Explorer opens each file in its own 
+			//instance of MM3D. 2 is not enough time on my system.
+			time_t now = time(0);
+			MainWin::open(m,w&&now-w->opened_time>4?w:nullptr);
 
 			//add path to most-recently-used menu?
 			extern void viewwin_mru_drop(char*);

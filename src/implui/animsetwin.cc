@@ -569,6 +569,27 @@ struct AnimCleanupWin : Win
 	}
 };
 
+struct AnimMirrorWin : Win //EXPERIMENTAL
+{
+	AnimMirrorWin()
+		:
+	Win("Mirror"),
+	nav(main),
+	x(nav,"X"),y(nav,"Y"),z(nav,"Z"),
+	type(main),
+	ok_cancel(main)
+	{
+		type.row_pack();
+		type.add_item(0,"Rotation");
+		type.add_item(1,"Translation");
+	}
+
+	row nav;
+	boolean x,y,z;
+	multiple type;
+	ok_cancel_panel ok_cancel;	
+};
+
 extern void animsetwin_clean(MainWin &m)
 {
 	AnimCleanupWin(m).return_on_close();
@@ -717,8 +738,14 @@ void AnimSetWin::submit(int id)
 			if(j==-1) j = i;
 			if(mode==e.conv) 
 			{
+				if(i!=j)
 				model->moveAnimation(i,j); //NEW
-				table.add_item(new_item(j)->select());
+
+				auto *jt = &new_item(j)->select();
+
+				if(!it) table.add_item(jt);
+				else table.insert_item(jt,it);
+
 				refresh();
 			}
 			else converted = 1;
@@ -768,7 +795,8 @@ void AnimSetWin::submit(int id)
 		else event.beep(); break;
 
 	case id_delete:
-	case id_copy: case id_split: case id_join: case id_merge:
+	case id_copy: case id_mirror:
+	case id_split: case id_join: case id_merge:
 	{
 		unsort(); //YUCK
 
@@ -796,6 +824,21 @@ void AnimSetWin::submit(int id)
 				table.insert(ea->next(),new_item(ea->id()+b)); 
 				break;
 
+			case id_mirror: //EXPERIMENTAL
+			{
+				unsort(); //YUCK
+
+				AnimMirrorWin w;
+				if(id_ok!=w.return_on_close())
+				return;
+
+				if((int)w.type==0) model->mirrorRotation(ea->id(),w.x,w.y,w.z);
+				if((int)w.type==1) model->mirrorTranslation(ea->id(),w.x,w.y,w.z);
+
+				b++;
+				table.insert(ea->next(),new_item(ea->id()+b)); 
+				break;
+			}
 			case id_split:
 								
 				a = ea->id(); /*b = model->getAnimFrameCount(a); if(b<2)
@@ -894,10 +937,12 @@ void AnimSetWin::submit(int id)
 }
 void AnimSetWin::refresh()
 {
+	int ii = model->getAnimationIndex((Model::AnimationModeE)mode);
+
 	int iN = 0; if(!table.empty())
 	{
 		unsort();
-		table^[&](li::allitems ea){ ea->id() = iN++; };
+		table^[&](li::allitems ea){ ea->id() = ii+iN++; };
 	}
 	else if(iN=model->getAnimationCount((Model::AnimationModeE)mode))
 	{
@@ -908,9 +953,7 @@ void AnimSetWin::refresh()
 		//here I likely neglected to test the new code
 		//merge.enable(mode==Model::ANIMMODE_JOINT);
 		convert.enable(mode!=Model::ANIMMODE_FRAME);
-
-		int ii = model->getAnimationIndex((Model::AnimationModeE)mode);
-		
+				
 		for(int i=0;i<iN;i++) table.add_item(new_item(ii+i));
 
 		//MM3D's table is not sortable. It needs more work

@@ -95,6 +95,8 @@ public:
 	Model *operator->(){ return model; }	
 	
 	Model *const model;
+
+	const time_t opened_time;
 		
 	const int glut_window_id;
 	const int clipboard_mode; //Ctrl+C and Ctrl+V

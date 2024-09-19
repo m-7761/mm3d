@@ -1115,7 +1115,8 @@ static int viewwin_init()
 }
 MainWin::MainWin(Model *model):
 _deferredModelChanged(Model::ChangeAll),
-model(/*model*/),		
+model(/*model*/),
+opened_time(time(0)),
 glut_window_id(viewwin_init()),
 clipboard_mode(),
 animation_mode(3),

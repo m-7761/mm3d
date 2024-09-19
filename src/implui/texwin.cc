@@ -92,6 +92,18 @@ struct TextureWin : Win
 
 		submit(id_init);
 	}
+
+	//2024: let click on texture preview press [...]
+	struct canvas2 : canvas
+	{
+		using canvas::canvas;
+
+		virtual bool mouse_down_handler(int,int)
+		{
+			((TextureWin*)ui())->browse.execute_callback();
+			return false;
+		}
+	};
 		
 	Model *model;
 	
@@ -99,7 +111,7 @@ struct TextureWin : Win
 	row nav;
 	button add,name,del;
 	panel column_nav;	
-	canvas scene;
+	canvas2 scene;
 	row browse_nav;
 	textbox source; button browse;
 	dropdown column1;

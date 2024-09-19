@@ -676,6 +676,36 @@ int Model::copyAnimation(unsigned index, const char *newName)
 	
 	return index+1; //return num;
 }
+int Model::mirrorRotation(unsigned anim, bool x, bool y, bool z, const char *newName)
+{
+	int num = copyAnimation(anim,newName);
+	Animation *ab2 = m_anims[num];
+
+	for(auto&ea:ab2->m_keyframes)
+	for(auto*kf:ea.second) if(kf->m_isRotation==KeyRotate)
+	{
+		if(x) kf->m_parameter[0] = -kf->m_parameter[0];
+		if(y) kf->m_parameter[1] = -kf->m_parameter[1];
+		if(z) kf->m_parameter[2] = -kf->m_parameter[2];
+	}
+
+	return num;
+}
+int Model::mirrorTranslation(unsigned anim, bool x, bool y, bool z, const char *newName)
+{
+	int num = copyAnimation(anim,newName);
+	Animation *ab2 = m_anims[num];
+
+	for(auto&ea:ab2->m_keyframes)
+	for(auto*kf:ea.second) if(kf->m_isRotation==KeyTranslate)
+	{
+		if(x) kf->m_parameter[0] = -kf->m_parameter[0];
+		if(y) kf->m_parameter[1] = -kf->m_parameter[1];
+		if(z) kf->m_parameter[2] = -kf->m_parameter[2];
+	}
+
+	return num;
+}
 
 int Model::splitAnimation(unsigned index, const char *newName, unsigned frame)
 {

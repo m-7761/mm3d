@@ -41,7 +41,7 @@ enum
 	id_delete=127,id_new,id_name,id_value,id_source,id_browse,
 
 	/*animation operations*/
-	id_up,id_down,id_copy,id_split,id_join,id_merge,id_convert,
+	id_up,id_down,id_copy,id_split,id_join,id_merge,id_mirror,id_convert,
 
 	/*group operations*/
 	id_select,id_assign,id_append,id_remove,id_reset,
