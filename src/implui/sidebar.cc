@@ -1067,7 +1067,8 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 	//editing, but it seems like too much information for
 	//regular animation work and too much processing burden
 	//when selecting a large number of vertices
-	|Model::AnimationMode; 
+	//|Model::AnimationMode
+	|Model::SetInfluence; //AddOther; 
 	if(0==(changeBits&(Model::AddOther|watchlist)))
 	{
 		return; // Only change if group or selection change	
@@ -1080,7 +1081,7 @@ void SideBar::PropPanel::infl_props::change(int changeBits)
 	//bool enable = !model->inAnimationMode();
 	//bool enable = true;
 
-	if(changeBits&Model::AddOther)
+	if(changeBits&Model::SetInfluence) //AddOther
 	{
 		//2021: This is actually for Joints instead of
 		//influences.

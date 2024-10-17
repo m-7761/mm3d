@@ -89,7 +89,7 @@ bool ModelFilter::isSupported(const char *file)
 	if(p[i]&&texmgr_can_read_or_write(p[i],file)) return true; return false;
 }
 
-DataSource *ModelFilter::openInput(const char *filename,Model::ModelErrorE &err)
+DataSource *ModelFilter::openInput(const char *filename, Model::ModelErrorE &err)
 {
 	DataSource *src = m_factory->getSource(filename);
 	if(src->errorOccurred())
@@ -102,7 +102,7 @@ DataSource *ModelFilter::openInput(const char *filename,Model::ModelErrorE &err)
 	return src;
 }
 
-DataDest *ModelFilter::openOutput(const char *filename,Model::ModelErrorE &err)
+DataDest *ModelFilter::openOutput(const char *filename, Model::ModelErrorE &err)
 {
 	DataDest *dst = m_factory->getDest(filename);
 	if(dst->errorOccurred())
@@ -116,7 +116,7 @@ DataDest *ModelFilter::openOutput(const char *filename,Model::ModelErrorE &err)
 }
 
 /* static */
-Model::ModelErrorE ModelFilter::errnoToModelError(int err,Model::ModelErrorE defaultError)
+Model::ModelErrorE ModelFilter::errnoToModelError(int err, Model::ModelErrorE defaultError)
 {
 	switch (err)
 	{

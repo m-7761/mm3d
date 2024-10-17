@@ -308,7 +308,7 @@ const char *Model::errorToString(Model::ModelErrorE e,Model *model)
 		case ERROR_UNSUPPORTED_OPERATION:
 			return TRANSLATE_NOOP("LowLevel","Operation not supported for this file type");
 		case ERROR_BAD_ARGUMENT:
-			return TRANSLATE_NOOP("LowLevel","Invalid argument (internal error,probably null pointer argument)");
+			return TRANSLATE_NOOP("LowLevel","Invalid argument (internal error, probably null-pointer argument)");
 		case ERROR_NO_FILE:
 			return TRANSLATE_NOOP("LowLevel","File does not exist");
 		case ERROR_NO_ACCESS:

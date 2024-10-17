@@ -391,8 +391,10 @@ double Model::calculateCoordInfluenceWeight(const double *coord, unsigned joint)
 	return bcos *ccos;
 }
 
-bool Model::autoSetPositionInfluences(const Position &pos, double sensitivity,bool selected)
+bool Model::autoSetPositionInfluences(const Position &pos, double sensitivity, bool selected)
 {
+	if(!getPositionInfluences(pos)) return false; //2024
+
 	double coord[3] = { 0,0,0 };
 	getPositionCoords(pos,coord);
 	int_list l;
@@ -431,16 +433,16 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity, bool selec
 	if(!selected||m_joints[joint]->m_selected)
 	{
 		int child = -1;
-		double cdist = 0;
-		for(int b=0;b<bcount;b++)		
-		if(getBoneJointParent(b)==(int)joint)
+		double chdist = 0;
+		for(int ch=0;ch<bcount;ch++)		
+		if(getBoneJointParent(ch)==joint)
 		{
 			double ccoord[3];
-			getBoneJointCoords(b,ccoord);
+			getBoneJointCoords(ch,ccoord);
 			double d = distance(ccoord,coord);
-			if(child<0||d<cdist)
+			if(child<0||d<chdist)
 			{
-				child = b; cdist = d;
+				child = ch; chdist = d;
 			}
 		}
 
@@ -467,7 +469,7 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity, bool selec
 			bestJoint = joint;
 			bestDist  = dist;
 			bestChild = child;
-			bestChildDist = cdist;
+			bestChildDist = chdist;
 			bestDot	= bcos;
 		}
 	}
@@ -475,8 +477,10 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity, bool selec
 	if(bestJoint>=0)
 	{
 		infList.push_back(bestJoint);
+
 		if(bestChild>=0)		
 		if(bestChildDist*(1-sensitivity)<bestDist*0.5)
+	//	if(!selected||m_joints[bestChild]->m_selected) //2024 //TESTING
 		{
 			infList.push_back(bestChild);
 		}
@@ -484,6 +488,7 @@ bool Model::autoSetCoordInfluences(double *coord, double sensitivity, bool selec
 		int parent = getBoneJointParent(bestJoint);
 		if(parent>0)
 		if((bestDot-1)*sensitivity<-0.080)
+	//	if(!selected||m_joints[parent]->m_selected) //2024 //TESTING
 		{
 			infList.push_back(parent);
 		}

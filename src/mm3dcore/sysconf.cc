@@ -34,29 +34,38 @@
 #include "log.h"
 #include "version.h"
 
+#ifdef _WIN32
+static std::wstring s_mm3dHomeDir;
+static std::wstring s_docDir;
+static std::wstring s_i18nDir;
+static std::wstring s_pluginDir;
+static std::wstring s_sharedPluginDir;
+static std::wstring s_configFile;
+#else
 static std::string s_mm3dHomeDir;
 static std::string s_docDir;
 static std::string s_i18nDir;
 static std::string s_pluginDir;
 static std::string s_sharedPluginDir;
 static std::string s_configFile;
+#endif
 
 #ifdef _WIN32
 
 // Gets the path to the current process's exe file
-static std::string getExecutablePath()
+static std::wstring getExecutablePath()
 {
-	std::string rval = "";
-	char execpath[MAX_PATH];
-	char execpath2[MAX_PATH];
+	std::wstring rval = L"";
+	wchar_t execpath[MAX_PATH];
+	wchar_t execpath2[MAX_PATH];
 	DWORD length;
 
-	length = GetModuleFileNameA(nullptr,execpath2,sizeof(execpath));
+	length = GetModuleFileNameW(nullptr,execpath2,sizeof(execpath));
 
 	//2021: Visual Studio generated paths fail FindFirstFile
 	//https://github.com/zturtleman/mm3d/issues/163
-	if(PathCanonicalizeA(execpath,execpath2))
-	length = strlen(execpath);
+	if(PathCanonicalizeW(execpath,execpath2))
+	length = wcslen(execpath);
 
 	if(length>=sizeof(execpath))
 	{
@@ -66,10 +75,11 @@ static std::string getExecutablePath()
 	{
 		//log_debug("getExecutablePath: GetModuleFileNameA() failed: 0x%x\n",GetLastError());
 	}
-	else if(char*ptr=strrchr(execpath,'\\'))
+	else if(wchar_t*ptr=wcsrchr(execpath,'\\'))
 	{
 		*ptr = '\0'; rval = execpath;
 	}
+
 	return rval;
 }
 
@@ -127,8 +137,9 @@ void init_sysconf()
 	std::string majorMinor = VERSION; 
 	majorMinor.erase(majorMinor.rfind('.'));
 
-#ifdef _WIN32 
-	std::string path = getExecutablePath();
+#ifdef _WIN32
+
+	std::wstring path = getExecutablePath();
 
 	if(path.size()==0)
 	{
@@ -136,34 +147,50 @@ void init_sysconf()
 
 		//UNTESTED?
 		//char cwd[PATH_MAX]; //???
-		char cwd[MAX_PATH];
+		//char cwd[MAX_PATH];
 
-		if(GetCurrentDirectoryA(sizeof(cwd),cwd)>0){
-			path = cwd;
-		} else {
-			path = ".";
-		}
+		wchar_t cwd[MAX_PATH];
+
+		if(GetCurrentDirectoryW(MAX_PATH,cwd)>0)
+		path = cwd;
+		else path = L".";
 	}
 
-	char appdata[MAX_PATH];
-	if(SHGetFolderPathA(nullptr,CSIDL_APPDATA|CSIDL_FLAG_CREATE,nullptr,0,appdata)==S_OK){
+	wchar_t appdata[MAX_PATH];
+	if(SHGetFolderPathW(nullptr,CSIDL_APPDATA|CSIDL_FLAG_CREATE,nullptr,0,appdata)==S_OK)
+	{
 		s_mm3dHomeDir  = appdata;
-		s_mm3dHomeDir += HOME_MM3D;
-	} else {
+		//s_mm3dHomeDir += HOME_MM3D;
+		for(const char&ea:HOME_MM3D)
+		s_mm3dHomeDir += (wchar_t)ea;
+	}
+	else
+	{
 		s_mm3dHomeDir  = path;
-		s_mm3dHomeDir += "\\userhome";
+		s_mm3dHomeDir += L"\\userhome";
 	}
 
-	s_pluginDir	= s_mm3dHomeDir+HOME_PLUGINS;
-	s_pluginDir  += "\\";
-	s_pluginDir  += majorMinor;
+	for(const char&ea:HOME_PLUGINS)
+	s_pluginDir+=(wchar_t)ea;
+	s_pluginDir  += L"\\";
+	for(const char&ea:majorMinor)
+	s_pluginDir  += (wchar_t)ea;
+	
+	s_docDir = path;
+	for(const char&ea:DOC_ROOT)
+	s_docDir += ea;
+	s_i18nDir = path;
+	for(const char&ea:I18N_ROOT)
+	s_i18nDir += ea;
+	s_sharedPluginDir = path;
+	for(const char&ea:SHARED_PLUGINS)
+	s_sharedPluginDir+=ea;
+	s_sharedPluginDir += L"\\";
+	for(const char&ea:majorMinor)
+	s_sharedPluginDir += ea;
 
-	s_docDir		= path+DOC_ROOT;
-	s_i18nDir	  = path+I18N_ROOT;
-	s_sharedPluginDir  = path+SHARED_PLUGINS;
-	s_sharedPluginDir += "\\";
-	s_sharedPluginDir += majorMinor;
 #elif defined __APPLE__
+
 	s_mm3dHomeDir = getenv("HOME");
 	s_mm3dHomeDir += HOME_MM3D;
 	s_pluginDir = s_mm3dHomeDir+HOME_PLUGINS;
@@ -173,19 +200,23 @@ void init_sysconf()
 	std::string appPath = getAppBundlePath();
 
 	if(appPath.size()>0){
-		s_docDir			  = appPath+"/Contents/SharedSupport/mm3d/doc/html";
-		s_i18nDir			 = appPath+"/Contents/SharedSupport/mm3d/i18n";
-		s_sharedPluginDir  = appPath+"/Contents/PlugIns/mm3d";
-		s_sharedPluginDir += "/";
-		s_sharedPluginDir += majorMinor;
-	} else {
-		s_docDir			  = DOC_ROOT;
-		s_i18nDir			 = I18N_ROOT;
-		s_sharedPluginDir  = SHARED_PLUGINS;
+		s_docDir = appPath+"/Contents/SharedSupport/mm3d/doc/html";
+		s_i18nDir = appPath+"/Contents/SharedSupport/mm3d/i18n";
+		s_sharedPluginDir = appPath+"/Contents/PlugIns/mm3d";
 		s_sharedPluginDir += "/";
 		s_sharedPluginDir += majorMinor;
 	}
+	else 
+	{
+		s_docDir = DOC_ROOT;
+		s_i18nDir = I18N_ROOT;
+		s_sharedPluginDir = SHARED_PLUGINS;
+		s_sharedPluginDir += "/";
+		s_sharedPluginDir += majorMinor;
+	}
+
 #else
+
 	s_mm3dHomeDir = getenv("HOME");
 	s_mm3dHomeDir += HOME_MM3D;
 	s_docDir	 = DOC_ROOT;
@@ -196,9 +227,20 @@ void init_sysconf()
 	s_sharedPluginDir  = SHARED_PLUGINS;
 	s_sharedPluginDir += "/";
 	s_sharedPluginDir += majorMinor;
+
 #endif
 
-	s_configFile = s_mm3dHomeDir+HOME_RC;
+	#ifdef _WIN32 
+	{
+		s_configFile = s_mm3dHomeDir;
+		for(const char&ea:HOME_RC)
+		s_configFile+=(wchar_t)ea;
+	}
+	#else 
+	{
+		s_configFile = s_mm3dHomeDir+HOME_RC;
+	}
+	#endif
 
 	/*
 	//log_debug("mm3d home is %s\n",s_mm3dHomeDir.c_str());
@@ -211,33 +253,93 @@ void init_sysconf()
 	//free(majorMinor);
 }
 
+#ifdef _WIN32
+const std::string getConfigFile()
+{
+	int len = WideCharToMultiByte(CP_UTF8,0,s_configFile.c_str(),-1,0,0,0,0)-1;
+	std::string u(len,'\0');
+	WideCharToMultiByte(CP_UTF8,0,s_configFile.c_str(),-1,&u[0],len,0,0);
+	return u;
+}
+#else
 const std::string &getConfigFile()
 {
 	return s_configFile;
 }
+#endif
 
+#ifdef _WIN32
+const std::string getMm3dHomeDirectory()
+{
+	int len = WideCharToMultiByte(CP_UTF8,0,s_mm3dHomeDir.c_str(),-1,0,0,0,0)-1;
+	std::string u(len,'\0');
+	WideCharToMultiByte(CP_UTF8,0,s_mm3dHomeDir.c_str(),-1,&u[0],len,0,0);
+	return u;
+}
+#else
 const std::string &getMm3dHomeDirectory()
 {
 	return s_mm3dHomeDir;
 }
+#endif
 
+#ifdef _WIN32
+const std::string getDocDirectory()
+{
+	int len = WideCharToMultiByte(CP_UTF8,0,s_docDir.c_str(),-1,0,0,0,0)-1;
+	std::string u(len,'\0');
+	WideCharToMultiByte(CP_UTF8,0,s_docDir.c_str(),-1,&u[0],len,0,0);
+	return u;
+}
+#else
 const std::string &getDocDirectory()
 {
 	return s_docDir;
 }
+#endif
 
+#ifdef _WIN32
+const std::string getI18nDirectory()
+{
+	int len = WideCharToMultiByte(CP_UTF8,0,s_i18nDir.c_str(),-1,0,0,0,0)-1;
+	std::string u(len,'\0');
+	WideCharToMultiByte(CP_UTF8,0,s_i18nDir.c_str(),-1,&u[0],len,0,0);
+	return u;
+}
+#else
 const std::string &getI18nDirectory()
 {
 	return s_i18nDir;
 }
+#endif
 
+#ifdef _WIN32
+const std::string getPluginDirectory()
+{
+	int len = WideCharToMultiByte(CP_UTF8,0,s_pluginDir.c_str(),-1,0,0,0,0)-1;
+	std::string u(len,'\0');
+	WideCharToMultiByte(CP_UTF8,0,s_pluginDir.c_str(),-1,&u[0],len,0,0);
+	return u;
+}
+#else
 const std::string &getPluginDirectory()
 {
 	return s_pluginDir;
 }
+#endif
 
+#ifdef _WIN32
+const std::string getSharedPluginDirectory()
+{
+	int len = WideCharToMultiByte(CP_UTF8,0,s_sharedPluginDir.c_str(),-1,0,0,0,0)-1;
+	std::string u(len,'\0');
+	WideCharToMultiByte(CP_UTF8,0,s_sharedPluginDir.c_str(),-1,&u[0],len,0,0);
+	return u;
+}
+#else
 const std::string &getSharedPluginDirectory()
 {
 	return s_sharedPluginDir;
 }
+#endif
 

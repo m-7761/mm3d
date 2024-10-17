@@ -1360,6 +1360,8 @@ Model *MainWin::_swap_models(Model *swap)
 		model_status(model,StatusNotice,STATUSTIME_SHORT,f,lc,l[0],l[1],l[2]);
 	}
 
+	model->setSkeletalModeEnabled(!views.status._infl_break);
+
 	//This is needed to jumpstart.
 	modelChanged(Model::ChangeAll); return swap;
 }

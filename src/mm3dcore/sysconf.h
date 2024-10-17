@@ -34,12 +34,20 @@
 
 void init_sysconf();
 
+#ifdef _WIN32
+const std::string getMm3dHomeDirectory();
+const std::string getDocDirectory();
+const std::string getI18nDirectory();
+const std::string getPluginDirectory();
+const std::string getSharedPluginDirectory();
+const std::string getConfigFile();
+#else
 const std::string &getMm3dHomeDirectory();
 const std::string &getDocDirectory();
 const std::string &getI18nDirectory();
 const std::string &getPluginDirectory();
 const std::string &getSharedPluginDirectory();
-
 const std::string &getConfigFile();
+#endif
 
 #endif // __SYSCONF_H

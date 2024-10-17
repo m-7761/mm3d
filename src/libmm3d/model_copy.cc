@@ -304,7 +304,7 @@ Model *Model::copySelected(bool animated)const
 			for(auto&ea:getPointInfluences(it->first))
 			{
 				if(isBoneJointSelected(ea.m_boneId))
-				m->setVertexInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
+				m->setPointInfluence(it->second,pointMap[ea.m_boneId],ea.m_type,ea.m_weight);
 			}
 		}
 	}
